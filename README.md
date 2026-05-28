@@ -1,8 +1,10 @@
 # Global Software Timer
 
-Global Software Timer, also displayed as `全局软件计时器` in Chinese, is a local-first desktop app that tracks how long you use desktop software.
+Global Software Timer, also displayed as `全局软件计时器` in Chinese, is a local-first desktop app being built to track how long you use desktop software.
 
-v0.1 is Windows-first. It runs in the system tray, records application runtime locally, and shows a Steam-like dashboard with Most Used, today's recorded time, today's active time, and per-application totals.
+v0.1 is Windows-first. It is designed to run in the system tray, record application runtime locally, and show a Steam-like dashboard with Most Used, today's recorded time, today's active time, and per-application totals.
+
+The current development build includes tracker, storage, classifier, tray, and dashboard shell work. Automatic background scanning and real aggregate dashboard wiring are pending final v0.1 verification.
 
 ## Privacy First
 
