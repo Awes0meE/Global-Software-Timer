@@ -65,7 +65,31 @@ Later versions may add:
 - Data export and backup.
 - Long-duration soak testing toward 5000+ hours of stable runtime.
 
-## 4. Technology Stack
+## 4. Product Strategy
+
+The product path is:
+
+- Initial stage: open-source the core modules on GitHub, establish a developer community, and attract privacy advocates and technical enthusiasts.
+- Middle stage: integrate with productivity tools such as Notion and Obsidian through import/export or plugin workflows.
+- Long-term stage: launch companion mobile apps and move toward a full-device time-tracking loop.
+
+This strategy affects technical design in three ways:
+
+- The local tracking core must be understandable, auditable, and separable from paid product layers.
+- Data export/import boundaries should stay clean so future integrations do not require rewriting the storage model.
+- Privacy-sensitive capabilities must remain explicit and opt-in, because trust is central to adoption.
+
+## 5. Monetization Direction
+
+The intended monetization model is:
+
+- Free core: local application runtime tracking, basic dashboard, local-only data storage, and privacy-first defaults remain free.
+- One-time paid advanced features: weekly/monthly trends, scenario classification, richer analytics, and report export may be sold as a one-time upgrade around 4.99-9.99 USD to avoid subscription fatigue.
+- Team/enterprise edition: small-team local server deployment with team-level summary analysis may be offered around 29-49 USD per month per team.
+
+v0.1 will not implement payment, licensing, accounts, cloud services, or enterprise deployment. However, the architecture should avoid mixing the open-source tracker core with future paid analytics or team features.
+
+## 6. Technology Stack
 
 Recommended and approved stack:
 
@@ -81,11 +105,11 @@ Rationale:
 - The architecture can later support macOS without discarding the whole product.
 - Tauri has official support for system tray and autostart workflows.
 
-## 5. System Architecture
+## 7. System Architecture
 
 The app is split into five main modules.
 
-### 5.1 Tracker
+### 7.1 Tracker
 
 The Tracker is a Rust background engine. It periodically scans processes visible to the current user, detects application start and stop events, maintains in-memory running state, and writes durable events to SQLite.
 
@@ -93,7 +117,7 @@ v0.1 tracks process runtime, not foreground activity per application.
 
 Default scan interval: about 5 seconds.
 
-### 5.2 App Classifier
+### 7.2 App Classifier
 
 The App Classifier turns raw process data into user-facing applications.
 
@@ -108,7 +132,7 @@ Responsibilities:
 
 The dashboard should feel like it intelligently surfaces software the user cares about, not a raw process explorer.
 
-### 5.3 Local Store
+### 7.3 Local Store
 
 SQLite stores all app data locally.
 
@@ -119,7 +143,7 @@ v0.1 uses event logging plus summary tables:
 
 SQLite will use WAL mode for the main application database.
 
-### 5.4 Dashboard
+### 7.4 Dashboard
 
 The dashboard is a React/TypeScript UI in a dark Steam-like style.
 
@@ -139,7 +163,7 @@ Chinese UI copy rules:
 - Time format: 8小时16分钟
 - If below one hour: 42分钟
 
-### 5.5 Tray And Startup
+### 7.5 Tray And Startup
 
 Tauri handles:
 
@@ -151,7 +175,7 @@ Tauri handles:
 
 v0.1 is a normal user-space app, not a Windows service.
 
-## 6. Data Model
+## 8. Data Model
 
 The implementation plan will turn the following concepts into the initial v0.1 schema.
 
@@ -222,7 +246,7 @@ Expected fields:
 - active seconds
 - tracker uptime seconds
 
-## 7. Robustness Strategy
+## 9. Robustness Strategy
 
 Robustness is a core product requirement.
 
@@ -242,7 +266,7 @@ Expected v0.1 loss window:
 - At most the latest scan or flush interval should be at risk after an abnormal exit.
 - Historical data should remain intact.
 
-## 8. Privacy And Security Boundaries
+## 10. Privacy And Security Boundaries
 
 v0.1 is privacy-first.
 
@@ -274,7 +298,7 @@ It does not:
 
 Future privacy-sensitive features must be opt-in and clearly explained before enabling.
 
-## 9. UI Direction
+## 11. UI Direction
 
 The approved visual direction is:
 
@@ -293,7 +317,7 @@ v0.1 dashboard layout:
 - Side panel for today's distribution.
 - Minimal settings for startup, hidden apps, and naming.
 
-## 10. Error Handling
+## 12. Error Handling
 
 Tracker errors:
 
@@ -316,7 +340,7 @@ Permission limits:
 - If a process cannot be read under normal user permissions, v0.1 ignores it or records limited information.
 - v0.1 does not prompt for UAC.
 
-## 11. Open Source Requirements
+## 13. Open Source Requirements
 
 The project will be GitHub-ready from the beginning.
 
@@ -328,6 +352,7 @@ Required documentation:
 - Basic contribution notes.
 - Build and run instructions.
 - Windows packaging notes.
+- A short note explaining which parts are intended to remain open-source core modules.
 
 CI for the first public MVP will include:
 
@@ -337,7 +362,7 @@ CI for the first public MVP will include:
 - Unit tests.
 - Basic build validation.
 
-## 12. v0.1 Acceptance Criteria
+## 14. v0.1 Acceptance Criteria
 
 Functional:
 
@@ -375,7 +400,7 @@ Performance:
 - Dashboard rendering does not keep heavy work running when hidden.
 - The app is acceptable on lower-spec Windows machines.
 
-## 13. Out Of Scope For v0.1
+## 15. Out Of Scope For v0.1
 
 - macOS implementation.
 - Advanced charts.
@@ -387,8 +412,11 @@ Performance:
 - Plugin system.
 - Enterprise deployment.
 - Automatic public release pipeline.
+- Payment or license activation.
+- Notion, Obsidian, or other productivity-tool integrations.
+- Mobile companion apps.
 
-## 14. Approved Decisions
+## 16. Approved Decisions
 
 - Long-term design records both runtime and active usage; v0.1 implements runtime and reserves active-time fields.
 - Windows 10/11 comes first.
@@ -402,3 +430,5 @@ Performance:
 - Later versions may add optional enhanced detection.
 - "Today computer usage" includes both recorded time and active time.
 - Project is GitHub-ready from the beginning.
+- Product strategy starts with an open-source core, then adds productivity-tool integrations and eventually mobile companion apps.
+- Monetization direction is free core plus one-time paid advanced analytics, with a future local-deployment team edition.
