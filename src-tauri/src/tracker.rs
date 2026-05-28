@@ -65,12 +65,10 @@ impl<S: ProcessSource> Tracker<S> {
                 &snapshot.executable_path,
                 &display_name,
             )?;
-            let session_id = self.store.start_session(app.id, Utc::now())?;
-            self.store.insert_run_event(
-                Some(app.id),
-                RunEventKind::AppSeenStarted,
-                Some(&format!(r#"{{"pid":{}}}"#, snapshot.pid)),
-            )?;
+            let payload_json = format!(r#"{{"pid":{}}}"#, snapshot.pid);
+            let session_id =
+                self.store
+                    .start_session_with_event(app.id, Utc::now(), Some(&payload_json))?;
             self.running_by_key.insert(
                 key,
                 RunningApp {
@@ -88,18 +86,15 @@ impl<S: ProcessSource> Tracker<S> {
             .collect::<Vec<_>>();
 
         for key in stopped_keys {
-            if let Some(running) = self.running_by_key.remove(&key) {
-                self.store.close_session(
+            if let Some(running) = self.running_by_key.get(&key).cloned() {
+                self.store.close_session_with_event(
                     running.session_id,
+                    running.app_id,
                     Utc::now(),
                     "process_closed",
                     false,
                 )?;
-                self.store.insert_run_event(
-                    Some(running.app_id),
-                    RunEventKind::AppSeenStopped,
-                    None,
-                )?;
+                self.running_by_key.remove(&key);
             }
         }
 

@@ -1,3 +1,4 @@
+use chrono::{TimeZone, Utc};
 use global_software_timer_lib::process_source::{ProcessSnapshot, ProcessSource};
 use global_software_timer_lib::storage::Store;
 use global_software_timer_lib::tracker::Tracker;
@@ -51,4 +52,70 @@ fn tracker_creates_and_closes_sessions_from_process_changes() {
     assert_eq!(sessions.len(), 1);
     assert!(sessions[0].ended_at.is_some());
     assert_eq!(sessions[0].close_reason.as_deref(), Some("process_closed"));
+}
+
+#[test]
+fn tracker_deduplicates_snapshots_for_the_same_normalized_key() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+
+    let source = FakeProcessSource::new(vec![vec![code_process(), code_process()], vec![]]);
+    let mut tracker = Tracker::new(store, source);
+
+    tracker.scan_once().expect("scan starts one session");
+    tracker.scan_once().expect("scan closes one session");
+
+    let sessions = tracker.store().all_sessions().expect("sessions");
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].close_reason.as_deref(), Some("process_closed"));
+}
+
+#[test]
+fn close_session_stores_exact_duration_seconds() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app(
+            "Code.exe",
+            code_process().executable_path.as_str(),
+            "Visual Studio Code",
+        )
+        .expect("app");
+    let started_at = Utc.with_ymd_and_hms(2026, 5, 28, 10, 0, 0).unwrap();
+    let ended_at = Utc.with_ymd_and_hms(2026, 5, 28, 10, 1, 30).unwrap();
+    let session_id = store.start_session(app.id, started_at).expect("start");
+
+    store
+        .close_session(session_id, ended_at, "process_closed", false)
+        .expect("close");
+
+    let sessions = store.all_sessions().expect("sessions");
+    assert_eq!(sessions[0].duration_seconds, 90);
+}
+
+#[test]
+fn stale_session_updates_return_errors() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app(
+            "Code.exe",
+            code_process().executable_path.as_str(),
+            "Visual Studio Code",
+        )
+        .expect("app");
+    let started_at = Utc.with_ymd_and_hms(2026, 5, 28, 10, 0, 0).unwrap();
+    let ended_at = Utc.with_ymd_and_hms(2026, 5, 28, 10, 1, 0).unwrap();
+    let session_id = store.start_session(app.id, started_at).expect("start");
+    store
+        .close_session(session_id, ended_at, "process_closed", false)
+        .expect("close");
+
+    assert!(store.heartbeat_session(session_id, ended_at).is_err());
+    assert!(store
+        .close_session(session_id, ended_at, "process_closed", false)
+        .is_err());
 }

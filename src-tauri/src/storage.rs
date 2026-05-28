@@ -10,6 +10,11 @@ pub enum StoreError {
     Sqlite(#[from] rusqlite::Error),
     #[error("datetime parse error: {0}")]
     ChronoParse(#[from] chrono::ParseError),
+    #[error("{operation} updated {count} rows")]
+    UnexpectedUpdateCount {
+        operation: &'static str,
+        count: usize,
+    },
 }
 
 pub type StoreResult<T> = Result<T, StoreError>;
@@ -175,11 +180,42 @@ impl Store {
         Ok(self.conn.last_insert_rowid())
     }
 
+    pub fn start_session_with_event(
+        &self,
+        app_id: i64,
+        now: DateTime<Utc>,
+        payload_json: Option<&str>,
+    ) -> StoreResult<i64> {
+        self.conn.execute_batch("BEGIN IMMEDIATE")?;
+        let result = (|| {
+            let session_id = self.start_session(app_id, now)?;
+            self.insert_run_event(Some(app_id), RunEventKind::AppSeenStarted, payload_json)?;
+            Ok(session_id)
+        })();
+
+        match result {
+            Ok(session_id) => {
+                self.conn.execute_batch("COMMIT")?;
+                Ok(session_id)
+            }
+            Err(error) => {
+                let _ = self.conn.execute_batch("ROLLBACK");
+                Err(error)
+            }
+        }
+    }
+
     pub fn heartbeat_session(&self, session_id: i64, now: DateTime<Utc>) -> StoreResult<()> {
-        self.conn.execute(
+        let count = self.conn.execute(
             "UPDATE usage_sessions SET last_heartbeat_at = ?1 WHERE id = ?2 AND ended_at IS NULL",
             params![now.to_rfc3339(), session_id],
         )?;
+        if count != 1 {
+            return Err(StoreError::UnexpectedUpdateCount {
+                operation: "heartbeat_session",
+                count,
+            });
+        }
         Ok(())
     }
 
@@ -190,23 +226,74 @@ impl Store {
         close_reason: &str,
         recovered: bool,
     ) -> StoreResult<()> {
-        self.conn.execute(
+        let started_at = self
+            .conn
+            .query_row(
+                "SELECT started_at FROM usage_sessions WHERE id = ?1 AND ended_at IS NULL",
+                params![session_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        let Some(started_at) = started_at else {
+            return Err(StoreError::UnexpectedUpdateCount {
+                operation: "close_session",
+                count: 0,
+            });
+        };
+        let started_at = DateTime::parse_from_rfc3339(&started_at)?.with_timezone(&Utc);
+        let duration_seconds = ended_at.signed_duration_since(started_at).num_seconds();
+
+        let count = self.conn.execute(
             r#"
             UPDATE usage_sessions
             SET ended_at = ?1,
-                duration_seconds = CAST((julianday(?1) - julianday(started_at)) * 86400 AS INTEGER),
-                close_reason = ?2,
-                recovered = ?3
-            WHERE id = ?4 AND ended_at IS NULL
+                duration_seconds = ?2,
+                close_reason = ?3,
+                recovered = ?4
+            WHERE id = ?5 AND ended_at IS NULL
             "#,
             params![
                 ended_at.to_rfc3339(),
+                duration_seconds,
                 close_reason,
                 recovered as i64,
                 session_id
             ],
         )?;
+        if count != 1 {
+            return Err(StoreError::UnexpectedUpdateCount {
+                operation: "close_session",
+                count,
+            });
+        }
         Ok(())
+    }
+
+    pub fn close_session_with_event(
+        &self,
+        session_id: i64,
+        app_id: i64,
+        ended_at: DateTime<Utc>,
+        close_reason: &str,
+        recovered: bool,
+    ) -> StoreResult<()> {
+        self.conn.execute_batch("BEGIN IMMEDIATE")?;
+        let result = (|| {
+            self.close_session(session_id, ended_at, close_reason, recovered)?;
+            self.insert_run_event(Some(app_id), RunEventKind::AppSeenStopped, None)?;
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                self.conn.execute_batch("COMMIT")?;
+                Ok(())
+            }
+            Err(error) => {
+                let _ = self.conn.execute_batch("ROLLBACK");
+                Err(error)
+            }
+        }
     }
 
     pub fn all_sessions(&self) -> StoreResult<Vec<UsageSession>> {
