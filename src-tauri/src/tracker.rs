@@ -1,9 +1,11 @@
+use crate::activity::ActivitySource;
 use crate::classifier::{classify_process, Classification};
 use crate::domain::RunEventKind;
 use crate::process_source::{ProcessSnapshot, ProcessSource};
 use crate::storage::{Store, StoreError};
-use chrono::Utc;
+use chrono::{NaiveDate, Utc};
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -113,4 +115,24 @@ impl<S: ProcessSource> Tracker<S> {
             }
         }
     }
+}
+
+pub fn run_tracker_tick<S: ProcessSource, A: ActivitySource>(
+    tracker: &mut Tracker<S>,
+    activity_source: &A,
+    usage_date: NaiveDate,
+    tick_duration: Duration,
+    active_threshold: Duration,
+) -> TrackerResult<()> {
+    let scan_result = tracker.scan_once();
+    let seconds = tick_duration.as_secs().min(i64::MAX as u64) as i64;
+    let active_seconds = if activity_source.is_active(active_threshold) {
+        seconds
+    } else {
+        0
+    };
+    tracker
+        .store()
+        .increment_daily_system_usage(usage_date, seconds, active_seconds, seconds)?;
+    scan_result
 }

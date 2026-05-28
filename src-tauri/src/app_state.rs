@@ -15,6 +15,7 @@ impl AppState {
     pub fn new(db_path: PathBuf) -> Result<Self, crate::storage::StoreError> {
         let store = Store::open(&db_path)?;
         store.migrate()?;
+        store.recover_open_sessions()?;
         let tracker = Tracker::new(store, SysinfoProcessSource::new());
         Ok(Self {
             db_path,

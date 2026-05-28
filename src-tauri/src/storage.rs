@@ -1,6 +1,7 @@
-use crate::domain::{AppIdentity, RunEventKind, UsageSession};
-use chrono::{DateTime, Utc};
+use crate::domain::{AppIdentity, AppUsageSummary, DailySystemUsage, RunEventKind, UsageSession};
+use chrono::{DateTime, NaiveDate, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
+use std::collections::HashMap;
 use std::path::Path;
 use thiserror::Error;
 
@@ -241,7 +242,7 @@ impl Store {
             });
         };
         let started_at = DateTime::parse_from_rfc3339(&started_at)?.with_timezone(&Utc);
-        let duration_seconds = ended_at.signed_duration_since(started_at).num_seconds();
+        let duration_seconds = non_negative_seconds(started_at, ended_at);
 
         let count = self.conn.execute(
             r#"
@@ -328,6 +329,207 @@ impl Store {
 
         Ok(sessions)
     }
+
+    pub fn app_usage_summary(
+        &self,
+        day_start_utc: DateTime<Utc>,
+        now_utc: DateTime<Utc>,
+    ) -> StoreResult<Vec<AppUsageSummary>> {
+        #[derive(Debug)]
+        struct AppTotals {
+            display_name: String,
+            process_name: String,
+            total_seconds: i64,
+            today_seconds: i64,
+            is_running: bool,
+        }
+
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT apps.id,
+                   apps.display_name,
+                   apps.process_name,
+                   usage_sessions.started_at,
+                   usage_sessions.ended_at
+            FROM usage_sessions
+            INNER JOIN apps ON apps.id = usage_sessions.app_id
+            WHERE apps.is_hidden = 0
+            "#,
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut totals: HashMap<i64, AppTotals> = HashMap::new();
+
+        while let Some(row) = rows.next()? {
+            let app_id: i64 = row.get(0)?;
+            let display_name: String = row.get(1)?;
+            let process_name: String = row.get(2)?;
+            let started_at: String = row.get(3)?;
+            let ended_at: Option<String> = row.get(4)?;
+            let started_at = DateTime::parse_from_rfc3339(&started_at)?.with_timezone(&Utc);
+            let ended_at = ended_at
+                .map(|value| DateTime::parse_from_rfc3339(&value).map(|dt| dt.with_timezone(&Utc)))
+                .transpose()?;
+            let display_end = ended_at.unwrap_or(now_utc);
+
+            let entry = totals.entry(app_id).or_insert(AppTotals {
+                display_name,
+                process_name,
+                total_seconds: 0,
+                today_seconds: 0,
+                is_running: false,
+            });
+            entry.total_seconds += non_negative_seconds(started_at, display_end);
+            entry.today_seconds += overlap_seconds(started_at, display_end, day_start_utc, now_utc);
+            entry.is_running |= ended_at.is_none();
+        }
+
+        let mut summaries = totals
+            .into_iter()
+            .map(|(app_id, totals)| AppUsageSummary {
+                app_id,
+                display_name: totals.display_name,
+                process_name: totals.process_name,
+                total_seconds: totals.total_seconds,
+                today_seconds: totals.today_seconds,
+                is_running: totals.is_running,
+            })
+            .collect::<Vec<_>>();
+
+        summaries.sort_by(|left, right| {
+            right
+                .total_seconds
+                .cmp(&left.total_seconds)
+                .then_with(|| left.display_name.cmp(&right.display_name))
+        });
+        Ok(summaries)
+    }
+
+    pub fn increment_daily_system_usage(
+        &self,
+        date: NaiveDate,
+        recorded_seconds: i64,
+        active_seconds: i64,
+        tracker_uptime_seconds: i64,
+    ) -> StoreResult<()> {
+        self.conn.execute(
+            r#"
+            INSERT INTO daily_system_usage (
+                usage_date,
+                recorded_seconds,
+                active_seconds,
+                tracker_uptime_seconds
+            )
+            VALUES (?1, ?2, ?3, ?4)
+            ON CONFLICT(usage_date) DO UPDATE SET
+                recorded_seconds = recorded_seconds + excluded.recorded_seconds,
+                active_seconds = active_seconds + excluded.active_seconds,
+                tracker_uptime_seconds = tracker_uptime_seconds + excluded.tracker_uptime_seconds
+            "#,
+            params![
+                date.to_string(),
+                recorded_seconds.max(0),
+                active_seconds.max(0),
+                tracker_uptime_seconds.max(0)
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn daily_system_usage(&self, date: NaiveDate) -> StoreResult<Option<DailySystemUsage>> {
+        self.conn
+            .query_row(
+                "SELECT usage_date, recorded_seconds, active_seconds, tracker_uptime_seconds
+                 FROM daily_system_usage WHERE usage_date = ?1",
+                params![date.to_string()],
+                |row| {
+                    let usage_date: String = row.get(0)?;
+                    Ok(DailySystemUsage {
+                        date: NaiveDate::parse_from_str(&usage_date, "%Y-%m-%d").map_err(
+                            |error| {
+                                rusqlite::Error::FromSqlConversionFailure(
+                                    0,
+                                    rusqlite::types::Type::Text,
+                                    Box::new(error),
+                                )
+                            },
+                        )?,
+                        recorded_seconds: row.get(1)?,
+                        active_seconds: row.get(2)?,
+                        tracker_uptime_seconds: row.get(3)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(StoreError::from)
+    }
+
+    pub fn recover_open_sessions(&self) -> StoreResult<usize> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, app_id, started_at, last_heartbeat_at
+             FROM usage_sessions WHERE ended_at IS NULL ORDER BY id",
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut open_sessions = Vec::new();
+
+        while let Some(row) = rows.next()? {
+            let started_at: String = row.get(2)?;
+            let last_heartbeat_at: String = row.get(3)?;
+            open_sessions.push((
+                row.get::<_, i64>(0)?,
+                row.get::<_, i64>(1)?,
+                DateTime::parse_from_rfc3339(&started_at)?.with_timezone(&Utc),
+                DateTime::parse_from_rfc3339(&last_heartbeat_at)?.with_timezone(&Utc),
+            ));
+        }
+
+        if open_sessions.is_empty() {
+            return Ok(0);
+        }
+
+        self.conn.execute_batch("BEGIN IMMEDIATE")?;
+        let result = (|| {
+            for (session_id, app_id, started_at, last_heartbeat_at) in &open_sessions {
+                self.conn.execute(
+                    r#"
+                    UPDATE usage_sessions
+                    SET ended_at = ?1,
+                        duration_seconds = ?2,
+                        close_reason = 'tracker_restarted',
+                        recovered = 1
+                    WHERE id = ?3 AND ended_at IS NULL
+                    "#,
+                    params![
+                        last_heartbeat_at.to_rfc3339(),
+                        non_negative_seconds(*started_at, *last_heartbeat_at),
+                        session_id
+                    ],
+                )?;
+                self.insert_run_event(Some(*app_id), RunEventKind::SessionRecovered, None)?;
+            }
+            Ok(open_sessions.len())
+        })();
+
+        match result {
+            Ok(count) => {
+                self.conn.execute_batch("COMMIT")?;
+                Ok(count)
+            }
+            Err(error) => {
+                let _ = self.conn.execute_batch("ROLLBACK");
+                Err(error)
+            }
+        }
+    }
+
+    pub fn count_run_events(&self, event_kind: &str) -> StoreResult<i64> {
+        self.conn
+            .query_row(
+                "SELECT COUNT(*) FROM run_events WHERE event_kind = ?1",
+                params![event_kind],
+                |row| row.get(0),
+            )
+            .map_err(StoreError::from)
+    }
 }
 
 pub fn normalize_identity_key(executable_path: &str, process_name: &str) -> String {
@@ -337,4 +539,19 @@ pub fn normalize_identity_key(executable_path: &str, process_name: &str) -> Stri
     } else {
         path
     }
+}
+
+fn non_negative_seconds(start: DateTime<Utc>, end: DateTime<Utc>) -> i64 {
+    end.signed_duration_since(start).num_seconds().max(0)
+}
+
+fn overlap_seconds(
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    range_start: DateTime<Utc>,
+    range_end: DateTime<Utc>,
+) -> i64 {
+    let overlap_start = start.max(range_start);
+    let overlap_end = end.min(range_end);
+    non_negative_seconds(overlap_start, overlap_end)
 }

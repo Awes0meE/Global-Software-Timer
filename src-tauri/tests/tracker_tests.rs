@@ -1,7 +1,10 @@
 use chrono::{TimeZone, Utc};
+use global_software_timer_lib::activity::ActivitySource;
+use global_software_timer_lib::app_state::AppState;
 use global_software_timer_lib::process_source::{ProcessSnapshot, ProcessSource};
 use global_software_timer_lib::storage::Store;
-use global_software_timer_lib::tracker::Tracker;
+use global_software_timer_lib::tracker::{run_tracker_tick, Tracker};
+use std::time::Duration;
 use tempfile::NamedTempFile;
 
 struct FakeProcessSource {
@@ -23,6 +26,16 @@ impl ProcessSource for FakeProcessSource {
         let current = self.snapshots.get(self.index).cloned().unwrap_or_default();
         self.index += 1;
         current
+    }
+}
+
+struct FakeActivitySource {
+    idle_duration: Duration,
+}
+
+impl ActivitySource for FakeActivitySource {
+    fn idle_duration(&self) -> Duration {
+        self.idle_duration
     }
 }
 
@@ -118,4 +131,79 @@ fn stale_session_updates_return_errors() {
     assert!(store
         .close_session(session_id, ended_at, "process_closed", false)
         .is_err());
+}
+
+#[test]
+fn tracker_tick_scans_and_records_daily_active_time() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+    let source = FakeProcessSource::new(vec![vec![code_process()]]);
+    let mut tracker = Tracker::new(store, source);
+    let activity = FakeActivitySource {
+        idle_duration: Duration::from_secs(60),
+    };
+    let now = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+
+    run_tracker_tick(
+        &mut tracker,
+        &activity,
+        now.date_naive(),
+        Duration::from_secs(5),
+        Duration::from_secs(300),
+    )
+    .expect("tick");
+
+    let usage = tracker
+        .store()
+        .daily_system_usage(now.date_naive())
+        .expect("daily usage")
+        .expect("daily usage row");
+    assert_eq!(usage.recorded_seconds, 5);
+    assert_eq!(usage.active_seconds, 5);
+    assert_eq!(usage.tracker_uptime_seconds, 5);
+    assert_eq!(tracker.store().all_sessions().expect("sessions").len(), 1);
+}
+
+#[test]
+fn app_state_startup_recovers_open_sessions_at_last_heartbeat() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let db_path = db_file.path().to_path_buf();
+    {
+        let store = Store::open(&db_path).expect("open");
+        store.migrate().expect("migrate");
+        let app = store
+            .upsert_app(
+                "Code.exe",
+                code_process().executable_path.as_str(),
+                "Visual Studio Code",
+            )
+            .expect("app");
+        let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+        let heartbeat_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 45).unwrap();
+        let session_id = store.start_session(app.id, started_at).expect("start");
+        store
+            .heartbeat_session(session_id, heartbeat_at)
+            .expect("heartbeat");
+    }
+
+    let state = AppState::new(db_path).expect("state");
+    let tracker = state.tracker.lock().expect("tracker");
+    let sessions = tracker.store().all_sessions().expect("sessions");
+
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].ended_at, Some(sessions[0].last_heartbeat_at));
+    assert_eq!(sessions[0].duration_seconds, 45);
+    assert_eq!(
+        sessions[0].close_reason.as_deref(),
+        Some("tracker_restarted")
+    );
+    assert!(sessions[0].recovered);
+    assert_eq!(
+        tracker
+            .store()
+            .count_run_events("session_recovered")
+            .expect("recovered events"),
+        1
+    );
 }

@@ -66,3 +66,13 @@ pub struct DailySystemUsage {
     pub active_seconds: i64,
     pub tracker_uptime_seconds: i64,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AppUsageSummary {
+    pub app_id: i64,
+    pub display_name: String,
+    pub process_name: String,
+    pub total_seconds: i64,
+    pub today_seconds: i64,
+    pub is_running: bool,
+}
