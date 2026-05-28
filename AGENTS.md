@@ -66,6 +66,18 @@ This repository may contain BOM-less UTF-8 and Chinese text.
 - Prefer `rg` for search.
 - Keep new files UTF-8.
 
+## Local Toolchain
+
+Rust is installed through rustup under `C:\Users\123\.cargo\bin`, but existing Codex shells may not inherit the refreshed user PATH.
+
+Before running Rust/Tauri commands in PowerShell, load:
+
+```powershell
+. .\scripts\dev-env.ps1
+```
+
+This prepends Cargo to PATH and imports the Visual Studio 2022 Build Tools environment when available.
+
 ## Review Gates
 
 For each implementation task:

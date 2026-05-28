@@ -40,6 +40,14 @@ Last updated: 2026-05-28
 - Implementation plan committed.
 - Karpathy Guidelines skill is already installed at `C:\Users\123\.codex\skills\karpathy-guidelines`.
 - Requested execution mode: Superpowers subagent-driven development.
+- Local toolchain prepared on 2026-05-28:
+  - Node `v24.15.0`
+  - npm `11.12.1`
+  - Rust `1.95.0`
+  - Cargo `1.95.0`
+  - Visual Studio 2022 Build Tools with C++ workload
+  - Microsoft Edge WebView2 Runtime `148.0.3967.83`
+- Existing Codex shells may not inherit the refreshed Cargo PATH. Run `. .\scripts\dev-env.ps1` before Rust/Tauri commands.
 
 ## Active Implementation Plan
 
