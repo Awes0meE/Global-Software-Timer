@@ -17,6 +17,14 @@ fn migrate_creates_expected_tables_and_wal_mode() {
 }
 
 #[test]
+fn open_enables_foreign_key_enforcement() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+
+    assert!(store.foreign_keys_enabled().expect("foreign keys enabled"));
+}
+
+#[test]
 fn app_upsert_keeps_user_facing_identity() {
     let db_file = NamedTempFile::new().expect("temp db");
     let store = Store::open(db_file.path()).expect("open store");

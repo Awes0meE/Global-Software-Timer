@@ -18,6 +18,7 @@ pub struct Store {
 impl Store {
     pub fn open(path: impl AsRef<Path>) -> StoreResult<Self> {
         let conn = Connection::open(path)?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
         Ok(Self { conn })
     }
 
@@ -91,6 +92,13 @@ impl Store {
         self.conn
             .query_row("PRAGMA journal_mode", [], |row| row.get::<_, String>(0))
             .map(|mode| mode.to_lowercase())
+            .map_err(StoreError::from)
+    }
+
+    pub fn foreign_keys_enabled(&self) -> StoreResult<bool> {
+        self.conn
+            .query_row("PRAGMA foreign_keys", [], |row| row.get::<_, i64>(0))
+            .map(|enabled| enabled != 0)
             .map_err(StoreError::from)
     }
 
