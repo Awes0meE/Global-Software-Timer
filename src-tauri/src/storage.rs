@@ -337,10 +337,10 @@ impl Store {
     ) -> StoreResult<Vec<AppUsageSummary>> {
         #[derive(Debug)]
         struct AppTotals {
+            app_id: i64,
             display_name: String,
             process_name: String,
-            total_seconds: i64,
-            today_seconds: i64,
+            intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
             is_running: bool,
         }
 
@@ -357,7 +357,7 @@ impl Store {
             "#,
         )?;
         let mut rows = stmt.query([])?;
-        let mut totals: HashMap<i64, AppTotals> = HashMap::new();
+        let mut totals: HashMap<(String, String), AppTotals> = HashMap::new();
 
         while let Some(row) = rows.next()? {
             let app_id: i64 = row.get(0)?;
@@ -370,28 +370,38 @@ impl Store {
                 .map(|value| DateTime::parse_from_rfc3339(&value).map(|dt| dt.with_timezone(&Utc)))
                 .transpose()?;
             let display_end = ended_at.unwrap_or(now_utc);
+            let key = (display_name.clone(), process_name.clone());
 
-            let entry = totals.entry(app_id).or_insert(AppTotals {
+            let entry = totals.entry(key).or_insert(AppTotals {
+                app_id,
                 display_name,
                 process_name,
-                total_seconds: 0,
-                today_seconds: 0,
+                intervals: Vec::new(),
                 is_running: false,
             });
-            entry.total_seconds += non_negative_seconds(started_at, display_end);
-            entry.today_seconds += overlap_seconds(started_at, display_end, day_start_utc, now_utc);
+            entry.app_id = entry.app_id.min(app_id);
+            entry.intervals.push((started_at, display_end));
             entry.is_running |= ended_at.is_none();
         }
 
         let mut summaries = totals
-            .into_iter()
-            .map(|(app_id, totals)| AppUsageSummary {
-                app_id,
-                display_name: totals.display_name,
-                process_name: totals.process_name,
-                total_seconds: totals.total_seconds,
-                today_seconds: totals.today_seconds,
-                is_running: totals.is_running,
+            .into_values()
+            .map(|mut totals| {
+                let merged_intervals = merged_intervals(&mut totals.intervals);
+                AppUsageSummary {
+                    app_id: totals.app_id,
+                    display_name: totals.display_name,
+                    process_name: totals.process_name,
+                    total_seconds: merged_intervals
+                        .iter()
+                        .map(|(start, end)| non_negative_seconds(*start, *end))
+                        .sum(),
+                    today_seconds: merged_intervals
+                        .iter()
+                        .map(|(start, end)| overlap_seconds(*start, *end, day_start_utc, now_utc))
+                        .sum(),
+                    is_running: totals.is_running,
+                }
             })
             .collect::<Vec<_>>();
 
@@ -543,6 +553,30 @@ pub fn normalize_identity_key(executable_path: &str, process_name: &str) -> Stri
 
 fn non_negative_seconds(start: DateTime<Utc>, end: DateTime<Utc>) -> i64 {
     end.signed_duration_since(start).num_seconds().max(0)
+}
+
+fn merged_intervals(
+    intervals: &mut [(DateTime<Utc>, DateTime<Utc>)],
+) -> Vec<(DateTime<Utc>, DateTime<Utc>)> {
+    intervals.sort_by_key(|(start, _)| *start);
+    let mut merged: Vec<(DateTime<Utc>, DateTime<Utc>)> = Vec::new();
+
+    for (start, end) in intervals.iter().copied() {
+        if non_negative_seconds(start, end) == 0 {
+            continue;
+        }
+
+        if let Some((_, last_end)) = merged.last_mut() {
+            if start <= *last_end {
+                *last_end = (*last_end).max(end);
+                continue;
+            }
+        }
+
+        merged.push((start, end));
+    }
+
+    merged
 }
 
 fn overlap_seconds(

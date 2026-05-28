@@ -44,6 +44,11 @@ fn known_display_name(name: &str) -> Option<&'static str> {
         "obsidian.exe" => Some("Obsidian"),
         "notion.exe" => Some("Notion"),
         "codex.exe" => Some("Codex"),
+        "qq.exe" => Some("QQ"),
+        "steam.exe" => Some("Steam"),
+        "steam++.exe" => Some("Steam++"),
+        "weixin.exe" => Some("WeChat"),
+        "wps.exe" => Some("WPS"),
         _ => None,
     }
 }

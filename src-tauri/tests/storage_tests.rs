@@ -1,4 +1,4 @@
-use chrono::{TimeZone, Utc};
+use chrono::{Duration, TimeZone, Utc};
 use global_software_timer_lib::storage::Store;
 use tempfile::NamedTempFile;
 
@@ -104,6 +104,50 @@ fn app_usage_summary_includes_closed_and_open_sessions_for_today() {
     assert_eq!(rows[1].total_seconds, 90);
     assert_eq!(rows[1].today_seconds, 90);
     assert!(rows[1].is_running);
+}
+
+#[test]
+fn app_usage_summary_merges_same_process_across_paths() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+
+    let first = store
+        .upsert_app("codex.exe", r"C:\Program Files\Codex\codex.exe", "Codex")
+        .expect("first app");
+    let second = store
+        .upsert_app(
+            "codex.exe",
+            r"C:\Program Files\Codex\resources\codex.exe",
+            "Codex",
+        )
+        .expect("second app");
+    let day_start = Utc.with_ymd_and_hms(2026, 5, 28, 0, 0, 0).unwrap();
+
+    store
+        .start_session(first.id, day_start + Duration::minutes(10))
+        .expect("start first");
+    let second_session = store
+        .start_session(second.id, day_start + Duration::minutes(30))
+        .expect("start second");
+    store
+        .close_session(
+            second_session,
+            day_start + Duration::minutes(50),
+            "process_closed",
+            false,
+        )
+        .expect("close second");
+
+    let summary = store
+        .app_usage_summary(day_start, day_start + Duration::hours(1))
+        .expect("summary");
+
+    assert_eq!(summary.len(), 1);
+    assert_eq!(summary[0].display_name, "Codex");
+    assert_eq!(summary[0].process_name, "codex.exe");
+    assert_eq!(summary[0].today_seconds, 50 * 60);
+    assert!(summary[0].is_running);
 }
 
 #[test]
