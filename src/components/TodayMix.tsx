@@ -6,7 +6,14 @@ interface Props {
 
 export function TodayMix({ apps }: Props) {
   const total = apps.reduce((sum, app) => sum + app.today_seconds, 0);
-  const top = apps.filter((app) => app.today_seconds > 0).slice(0, 4);
+  const top = apps
+    .filter((app) => app.today_seconds > 0)
+    .sort(
+      (left, right) =>
+        right.today_seconds - left.today_seconds ||
+        left.display_name.localeCompare(right.display_name),
+    )
+    .slice(0, 4);
 
   return (
     <aside className="mix-panel" aria-label="今日分布">

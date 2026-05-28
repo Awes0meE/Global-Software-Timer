@@ -166,6 +166,68 @@ fn tracker_tick_scans_and_records_daily_active_time() {
 }
 
 #[test]
+fn tracker_tick_caps_long_active_duration() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+    let source = FakeProcessSource::new(vec![vec![code_process()]]);
+    let mut tracker = Tracker::new(store, source);
+    let activity = FakeActivitySource {
+        idle_duration: Duration::from_secs(1),
+    };
+    let now = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+
+    run_tracker_tick(
+        &mut tracker,
+        &activity,
+        now.date_naive(),
+        Duration::from_secs(2 * 60 * 60),
+        Duration::from_secs(300),
+    )
+    .expect("tick");
+
+    let usage = tracker
+        .store()
+        .daily_system_usage(now.date_naive())
+        .expect("daily usage")
+        .expect("daily usage row");
+    assert_eq!(usage.recorded_seconds, 60);
+    assert_eq!(usage.active_seconds, 60);
+    assert_eq!(usage.tracker_uptime_seconds, 60);
+}
+
+#[test]
+fn tracker_tick_caps_long_inactive_recorded_duration() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+    let source = FakeProcessSource::new(vec![vec![code_process()]]);
+    let mut tracker = Tracker::new(store, source);
+    let activity = FakeActivitySource {
+        idle_duration: Duration::from_secs(10 * 60),
+    };
+    let now = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+
+    run_tracker_tick(
+        &mut tracker,
+        &activity,
+        now.date_naive(),
+        Duration::from_secs(2 * 60 * 60),
+        Duration::from_secs(300),
+    )
+    .expect("tick");
+
+    let usage = tracker
+        .store()
+        .daily_system_usage(now.date_naive())
+        .expect("daily usage")
+        .expect("daily usage row");
+    assert_eq!(usage.recorded_seconds, 60);
+    assert_eq!(usage.active_seconds, 0);
+    assert_eq!(usage.tracker_uptime_seconds, 60);
+}
+
+#[test]
 fn app_state_startup_recovers_open_sessions_at_last_heartbeat() {
     let db_file = NamedTempFile::new().expect("temp db");
     let db_path = db_file.path().to_path_buf();

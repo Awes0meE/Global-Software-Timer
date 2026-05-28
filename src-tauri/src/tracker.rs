@@ -8,6 +8,8 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use thiserror::Error;
 
+const MAX_TRACKER_TICK_CREDIT: Duration = Duration::from_secs(60);
+
 #[derive(Debug, Error)]
 pub enum TrackerError {
     #[error("store error: {0}")]
@@ -125,7 +127,8 @@ pub fn run_tracker_tick<S: ProcessSource, A: ActivitySource>(
     active_threshold: Duration,
 ) -> TrackerResult<()> {
     let scan_result = tracker.scan_once();
-    let seconds = tick_duration.as_secs().min(i64::MAX as u64) as i64;
+    let credited_duration = tick_duration.min(MAX_TRACKER_TICK_CREDIT);
+    let seconds = credited_duration.as_secs().min(i64::MAX as u64) as i64;
     let active_seconds = if activity_source.is_active(active_threshold) {
         seconds
     } else {
