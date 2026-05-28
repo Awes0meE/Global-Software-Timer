@@ -1,4 +1,5 @@
-use crate::domain::AppIdentity;
+use crate::domain::{AppIdentity, RunEventKind, UsageSession};
+use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::Path;
 use thiserror::Error;
@@ -7,6 +8,8 @@ use thiserror::Error;
 pub enum StoreError {
     #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
+    #[error("datetime parse error: {0}")]
+    ChronoParse(#[from] chrono::ParseError),
 }
 
 pub type StoreResult<T> = Result<T, StoreError>;
@@ -148,6 +151,95 @@ impl Store {
             )
             .optional()
             .map_err(StoreError::from)
+    }
+
+    pub fn insert_run_event(
+        &self,
+        app_id: Option<i64>,
+        event_kind: RunEventKind,
+        payload_json: Option<&str>,
+    ) -> StoreResult<()> {
+        self.conn.execute(
+            "INSERT INTO run_events (app_id, event_kind, payload_json) VALUES (?1, ?2, ?3)",
+            params![app_id, event_kind.as_str(), payload_json],
+        )?;
+        Ok(())
+    }
+
+    pub fn start_session(&self, app_id: i64, now: DateTime<Utc>) -> StoreResult<i64> {
+        self.conn.execute(
+            "INSERT INTO usage_sessions (app_id, started_at, last_heartbeat_at)
+             VALUES (?1, ?2, ?2)",
+            params![app_id, now.to_rfc3339()],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    pub fn heartbeat_session(&self, session_id: i64, now: DateTime<Utc>) -> StoreResult<()> {
+        self.conn.execute(
+            "UPDATE usage_sessions SET last_heartbeat_at = ?1 WHERE id = ?2 AND ended_at IS NULL",
+            params![now.to_rfc3339(), session_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn close_session(
+        &self,
+        session_id: i64,
+        ended_at: DateTime<Utc>,
+        close_reason: &str,
+        recovered: bool,
+    ) -> StoreResult<()> {
+        self.conn.execute(
+            r#"
+            UPDATE usage_sessions
+            SET ended_at = ?1,
+                duration_seconds = CAST((julianday(?1) - julianday(started_at)) * 86400 AS INTEGER),
+                close_reason = ?2,
+                recovered = ?3
+            WHERE id = ?4 AND ended_at IS NULL
+            "#,
+            params![
+                ended_at.to_rfc3339(),
+                close_reason,
+                recovered as i64,
+                session_id
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn all_sessions(&self) -> StoreResult<Vec<UsageSession>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, app_id, started_at, ended_at, last_heartbeat_at, duration_seconds, close_reason, recovered
+             FROM usage_sessions ORDER BY id",
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut sessions = Vec::new();
+
+        while let Some(row) = rows.next()? {
+            let started_at: String = row.get(2)?;
+            let ended_at: Option<String> = row.get(3)?;
+            let last_heartbeat_at: String = row.get(4)?;
+
+            sessions.push(UsageSession {
+                id: row.get(0)?,
+                app_id: row.get(1)?,
+                started_at: DateTime::parse_from_rfc3339(&started_at)?.with_timezone(&Utc),
+                ended_at: ended_at
+                    .map(|value| {
+                        DateTime::parse_from_rfc3339(&value).map(|dt| dt.with_timezone(&Utc))
+                    })
+                    .transpose()?,
+                last_heartbeat_at: DateTime::parse_from_rfc3339(&last_heartbeat_at)?
+                    .with_timezone(&Utc),
+                duration_seconds: row.get(5)?,
+                close_reason: row.get(6)?,
+                recovered: row.get::<_, i64>(7)? != 0,
+            });
+        }
+
+        Ok(sessions)
     }
 }
 
