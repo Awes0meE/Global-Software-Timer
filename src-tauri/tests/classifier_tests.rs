@@ -56,3 +56,33 @@ fn falls_back_to_clean_exe_name() {
         }
     );
 }
+
+#[test]
+fn known_apps_are_not_hidden_by_helper_words_in_path() {
+    assert_eq!(
+        classify_process("firefox.exe", r"D:\Sync\Apps\firefox.exe"),
+        Classification::Tracked {
+            display_name: "Firefox".to_string()
+        }
+    );
+}
+
+#[test]
+fn fallback_apps_are_not_hidden_by_helper_words_inside_name() {
+    assert_eq!(
+        classify_process("ServiceStudio.exe", r"C:\Tools\ServiceStudio.exe"),
+        Classification::Tracked {
+            display_name: "ServiceStudio".to_string()
+        }
+    );
+}
+
+#[test]
+fn fallback_exe_cleanup_is_case_insensitive() {
+    assert_eq!(
+        classify_process("MyTool.Exe", r"D:\Tools\MyTool.Exe"),
+        Classification::Tracked {
+            display_name: "MyTool".to_string()
+        }
+    );
+}

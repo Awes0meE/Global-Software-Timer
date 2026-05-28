@@ -8,7 +8,7 @@ pub fn classify_process(process_name: &str, executable_path: &str) -> Classifica
     let name = process_name.trim().to_lowercase();
     let path = executable_path.trim().to_lowercase();
 
-    if is_system_or_helper_process(&name, &path) {
+    if is_system_process(&name, &path) {
         return Classification::Hidden;
     }
 
@@ -16,6 +16,10 @@ pub fn classify_process(process_name: &str, executable_path: &str) -> Classifica
         return Classification::Tracked {
             display_name: display_name.to_string(),
         };
+    }
+
+    if is_helper_process(&name, &path) {
+        return Classification::Hidden;
     }
 
     Classification::Tracked {
@@ -40,7 +44,7 @@ fn known_display_name(name: &str) -> Option<&'static str> {
     }
 }
 
-fn is_system_or_helper_process(name: &str, path: &str) -> bool {
+fn is_system_process(name: &str, path: &str) -> bool {
     const SYSTEM_NAMES: &[&str] = &[
         "system",
         "registry",
@@ -57,31 +61,45 @@ fn is_system_or_helper_process(name: &str, path: &str) -> bool {
         "winlogon.exe",
         "wudfhost.exe",
     ];
+
+    SYSTEM_NAMES.contains(&name) || path.starts_with(r"c:\windows\")
+}
+
+fn is_helper_process(name: &str, path: &str) -> bool {
     const HELPER_KEYWORDS: &[&str] = &[
         "update",
         "updater",
         "crashpad",
         "helper",
-        "service",
         "cloudsrv",
         "wpscloud",
         "sync",
         "installer",
-        "squirreltemp",
     ];
+    const HELPER_PATH_SEGMENTS: &[&str] = &["squirreltemp"];
 
-    SYSTEM_NAMES.contains(&name)
-        || path.starts_with(r"c:\windows\")
-        || HELPER_KEYWORDS
-            .iter()
-            .any(|keyword| name.contains(keyword) || path.contains(keyword))
+    let stem = executable_stem(name);
+
+    stem == "service"
+        || HELPER_KEYWORDS.iter().any(|keyword| stem.contains(keyword))
+        || path
+            .split(['\\', '/'])
+            .any(|segment| HELPER_PATH_SEGMENTS.contains(&segment))
 }
 
 fn clean_process_name(process_name: &str) -> String {
-    process_name
-        .trim()
-        .strip_suffix(".exe")
-        .or_else(|| process_name.trim().strip_suffix(".EXE"))
-        .unwrap_or(process_name.trim())
-        .to_string()
+    executable_stem(process_name.trim()).to_string()
+}
+
+fn executable_stem(process_name: &str) -> &str {
+    let trimmed = process_name.trim();
+
+    if trimmed
+        .get(trimmed.len().saturating_sub(4)..)
+        .is_some_and(|suffix| suffix.eq_ignore_ascii_case(".exe"))
+    {
+        &trimmed[..trimmed.len() - 4]
+    } else {
+        trimmed
+    }
 }
