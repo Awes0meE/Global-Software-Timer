@@ -57,15 +57,27 @@ fn is_system_process(name: &str, path: &str) -> bool {
         "services.exe",
         "smss.exe",
         "spoolsv.exe",
+        "searchindexer.exe",
+        "securityhealthservice.exe",
         "wininit.exe",
         "winlogon.exe",
         "wudfhost.exe",
+        "widgetservice.exe",
+        "jhi_service.exe",
     ];
 
     SYSTEM_NAMES.contains(&name) || path.starts_with(r"c:\windows\")
 }
 
 fn is_helper_process(name: &str, path: &str) -> bool {
+    const HELPER_NAMES: &[&str] = &[
+        "cargo.exe",
+        "msedgewebview2.exe",
+        "node.exe",
+        "sgtool.exe",
+        "sogoucloud.exe",
+        "wpscloudsvr.exe",
+    ];
     const HELPER_KEYWORDS: &[&str] = &[
         "update",
         "updater",
@@ -76,11 +88,12 @@ fn is_helper_process(name: &str, path: &str) -> bool {
         "sync",
         "installer",
     ];
-    const HELPER_PATH_SEGMENTS: &[&str] = &["squirreltemp"];
+    const HELPER_PATH_SEGMENTS: &[&str] = &["edgewebview", "squirreltemp"];
 
     let stem = executable_stem(name);
 
-    stem == "service"
+    HELPER_NAMES.contains(&name)
+        || stem == "service"
         || HELPER_KEYWORDS.iter().any(|keyword| stem.contains(keyword))
         || path
             .split(['\\', '/'])

@@ -33,6 +33,34 @@ fn hides_windows_and_helper_noise() {
     );
     assert_eq!(
         classify_process(
+            "msedgewebview2.exe",
+            r"C:\Program Files (x86)\Microsoft\EdgeWebView\Application\148.0.3967.83\msedgewebview2.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "jhi_service.exe",
+            r"C:\Windows\System32\DriverStore\FileRepository\jhi_service.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "SearchIndexer.exe",
+            r"C:\Windows\System32\SearchIndexer.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "SecurityHealthService.exe",
+            r"C:\Windows\System32\SecurityHealthService.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
             "WPSCloudSrv.exe",
             r"C:\Program Files\WPS Office\WPSCloudSrv.exe"
         ),
@@ -43,6 +71,35 @@ fn hides_windows_and_helper_noise() {
             "Update.exe",
             r"C:\Users\dev\AppData\Local\SquirrelTemp\Update.exe"
         ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "SogouCloud.exe",
+            r"C:\Program Files (x86)\SogouInput\Components\SogouCloud.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "SGTool.exe",
+            r"C:\Program Files (x86)\SogouInput\Components\SGTool.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "wpscloudsvr.exe",
+            r"C:\Program Files\WPS Office\11.1.0.12345\office6\cef\wpscloudsvr.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process("node.exe", r"C:\Program Files\nodejs\node.exe"),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process("cargo.exe", r"C:\Users\dev\.cargo\bin\cargo.exe"),
         Classification::Hidden
     );
 }
