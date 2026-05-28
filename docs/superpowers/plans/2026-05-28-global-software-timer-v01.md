@@ -85,7 +85,7 @@ Create `package.json`:
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
@@ -146,7 +146,7 @@ export default defineConfig({
     port: 1420,
     strictPort: true,
   },
-  envPrefix: ["VITE_", "TAURI_"],
+  envPrefix: ["VITE_", "TAURI_ENV_*"],
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test-setup.ts"],
