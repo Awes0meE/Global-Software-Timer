@@ -67,6 +67,63 @@ fn hides_windows_and_helper_noise() {
         Classification::Hidden
     );
     assert_eq!(
+        classify_process("AggregatorHost.exe", ""),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process("AppleMobileDeviceService.exe", ""),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "ListaryHookHost64.exe",
+            r"D:\Program Files\Listary\ListaryHookHost64.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "MathWorksServiceHost.exe",
+            r"C:\Users\dev\AppData\Local\MathWorks\ServiceHost\v2026.5.0.3\bin\win64\MathWorksServiceHost.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "Steam++.Accelerator.exe",
+            r"C:\Program Files\WindowsApps\Steam++\modules\Accelerator\Steam++.Accelerator.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "promecefpluginhost.exe",
+            r"D:\Users\dev\AppData\Local\Kingsoft\WPS Office\office6\promecefpluginhost.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "global-software-timer.exe",
+            r"D:\Projects\GlobalSoftwareTimer\global-software-timer.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "WeChatAppEx.exe",
+            r"C:\Users\dev\AppData\Roaming\Tencent\xwechat\XPlugin\Plugins\RadiumWMPF\extracted\runtime\WeChatAppEx.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
+        classify_process(
+            "Widgets.exe",
+            r"C:\Program Files\WindowsApps\microsoftwindows.client.webexperience\Dashboard\Widgets.exe"
+        ),
+        Classification::Hidden
+    );
+    assert_eq!(
         classify_process(
             "Update.exe",
             r"C:\Users\dev\AppData\Local\SquirrelTemp\Update.exe"
@@ -120,6 +177,12 @@ fn known_apps_are_not_hidden_by_helper_words_in_path() {
         classify_process("firefox.exe", r"D:\Sync\Apps\firefox.exe"),
         Classification::Tracked {
             display_name: "Firefox".to_string()
+        }
+    );
+    assert_eq!(
+        classify_process("Code.exe", ""),
+        Classification::Tracked {
+            display_name: "Visual Studio Code".to_string()
         }
     );
 }
