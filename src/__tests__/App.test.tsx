@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockInvoke = vi.hoisted(() => vi.fn());
@@ -11,6 +11,7 @@ import App from "../App";
 
 describe("App", () => {
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
   });
 
@@ -53,5 +54,57 @@ describe("App", () => {
 
     expect(await screen.findByText("无法读取本地数据")).toBeInTheDocument();
     expect(screen.queryByText("database is temporarily locked")).not.toBeInTheDocument();
+  });
+
+  it("refreshes the dashboard after the initial empty summary", async () => {
+    vi.useFakeTimers();
+    mockInvoke
+      .mockResolvedValueOnce({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      })
+      .mockResolvedValueOnce({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: {
+          app_id: 1,
+          display_name: "Codex",
+          process_name: "codex.exe",
+          total_seconds: 65,
+          today_seconds: 65,
+          is_running: true,
+        },
+        recorded_today_seconds: 65,
+        active_today_seconds: 65,
+        apps: [
+          {
+            app_id: 1,
+            display_name: "Codex",
+            process_name: "codex.exe",
+            total_seconds: 65,
+            today_seconds: 65,
+            is_running: true,
+          },
+        ],
+      });
+
+    render(<App />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByText("暂无数据")).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    expect(screen.getAllByText("Codex").length).toBeGreaterThan(0);
+    expect(mockInvoke).toHaveBeenCalledTimes(2);
   });
 });

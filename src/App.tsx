@@ -14,6 +14,7 @@ const fallbackSummary: DashboardSummary = {
 };
 
 const dashboardLoadError = "无法读取本地数据";
+const dashboardRefreshIntervalMs = 5000;
 
 export default function App() {
   const [summary, setSummary] = useState<DashboardSummary>(fallbackSummary);
@@ -22,21 +23,27 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
 
-    Promise.resolve()
-      .then(() => getDashboardSummary())
-      .then((nextSummary) => {
-        if (!cancelled) {
-          setSummary(nextSummary);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setError(dashboardLoadError);
-        }
-      });
+    const loadDashboard = () => {
+      getDashboardSummary()
+        .then((nextSummary) => {
+          if (!cancelled) {
+            setSummary(nextSummary);
+            setError(null);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setError(dashboardLoadError);
+          }
+        });
+    };
+
+    loadDashboard();
+    const refreshId = window.setInterval(loadDashboard, dashboardRefreshIntervalMs);
 
     return () => {
       cancelled = true;
+      window.clearInterval(refreshId);
     };
   }, []);
 
