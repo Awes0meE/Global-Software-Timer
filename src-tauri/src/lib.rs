@@ -1,3 +1,4 @@
+pub mod classifier;
 pub mod domain;
 pub mod storage;
 
