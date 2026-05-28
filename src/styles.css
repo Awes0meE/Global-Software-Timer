@@ -85,7 +85,8 @@ h2 {
 
 .card,
 .table-panel,
-.mix-panel {
+.mix-panel,
+.settings-panel {
   border: 1px solid #333b47;
   border-radius: 8px;
   background: #1d2229;
@@ -110,6 +111,7 @@ h2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
   gap: 14px;
+  margin-bottom: 14px;
 }
 
 .table-panel {
@@ -222,6 +224,123 @@ h2 {
   background: #2a2118;
 }
 
+.settings-panel {
+  padding: 14px;
+}
+
+.settings-heading,
+.settings-columns,
+.settings-row,
+.toggle-row {
+  display: flex;
+  gap: 12px;
+}
+
+.settings-heading {
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.settings-heading h2,
+.settings-group h3 {
+  margin: 0;
+}
+
+.toggle-row {
+  align-items: center;
+  color: #f6f2ea;
+  font-size: 14px;
+}
+
+.toggle-row input {
+  width: 18px;
+  height: 18px;
+}
+
+.settings-columns {
+  align-items: start;
+}
+
+.settings-group {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.settings-group h3 {
+  margin-bottom: 10px;
+  color: #aeb5c0;
+  font-size: 13px;
+}
+
+.settings-row {
+  align-items: center;
+  min-width: 0;
+  padding: 10px 0;
+  border-top: 1px solid #303743;
+}
+
+.settings-app-name {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.settings-app-name strong,
+.settings-app-name small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.settings-row input {
+  min-width: 150px;
+  max-width: 220px;
+}
+
+.settings-row input,
+.settings-row button {
+  border: 1px solid #465161;
+  border-radius: 6px;
+  background: #14181e;
+  color: #f6f2ea;
+  font: inherit;
+  font-size: 13px;
+}
+
+.settings-row input {
+  padding: 8px 9px;
+}
+
+.settings-row button {
+  flex: 0 0 auto;
+  min-width: 54px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.settings-row button:hover {
+  border-color: #e3b85d;
+}
+
+.settings-row button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.hidden-settings-row {
+  justify-content: space-between;
+}
+
+.settings-warning {
+  margin-bottom: 10px;
+  color: #e7d5a6;
+  font-size: 13px;
+}
+
+.compact-copy {
+  margin: 0;
+  font-size: 13px;
+}
+
 @media (max-width: 860px) {
   .app-shell {
     padding: 18px;
@@ -229,7 +348,8 @@ h2 {
 
   .topbar,
   .summary-grid,
-  .dashboard-grid {
+  .dashboard-grid,
+  .settings-columns {
     grid-template-columns: 1fr;
   }
 
@@ -245,6 +365,23 @@ h2 {
     grid-template-columns: minmax(0, 1fr) minmax(76px, auto) minmax(76px, auto) 72px;
     gap: 8px;
     padding: 12px;
+  }
+
+  .settings-columns,
+  .settings-row {
+    display: grid;
+  }
+
+  .settings-row {
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 1fr) auto auto;
+  }
+
+  .hidden-settings-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .settings-row input {
+    max-width: none;
   }
 }
 

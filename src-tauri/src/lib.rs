@@ -12,7 +12,7 @@ use app_state::AppState;
 use app_state::SharedTracker;
 use chrono::Local;
 use std::time::{Duration, Instant};
-use tauri::Manager;
+use tauri::{Manager, WindowEvent};
 
 const TRACKER_SCAN_INTERVAL: Duration = Duration::from_secs(5);
 const ACTIVE_IDLE_THRESHOLD: Duration = Duration::from_secs(5 * 60);
@@ -38,9 +38,20 @@ pub fn run() {
             tray::setup_tray(app)?;
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_dashboard_summary,
-            commands::run_tracker_scan_once
+            commands::run_tracker_scan_once,
+            commands::hide_app_group,
+            commands::unhide_app_group,
+            commands::rename_app_group
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Global Software Timer");

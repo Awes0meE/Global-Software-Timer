@@ -151,6 +151,115 @@ fn app_usage_summary_merges_same_process_across_paths() {
 }
 
 #[test]
+fn hide_unhide_and_rename_update_current_display_name_process_group() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+
+    let first = store
+        .upsert_app("codex.exe", r"C:\Program Files\Codex\codex.exe", "Codex")
+        .expect("first app");
+    let second = store
+        .upsert_app(
+            "codex.exe",
+            r"C:\Program Files\Codex\resources\codex.exe",
+            "Codex",
+        )
+        .expect("second app");
+    let other = store
+        .upsert_app("codex.exe", r"D:\Portable\codex.exe", "Codex Portable")
+        .expect("other app");
+
+    assert_eq!(store.set_app_group_hidden(first.id, true).expect("hide"), 2);
+    assert!(
+        store
+            .find_app_by_key(&first.normalized_key)
+            .unwrap()
+            .unwrap()
+            .is_hidden
+    );
+    assert!(
+        store
+            .find_app_by_key(&second.normalized_key)
+            .unwrap()
+            .unwrap()
+            .is_hidden
+    );
+    assert!(
+        !store
+            .find_app_by_key(&other.normalized_key)
+            .unwrap()
+            .unwrap()
+            .is_hidden
+    );
+
+    assert_eq!(
+        store
+            .rename_app_group(second.id, "  Codex Studio  ")
+            .expect("rename"),
+        2
+    );
+    assert_eq!(
+        store
+            .find_app_by_key(&first.normalized_key)
+            .unwrap()
+            .unwrap()
+            .display_name,
+        "Codex Studio"
+    );
+    assert!(
+        store
+            .find_app_by_key(&second.normalized_key)
+            .unwrap()
+            .unwrap()
+            .is_user_renamed
+    );
+
+    assert_eq!(
+        store.set_app_group_hidden(first.id, false).expect("unhide"),
+        2
+    );
+    assert!(
+        !store
+            .find_app_by_key(&first.normalized_key)
+            .unwrap()
+            .unwrap()
+            .is_hidden
+    );
+    assert!(
+        !store
+            .find_app_by_key(&second.normalized_key)
+            .unwrap()
+            .unwrap()
+            .is_hidden
+    );
+}
+
+#[test]
+fn rename_app_group_rejects_blank_display_name() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app("code.exe", r"C:\Code\Code.exe", "Visual Studio Code")
+        .expect("app");
+
+    let error = store
+        .rename_app_group(app.id, "   ")
+        .expect_err("blank name");
+
+    assert_eq!(error.to_string(), "display name cannot be empty");
+    assert_eq!(
+        store
+            .find_app_by_key(&app.normalized_key)
+            .unwrap()
+            .unwrap()
+            .display_name,
+        "Visual Studio Code"
+    );
+}
+
+#[test]
 fn daily_system_usage_accumulates_and_defaults_to_none() {
     let db_file = NamedTempFile::new().expect("temp db");
     let store = Store::open(db_file.path()).expect("open store");

@@ -13,6 +13,7 @@ pub struct DashboardSummary {
     pub recorded_today_seconds: i64,
     pub active_today_seconds: i64,
     pub apps: Vec<AppUsageRow>,
+    pub hidden_apps: Vec<AppUsageRow>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -45,6 +46,49 @@ pub fn run_tracker_scan_once(state: State<'_, AppState>) -> Result<(), String> {
     tracker.scan_once().map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+pub fn hide_app_group(state: State<'_, AppState>, app_id: i64) -> Result<(), String> {
+    set_app_group_hidden(state, app_id, true)
+}
+
+#[tauri::command]
+pub fn unhide_app_group(state: State<'_, AppState>, app_id: i64) -> Result<(), String> {
+    set_app_group_hidden(state, app_id, false)
+}
+
+#[tauri::command]
+pub fn rename_app_group(
+    state: State<'_, AppState>,
+    app_id: i64,
+    display_name: String,
+) -> Result<(), String> {
+    let tracker = state
+        .tracker
+        .lock()
+        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    tracker
+        .store()
+        .rename_app_group(app_id, &display_name)
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
+fn set_app_group_hidden(
+    state: State<'_, AppState>,
+    app_id: i64,
+    is_hidden: bool,
+) -> Result<(), String> {
+    let tracker = state
+        .tracker
+        .lock()
+        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    tracker
+        .store()
+        .set_app_group_hidden(app_id, is_hidden)
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
 fn dashboard_summary_from_store(
     store: &Store,
     day_start_utc: DateTime<Utc>,
@@ -52,6 +96,11 @@ fn dashboard_summary_from_store(
 ) -> Result<DashboardSummary, StoreError> {
     let apps = store
         .app_usage_summary(day_start_utc, now_utc)?
+        .into_iter()
+        .map(AppUsageRow::from)
+        .collect::<Vec<_>>();
+    let hidden_apps = store
+        .hidden_app_usage_summary(day_start_utc, now_utc)?
         .into_iter()
         .map(AppUsageRow::from)
         .collect::<Vec<_>>();
@@ -70,6 +119,7 @@ fn dashboard_summary_from_store(
             .map(|usage| usage.active_seconds)
             .unwrap_or(0),
         apps,
+        hidden_apps,
     })
 }
 
@@ -137,6 +187,48 @@ mod tests {
         assert_eq!(summary.recorded_today_seconds, 300);
         assert_eq!(summary.active_today_seconds, 120);
         assert_eq!(summary.apps.len(), 1);
+        assert!(summary.hidden_apps.is_empty());
+        assert_eq!(
+            summary.most_used.as_ref().unwrap().display_name,
+            "Visual Studio Code"
+        );
+    }
+
+    #[test]
+    fn dashboard_summary_splits_visible_and_hidden_app_groups() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+        let visible = store
+            .upsert_app("Code.exe", r"C:\Code\Code.exe", "Visual Studio Code")
+            .expect("visible app");
+        let hidden = store
+            .upsert_app("WINWORD.EXE", r"C:\Office\WINWORD.EXE", "Microsoft Word")
+            .expect("hidden app");
+        store
+            .set_app_group_hidden(hidden.id, true)
+            .expect("hide app");
+
+        let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 8, 0, 0).unwrap();
+        let ended_at = Utc.with_ymd_and_hms(2026, 5, 29, 8, 1, 0).unwrap();
+        for app_id in [visible.id, hidden.id] {
+            let session_id = store.start_session(app_id, started_at).expect("start");
+            store
+                .close_session(session_id, ended_at, "process_closed", false)
+                .expect("close");
+        }
+
+        let summary = dashboard_summary_from_store(
+            &store,
+            Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
+        )
+        .expect("summary");
+
+        assert_eq!(summary.apps.len(), 1);
+        assert_eq!(summary.apps[0].display_name, "Visual Studio Code");
+        assert_eq!(summary.hidden_apps.len(), 1);
+        assert_eq!(summary.hidden_apps[0].display_name, "Microsoft Word");
         assert_eq!(
             summary.most_used.as_ref().unwrap().display_name,
             "Visual Studio Code"

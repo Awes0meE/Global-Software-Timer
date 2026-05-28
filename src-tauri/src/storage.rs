@@ -16,6 +16,8 @@ pub enum StoreError {
         operation: &'static str,
         count: usize,
     },
+    #[error("display name cannot be empty")]
+    EmptyDisplayName,
 }
 
 pub type StoreResult<T> = Result<T, StoreError>;
@@ -154,6 +156,61 @@ impl Store {
                         is_user_renamed: row.get::<_, i64>(6)? != 0,
                     })
                 },
+            )
+            .optional()
+            .map_err(StoreError::from)
+    }
+
+    pub fn set_app_group_hidden(&self, app_id: i64, is_hidden: bool) -> StoreResult<usize> {
+        let Some((display_name, process_name)) = self.app_group_key(app_id)? else {
+            return Err(StoreError::UnexpectedUpdateCount {
+                operation: "set_app_group_hidden",
+                count: 0,
+            });
+        };
+        let count = self.conn.execute(
+            r#"
+            UPDATE apps
+            SET is_hidden = ?1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE display_name = ?2 AND process_name = ?3
+            "#,
+            params![is_hidden as i64, display_name, process_name],
+        )?;
+        Ok(count)
+    }
+
+    pub fn rename_app_group(&self, app_id: i64, display_name: &str) -> StoreResult<usize> {
+        let next_display_name = display_name.trim();
+        if next_display_name.is_empty() {
+            return Err(StoreError::EmptyDisplayName);
+        }
+
+        let Some((current_display_name, process_name)) = self.app_group_key(app_id)? else {
+            return Err(StoreError::UnexpectedUpdateCount {
+                operation: "rename_app_group",
+                count: 0,
+            });
+        };
+        let count = self.conn.execute(
+            r#"
+            UPDATE apps
+            SET display_name = ?1,
+                is_user_renamed = 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE display_name = ?2 AND process_name = ?3
+            "#,
+            params![next_display_name, current_display_name, process_name],
+        )?;
+        Ok(count)
+    }
+
+    fn app_group_key(&self, app_id: i64) -> StoreResult<Option<(String, String)>> {
+        self.conn
+            .query_row(
+                "SELECT display_name, process_name FROM apps WHERE id = ?1",
+                params![app_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()
             .map_err(StoreError::from)
@@ -335,6 +392,23 @@ impl Store {
         day_start_utc: DateTime<Utc>,
         now_utc: DateTime<Utc>,
     ) -> StoreResult<Vec<AppUsageSummary>> {
+        self.app_usage_summary_by_hidden(false, day_start_utc, now_utc)
+    }
+
+    pub fn hidden_app_usage_summary(
+        &self,
+        day_start_utc: DateTime<Utc>,
+        now_utc: DateTime<Utc>,
+    ) -> StoreResult<Vec<AppUsageSummary>> {
+        self.app_usage_summary_by_hidden(true, day_start_utc, now_utc)
+    }
+
+    fn app_usage_summary_by_hidden(
+        &self,
+        is_hidden: bool,
+        day_start_utc: DateTime<Utc>,
+        now_utc: DateTime<Utc>,
+    ) -> StoreResult<Vec<AppUsageSummary>> {
         #[derive(Debug)]
         struct AppTotals {
             app_id: i64,
@@ -353,10 +427,10 @@ impl Store {
                    usage_sessions.ended_at
             FROM usage_sessions
             INNER JOIN apps ON apps.id = usage_sessions.app_id
-            WHERE apps.is_hidden = 0
+            WHERE apps.is_hidden = ?1
             "#,
         )?;
-        let mut rows = stmt.query([])?;
+        let mut rows = stmt.query(params![is_hidden as i64])?;
         let mut totals: HashMap<(String, String), AppTotals> = HashMap::new();
 
         while let Some(row) = rows.next()? {

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getDashboardSummary, type DashboardSummary } from "./api";
 import { AppUsageTable } from "./components/AppUsageTable";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { SummaryCards } from "./components/SummaryCards";
 import { TodayMix } from "./components/TodayMix";
 
@@ -11,6 +12,7 @@ const fallbackSummary: DashboardSummary = {
   recorded_today_seconds: 0,
   active_today_seconds: 0,
   apps: [],
+  hidden_apps: [],
 };
 
 const dashboardLoadError = "无法读取本地数据";
@@ -18,6 +20,11 @@ const dashboardLoadError = "无法读取本地数据";
 export default function App() {
   const [summary, setSummary] = useState<DashboardSummary>(fallbackSummary);
   const [error, setError] = useState<string | null>(null);
+
+  const refreshSummary = useCallback(async () => {
+    const nextSummary = await getDashboardSummary();
+    setSummary(nextSummary);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,7 +45,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshSummary]);
 
   return (
     <main className="app-shell">
@@ -57,6 +64,12 @@ export default function App() {
         <AppUsageTable apps={summary.apps} />
         <TodayMix apps={summary.apps} />
       </div>
+
+      <SettingsPanel
+        hiddenApps={summary.hidden_apps}
+        onChanged={refreshSummary}
+        visibleApps={summary.apps}
+      />
     </main>
   );
 }
