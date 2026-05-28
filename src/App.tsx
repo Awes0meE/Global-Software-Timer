@@ -13,6 +13,8 @@ const fallbackSummary: DashboardSummary = {
   apps: [],
 };
 
+const dashboardLoadError = "无法读取本地数据";
+
 export default function App() {
   const [summary, setSummary] = useState<DashboardSummary>(fallbackSummary);
   const [error, setError] = useState<string | null>(null);
@@ -20,15 +22,16 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
 
-    getDashboardSummary()
+    Promise.resolve()
+      .then(() => getDashboardSummary())
       .then((nextSummary) => {
         if (!cancelled) {
           setSummary(nextSummary);
         }
       })
-      .catch((unknownError) => {
+      .catch(() => {
         if (!cancelled) {
-          setError(unknownError instanceof Error ? unknownError.message : "无法读取本地数据");
+          setError(dashboardLoadError);
         }
       });
 
