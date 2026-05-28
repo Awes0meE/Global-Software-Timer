@@ -1,5 +1,7 @@
+pub mod activity;
 pub mod classifier;
 pub mod domain;
+pub mod process_source;
 pub mod storage;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
