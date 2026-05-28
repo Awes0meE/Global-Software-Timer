@@ -11,6 +11,11 @@ pub trait ActivitySource: Send {
 #[derive(Debug, Default)]
 pub struct WindowsActivitySource;
 
+fn idle_duration_from_ticks(now_ticks: u64, last_input_ticks: u32) -> Duration {
+    let now_ticks = now_ticks as u32;
+    Duration::from_millis(u64::from(now_ticks.wrapping_sub(last_input_ticks)))
+}
+
 #[cfg(target_os = "windows")]
 impl ActivitySource for WindowsActivitySource {
     fn idle_duration(&self) -> Duration {
@@ -28,8 +33,7 @@ impl ActivitySource for WindowsActivitySource {
             }
 
             let now = GetTickCount64();
-            let last_input = info.dwTime as u64;
-            Duration::from_millis(now.saturating_sub(last_input))
+            idle_duration_from_ticks(now, info.dwTime)
         }
     }
 }
@@ -38,5 +42,21 @@ impl ActivitySource for WindowsActivitySource {
 impl ActivitySource for WindowsActivitySource {
     fn idle_duration(&self) -> Duration {
         Duration::ZERO
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::idle_duration_from_ticks;
+    use std::time::Duration;
+
+    #[test]
+    fn idle_duration_uses_wrapping_32_bit_tick_math() {
+        let now_after_wrap = u64::from(u32::MAX) + 11;
+
+        assert_eq!(
+            idle_duration_from_ticks(now_after_wrap, u32::MAX - 9),
+            Duration::from_millis(20)
+        );
     }
 }

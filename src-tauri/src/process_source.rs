@@ -1,5 +1,5 @@
 use serde::Serialize;
-use sysinfo::System;
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ProcessSnapshot {
@@ -19,7 +19,7 @@ pub struct SysinfoProcessSource {
 impl SysinfoProcessSource {
     pub fn new() -> Self {
         Self {
-            system: System::new_all(),
+            system: System::new(),
         }
     }
 }
@@ -32,7 +32,11 @@ impl Default for SysinfoProcessSource {
 
 impl ProcessSource for SysinfoProcessSource {
     fn snapshot(&mut self) -> Vec<ProcessSnapshot> {
-        self.system.refresh_all();
+        self.system.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::new().with_exe(UpdateKind::OnlyIfNotSet),
+        );
         self.system
             .processes()
             .iter()
