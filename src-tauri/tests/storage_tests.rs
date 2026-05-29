@@ -273,6 +273,47 @@ fn app_usage_summary_counts_overlapping_same_app_sessions_once() {
 }
 
 #[test]
+fn app_usage_summary_prefers_primary_install_path_for_merged_apps() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let helper_codex = store
+        .upsert_app(
+            "codex.exe",
+            r"C:\Users\dev\AppData\Local\OpenAI\Codex\bin\958d608b5e0546a5\codex.exe",
+            "Codex",
+        )
+        .expect("helper codex");
+    let packaged_codex = store
+        .upsert_app(
+            "codex.exe",
+            r"C:\Program Files\WindowsApps\OpenAI.Codex_1.0.0.0_x64__abc\app\Codex.exe",
+            "Codex",
+        )
+        .expect("packaged codex");
+
+    let day_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap();
+    let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+    let ended_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 5, 0).unwrap();
+    for app_id in [helper_codex.id, packaged_codex.id] {
+        let session_id = store.start_session(app_id, started_at).expect("start");
+        store
+            .close_session(session_id, ended_at, "process_closed", false)
+            .expect("close");
+    }
+
+    let rows = store
+        .app_usage_summary(day_start, ended_at)
+        .expect("usage summary");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        rows[0].executable_path,
+        r"C:\Program Files\WindowsApps\OpenAI.Codex_1.0.0.0_x64__abc\app\Codex.exe"
+    );
+}
+
+#[test]
 fn daily_system_usage_accumulates_and_defaults_to_none() {
     let db_file = NamedTempFile::new().expect("temp db");
     let store = Store::open(db_file.path()).expect("open store");

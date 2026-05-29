@@ -48,11 +48,6 @@ export function AppUsageTable({ apps }: Props) {
           ))
         )}
       </div>
-      {apps.length > 0 ? (
-        <button className="show-all-button" type="button" disabled>
-          查看全部（{apps.length}）
-        </button>
-      ) : null}
     </section>
   );
 }

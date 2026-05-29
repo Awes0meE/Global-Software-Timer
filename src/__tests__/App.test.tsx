@@ -157,6 +157,7 @@ describe("App", () => {
     expect(container.querySelector(".usage-scroll")).toBeInTheDocument();
     expect(container.querySelector(".mix-scroll")).toBeInTheDocument();
     expect(container.querySelector(".recent-scroll")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /查看全部/ })).not.toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "今日分布" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "当前运行" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();

@@ -197,7 +197,6 @@ a:focus-visible {
 .date-control,
 .export-button,
 .ghost-link,
-.show-all-button,
 .nav-item {
   cursor: pointer;
   border: 0;
@@ -219,8 +218,7 @@ a:focus-visible {
 .header-action:hover,
 .date-control:hover,
 .export-button:hover,
-.ghost-link:hover,
-.show-all-button:hover {
+.ghost-link:hover {
   background: rgba(255, 255, 255, 0.07);
   color: #ffffff;
 }
@@ -229,7 +227,6 @@ a:focus-visible {
 .date-control:disabled,
 .export-button:disabled,
 .ghost-link:disabled,
-.show-all-button:disabled,
 .nav-item:disabled {
   cursor: default;
   opacity: 0.72;
@@ -239,7 +236,6 @@ a:focus-visible {
 .date-control:disabled:hover,
 .export-button:disabled:hover,
 .ghost-link:disabled:hover,
-.show-all-button:disabled:hover,
 .nav-item:disabled:hover {
   background: transparent;
   color: inherit;
@@ -636,15 +632,6 @@ a:focus-visible {
 
 .status-badge.closed i {
   background: #a0a9b5;
-}
-
-.show-all-button {
-  display: block;
-  width: 100%;
-  min-height: 40px;
-  background: transparent;
-  color: #61a0ff;
-  font-weight: 700;
 }
 
 .right-rail {

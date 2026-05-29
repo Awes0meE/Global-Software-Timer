@@ -394,18 +394,25 @@ impl Store {
                 DateTime::parse_from_rfc3339(&last_heartbeat_at)?.with_timezone(&Utc);
             let display_end = ended_at.unwrap_or(last_heartbeat_at);
 
-            let summary_key = format!("{}|{}", display_name.to_lowercase(), process_name);
+            let summary_key = display_name.to_lowercase();
             let entry = totals.entry(summary_key).or_insert(AppTotals {
                 app_id,
                 display_name,
-                process_name,
+                process_name: process_name.clone(),
                 executable_path: executable_path.clone(),
                 total_intervals: Vec::new(),
                 today_intervals: Vec::new(),
                 is_running: false,
             });
-            if entry.executable_path.is_empty() && !executable_path.is_empty() {
-                entry.executable_path = executable_path;
+            if should_prefer_executable_path(
+                &entry.executable_path,
+                &executable_path,
+                &entry.display_name,
+                &process_name,
+            ) {
+                entry.app_id = app_id;
+                entry.process_name = process_name.clone();
+                entry.executable_path = executable_path.clone();
             }
             entry.total_intervals.push((started_at, display_end));
             let today_start = started_at.max(day_start_utc);
@@ -578,6 +585,72 @@ pub fn normalize_identity_key(executable_path: &str, process_name: &str) -> Stri
     } else {
         path
     }
+}
+
+fn should_prefer_executable_path(
+    current_path: &str,
+    candidate_path: &str,
+    display_name: &str,
+    process_name: &str,
+) -> bool {
+    if candidate_path.trim().is_empty() {
+        return false;
+    }
+    if current_path.trim().is_empty() {
+        return true;
+    }
+
+    executable_path_score(candidate_path, display_name, process_name)
+        > executable_path_score(current_path, display_name, process_name)
+}
+
+fn executable_path_score(path: &str, display_name: &str, process_name: &str) -> i32 {
+    let normalized = path.trim().replace('/', "\\").to_lowercase();
+    if normalized.is_empty() {
+        return i32::MIN;
+    }
+
+    let file_name = normalized.rsplit('\\').next().unwrap_or_default();
+    let file_stem = file_name.strip_suffix(".exe").unwrap_or(file_name);
+    let process_name = process_name.trim().to_lowercase();
+    let process_stem = process_name.strip_suffix(".exe").unwrap_or(&process_name);
+    let display_stem = display_name
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_lowercase();
+
+    let mut score = 0;
+    if normalized.contains("\\windowsapps\\")
+        || normalized.contains("\\program files\\")
+        || normalized.contains("\\program files (x86)\\")
+    {
+        score += 100;
+    }
+    if normalized.contains("\\appdata\\local\\programs\\") {
+        score += 90;
+    } else if normalized.contains("\\appdata\\local\\")
+        || normalized.contains("\\appdata\\roaming\\")
+    {
+        score -= 20;
+    }
+    if normalized.contains("\\app\\") {
+        score += 15;
+    }
+    if normalized.contains("\\bin\\") {
+        score -= 40;
+    }
+    if normalized.contains("\\resources\\") {
+        score -= 30;
+    }
+    if !display_stem.is_empty() && file_stem == display_stem {
+        score += 25;
+    }
+    if !process_stem.is_empty() && file_stem == process_stem {
+        score += 10;
+    }
+
+    score
 }
 
 fn non_negative_seconds(start: DateTime<Utc>, end: DateTime<Utc>) -> i64 {

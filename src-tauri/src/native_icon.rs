@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-use std::path::Path;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
@@ -17,17 +17,92 @@ pub fn native_icon_data_url_for_path(executable_path: &str) -> Option<String> {
         }
     }
 
-    let icon = extract_native_icon_data_url(key);
+    let path = Path::new(key);
+    let icon = image_file_data_url(path)
+        .or_else(|| {
+            explicit_icon_candidates_for_path(path)
+                .into_iter()
+                .find_map(|candidate| image_file_data_url(&candidate))
+        })
+        .or_else(|| extract_native_icon_data_url(key));
     if let Ok(mut icons) = cache.lock() {
         icons.insert(key.to_string(), icon.clone());
     }
     icon
 }
 
-#[cfg(target_os = "windows")]
-fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
+fn image_file_data_url(path: &Path) -> Option<String> {
+    let extension = path.extension()?.to_string_lossy().to_lowercase();
+    if !matches!(extension.as_str(), "ico" | "png") {
+        return None;
+    }
+
+    let image = image::ImageReader::open(path).ok()?.decode().ok()?;
+    let image = image.resize(64, 64, image::imageops::FilterType::Lanczos3);
+    let rgba = image.to_rgba8();
+    let (width, height) = rgba.dimensions();
+
+    encode_rgba_png_data_url(rgba.as_raw(), width, height)
+}
+
+fn explicit_icon_candidates_for_path(path: &Path) -> Vec<PathBuf> {
+    let start_dir = if path.is_dir() {
+        path
+    } else {
+        match path.parent() {
+            Some(parent) => parent,
+            None => return Vec::new(),
+        }
+    };
+
+    let mut candidates = Vec::new();
+    let mut seen = HashSet::new();
+    let mut dir = Some(start_dir);
+    for _ in 0..5 {
+        let Some(current_dir) = dir else {
+            break;
+        };
+
+        for candidate in icon_candidates_in_dir(current_dir) {
+            if candidate.exists() && seen.insert(candidate.clone()) {
+                candidates.push(candidate);
+            }
+        }
+        dir = current_dir.parent();
+    }
+
+    candidates
+}
+
+fn icon_candidates_in_dir(dir: &Path) -> Vec<PathBuf> {
+    vec![
+        dir.join("resources").join("icon.ico"),
+        dir.join("resources").join("icon.png"),
+        dir.join("assets").join("Square150x150Logo.png"),
+        dir.join("assets").join("Square44x44Logo.png"),
+        dir.join("assets").join("icon.png"),
+        dir.join("icon.ico"),
+        dir.join("icon.png"),
+    ]
+}
+
+fn encode_rgba_png_data_url(rgba: &[u8], width: u32, height: u32) -> Option<String> {
     use base64::Engine;
     use image::{codecs::png::PngEncoder, ColorType, ImageEncoder};
+
+    let mut png = Vec::new();
+    PngEncoder::new(&mut png)
+        .write_image(rgba, width, height, ColorType::Rgba8.into())
+        .ok()?;
+
+    Some(format!(
+        "data:image/png;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(png)
+    ))
+}
+
+#[cfg(target_os = "windows")]
+fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
     use std::ffi::OsStr;
     use std::mem::{size_of, zeroed};
     use std::os::windows::ffi::OsStrExt;
@@ -36,7 +111,9 @@ fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
         CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, SelectObject, BITMAPINFO,
         BITMAPINFOHEADER, DIB_RGB_COLORS,
     };
-    use windows_sys::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON};
+    use windows_sys::Win32::UI::Shell::{
+        ExtractIconExW, SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON,
+    };
     use windows_sys::Win32::UI::WindowsAndMessaging::{DestroyIcon, DrawIconEx, DI_NORMAL};
 
     const ICON_SIZE: i32 = 48;
@@ -45,6 +122,11 @@ fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
         .encode_wide()
         .chain(std::iter::once(0))
         .collect::<Vec<_>>();
+    let icon_count =
+        unsafe { ExtractIconExW(wide_path.as_ptr(), -1, null_mut(), null_mut(), 0) };
+    if icon_count == 0 {
+        return None;
+    }
 
     let mut shell_info: SHFILEINFOW = unsafe { zeroed() };
     let shell_result = unsafe {
@@ -145,20 +227,7 @@ fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
         rgba.push(pixel[3]);
     }
 
-    let mut png = Vec::new();
-    PngEncoder::new(&mut png)
-        .write_image(
-            &rgba,
-            ICON_SIZE as u32,
-            ICON_SIZE as u32,
-            ColorType::Rgba8.into(),
-        )
-        .ok()?;
-
-    Some(format!(
-        "data:image/png;base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(png)
-    ))
+    encode_rgba_png_data_url(&rgba, ICON_SIZE as u32, ICON_SIZE as u32)
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -169,11 +238,41 @@ fn extract_native_icon_data_url(_executable_path: &str) -> Option<String> {
 #[cfg(all(test, target_os = "windows"))]
 mod tests {
     use super::native_icon_data_url_for_path;
+    use std::path::Path;
+
+    #[test]
+    fn finds_packaged_icon_files_near_executable() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let app_dir = temp_dir.path().join("app");
+        let resources_dir = app_dir.join("resources");
+        std::fs::create_dir_all(&resources_dir).expect("resources dir");
+        let executable_path = app_dir.join("Codex.exe");
+        let icon_path = resources_dir.join("icon.ico");
+        std::fs::write(&executable_path, []).expect("exe placeholder");
+        std::fs::write(&icon_path, []).expect("icon placeholder");
+
+        let candidates = super::explicit_icon_candidates_for_path(&executable_path);
+
+        assert_eq!(candidates.first(), Some(&icon_path));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn ignores_generic_shell_icon_for_executable_without_embedded_icon() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let executable_path = temp_dir.path().join("helper.exe");
+        std::fs::write(&executable_path, []).expect("exe placeholder");
+
+        let icon = native_icon_data_url_for_path(&executable_path.to_string_lossy());
+
+        assert!(icon.is_none());
+    }
 
     #[test]
     fn extracts_shell_icon_for_existing_executable() {
-        let current_exe = std::env::current_exe().expect("current exe");
-        let icon = native_icon_data_url_for_path(&current_exe.to_string_lossy()).expect("icon");
+        let windows_dir = std::env::var("WINDIR").expect("WINDIR");
+        let notepad = Path::new(&windows_dir).join("System32").join("notepad.exe");
+        let icon = native_icon_data_url_for_path(&notepad.to_string_lossy()).expect("icon");
 
         assert!(icon.starts_with("data:image/png;base64,"));
     }
