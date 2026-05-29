@@ -107,4 +107,82 @@ describe("App", () => {
     expect(screen.getAllByText("Codex").length).toBeGreaterThan(0);
     expect(mockInvoke).toHaveBeenCalledTimes(2);
   });
+
+  it("renders the overview workspace chrome and dashboard panels", async () => {
+    mockInvoke.mockResolvedValue({
+      product_title: "全局软件计时器",
+      locale: "zh-CN",
+      most_used: {
+        app_id: 1,
+        display_name: "Visual Studio Code",
+        process_name: "Code.exe",
+        total_seconds: 482 * 3600 + 36 * 60,
+        today_seconds: 3 * 3600 + 15 * 60,
+        is_running: true,
+      },
+      recorded_today_seconds: 8 * 3600 + 47 * 60,
+      active_today_seconds: 27 * 60,
+      apps: [
+        {
+          app_id: 1,
+          display_name: "Visual Studio Code",
+          process_name: "Code.exe",
+          total_seconds: 482 * 3600 + 36 * 60,
+          today_seconds: 3 * 3600 + 15 * 60,
+          is_running: true,
+        },
+        {
+          app_id: 2,
+          display_name: "Chrome",
+          process_name: "chrome.exe",
+          total_seconds: 115 * 3600 + 47 * 60,
+          today_seconds: 45 * 60,
+          is_running: true,
+        },
+      ],
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "全局软件计时器" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "概览" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText("软件使用情况")).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "今日分布" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "当前运行" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();
+  });
+
+  it("shows software-specific icons for known applications", async () => {
+    mockInvoke.mockResolvedValue({
+      product_title: "全局软件计时器",
+      locale: "zh-CN",
+      most_used: null,
+      recorded_today_seconds: 0,
+      active_today_seconds: 0,
+      apps: [
+        {
+          app_id: 1,
+          display_name: "Visual Studio Code",
+          process_name: "Code.exe",
+          total_seconds: 3600,
+          today_seconds: 1800,
+          is_running: true,
+        },
+        {
+          app_id: 2,
+          display_name: "Chrome",
+          process_name: "chrome.exe",
+          total_seconds: 1800,
+          today_seconds: 900,
+          is_running: false,
+        },
+      ],
+    });
+
+    render(<App />);
+
+    expect((await screen.findAllByLabelText("Visual Studio Code 图标")).length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Chrome 图标").length).toBeGreaterThan(0);
+  });
 });
