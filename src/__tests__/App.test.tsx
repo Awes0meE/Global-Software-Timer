@@ -142,12 +142,16 @@ describe("App", () => {
       ],
     });
 
-    render(<App />);
+    const { container } = render(<App />);
 
     expect(await screen.findByRole("heading", { name: "全局软件计时器" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "概览" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByText("软件使用情况")).toBeInTheDocument();
+    expect(container.querySelector(".window-control-group")).not.toBeInTheDocument();
+    expect(container.querySelector(".usage-scroll")).toBeInTheDocument();
+    expect(container.querySelector(".mix-scroll")).toBeInTheDocument();
+    expect(container.querySelector(".recent-scroll")).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "今日分布" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "当前运行" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();
@@ -177,6 +181,30 @@ describe("App", () => {
           today_seconds: 900,
           is_running: false,
         },
+        {
+          app_id: 3,
+          display_name: "Microsoft Edge",
+          process_name: "msedge.exe",
+          total_seconds: 1200,
+          today_seconds: 600,
+          is_running: false,
+        },
+        {
+          app_id: 4,
+          display_name: "Steam",
+          process_name: "steam.exe",
+          total_seconds: 900,
+          today_seconds: 300,
+          is_running: false,
+        },
+        {
+          app_id: 5,
+          display_name: "WPS Office",
+          process_name: "wps.exe",
+          total_seconds: 600,
+          today_seconds: 300,
+          is_running: false,
+        },
       ],
     });
 
@@ -184,5 +212,8 @@ describe("App", () => {
 
     expect((await screen.findAllByLabelText("Visual Studio Code 图标")).length).toBeGreaterThan(0);
     expect(screen.getAllByLabelText("Chrome 图标").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Microsoft Edge 图标")[0]).toHaveClass("software-icon-edge");
+    expect(screen.getAllByLabelText("Steam 图标")[0]).toHaveClass("software-icon-steam");
+    expect(screen.getAllByLabelText("WPS Office 图标")[0]).toHaveClass("software-icon-wps");
   });
 });

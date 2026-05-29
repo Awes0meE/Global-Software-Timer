@@ -40,6 +40,17 @@ fn known_display_name(name: &str) -> Option<&'static str> {
         "obsidian.exe" => Some("Obsidian"),
         "notion.exe" => Some("Notion"),
         "codex.exe" => Some("Codex"),
+        "steam.exe" => Some("Steam"),
+        "steam++.exe" => Some("Watt Toolkit"),
+        "wps.exe" => Some("WPS Office"),
+        "et.exe" => Some("WPS Spreadsheets"),
+        "wpp.exe" => Some("WPS Presentation"),
+        "wechat.exe" => Some("WeChat"),
+        "weixin.exe" => Some("WeChat"),
+        "everything.exe" => Some("Everything"),
+        "powershell.exe" => Some("PowerShell"),
+        "pwsh.exe" => Some("PowerShell"),
+        "wt.exe" => Some("Windows Terminal"),
         _ => None,
     }
 }
@@ -57,6 +68,14 @@ fn is_system_process(name: &str, path: &str) -> bool {
         "services.exe",
         "smss.exe",
         "spoolsv.exe",
+        "aggregatorhost.exe",
+        "fontdrvhost.exe",
+        "msmpeng.exe",
+        "nissrv.exe",
+        "runtimebroker.exe",
+        "searchfilterhost.exe",
+        "searchindexer.exe",
+        "sihost.exe",
         "wininit.exe",
         "winlogon.exe",
         "wudfhost.exe",
@@ -66,21 +85,59 @@ fn is_system_process(name: &str, path: &str) -> bool {
 }
 
 fn is_helper_process(name: &str, path: &str) -> bool {
+    const HELPER_STEMS: &[&str] = &[
+        "cargo",
+        "cl",
+        "esbuild",
+        "edgegameassist",
+        "global-software-timer",
+        "listaryhookhost32",
+        "listaryhookhost64",
+        "lmgrd",
+        "mathworksservicehost-monitor",
+        "node",
+        "node_repl",
+        "rustc",
+        "sgtool",
+        "sldworks_fs",
+        "sogoucloud",
+        "sw_d",
+        "vctip",
+        "wallpaper64",
+        "webwallpaper32",
+        "wechatappex",
+        "widgets",
+        "windowtool",
+        "xboxpcappft",
+    ];
     const HELPER_KEYWORDS: &[&str] = &[
         "update",
         "updater",
+        "accelerator",
+        "agent",
+        "broker",
         "crashpad",
+        "daemon",
         "helper",
         "cloudsrv",
+        "pluginhost",
+        "webview",
         "wpscloud",
         "sync",
         "installer",
+        "hookhost",
+        "servicehost",
     ];
     const HELPER_PATH_SEGMENTS: &[&str] = &["squirreltemp"];
 
     let stem = executable_stem(name);
 
-    stem == "service"
+    path.is_empty()
+        || HELPER_STEMS.contains(&stem)
+        || stem == "service"
+        || stem.ends_with("service")
+        || stem.ends_with("srv")
+        || stem.ends_with("host")
         || HELPER_KEYWORDS.iter().any(|keyword| stem.contains(keyword))
         || path
             .split(['\\', '/'])

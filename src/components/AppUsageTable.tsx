@@ -25,27 +25,29 @@ export function AppUsageTable({ apps }: Props) {
         </span>
         <span>状态</span>
       </div>
-      {apps.length === 0 ? (
-        <div className="empty-state">暂时没有可展示的软件时长。</div>
-      ) : (
-        apps.map((app) => (
-          <div className="usage-row" key={app.app_id}>
-            <div className="software-cell">
-              <SoftwareIcon app={app} />
-              <span>
-                <strong>{app.display_name}</strong>
-                <small>{app.process_name}</small>
+      <div className="usage-scroll">
+        {apps.length === 0 ? (
+          <div className="empty-state">暂时没有可展示的软件时长。</div>
+        ) : (
+          apps.map((app) => (
+            <div className="usage-row" key={app.app_id}>
+              <div className="software-cell">
+                <SoftwareIcon app={app} />
+                <span>
+                  <strong>{app.display_name}</strong>
+                  <small>{app.process_name}</small>
+                </span>
+              </div>
+              <span>{formatDurationZh(app.total_seconds)}</span>
+              <span>{formatDurationZh(app.today_seconds)}</span>
+              <span className={`status-badge ${app.is_running ? "running" : "closed"}`}>
+                <i aria-hidden="true" />
+                {app.is_running ? "运行中" : "已关闭"}
               </span>
             </div>
-            <span>{formatDurationZh(app.total_seconds)}</span>
-            <span>{formatDurationZh(app.today_seconds)}</span>
-            <span className={`status-badge ${app.is_running ? "running" : "closed"}`}>
-              <i aria-hidden="true" />
-              {app.is_running ? "运行中" : "已关闭"}
-            </span>
-          </div>
-        ))
-      )}
+          ))
+        )}
+      </div>
       {apps.length > 0 ? (
         <button className="show-all-button" type="button" disabled>
           查看全部（{apps.length}）

@@ -1,3 +1,4 @@
+use crate::classifier::{classify_process, Classification};
 use crate::domain::{AppIdentity, AppUsageSummary, DailySystemUsage, RunEventKind, UsageSession};
 use chrono::{DateTime, NaiveDate, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -337,6 +338,7 @@ impl Store {
     ) -> StoreResult<Vec<AppUsageSummary>> {
         #[derive(Debug)]
         struct AppTotals {
+            app_id: i64,
             display_name: String,
             process_name: String,
             total_seconds: i64,
@@ -349,29 +351,51 @@ impl Store {
             SELECT apps.id,
                    apps.display_name,
                    apps.process_name,
+                   apps.executable_path,
+                   apps.is_user_renamed,
                    usage_sessions.started_at,
-                   usage_sessions.ended_at
+                   usage_sessions.ended_at,
+                   usage_sessions.last_heartbeat_at
             FROM usage_sessions
             INNER JOIN apps ON apps.id = usage_sessions.app_id
             WHERE apps.is_hidden = 0
+            ORDER BY apps.id, usage_sessions.id
             "#,
         )?;
         let mut rows = stmt.query([])?;
-        let mut totals: HashMap<i64, AppTotals> = HashMap::new();
+        let mut totals: HashMap<String, AppTotals> = HashMap::new();
 
         while let Some(row) = rows.next()? {
             let app_id: i64 = row.get(0)?;
-            let display_name: String = row.get(1)?;
+            let stored_display_name: String = row.get(1)?;
             let process_name: String = row.get(2)?;
-            let started_at: String = row.get(3)?;
-            let ended_at: Option<String> = row.get(4)?;
+            let executable_path: String = row.get(3)?;
+            let is_user_renamed = row.get::<_, i64>(4)? != 0;
+            let classification = classify_process(&process_name, &executable_path);
+            let display_name = match classification {
+                Classification::Hidden => continue,
+                Classification::Tracked { display_name: _ } if is_user_renamed => {
+                    stored_display_name
+                }
+                Classification::Tracked {
+                    display_name: classified_display_name,
+                } => classified_display_name,
+            };
+
+            let started_at: String = row.get(5)?;
+            let ended_at: Option<String> = row.get(6)?;
+            let last_heartbeat_at: String = row.get(7)?;
             let started_at = DateTime::parse_from_rfc3339(&started_at)?.with_timezone(&Utc);
             let ended_at = ended_at
                 .map(|value| DateTime::parse_from_rfc3339(&value).map(|dt| dt.with_timezone(&Utc)))
                 .transpose()?;
-            let display_end = ended_at.unwrap_or(now_utc);
+            let last_heartbeat_at =
+                DateTime::parse_from_rfc3339(&last_heartbeat_at)?.with_timezone(&Utc);
+            let display_end = ended_at.unwrap_or(last_heartbeat_at);
 
-            let entry = totals.entry(app_id).or_insert(AppTotals {
+            let summary_key = format!("{}|{}", display_name.to_lowercase(), process_name);
+            let entry = totals.entry(summary_key).or_insert(AppTotals {
+                app_id,
                 display_name,
                 process_name,
                 total_seconds: 0,
@@ -385,8 +409,8 @@ impl Store {
 
         let mut summaries = totals
             .into_iter()
-            .map(|(app_id, totals)| AppUsageSummary {
-                app_id,
+            .map(|(_, totals)| AppUsageSummary {
+                app_id: totals.app_id,
                 display_name: totals.display_name,
                 process_name: totals.process_name,
                 total_seconds: totals.total_seconds,

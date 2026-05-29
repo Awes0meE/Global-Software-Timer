@@ -85,12 +85,15 @@ fn app_usage_summary_includes_closed_and_open_sessions_for_today() {
         .expect("close closed");
 
     let open_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 30).unwrap();
-    store
-        .start_session(word.id, open_start)
-        .expect("start open");
-
     let day_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap();
     let now = Utc.with_ymd_and_hms(2026, 5, 29, 0, 2, 0).unwrap();
+    let open_id = store
+        .start_session(word.id, open_start)
+        .expect("start open");
+    store
+        .heartbeat_session(open_id, now)
+        .expect("heartbeat open");
+
     let rows = store
         .app_usage_summary(day_start, now)
         .expect("usage summary");
@@ -104,6 +107,121 @@ fn app_usage_summary_includes_closed_and_open_sessions_for_today() {
     assert_eq!(rows[1].total_seconds, 90);
     assert_eq!(rows[1].today_seconds, 90);
     assert!(rows[1].is_running);
+}
+
+#[test]
+fn app_usage_summary_caps_open_sessions_at_last_heartbeat() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Users\dev\AppData\Local\Programs\Microsoft VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("code app");
+
+    let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+    let heartbeat_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 1, 0).unwrap();
+    let query_at = Utc.with_ymd_and_hms(2026, 5, 29, 12, 0, 0).unwrap();
+    let session_id = store.start_session(app.id, started_at).expect("start");
+    store
+        .heartbeat_session(session_id, heartbeat_at)
+        .expect("heartbeat");
+
+    let rows = store
+        .app_usage_summary(started_at, query_at)
+        .expect("usage summary");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].total_seconds, 60);
+    assert_eq!(rows[0].today_seconds, 60);
+    assert!(rows[0].is_running);
+}
+
+#[test]
+fn app_usage_summary_applies_default_classifier_to_existing_rows() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let code = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Users\dev\AppData\Local\Programs\Microsoft VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("code app");
+    let node = store
+        .upsert_app("node.exe", r"C:\Program Files\nodejs\node.exe", "node")
+        .expect("node app");
+
+    let day_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap();
+    let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+    let ended_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 5, 0).unwrap();
+    for app_id in [code.id, node.id] {
+        let session_id = store.start_session(app_id, started_at).expect("start");
+        store
+            .close_session(session_id, ended_at, "process_closed", false)
+            .expect("close");
+    }
+
+    let rows = store
+        .app_usage_summary(day_start, ended_at)
+        .expect("usage summary");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].display_name, "Visual Studio Code");
+}
+
+#[test]
+fn app_usage_summary_merges_same_classified_application_rows() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let first_wps = store
+        .upsert_app(
+            "wps.exe",
+            r"C:\Users\dev\AppData\Local\Kingsoft\WPS Office\office6\wps.exe",
+            "wps",
+        )
+        .expect("first wps");
+    let second_wps = store
+        .upsert_app(
+            "wps.exe",
+            r"D:\Users\dev\AppData\Local\Kingsoft\WPSOFF~1\office6\wps.exe",
+            "wps",
+        )
+        .expect("second wps");
+
+    let day_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap();
+    let first_start = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+    let first_end = Utc.with_ymd_and_hms(2026, 5, 29, 9, 5, 0).unwrap();
+    let second_start = Utc.with_ymd_and_hms(2026, 5, 29, 10, 0, 0).unwrap();
+    let second_end = Utc.with_ymd_and_hms(2026, 5, 29, 10, 2, 0).unwrap();
+
+    let first_session = store
+        .start_session(first_wps.id, first_start)
+        .expect("first start");
+    store
+        .close_session(first_session, first_end, "process_closed", false)
+        .expect("first close");
+    let second_session = store
+        .start_session(second_wps.id, second_start)
+        .expect("second start");
+    store
+        .close_session(second_session, second_end, "process_closed", false)
+        .expect("second close");
+
+    let rows = store
+        .app_usage_summary(day_start, second_end)
+        .expect("usage summary");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].display_name, "WPS Office");
+    assert_eq!(rows[0].process_name, "wps.exe");
+    assert_eq!(rows[0].total_seconds, 420);
+    assert_eq!(rows[0].today_seconds, 420);
 }
 
 #[test]

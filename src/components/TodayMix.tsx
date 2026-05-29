@@ -38,18 +38,20 @@ export function TodayMix({ apps }: Props) {
           />
         ))}
       </div>
-      <div className="mix-list">
-        {rows.length === 0 ? <div className="empty-state compact">暂无今日分布。</div> : null}
-        {rows.map((app, index) => (
-          <div key={app.app_id}>
-            <span className="mix-name">
-              <i style={{ backgroundColor: segmentColors[index % segmentColors.length] }} aria-hidden="true" />
-              {app.display_name}
-            </span>
-            <span>{formatDurationZh(app.today_seconds)}</span>
-            <strong>{total > 0 ? ((app.today_seconds / total) * 100).toFixed(1) : "0.0"}%</strong>
-          </div>
-        ))}
+      <div className="mix-scroll" aria-label="今日分布列表" tabIndex={0}>
+        <div className="mix-list">
+          {rows.length === 0 ? <div className="empty-state compact">暂无今日分布。</div> : null}
+          {rows.map((app, index) => (
+            <div key={app.app_id}>
+              <span className="mix-name">
+                <i style={{ backgroundColor: segmentColors[index % segmentColors.length] }} aria-hidden="true" />
+                {app.display_name}
+              </span>
+              <span>{formatDurationZh(app.today_seconds)}</span>
+              <strong>{total > 0 ? ((app.today_seconds / total) * 100).toFixed(1) : "0.0"}%</strong>
+            </div>
+          ))}
+        </div>
       </div>
     </aside>
   );

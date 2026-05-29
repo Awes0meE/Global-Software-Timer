@@ -123,7 +123,6 @@ a:focus-visible {
 .brand-cluster,
 .window-actions,
 .header-action,
-.window-control-group,
 .bottom-bar,
 .date-control,
 .export-button {
@@ -250,25 +249,11 @@ a:focus-visible {
   color: #aab7c7;
 }
 
-.window-control-group {
-  gap: 8px;
-  margin-left: 12px;
-}
-
-.window-control {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  border-radius: 8px;
-  background: transparent;
-  color: #d9e3ef;
-}
-
 .workspace-layout {
   display: grid;
   min-height: 0;
   grid-template-columns: 112px minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .sidebar {
@@ -282,15 +267,15 @@ a:focus-visible {
 .side-nav {
   display: grid;
   align-content: start;
-  gap: 8px;
-  padding: 14px 8px;
+  gap: 6px;
+  padding: 12px 8px;
 }
 
 .nav-item {
   display: grid;
-  min-height: 78px;
+  min-height: 74px;
   place-items: center;
-  gap: 7px;
+  gap: 3px;
   border-radius: 8px;
   background: transparent;
   color: #aab7c7;
@@ -338,8 +323,11 @@ a:focus-visible {
 }
 
 .overview-page {
+  display: grid;
+  min-height: 0;
   min-width: 0;
-  overflow: auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
   padding: 20px;
 }
 
@@ -522,12 +510,19 @@ a:focus-visible {
 
 .overview-grid {
   display: grid;
+  min-height: 0;
   grid-template-columns: minmax(0, 1fr) minmax(310px, 492px);
   gap: 20px;
 }
 
 .panel {
+  min-height: 0;
   overflow: hidden;
+}
+
+.table-panel {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
 .panel-heading {
@@ -557,6 +552,12 @@ a:focus-visible {
   gap: 18px;
   border-bottom: 1px solid rgba(116, 145, 170, 0.14);
   padding: 0 22px;
+}
+
+.usage-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .usage-head {
@@ -648,8 +649,10 @@ a:focus-visible {
 
 .right-rail {
   display: grid;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   gap: 18px;
-  align-content: start;
+  overflow: hidden;
 }
 
 .ghost-link {
@@ -666,7 +669,17 @@ a:focus-visible {
 
 .mix-panel,
 .recent-panel {
-  padding-bottom: 16px;
+  display: grid;
+  min-height: 0;
+  padding-bottom: 0;
+}
+
+.mix-panel {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.recent-panel {
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .mix-total {
@@ -691,7 +704,6 @@ a:focus-visible {
 .mix-list {
   display: grid;
   gap: 11px;
-  padding: 0 18px;
   color: #dce5ef;
   font-size: 14px;
 }
@@ -727,7 +739,23 @@ a:focus-visible {
 .recent-list {
   display: grid;
   gap: 12px;
-  padding: 2px 18px 0;
+  padding-top: 2px;
+}
+
+.mix-scroll,
+.recent-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 18px 16px;
+  scrollbar-gutter: stable;
+}
+
+.mix-scroll:focus-visible,
+.recent-scroll:focus-visible,
+.usage-scroll:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
 }
 
 .recent-item {
@@ -883,6 +911,42 @@ a:focus-visible {
   background:
     radial-gradient(circle at center, #54a3ff 0 24%, #ffffff 25% 31%, transparent 32%),
     conic-gradient(#db4437 0 34%, #f4b400 34% 66%, #0f9d58 66% 100%);
+}
+
+.software-icon-edge {
+  background: #062b3d;
+}
+
+.edge-mark {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 62% 62%, #071018 0 19%, transparent 20%),
+    conic-gradient(from 200deg, #16c7b7, #2f8cff, #1857c9, #16c7b7);
+}
+
+.software-icon-steam {
+  background: linear-gradient(135deg, #0d1b39, #1557a5);
+}
+
+.software-icon-steam circle,
+.software-icon-steam path {
+  fill: none;
+  stroke: #ffffff;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.3;
+}
+
+.software-icon-wps {
+  background: linear-gradient(135deg, #e43833, #b91c1c);
+}
+
+.wps-mark {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .software-icon-everything {
@@ -1050,10 +1114,6 @@ a:focus-visible {
     padding: 0 6px;
   }
 
-  .window-control-group {
-    display: none;
-  }
-
   .overview-page {
     padding: 14px;
   }
@@ -1077,7 +1137,11 @@ a:focus-visible {
   }
 
   .table-panel {
-    overflow-x: auto;
+    overflow: hidden;
+  }
+
+  .usage-scroll {
+    overflow: auto;
   }
 
   .usage-row {

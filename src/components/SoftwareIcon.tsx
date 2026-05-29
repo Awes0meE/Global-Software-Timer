@@ -6,6 +6,9 @@ type IconKind =
   | "word"
   | "codex"
   | "chrome"
+  | "edge"
+  | "steam"
+  | "wps"
   | "everything"
   | "terminal"
   | "wechat"
@@ -36,7 +39,10 @@ function getSoftwareIconKind(app: Pick<AppUsageRow, "display_name" | "process_na
   if (identity.includes("solidworks") || identity.includes("sldworks")) return "solidworks";
   if (identity.includes("word") || identity.includes("winword")) return "word";
   if (identity.includes("codex") || identity.includes("openai")) return "codex";
+  if (identity.includes("microsoft edge") || identity.includes("msedge.exe")) return "edge";
   if (identity.includes("chrome")) return "chrome";
+  if (identity.includes("steam")) return "steam";
+  if (identity.includes("wps") || identity.includes("kingsoft")) return "wps";
   if (identity.includes("everything")) return "everything";
   if (identity.includes("terminal") || identity.includes("wt.exe") || identity.includes("powershell")) {
     return "terminal";
@@ -80,6 +86,23 @@ function renderIcon(kind: IconKind, displayName: string) {
       );
     case "chrome":
       return <span className="chrome-mark" aria-hidden="true" />;
+    case "edge":
+      return <span className="edge-mark" aria-hidden="true" />;
+    case "steam":
+      return (
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <circle cx="21.5" cy="10.5" r="5.3" />
+          <circle cx="21.5" cy="10.5" r="2.2" />
+          <path d="M8 20.2 15 23l7-6.8" />
+          <circle cx="8.2" cy="20.2" r="4" />
+        </svg>
+      );
+    case "wps":
+      return (
+        <span className="wps-mark" aria-hidden="true">
+          WPS
+        </span>
+      );
     case "everything":
       return (
         <svg viewBox="0 0 32 32" aria-hidden="true">

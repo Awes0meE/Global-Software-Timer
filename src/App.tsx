@@ -7,11 +7,8 @@ import {
   Download,
   Home,
   Menu,
-  Minus,
   Monitor,
   Settings,
-  Square,
-  X,
 } from "lucide-react";
 import { getDashboardSummary, type DashboardSummary } from "./api";
 import { AppUsageTable } from "./components/AppUsageTable";
@@ -103,17 +100,6 @@ export default function App() {
               更多
               <ChevronDown size={14} aria-hidden="true" />
             </button>
-            <div className="window-control-group" aria-hidden="true">
-              <span className="window-control">
-                <Minus size={17} aria-hidden="true" />
-              </span>
-              <span className="window-control">
-                <Square size={15} aria-hidden="true" />
-              </span>
-              <span className="window-control">
-                <X size={18} aria-hidden="true" />
-              </span>
-            </div>
           </div>
         </header>
 
