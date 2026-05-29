@@ -1,5 +1,6 @@
 use crate::app_state::AppState;
 use crate::domain::AppUsageSummary;
+use crate::native_icon::native_icon_data_url_for_path;
 use crate::storage::{Store, StoreError};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::Serialize;
@@ -20,6 +21,7 @@ pub struct AppUsageRow {
     pub app_id: i64,
     pub display_name: String,
     pub process_name: String,
+    pub icon_data_url: Option<String>,
     pub total_seconds: i64,
     pub today_seconds: i64,
     pub is_running: bool,
@@ -88,6 +90,7 @@ impl From<AppUsageSummary> for AppUsageRow {
             app_id: summary.app_id,
             display_name: summary.display_name,
             process_name: summary.process_name,
+            icon_data_url: native_icon_data_url_for_path(&summary.executable_path),
             total_seconds: summary.total_seconds,
             today_seconds: summary.today_seconds,
             is_running: summary.is_running,
@@ -141,5 +144,6 @@ mod tests {
             summary.most_used.as_ref().unwrap().display_name,
             "Visual Studio Code"
         );
+        assert!(summary.apps[0].icon_data_url.is_none());
     }
 }

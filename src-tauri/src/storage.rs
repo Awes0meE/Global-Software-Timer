@@ -341,8 +341,9 @@ impl Store {
             app_id: i64,
             display_name: String,
             process_name: String,
-            total_seconds: i64,
-            today_seconds: i64,
+            executable_path: String,
+            total_intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
+            today_intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
             is_running: bool,
         }
 
@@ -398,24 +399,38 @@ impl Store {
                 app_id,
                 display_name,
                 process_name,
-                total_seconds: 0,
-                today_seconds: 0,
+                executable_path: executable_path.clone(),
+                total_intervals: Vec::new(),
+                today_intervals: Vec::new(),
                 is_running: false,
             });
-            entry.total_seconds += non_negative_seconds(started_at, display_end);
-            entry.today_seconds += overlap_seconds(started_at, display_end, day_start_utc, now_utc);
+            if entry.executable_path.is_empty() && !executable_path.is_empty() {
+                entry.executable_path = executable_path;
+            }
+            entry.total_intervals.push((started_at, display_end));
+            let today_start = started_at.max(day_start_utc);
+            let today_end = display_end.min(now_utc);
+            if today_end > today_start {
+                entry.today_intervals.push((today_start, today_end));
+            }
             entry.is_running |= ended_at.is_none();
         }
 
         let mut summaries = totals
             .into_iter()
-            .map(|(_, totals)| AppUsageSummary {
-                app_id: totals.app_id,
-                display_name: totals.display_name,
-                process_name: totals.process_name,
-                total_seconds: totals.total_seconds,
-                today_seconds: totals.today_seconds,
-                is_running: totals.is_running,
+            .map(|(_, mut totals)| {
+                let total_seconds = merged_interval_seconds(&mut totals.total_intervals);
+                let today_seconds = merged_interval_seconds(&mut totals.today_intervals);
+
+                AppUsageSummary {
+                    app_id: totals.app_id,
+                    display_name: totals.display_name,
+                    process_name: totals.process_name,
+                    executable_path: totals.executable_path,
+                    total_seconds,
+                    today_seconds,
+                    is_running: totals.is_running,
+                }
             })
             .collect::<Vec<_>>();
 
@@ -569,13 +584,29 @@ fn non_negative_seconds(start: DateTime<Utc>, end: DateTime<Utc>) -> i64 {
     end.signed_duration_since(start).num_seconds().max(0)
 }
 
-fn overlap_seconds(
-    start: DateTime<Utc>,
-    end: DateTime<Utc>,
-    range_start: DateTime<Utc>,
-    range_end: DateTime<Utc>,
-) -> i64 {
-    let overlap_start = start.max(range_start);
-    let overlap_end = end.min(range_end);
-    non_negative_seconds(overlap_start, overlap_end)
+fn merged_interval_seconds(intervals: &mut [(DateTime<Utc>, DateTime<Utc>)]) -> i64 {
+    if intervals.is_empty() {
+        return 0;
+    }
+
+    intervals.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+    let mut total = 0;
+    let mut current_start = intervals[0].0;
+    let mut current_end = intervals[0].1;
+
+    for (start, end) in intervals.iter().skip(1).copied() {
+        if end <= start {
+            continue;
+        }
+
+        if start <= current_end {
+            current_end = current_end.max(end);
+        } else {
+            total += non_negative_seconds(current_start, current_end);
+            current_start = start;
+            current_end = end;
+        }
+    }
+
+    total + non_negative_seconds(current_start, current_end)
 }

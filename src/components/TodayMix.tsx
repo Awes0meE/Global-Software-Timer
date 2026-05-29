@@ -62,6 +62,7 @@ function createOtherUsageRow(todaySeconds: number): AppUsageRow {
     app_id: -1,
     display_name: "其他",
     process_name: "other",
+    icon_data_url: null,
     total_seconds: todaySeconds,
     today_seconds: todaySeconds,
     is_running: false,

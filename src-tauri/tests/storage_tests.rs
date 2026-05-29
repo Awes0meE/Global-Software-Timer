@@ -225,6 +225,54 @@ fn app_usage_summary_merges_same_classified_application_rows() {
 }
 
 #[test]
+fn app_usage_summary_counts_overlapping_same_app_sessions_once() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let first_codex = store
+        .upsert_app(
+            "codex.exe",
+            r"C:\Program Files\WindowsApps\OpenAI.Codex\app\Codex.exe",
+            "Codex",
+        )
+        .expect("first codex");
+    let second_codex = store
+        .upsert_app(
+            "codex.exe",
+            r"C:\Users\dev\AppData\Local\OpenAI\Codex\bin\codex.exe",
+            "Codex",
+        )
+        .expect("second codex");
+
+    let day_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap();
+    let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+    let first_end = Utc.with_ymd_and_hms(2026, 5, 29, 9, 5, 0).unwrap();
+    let second_end = Utc.with_ymd_and_hms(2026, 5, 29, 9, 3, 0).unwrap();
+
+    let first_session = store
+        .start_session(first_codex.id, started_at)
+        .expect("first start");
+    store
+        .close_session(first_session, first_end, "process_closed", false)
+        .expect("first close");
+    let second_session = store
+        .start_session(second_codex.id, started_at)
+        .expect("second start");
+    store
+        .close_session(second_session, second_end, "process_closed", false)
+        .expect("second close");
+
+    let rows = store
+        .app_usage_summary(day_start, first_end)
+        .expect("usage summary");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].display_name, "Codex");
+    assert_eq!(rows[0].total_seconds, 300);
+    assert_eq!(rows[0].today_seconds, 300);
+}
+
+#[test]
 fn daily_system_usage_accumulates_and_defaults_to_none() {
     let db_file = NamedTempFile::new().expect("temp db");
     let store = Store::open(db_file.path()).expect("open store");

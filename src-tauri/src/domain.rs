@@ -72,6 +72,7 @@ pub struct AppUsageSummary {
     pub app_id: i64,
     pub display_name: String,
     pub process_name: String,
+    pub executable_path: String,
     pub total_seconds: i64,
     pub today_seconds: i64,
     pub is_running: bool,

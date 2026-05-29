@@ -13,10 +13,10 @@
     "windows": [
       {
         "title": "全局软件计时器",
-        "width": 1580,
-        "height": 980,
-        "minWidth": 1280,
-        "minHeight": 820,
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1180,
+        "minHeight": 760,
         "visible": true
       }
     ],

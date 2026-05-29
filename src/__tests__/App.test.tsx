@@ -74,6 +74,7 @@ describe("App", () => {
           app_id: 1,
           display_name: "Codex",
           process_name: "codex.exe",
+          icon_data_url: null,
           total_seconds: 65,
           today_seconds: 65,
           is_running: true,
@@ -85,6 +86,7 @@ describe("App", () => {
             app_id: 1,
             display_name: "Codex",
             process_name: "codex.exe",
+            icon_data_url: null,
             total_seconds: 65,
             today_seconds: 65,
             is_running: true,
@@ -116,6 +118,7 @@ describe("App", () => {
         app_id: 1,
         display_name: "Visual Studio Code",
         process_name: "Code.exe",
+        icon_data_url: "data:image/png;base64,AAAA",
         total_seconds: 482 * 3600 + 36 * 60,
         today_seconds: 3 * 3600 + 15 * 60,
         is_running: true,
@@ -127,6 +130,7 @@ describe("App", () => {
           app_id: 1,
           display_name: "Visual Studio Code",
           process_name: "Code.exe",
+          icon_data_url: "data:image/png;base64,AAAA",
           total_seconds: 482 * 3600 + 36 * 60,
           today_seconds: 3 * 3600 + 15 * 60,
           is_running: true,
@@ -135,6 +139,7 @@ describe("App", () => {
           app_id: 2,
           display_name: "Chrome",
           process_name: "chrome.exe",
+          icon_data_url: null,
           total_seconds: 115 * 3600 + 47 * 60,
           today_seconds: 45 * 60,
           is_running: true,
@@ -169,6 +174,7 @@ describe("App", () => {
           app_id: 1,
           display_name: "Visual Studio Code",
           process_name: "Code.exe",
+          icon_data_url: "data:image/png;base64,AAAA",
           total_seconds: 3600,
           today_seconds: 1800,
           is_running: true,
@@ -177,6 +183,7 @@ describe("App", () => {
           app_id: 2,
           display_name: "Chrome",
           process_name: "chrome.exe",
+          icon_data_url: null,
           total_seconds: 1800,
           today_seconds: 900,
           is_running: false,
@@ -185,6 +192,7 @@ describe("App", () => {
           app_id: 3,
           display_name: "Microsoft Edge",
           process_name: "msedge.exe",
+          icon_data_url: null,
           total_seconds: 1200,
           today_seconds: 600,
           is_running: false,
@@ -193,6 +201,7 @@ describe("App", () => {
           app_id: 4,
           display_name: "Steam",
           process_name: "steam.exe",
+          icon_data_url: null,
           total_seconds: 900,
           today_seconds: 300,
           is_running: false,
@@ -201,6 +210,7 @@ describe("App", () => {
           app_id: 5,
           display_name: "WPS Office",
           process_name: "wps.exe",
+          icon_data_url: null,
           total_seconds: 600,
           today_seconds: 300,
           is_running: false,
@@ -210,10 +220,11 @@ describe("App", () => {
 
     render(<App />);
 
-    expect((await screen.findAllByLabelText("Visual Studio Code 图标")).length).toBeGreaterThan(0);
+    const vscodeIcon = (await screen.findAllByLabelText("Visual Studio Code 图标"))[0];
+    expect(vscodeIcon.querySelector("img")).toHaveAttribute("src", "data:image/png;base64,AAAA");
     expect(screen.getAllByLabelText("Chrome 图标").length).toBeGreaterThan(0);
-    expect(screen.getAllByLabelText("Microsoft Edge 图标")[0]).toHaveClass("software-icon-edge");
-    expect(screen.getAllByLabelText("Steam 图标")[0]).toHaveClass("software-icon-steam");
-    expect(screen.getAllByLabelText("WPS Office 图标")[0]).toHaveClass("software-icon-wps");
+    expect(screen.getAllByLabelText("Microsoft Edge 图标")[0]).toHaveTextContent("M");
+    expect(screen.getAllByLabelText("Steam 图标")[0]).toHaveTextContent("S");
+    expect(screen.getAllByLabelText("WPS Office 图标")[0]).toHaveTextContent("W");
   });
 });

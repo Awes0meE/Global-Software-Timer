@@ -4,6 +4,7 @@ export interface AppUsageRow {
   app_id: number;
   display_name: string;
   process_name: string;
+  icon_data_url: string | null;
   total_seconds: number;
   today_seconds: number;
   is_running: boolean;

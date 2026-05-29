@@ -3,6 +3,7 @@ pub mod app_state;
 pub mod classifier;
 pub mod commands;
 pub mod domain;
+pub mod native_icon;
 pub mod process_source;
 pub mod storage;
 pub mod tracker;
