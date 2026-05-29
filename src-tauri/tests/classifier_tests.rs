@@ -101,6 +101,10 @@ fn hides_background_services_hosts_and_toolchain_children() {
             r"D:\Projects\Global_Software_Timer\src-tauri\target\debug\global-software-timer.exe",
         ),
         (
+            "global_software_timer_lib-78cd8083c2678af5.exe",
+            r"D:\Projects\Global_Software_Timer\src-tauri\target\debug\deps\global_software_timer_lib-78cd8083c2678af5.exe",
+        ),
+        (
             "ListaryHookHost64.exe",
             r"D:\Program Files\Listary\ListaryHookHost64.exe",
         ),

@@ -91,6 +91,7 @@ fn is_helper_process(name: &str, path: &str) -> bool {
         "esbuild",
         "edgegameassist",
         "global-software-timer",
+        "global_software_timer_lib",
         "listaryhookhost32",
         "listaryhookhost64",
         "lmgrd",
@@ -134,6 +135,7 @@ fn is_helper_process(name: &str, path: &str) -> bool {
 
     path.is_empty()
         || HELPER_STEMS.contains(&stem)
+        || stem.starts_with("global_software_timer_lib-")
         || stem == "service"
         || stem.ends_with("service")
         || stem.ends_with("srv")
