@@ -14,6 +14,7 @@ fn migrate_creates_expected_tables_and_wal_mode() {
     assert!(tables.contains(&"usage_sessions".to_string()));
     assert!(tables.contains(&"daily_app_usage".to_string()));
     assert!(tables.contains(&"daily_system_usage".to_string()));
+    assert!(tables.contains(&"app_settings".to_string()));
     assert_eq!(store.journal_mode().expect("journal mode"), "wal");
 }
 
@@ -339,4 +340,38 @@ fn daily_system_usage_accumulates_and_defaults_to_none() {
     assert_eq!(usage.recorded_seconds, 12);
     assert_eq!(usage.active_seconds, 3);
     assert_eq!(usage.tracker_uptime_seconds, 12);
+}
+
+#[test]
+fn settings_round_trip_and_can_be_removed() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+
+    assert_eq!(
+        store
+            .setting_value("window.close_behavior")
+            .expect("empty setting"),
+        None
+    );
+
+    store
+        .set_setting_value("window.close_behavior", "minimize_to_tray")
+        .expect("set setting");
+    assert_eq!(
+        store
+            .setting_value("window.close_behavior")
+            .expect("read setting"),
+        Some("minimize_to_tray".to_string())
+    );
+
+    store
+        .remove_setting("window.close_behavior")
+        .expect("remove setting");
+    assert_eq!(
+        store
+            .setting_value("window.close_behavior")
+            .expect("removed setting"),
+        None
+    );
 }

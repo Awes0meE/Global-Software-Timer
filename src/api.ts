@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export type CloseBehavior = "exit" | "minimize_to_tray";
+
 export interface AppUsageRow {
   app_id: number;
   display_name: string;
@@ -21,4 +23,17 @@ export interface DashboardSummary {
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   return invoke<DashboardSummary>("get_dashboard_summary");
+}
+
+export async function getCloseBehaviorPreference(): Promise<CloseBehavior | null> {
+  const preference = await invoke<CloseBehavior | null>("get_close_behavior_preference");
+
+  return preference === "exit" || preference === "minimize_to_tray" ? preference : null;
+}
+
+export async function applyWindowCloseChoice(
+  choice: CloseBehavior,
+  remember: boolean,
+): Promise<void> {
+  return invoke("apply_window_close_choice", { choice, remember });
 }

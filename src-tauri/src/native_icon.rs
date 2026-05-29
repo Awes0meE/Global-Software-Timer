@@ -122,8 +122,7 @@ fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
         .encode_wide()
         .chain(std::iter::once(0))
         .collect::<Vec<_>>();
-    let icon_count =
-        unsafe { ExtractIconExW(wide_path.as_ptr(), -1, null_mut(), null_mut(), 0) };
+    let icon_count = unsafe { ExtractIconExW(wide_path.as_ptr(), -1, null_mut(), null_mut(), 0) };
     if icon_count == 0 {
         return None;
     }

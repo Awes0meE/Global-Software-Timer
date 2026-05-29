@@ -1,10 +1,23 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockInvoke = vi.hoisted(() => vi.fn());
+const closeRequestMock = vi.hoisted(() => ({
+  handler: undefined as undefined | ((event: { preventDefault: () => void }) => void | Promise<void>),
+  unlisten: vi.fn(),
+}));
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: mockInvoke,
+}));
+
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: () => ({
+    onCloseRequested: vi.fn((handler) => {
+      closeRequestMock.handler = handler;
+      return Promise.resolve(closeRequestMock.unlisten);
+    }),
+  }),
 }));
 
 import App from "../App";
@@ -17,13 +30,25 @@ describe("App", () => {
 
   beforeEach(() => {
     mockInvoke.mockReset();
-    mockInvoke.mockResolvedValue({
-      product_title: "全局软件计时器",
-      locale: "zh-CN",
-      most_used: null,
-      recorded_today_seconds: 0,
-      active_today_seconds: 0,
-      apps: [],
+    closeRequestMock.handler = undefined;
+    closeRequestMock.unlisten.mockReset();
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_close_behavior_preference") {
+        return Promise.resolve(null);
+      }
+
+      if (command === "apply_window_close_choice") {
+        return Promise.resolve(undefined);
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
     });
   });
 
@@ -58,16 +83,29 @@ describe("App", () => {
 
   it("refreshes the dashboard after the initial empty summary", async () => {
     vi.useFakeTimers();
-    mockInvoke
-      .mockResolvedValueOnce({
-        product_title: "全局软件计时器",
-        locale: "zh-CN",
-        most_used: null,
-        recorded_today_seconds: 0,
-        active_today_seconds: 0,
-        apps: [],
-      })
-      .mockResolvedValueOnce({
+    let dashboardCalls = 0;
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_close_behavior_preference") {
+        return Promise.resolve(null);
+      }
+
+      if (command !== "get_dashboard_summary") {
+        return Promise.resolve(undefined);
+      }
+
+      dashboardCalls += 1;
+      if (dashboardCalls === 1) {
+        return Promise.resolve({
+          product_title: "全局软件计时器",
+          locale: "zh-CN",
+          most_used: null,
+          recorded_today_seconds: 0,
+          active_today_seconds: 0,
+          apps: [],
+        });
+      }
+
+      return Promise.resolve({
         product_title: "全局软件计时器",
         locale: "zh-CN",
         most_used: {
@@ -93,6 +131,7 @@ describe("App", () => {
           },
         ],
       });
+    });
 
     render(<App />);
 
@@ -107,7 +146,7 @@ describe("App", () => {
     });
 
     expect(screen.getAllByText("Codex").length).toBeGreaterThan(0);
-    expect(mockInvoke).toHaveBeenCalledTimes(2);
+    expect(dashboardCalls).toBe(2);
   });
 
   it("renders the overview workspace chrome and dashboard panels", async () => {
@@ -227,5 +266,64 @@ describe("App", () => {
     expect(screen.getAllByLabelText("Microsoft Edge 图标")[0]).toHaveTextContent("M");
     expect(screen.getAllByLabelText("Steam 图标")[0]).toHaveTextContent("S");
     expect(screen.getAllByLabelText("WPS Office 图标")[0]).toHaveTextContent("W");
+  });
+
+  it("asks whether to exit or minimize to tray on the first window close", async () => {
+    render(<App />);
+
+    expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
+    const preventDefault = vi.fn();
+    await act(async () => {
+      await closeRequestMock.handler?.({ preventDefault });
+    });
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "关闭全局软件计时器" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "退出软件" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "最小化到状态栏" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "记住本次选择" }));
+    fireEvent.click(screen.getByRole("button", { name: "最小化到状态栏" }));
+
+    expect(mockInvoke).toHaveBeenCalledWith("apply_window_close_choice", {
+      choice: "minimize_to_tray",
+      remember: true,
+    });
+  });
+
+  it("uses the remembered close choice without showing the dialog", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_close_behavior_preference") {
+        return Promise.resolve("minimize_to_tray");
+      }
+
+      if (command === "apply_window_close_choice") {
+        return Promise.resolve(undefined);
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
+    const preventDefault = vi.fn();
+    await act(async () => {
+      await closeRequestMock.handler?.({ preventDefault });
+    });
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(screen.queryByRole("dialog", { name: "关闭全局软件计时器" })).not.toBeInTheDocument();
+    expect(mockInvoke).toHaveBeenCalledWith("apply_window_close_choice", {
+      choice: "minimize_to_tray",
+      remember: false,
+    });
   });
 });

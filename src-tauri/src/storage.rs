@@ -84,6 +84,12 @@ impl Store {
                 active_seconds INTEGER NOT NULL DEFAULT 0,
                 tracker_uptime_seconds INTEGER NOT NULL DEFAULT 0
             );
+
+            CREATE TABLE IF NOT EXISTS app_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
             "#,
         )?;
         Ok(())
@@ -575,6 +581,39 @@ impl Store {
                 |row| row.get(0),
             )
             .map_err(StoreError::from)
+    }
+
+    pub fn setting_value(&self, key: &str) -> StoreResult<Option<String>> {
+        self.conn
+            .query_row(
+                "SELECT setting_value FROM app_settings WHERE setting_key = ?1",
+                params![key],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(StoreError::from)
+    }
+
+    pub fn set_setting_value(&self, key: &str, value: &str) -> StoreResult<()> {
+        self.conn.execute(
+            r#"
+            INSERT INTO app_settings (setting_key, setting_value, updated_at)
+            VALUES (?1, ?2, CURRENT_TIMESTAMP)
+            ON CONFLICT(setting_key) DO UPDATE SET
+                setting_value = excluded.setting_value,
+                updated_at = CURRENT_TIMESTAMP
+            "#,
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_setting(&self, key: &str) -> StoreResult<()> {
+        self.conn.execute(
+            "DELETE FROM app_settings WHERE setting_key = ?1",
+            params![key],
+        )?;
+        Ok(())
     }
 }
 

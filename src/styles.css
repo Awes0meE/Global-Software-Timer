@@ -197,6 +197,8 @@ a:focus-visible {
 .date-control,
 .export-button,
 .ghost-link,
+.dialog-secondary,
+.dialog-primary,
 .nav-item {
   cursor: pointer;
   border: 0;
@@ -218,7 +220,8 @@ a:focus-visible {
 .header-action:hover,
 .date-control:hover,
 .export-button:hover,
-.ghost-link:hover {
+.ghost-link:hover,
+.dialog-secondary:hover {
   background: rgba(255, 255, 255, 0.07);
   color: #ffffff;
 }
@@ -227,6 +230,8 @@ a:focus-visible {
 .date-control:disabled,
 .export-button:disabled,
 .ghost-link:disabled,
+.dialog-secondary:disabled,
+.dialog-primary:disabled,
 .nav-item:disabled {
   cursor: default;
   opacity: 0.72;
@@ -236,6 +241,8 @@ a:focus-visible {
 .date-control:disabled:hover,
 .export-button:disabled:hover,
 .ghost-link:disabled:hover,
+.dialog-secondary:disabled:hover,
+.dialog-primary:disabled:hover,
 .nav-item:disabled:hover {
   background: transparent;
   color: inherit;
@@ -795,6 +802,93 @@ a:focus-visible {
   border-radius: 8px;
   background: transparent;
   color: #e2ebf5;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgba(1, 8, 14, 0.66);
+  padding: 24px;
+}
+
+.close-dialog {
+  width: min(440px, 100%);
+  border: 1px solid rgba(136, 166, 193, 0.32);
+  border-radius: 8px;
+  background: #0f1f2d;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5);
+  padding: 22px;
+}
+
+.close-dialog h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 19px;
+  line-height: 1.3;
+}
+
+.close-dialog p {
+  margin: 12px 0 18px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.remember-choice {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  color: #dbe5ef;
+  font-size: 14px;
+}
+
+.remember-choice input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue);
+}
+
+.close-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.dialog-secondary,
+.dialog-primary {
+  min-height: 42px;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-weight: 800;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.dialog-secondary {
+  background: transparent;
+  color: #dbe5ef;
+}
+
+.dialog-primary {
+  background: var(--blue);
+  color: #06101b;
+}
+
+.dialog-primary:hover {
+  background: #74a7ff;
+  color: #06101b;
+}
+
+.dialog-secondary:active,
+.dialog-primary:active {
+  transform: translateY(1px);
 }
 
 .software-icon {

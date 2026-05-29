@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   BarChart3,
   CalendarDays,
@@ -10,7 +11,13 @@ import {
   Monitor,
   Settings,
 } from "lucide-react";
-import { getDashboardSummary, type DashboardSummary } from "./api";
+import {
+  applyWindowCloseChoice,
+  getCloseBehaviorPreference,
+  getDashboardSummary,
+  type CloseBehavior,
+  type DashboardSummary,
+} from "./api";
 import { AppUsageTable } from "./components/AppUsageTable";
 import { RecentActivity } from "./components/RecentActivity";
 import { SummaryCards } from "./components/SummaryCards";
@@ -40,6 +47,9 @@ const navItems = [
 export default function App() {
   const [summary, setSummary] = useState<DashboardSummary>(fallbackSummary);
   const [error, setError] = useState<string | null>(null);
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [rememberCloseChoice, setRememberCloseChoice] = useState(false);
+  const closePreferenceRef = useRef<CloseBehavior | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +77,65 @@ export default function App() {
       window.clearInterval(refreshId);
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getCloseBehaviorPreference()
+      .then((preference) => {
+        if (!cancelled) {
+          closePreferenceRef.current = preference;
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          closePreferenceRef.current = null;
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+
+    getCurrentWindow()
+      .onCloseRequested(async (event) => {
+        event.preventDefault();
+
+        const rememberedChoice = closePreferenceRef.current;
+        if (rememberedChoice) {
+          await applyWindowCloseChoice(rememberedChoice, false);
+          return;
+        }
+
+        setCloseDialogOpen(true);
+      })
+      .then((nextUnlisten) => {
+        if (disposed) {
+          nextUnlisten();
+        } else {
+          unlisten = nextUnlisten;
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
+  const handleCloseChoice = (choice: CloseBehavior) => {
+    setCloseDialogOpen(false);
+    if (rememberCloseChoice) {
+      closePreferenceRef.current = choice;
+    }
+    void applyWindowCloseChoice(choice, rememberCloseChoice);
+  };
 
   return (
     <div className="desktop-root">
@@ -164,6 +233,40 @@ export default function App() {
           </button>
         </footer>
       </div>
+
+      {closeDialogOpen ? (
+        <div className="modal-backdrop">
+          <section
+            className="close-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="close-dialog-title"
+          >
+            <h2 id="close-dialog-title">关闭全局软件计时器</h2>
+            <p>请选择退出软件，或最小化后继续在右下角状态栏运行。</p>
+            <label className="remember-choice">
+              <input
+                type="checkbox"
+                checked={rememberCloseChoice}
+                onChange={(event) => setRememberCloseChoice(event.currentTarget.checked)}
+              />
+              记住本次选择
+            </label>
+            <div className="close-dialog-actions">
+              <button type="button" className="dialog-secondary" onClick={() => handleCloseChoice("exit")}>
+                退出软件
+              </button>
+              <button
+                type="button"
+                className="dialog-primary"
+                onClick={() => handleCloseChoice("minimize_to_tray")}
+              >
+                最小化到状态栏
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

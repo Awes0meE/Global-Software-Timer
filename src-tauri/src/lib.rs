@@ -41,7 +41,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_dashboard_summary,
-            commands::run_tracker_scan_once
+            commands::run_tracker_scan_once,
+            commands::get_close_behavior_preference,
+            commands::apply_window_close_choice
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Global Software Timer");
