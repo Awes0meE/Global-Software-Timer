@@ -5,6 +5,7 @@ pub mod commands;
 pub mod domain;
 pub mod native_icon;
 pub mod process_source;
+pub mod single_instance;
 pub mod storage;
 pub mod tracker;
 pub mod tray;
@@ -12,6 +13,7 @@ pub mod tray;
 use app_state::AppState;
 use app_state::SharedTracker;
 use chrono::Local;
+use single_instance::SingleInstance;
 use std::time::{Duration, Instant};
 use tauri::Manager;
 
@@ -20,6 +22,15 @@ const ACTIVE_IDLE_THRESHOLD: Duration = Duration::from_secs(5 * 60);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _single_instance_guard = match single_instance::acquire_app_lock() {
+        Ok(SingleInstance::Acquired(guard)) => guard,
+        Ok(SingleInstance::AlreadyRunning) => {
+            eprintln!("Global Software Timer is already running");
+            return;
+        }
+        Err(error) => panic!("failed to acquire single-instance lock: {error}"),
+    };
+
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
