@@ -1,7 +1,8 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockInvoke = vi.hoisted(() => vi.fn());
+const getCurrentWindowMock = vi.hoisted(() => vi.fn());
 const closeRequestMock = vi.hoisted(() => ({
   handler: undefined as undefined | ((event: { preventDefault: () => void }) => void | Promise<void>),
   unlisten: vi.fn(),
@@ -12,12 +13,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 vi.mock("@tauri-apps/api/window", () => ({
-  getCurrentWindow: () => ({
-    onCloseRequested: vi.fn((handler) => {
-      closeRequestMock.handler = handler;
-      return Promise.resolve(closeRequestMock.unlisten);
-    }),
-  }),
+  getCurrentWindow: getCurrentWindowMock,
 }));
 
 import App from "../App";
@@ -30,8 +26,15 @@ describe("App", () => {
 
   beforeEach(() => {
     mockInvoke.mockReset();
+    getCurrentWindowMock.mockReset();
     closeRequestMock.handler = undefined;
     closeRequestMock.unlisten.mockReset();
+    getCurrentWindowMock.mockReturnValue({
+      onCloseRequested: vi.fn((handler) => {
+        closeRequestMock.handler = handler;
+        return Promise.resolve(closeRequestMock.unlisten);
+      }),
+    });
     mockInvoke.mockImplementation((command) => {
       if (command === "get_close_behavior_preference") {
         return Promise.resolve(null);
@@ -208,6 +211,71 @@ describe("App", () => {
     expect(container.querySelector(".trophy-visual svg")).toHaveAttribute("fill", "currentColor");
     expect(container.querySelector(".trophy-visual .trophy-base")).toHaveAttribute("fill", "currentColor");
     expect(container.querySelector(".trophy-visual span")).not.toBeInTheDocument();
+  });
+
+  it("removes duplicated settings and statistics actions from the top right header", async () => {
+    const { container } = render(<App />);
+
+    expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
+    const windowActions = container.querySelector(".window-actions");
+
+    expect(windowActions).toBeInTheDocument();
+    expect(within(windowActions as HTMLElement).queryByRole("button", { name: "设置" })).not.toBeInTheDocument();
+    expect(within(windowActions as HTMLElement).queryByRole("button", { name: "统计" })).not.toBeInTheDocument();
+    expect(within(windowActions as HTMLElement).getByRole("button", { name: "更多" })).toBeInTheDocument();
+  });
+
+  it("shows and hides an unfinished-feature tooltip on unavailable controls", async () => {
+    render(<App />);
+
+    expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
+    const unavailableButtons = [
+      screen.getByRole("button", { name: "软件" }),
+      screen.getByRole("button", { name: "统计" }),
+      screen.getByRole("button", { name: "时间轴" }),
+      screen.getByRole("button", { name: "日报" }),
+      screen.getByRole("button", { name: "设置" }),
+      screen.getByRole("button", { name: "更多" }),
+      screen.getByRole("button", { name: /查看更多今日分布/ }),
+      screen.getByRole("button", { name: /查看更多当前运行/ }),
+      screen.getByRole("button", { name: /\d{4}-\d{2}-\d{2}/ }),
+      screen.getByRole("button", { name: "导出" }),
+    ];
+
+    for (const button of unavailableButtons) {
+      const trigger = button.closest("[data-tooltip='该功能暂未完成']");
+      expect(trigger).not.toBeNull();
+      expect(button).not.toBeDisabled();
+      expect(button).toHaveAttribute("aria-disabled", "true");
+    }
+
+    const softwareTrigger = unavailableButtons[0].closest("[data-tooltip='该功能暂未完成']");
+    expect(softwareTrigger).not.toBeNull();
+
+    fireEvent.mouseEnter(softwareTrigger as Element);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("该功能暂未完成");
+
+    fireEvent.mouseLeave(softwareTrigger as Element);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    fireEvent.focus(unavailableButtons[0]);
+    const focusedTooltip = screen.getByRole("tooltip");
+    expect(focusedTooltip).toHaveTextContent("该功能暂未完成");
+    expect(unavailableButtons[0]).toHaveAttribute("aria-describedby", focusedTooltip.id);
+
+    fireEvent.blur(unavailableButtons[0]);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("keeps the dashboard shell visible when the Tauri window API is unavailable", async () => {
+    getCurrentWindowMock.mockImplementation(() => {
+      throw new TypeError("Cannot read properties of undefined (reading 'metadata')");
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "更多" })).toBeInTheDocument();
   });
 
   it("shows software-specific icons for known applications", async () => {

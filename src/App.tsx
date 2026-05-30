@@ -22,6 +22,7 @@ import { AppUsageTable } from "./components/AppUsageTable";
 import { RecentActivity } from "./components/RecentActivity";
 import { SummaryCards } from "./components/SummaryCards";
 import { TodayMix } from "./components/TodayMix";
+import { UnavailableTooltip } from "./components/UnavailableTooltip";
 
 const fallbackSummary: DashboardSummary = {
   product_title: "全局软件计时器",
@@ -101,32 +102,37 @@ export default function App() {
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let disposed = false;
-
-    getCurrentWindow()
-      .onCloseRequested(async (event) => {
-        event.preventDefault();
-
-        const rememberedChoice = closePreferenceRef.current;
-        if (rememberedChoice) {
-          await applyWindowCloseChoice(rememberedChoice, false);
-          return;
-        }
-
-        setCloseDialogOpen(true);
-      })
-      .then((nextUnlisten) => {
-        if (disposed) {
-          nextUnlisten();
-        } else {
-          unlisten = nextUnlisten;
-        }
-      })
-      .catch(() => {});
-
-    return () => {
+    const cleanup = () => {
       disposed = true;
       unlisten?.();
     };
+
+    try {
+      getCurrentWindow()
+        .onCloseRequested(async (event) => {
+          event.preventDefault();
+
+          const rememberedChoice = closePreferenceRef.current;
+          if (rememberedChoice) {
+            await applyWindowCloseChoice(rememberedChoice, false);
+            return;
+          }
+
+          setCloseDialogOpen(true);
+        })
+        .then((nextUnlisten) => {
+          if (disposed) {
+            nextUnlisten();
+          } else {
+            unlisten = nextUnlisten;
+          }
+        })
+        .catch(() => {});
+    } catch {
+      return cleanup;
+    }
+
+    return cleanup;
   }, []);
 
   const handleCloseChoice = (choice: CloseBehavior) => {
@@ -156,19 +162,13 @@ export default function App() {
           </div>
 
           <div className="window-actions">
-            <button className="header-action" type="button" disabled>
-              <Settings size={18} aria-hidden="true" />
-              设置
-            </button>
-            <button className="header-action" type="button" disabled>
-              <BarChart3 size={18} aria-hidden="true" />
-              统计
-            </button>
-            <button className="header-action" type="button" disabled>
-              <Menu size={18} aria-hidden="true" />
-              更多
-              <ChevronDown size={14} aria-hidden="true" />
-            </button>
+            <UnavailableTooltip>
+              <button className="header-action" type="button">
+                <Menu size={18} aria-hidden="true" />
+                更多
+                <ChevronDown size={14} aria-hidden="true" />
+              </button>
+            </UnavailableTooltip>
           </div>
         </header>
 
@@ -178,17 +178,23 @@ export default function App() {
               {navItems.map((item) => {
                 const Icon = item.icon;
 
-                return (
+                const navButton = (
                   <button
                     className={`nav-item${item.active ? " is-active" : ""}`}
                     type="button"
                     aria-current={item.active ? "page" : undefined}
-                    disabled={!item.active}
-                    key={item.label}
                   >
                     <Icon size={26} aria-hidden="true" />
                     <span>{item.label}</span>
                   </button>
+                );
+
+                return item.active ? (
+                  <span className="nav-item-slot" key={item.label}>
+                    {navButton}
+                  </span>
+                ) : (
+                  <UnavailableTooltip key={item.label}>{navButton}</UnavailableTooltip>
                 );
               })}
             </nav>
@@ -221,16 +227,20 @@ export default function App() {
         </div>
 
         <footer className="bottom-bar">
-          <button className="date-control" type="button" disabled>
-            <CalendarDays size={18} aria-hidden="true" />
-            {formatTodayDate()}
-            <ChevronDown size={16} aria-hidden="true" />
-          </button>
-          <button className="export-button" type="button" disabled>
-            <Download size={18} aria-hidden="true" />
-            导出
-            <ChevronDown size={16} aria-hidden="true" />
-          </button>
+          <UnavailableTooltip>
+            <button className="date-control" type="button">
+              <CalendarDays size={18} aria-hidden="true" />
+              {formatTodayDate()}
+              <ChevronDown size={16} aria-hidden="true" />
+            </button>
+          </UnavailableTooltip>
+          <UnavailableTooltip>
+            <button className="export-button" type="button">
+              <Download size={18} aria-hidden="true" />
+              导出
+              <ChevronDown size={16} aria-hidden="true" />
+            </button>
+          </UnavailableTooltip>
         </footer>
       </div>
 

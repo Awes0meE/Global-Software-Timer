@@ -1,5 +1,6 @@
 import type { AppUsageRow } from "../api";
 import { formatDurationZh } from "../i18n";
+import { UnavailableTooltip } from "./UnavailableTooltip";
 
 interface Props {
   apps: AppUsageRow[];
@@ -18,10 +19,12 @@ export function TodayMix({ apps }: Props) {
     <aside className="panel mix-panel" aria-label="今日分布">
       <div className="panel-heading">
         <h2>今日分布</h2>
-        <button className="ghost-link" type="button" aria-label="查看更多今日分布" disabled>
-          更多
-          <span aria-hidden="true">›</span>
-        </button>
+        <UnavailableTooltip>
+          <button className="ghost-link" type="button" aria-label="查看更多今日分布">
+            更多
+            <span aria-hidden="true">›</span>
+          </button>
+        </UnavailableTooltip>
       </div>
       <p className="mix-total">{formatDurationZh(total)}</p>
       <div className="mix-bar" aria-label="今日使用分布条">

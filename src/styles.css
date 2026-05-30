@@ -227,29 +227,108 @@ a:focus-visible {
 }
 
 .header-action:disabled,
+.header-action[aria-disabled="true"],
 .date-control:disabled,
+.date-control[aria-disabled="true"],
 .export-button:disabled,
+.export-button[aria-disabled="true"],
 .ghost-link:disabled,
+.ghost-link[aria-disabled="true"],
 .dialog-secondary:disabled,
 .dialog-primary:disabled,
-.nav-item:disabled {
+.nav-item:disabled,
+.nav-item[aria-disabled="true"] {
   cursor: default;
   opacity: 0.72;
 }
 
 .header-action:disabled:hover,
+.header-action[aria-disabled="true"]:hover,
 .date-control:disabled:hover,
+.date-control[aria-disabled="true"]:hover,
 .export-button:disabled:hover,
+.export-button[aria-disabled="true"]:hover,
 .ghost-link:disabled:hover,
+.ghost-link[aria-disabled="true"]:hover,
 .dialog-secondary:disabled:hover,
 .dialog-primary:disabled:hover,
-.nav-item:disabled:hover {
+.nav-item:disabled:hover,
+.nav-item[aria-disabled="true"]:hover {
   background: transparent;
   color: inherit;
 }
 
-.nav-item:disabled:hover {
+.nav-item:disabled:hover,
+.nav-item[aria-disabled="true"]:hover {
   color: #aab7c7;
+}
+
+.nav-item-slot,
+.unavailable-tooltip {
+  position: relative;
+}
+
+.unavailable-tooltip {
+  display: inline-flex;
+  align-items: center;
+  cursor: not-allowed;
+}
+
+.side-nav > .nav-item-slot,
+.side-nav > .unavailable-tooltip {
+  display: block;
+  min-width: 0;
+}
+
+.side-nav .nav-item {
+  width: 100%;
+}
+
+.unavailable-tooltip-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 50;
+  width: max-content;
+  max-width: 180px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(216, 232, 255, 0.72);
+  border-radius: 6px;
+  background: #dbe9f8;
+  color: #091522;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+}
+
+.unavailable-tooltip-bubble::after {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #dbe9f8;
+  content: "";
+}
+
+.window-actions .unavailable-tooltip-bubble,
+.panel-heading .unavailable-tooltip-bubble {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
+.window-actions .unavailable-tooltip-bubble::after,
+.panel-heading .unavailable-tooltip-bubble::after {
+  top: auto;
+  bottom: 100%;
+  border-color: transparent transparent #dbe9f8;
 }
 
 .workspace-layout {

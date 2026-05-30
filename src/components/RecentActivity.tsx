@@ -1,5 +1,6 @@
 import type { AppUsageRow } from "../api";
 import { SoftwareIcon } from "./SoftwareIcon";
+import { UnavailableTooltip } from "./UnavailableTooltip";
 
 interface Props {
   apps: AppUsageRow[];
@@ -12,10 +13,12 @@ export function RecentActivity({ apps }: Props) {
     <aside className="panel recent-panel" aria-label="当前运行">
       <div className="panel-heading">
         <h2>当前运行</h2>
-        <button className="ghost-link" type="button" aria-label="查看更多当前运行" disabled>
-          更多
-          <span aria-hidden="true">›</span>
-        </button>
+        <UnavailableTooltip>
+          <button className="ghost-link" type="button" aria-label="查看更多当前运行">
+            更多
+            <span aria-hidden="true">›</span>
+          </button>
+        </UnavailableTooltip>
       </div>
 
       <div className="recent-scroll" aria-label="当前运行列表" tabIndex={0}>
