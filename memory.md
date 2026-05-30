@@ -11,7 +11,7 @@ Last updated: 2026-05-31
 - v0.1 shape: system tray app, background tracking, dashboard on demand.
 - UI direction: dark Steam-like software library, not a marketing landing page.
 - Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`.
-- Latest release target: `v0.1.1`, after one day of stable local Windows validation.
+- Latest release: `v0.1.1`, after one day of stable local Windows validation.
 
 ## Technical Decisions
 
@@ -55,7 +55,7 @@ Last updated: 2026-05-31
 ## Release State
 
 - `v0.1.0` was the initial Windows-first GitHub release on 2026-05-30.
-- `v0.1.1` is the first stability patch release on 2026-05-31.
+- `v0.1.1` is the first stability patch release, published on GitHub on 2026-05-31.
 - Release bundles are built with `npm run tauri:build`.
 
 ## Historical Implementation Plan
