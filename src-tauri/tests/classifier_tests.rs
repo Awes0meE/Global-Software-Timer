@@ -169,6 +169,18 @@ fn hides_background_services_hosts_and_toolchain_children() {
             "webwallpaper32.exe",
             r"I:\SteamLibrary\steamapps\common\wallpaper_engine\bin\webwallpaper32.exe",
         ),
+        (
+            "CodeSetup-stable-8761a.exe",
+            r"C:\Users\dev\AppData\Local\Temp\CodeSetup-stable-8761a.exe",
+        ),
+        (
+            "WindowsPackageManager.exe",
+            r"C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\WindowsPackageManager.exe",
+        ),
+        (
+            "codex-windows-sandbox-s.exe",
+            r"C:\Users\dev\AppData\Local\OpenAI\Codex\bin\codex-windows-sandbox-s.exe",
+        ),
     ];
 
     for (process_name, executable_path) in noisy_processes {
