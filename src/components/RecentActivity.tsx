@@ -1,4 +1,5 @@
 import type { AppUsageRow } from "../api";
+import { formatDurationZh } from "../i18n";
 import { SoftwareIcon } from "./SoftwareIcon";
 import { UnavailableTooltip } from "./UnavailableTooltip";
 
@@ -33,7 +34,7 @@ export function RecentActivity({ apps }: Props) {
                   <strong>{app.display_name}</strong>
                   <span>{app.process_name}</span>
                 </div>
-                <span className="recent-state">前台运行</span>
+                <span className="recent-duration">{formatDurationZh(app.today_seconds)}</span>
               </div>
             ))}
           </div>

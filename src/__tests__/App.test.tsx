@@ -212,6 +212,10 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: /查看全部/ })).not.toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "今日分布" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "当前前台运行" })).toBeInTheDocument();
+    const recentPanel = screen.getByRole("complementary", { name: "当前前台运行" });
+    expect(await within(recentPanel).findByText("3小时15分钟")).toBeInTheDocument();
+    expect(within(recentPanel).getByText("45分钟")).toBeInTheDocument();
+    expect(within(recentPanel).queryByText("前台运行")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();
     expect(container.querySelector(".trophy-visual svg")).toHaveAttribute("fill", "currentColor");
     expect(container.querySelector(".trophy-visual .trophy-base")).toHaveAttribute("fill", "currentColor");

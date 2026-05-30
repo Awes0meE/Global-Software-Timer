@@ -845,7 +845,7 @@ a:focus-visible {
   min-width: 0;
 }
 
-.recent-state {
+.recent-duration {
   color: #c4cfdb;
   font-size: 13px;
   white-space: nowrap;
