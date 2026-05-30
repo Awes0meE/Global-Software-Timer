@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type CloseBehavior = "exit" | "minimize_to_tray";
+export type AppRuntimeStatus = "foreground" | "background" | "closed";
 
 export interface AppUsageRow {
   app_id: number;
@@ -10,6 +11,7 @@ export interface AppUsageRow {
   total_seconds: number;
   today_seconds: number;
   active_today_seconds: number;
+  status: AppRuntimeStatus;
   is_running: boolean;
 }
 

@@ -1,6 +1,6 @@
 use crate::activity::ActivitySource;
 use crate::classifier::{classify_process, Classification};
-use crate::domain::RunEventKind;
+use crate::domain::{AppRuntimeStatus, RunEventKind};
 use crate::foreground::{ForegroundWindowSource, NoForegroundWindowSource};
 use crate::process_source::{ProcessSnapshot, ProcessSource};
 use crate::storage::{Store, StoreError};
@@ -32,6 +32,7 @@ pub struct Tracker<S: ProcessSource> {
     store: Store,
     source: S,
     running_by_key: HashMap<String, RunningApp>,
+    runtime_status_by_app_id: HashMap<i64, AppRuntimeStatus>,
 }
 
 impl<S: ProcessSource> Tracker<S> {
@@ -40,6 +41,7 @@ impl<S: ProcessSource> Tracker<S> {
             store,
             source,
             running_by_key: HashMap::new(),
+            runtime_status_by_app_id: HashMap::new(),
         }
     }
 
@@ -47,18 +49,40 @@ impl<S: ProcessSource> Tracker<S> {
         &self.store
     }
 
+    pub fn runtime_status_by_app_id(&self) -> &HashMap<i64, AppRuntimeStatus> {
+        &self.runtime_status_by_app_id
+    }
+
     pub fn scan_once(&mut self) -> TrackerResult<ScanOutcome> {
         let snapshots = self.source.snapshot();
-        let mut seen_keys = HashSet::new();
+        let mut seen_foreground_keys = HashSet::new();
         let mut app_ids_by_pid = HashMap::new();
+        let mut runtime_status_by_app_id = HashMap::new();
 
         for snapshot in snapshots {
-            let Some((key, display_name)) = self.trackable_snapshot(&snapshot) else {
+            let Some((key, display_name)) = self.classified_snapshot(&snapshot) else {
                 continue;
             };
-            seen_keys.insert(key.clone());
+
+            if snapshot.is_background_helper || !snapshot.has_visible_window {
+                if let Some(app_id) = self.app_id_for_known_key(&key)? {
+                    record_runtime_status(
+                        &mut runtime_status_by_app_id,
+                        app_id,
+                        AppRuntimeStatus::Background,
+                    );
+                }
+                continue;
+            }
+
+            seen_foreground_keys.insert(key.clone());
 
             if let Some(running) = self.running_by_key.get(&key) {
+                record_runtime_status(
+                    &mut runtime_status_by_app_id,
+                    running.app_id,
+                    AppRuntimeStatus::Foreground,
+                );
                 app_ids_by_pid.insert(snapshot.pid, running.app_id);
                 self.store
                     .heartbeat_session(running.session_id, Utc::now())?;
@@ -79,6 +103,11 @@ impl<S: ProcessSource> Tracker<S> {
             let session_id =
                 self.store
                     .start_session_with_event(app.id, Utc::now(), Some(&payload_json))?;
+            record_runtime_status(
+                &mut runtime_status_by_app_id,
+                app.id,
+                AppRuntimeStatus::Foreground,
+            );
             app_ids_by_pid.insert(snapshot.pid, app.id);
             self.running_by_key.insert(
                 key,
@@ -92,7 +121,7 @@ impl<S: ProcessSource> Tracker<S> {
         let stopped_keys = self
             .running_by_key
             .keys()
-            .filter(|key| !seen_keys.contains(*key))
+            .filter(|key| !seen_foreground_keys.contains(*key))
             .cloned()
             .collect::<Vec<_>>();
 
@@ -109,14 +138,12 @@ impl<S: ProcessSource> Tracker<S> {
             }
         }
 
+        self.runtime_status_by_app_id = runtime_status_by_app_id;
+
         Ok(ScanOutcome { app_ids_by_pid })
     }
 
-    fn trackable_snapshot(&self, snapshot: &ProcessSnapshot) -> Option<(String, String)> {
-        if snapshot.is_background_helper || !snapshot.has_visible_window {
-            return None;
-        }
-
+    fn classified_snapshot(&self, snapshot: &ProcessSnapshot) -> Option<(String, String)> {
         match classify_process(&snapshot.process_name, &snapshot.executable_path) {
             Classification::Hidden => None,
             Classification::Tracked { display_name } => {
@@ -127,6 +154,36 @@ impl<S: ProcessSource> Tracker<S> {
                 Some((key, display_name))
             }
         }
+    }
+
+    fn app_id_for_known_key(&self, key: &str) -> TrackerResult<Option<i64>> {
+        if let Some(running) = self.running_by_key.get(key) {
+            return Ok(Some(running.app_id));
+        }
+
+        self.store
+            .find_app_by_key(key)
+            .map(|app| app.map(|app| app.id))
+            .map_err(TrackerError::from)
+    }
+}
+
+fn record_runtime_status(
+    statuses: &mut HashMap<i64, AppRuntimeStatus>,
+    app_id: i64,
+    status: AppRuntimeStatus,
+) {
+    let entry = statuses.entry(app_id).or_insert(AppRuntimeStatus::Closed);
+    if runtime_status_rank(status) > runtime_status_rank(*entry) {
+        *entry = status;
+    }
+}
+
+fn runtime_status_rank(status: AppRuntimeStatus) -> u8 {
+    match status {
+        AppRuntimeStatus::Closed => 0,
+        AppRuntimeStatus::Background => 1,
+        AppRuntimeStatus::Foreground => 2,
     }
 }
 

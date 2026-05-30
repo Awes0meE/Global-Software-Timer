@@ -67,6 +67,14 @@ pub struct DailySystemUsage {
     pub tracker_uptime_seconds: i64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AppRuntimeStatus {
+    Foreground,
+    Background,
+    Closed,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AppUsageSummary {
     pub app_id: i64,

@@ -12,6 +12,7 @@ function appRow(id: number, todaySeconds: number, activeTodaySeconds: number): A
     total_seconds: todaySeconds,
     today_seconds: todaySeconds,
     active_today_seconds: activeTodaySeconds,
+    status: "foreground",
     is_running: true,
   };
 }

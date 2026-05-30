@@ -1,6 +1,7 @@
 use chrono::{TimeZone, Utc};
 use global_software_timer_lib::activity::ActivitySource;
 use global_software_timer_lib::app_state::AppState;
+use global_software_timer_lib::domain::AppRuntimeStatus;
 use global_software_timer_lib::foreground::ForegroundWindowSource;
 use global_software_timer_lib::process_source::{ProcessSnapshot, ProcessSource};
 use global_software_timer_lib::storage::Store;
@@ -159,18 +160,34 @@ fn tracker_closes_session_when_process_remains_without_visible_windows() {
     let source = FakeProcessSource::new(vec![
         vec![edge_process(100, false, true)],
         vec![edge_process(100, false, false)],
+        vec![],
     ]);
     let mut tracker = Tracker::new(store, source);
 
     tracker.scan_once().expect("first scan starts session");
+    let app_id = tracker.store().all_sessions().expect("sessions")[0].app_id;
+    assert_eq!(
+        tracker.runtime_status_by_app_id().get(&app_id),
+        Some(&AppRuntimeStatus::Foreground)
+    );
+
     tracker
         .scan_once()
         .expect("second scan closes session without visible windows");
+    assert_eq!(
+        tracker.runtime_status_by_app_id().get(&app_id),
+        Some(&AppRuntimeStatus::Background)
+    );
 
     let sessions = tracker.store().all_sessions().expect("sessions");
     assert_eq!(sessions.len(), 1);
     assert!(sessions[0].ended_at.is_some());
     assert_eq!(sessions[0].close_reason.as_deref(), Some("process_closed"));
+
+    tracker
+        .scan_once()
+        .expect("third scan has no process presence");
+    assert_eq!(tracker.runtime_status_by_app_id().get(&app_id), None);
 }
 
 #[test]

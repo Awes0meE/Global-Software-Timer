@@ -1,4 +1,4 @@
-import type { AppUsageRow } from "../api";
+import type { AppRuntimeStatus, AppUsageRow } from "../api";
 import { formatDurationZh } from "../i18n";
 import { ArrowDown, ArrowUpDown } from "lucide-react";
 import { SoftwareIcon } from "./SoftwareIcon";
@@ -40,9 +40,9 @@ export function AppUsageTable({ apps }: Props) {
               </div>
               <span>{formatDurationZh(app.total_seconds)}</span>
               <span>{formatDurationZh(app.today_seconds)}</span>
-              <span className={`status-badge ${app.is_running ? "running" : "closed"}`}>
+              <span className={`status-badge ${statusClassName(app.status)}`}>
                 <i aria-hidden="true" />
-                {app.is_running ? "运行中" : "不在前台"}
+                {statusLabel(app.status)}
               </span>
             </div>
           ))
@@ -50,4 +50,28 @@ export function AppUsageTable({ apps }: Props) {
       </div>
     </section>
   );
+}
+
+function statusLabel(status: AppRuntimeStatus): string {
+  if (status === "foreground") {
+    return "前台运行";
+  }
+
+  if (status === "background") {
+    return "后台运行";
+  }
+
+  return "未运行";
+}
+
+function statusClassName(status: AppRuntimeStatus): string {
+  if (status === "foreground") {
+    return "running";
+  }
+
+  if (status === "background") {
+    return "background";
+  }
+
+  return "closed";
 }

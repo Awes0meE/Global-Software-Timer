@@ -119,6 +119,7 @@ describe("App", () => {
           total_seconds: 65,
           today_seconds: 65,
           active_today_seconds: 65,
+          status: "foreground",
           is_running: true,
         },
         recorded_today_seconds: 65,
@@ -132,6 +133,7 @@ describe("App", () => {
             total_seconds: 65,
             today_seconds: 65,
             active_today_seconds: 65,
+            status: "foreground",
             is_running: true,
           },
         ],
@@ -166,6 +168,7 @@ describe("App", () => {
         total_seconds: 482 * 3600 + 36 * 60,
         today_seconds: 3 * 3600 + 15 * 60,
         active_today_seconds: 22 * 60,
+        status: "foreground",
         is_running: true,
       },
       recorded_today_seconds: 8 * 3600 + 47 * 60,
@@ -179,6 +182,7 @@ describe("App", () => {
           total_seconds: 482 * 3600 + 36 * 60,
           today_seconds: 3 * 3600 + 15 * 60,
           active_today_seconds: 22 * 60,
+          status: "foreground",
           is_running: true,
         },
         {
@@ -189,6 +193,7 @@ describe("App", () => {
           total_seconds: 115 * 3600 + 47 * 60,
           today_seconds: 45 * 60,
           active_today_seconds: 5 * 60,
+          status: "foreground",
           is_running: true,
         },
       ],
@@ -294,6 +299,7 @@ describe("App", () => {
           total_seconds: 3600,
           today_seconds: 1800,
           active_today_seconds: 1200,
+          status: "foreground",
           is_running: true,
         },
         {
@@ -304,6 +310,7 @@ describe("App", () => {
           total_seconds: 1800,
           today_seconds: 900,
           active_today_seconds: 600,
+          status: "background",
           is_running: false,
         },
         {
@@ -314,6 +321,7 @@ describe("App", () => {
           total_seconds: 1200,
           today_seconds: 600,
           active_today_seconds: 300,
+          status: "closed",
           is_running: false,
         },
         {
@@ -324,6 +332,7 @@ describe("App", () => {
           total_seconds: 900,
           today_seconds: 300,
           active_today_seconds: 200,
+          status: "closed",
           is_running: false,
         },
         {
@@ -334,6 +343,7 @@ describe("App", () => {
           total_seconds: 600,
           today_seconds: 300,
           active_today_seconds: 120,
+          status: "closed",
           is_running: false,
         },
       ],
@@ -347,9 +357,11 @@ describe("App", () => {
     expect(screen.getAllByLabelText("Microsoft Edge 图标")[0]).toHaveTextContent("M");
     expect(screen.getAllByLabelText("Steam 图标")[0]).toHaveTextContent("S");
     expect(screen.getAllByLabelText("WPS Office 图标")[0]).toHaveTextContent("W");
-    expect(screen.getAllByText("运行中").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("不在前台").length).toBeGreaterThan(0);
-    expect(screen.queryByText("已关闭")).not.toBeInTheDocument();
+    expect(screen.getAllByText("前台运行").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("后台运行").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("未运行").length).toBeGreaterThan(0);
+    expect(screen.getByText("后台运行").closest(".status-badge")).toHaveClass("background");
+    expect(screen.getAllByText("未运行")[0].closest(".status-badge")).toHaveClass("closed");
   });
 
   it("asks whether to exit or minimize to tray on the first window close", async () => {

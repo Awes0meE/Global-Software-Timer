@@ -1,9 +1,10 @@
 use crate::app_state::AppState;
-use crate::domain::AppUsageSummary;
+use crate::domain::{AppRuntimeStatus, AppUsageSummary};
 use crate::native_icon::native_icon_data_url_for_path;
 use crate::storage::{Store, StoreError};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tauri::{AppHandle, Manager, State};
 
 const CLOSE_BEHAVIOR_SETTING_KEY: &str = "window.close_behavior";
@@ -27,6 +28,7 @@ pub struct AppUsageRow {
     pub total_seconds: i64,
     pub today_seconds: i64,
     pub active_today_seconds: i64,
+    pub status: AppRuntimeStatus,
     pub is_running: bool,
 }
 
@@ -61,8 +63,13 @@ pub fn get_dashboard_summary(state: State<'_, AppState>) -> Result<DashboardSumm
         .lock()
         .map_err(|_| "tracker mutex poisoned".to_string())?;
     let now_utc = Utc::now();
-    dashboard_summary_from_store(tracker.store(), local_day_start_utc(), now_utc)
-        .map_err(|error| error.to_string())
+    dashboard_summary_from_store(
+        tracker.store(),
+        local_day_start_utc(),
+        now_utc,
+        tracker.runtime_status_by_app_id(),
+    )
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -128,12 +135,13 @@ fn dashboard_summary_from_store(
     store: &Store,
     day_start_utc: DateTime<Utc>,
     now_utc: DateTime<Utc>,
+    runtime_status_by_app_id: &HashMap<i64, AppRuntimeStatus>,
 ) -> Result<DashboardSummary, StoreError> {
     let usage_date = day_start_utc.with_timezone(&Local).date_naive();
     let apps = store
         .app_usage_summary_for_date(day_start_utc, now_utc, usage_date)?
         .into_iter()
-        .map(AppUsageRow::from)
+        .map(|summary| AppUsageRow::from_summary(summary, runtime_status_by_app_id))
         .collect::<Vec<_>>();
     let daily_usage = store.daily_system_usage(usage_date)?;
 
@@ -162,8 +170,16 @@ fn local_day_start_utc() -> DateTime<Utc> {
     local_midnight.with_timezone(&Utc)
 }
 
-impl From<AppUsageSummary> for AppUsageRow {
-    fn from(summary: AppUsageSummary) -> Self {
+impl AppUsageRow {
+    fn from_summary(
+        summary: AppUsageSummary,
+        runtime_status_by_app_id: &HashMap<i64, AppRuntimeStatus>,
+    ) -> Self {
+        let status = runtime_status_by_app_id
+            .get(&summary.app_id)
+            .copied()
+            .unwrap_or(AppRuntimeStatus::Closed);
+
         Self {
             app_id: summary.app_id,
             display_name: summary.display_name,
@@ -172,7 +188,8 @@ impl From<AppUsageSummary> for AppUsageRow {
             total_seconds: summary.total_seconds,
             today_seconds: summary.today_seconds,
             active_today_seconds: summary.active_today_seconds,
-            is_running: summary.is_running,
+            status,
+            is_running: status == AppRuntimeStatus::Foreground,
         }
     }
 }
@@ -180,8 +197,10 @@ impl From<AppUsageSummary> for AppUsageRow {
 #[cfg(test)]
 mod tests {
     use super::dashboard_summary_from_store;
+    use crate::domain::AppRuntimeStatus;
     use crate::storage::Store;
     use chrono::{TimeZone, Utc};
+    use std::collections::HashMap;
     use tempfile::NamedTempFile;
 
     #[test]
@@ -211,6 +230,7 @@ mod tests {
             &store,
             Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
             Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
+            &HashMap::new(),
         )
         .expect("summary");
 
@@ -224,5 +244,39 @@ mod tests {
             "Visual Studio Code"
         );
         assert!(summary.apps[0].icon_data_url.is_none());
+        assert_eq!(summary.apps[0].status, AppRuntimeStatus::Closed);
+    }
+
+    #[test]
+    fn dashboard_summary_overlays_live_background_status() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+        let app = store
+            .upsert_app(
+                "msedge.exe",
+                r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                "Microsoft Edge",
+            )
+            .expect("app");
+        let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 8, 0, 0).unwrap();
+        let ended_at = Utc.with_ymd_and_hms(2026, 5, 29, 8, 1, 0).unwrap();
+        let session_id = store.start_session(app.id, started_at).expect("start");
+        store
+            .close_session(session_id, ended_at, "process_closed", false)
+            .expect("close");
+        let mut statuses = HashMap::new();
+        statuses.insert(app.id, AppRuntimeStatus::Background);
+
+        let summary = dashboard_summary_from_store(
+            &store,
+            Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
+            &statuses,
+        )
+        .expect("summary");
+
+        assert_eq!(summary.apps[0].status, AppRuntimeStatus::Background);
+        assert!(!summary.apps[0].is_running);
     }
 }

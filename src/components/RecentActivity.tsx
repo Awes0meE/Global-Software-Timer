@@ -7,7 +7,7 @@ interface Props {
 }
 
 export function RecentActivity({ apps }: Props) {
-  const runningApps = apps.filter((app) => app.is_running);
+  const runningApps = apps.filter((app) => app.status === "foreground");
 
   return (
     <aside className="panel recent-panel" aria-label="当前前台运行">
@@ -23,7 +23,7 @@ export function RecentActivity({ apps }: Props) {
 
       <div className="recent-scroll" aria-label="当前前台运行列表" tabIndex={0}>
         {runningApps.length === 0 ? (
-          <div className="empty-state">暂无运行中的软件。</div>
+          <div className="empty-state">暂无前台运行的软件。</div>
         ) : (
           <div className="recent-list">
             {runningApps.map((app) => (
@@ -33,7 +33,7 @@ export function RecentActivity({ apps }: Props) {
                   <strong>{app.display_name}</strong>
                   <span>{app.process_name}</span>
                 </div>
-                <span className="recent-state">运行中</span>
+                <span className="recent-state">前台运行</span>
               </div>
             ))}
           </div>

@@ -704,6 +704,16 @@ a:focus-visible {
   background: var(--blue);
 }
 
+.status-badge.background {
+  border-color: rgba(227, 184, 93, 0.26);
+  background: rgba(227, 184, 93, 0.13);
+  color: #e3b85d;
+}
+
+.status-badge.background i {
+  background: #e3b85d;
+}
+
 .status-badge.closed {
   border-color: rgba(160, 169, 181, 0.18);
   background: rgba(160, 169, 181, 0.09);
