@@ -205,6 +205,9 @@ describe("App", () => {
     expect(screen.getByRole("complementary", { name: "今日分布" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "当前运行" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();
+    expect(container.querySelector(".trophy-visual svg")).toHaveAttribute("fill", "currentColor");
+    expect(container.querySelector(".trophy-visual .trophy-base")).toHaveAttribute("fill", "currentColor");
+    expect(container.querySelector(".trophy-visual span")).not.toBeInTheDocument();
   });
 
   it("shows software-specific icons for known applications", async () => {

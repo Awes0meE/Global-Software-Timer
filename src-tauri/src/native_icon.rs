@@ -4,6 +4,15 @@ use std::sync::{Mutex, OnceLock};
 
 static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum IconLookupStep {
+    DirectImageFile(PathBuf),
+    NativeExecutable,
+    ExplicitLocalFile(PathBuf),
+    DiscoveredLocalFile(PathBuf),
+    PackageFile(PathBuf),
+}
+
 pub fn native_icon_data_url_for_path(executable_path: &str) -> Option<String> {
     let key = executable_path.trim();
     if key.is_empty() {
@@ -18,22 +27,68 @@ pub fn native_icon_data_url_for_path(executable_path: &str) -> Option<String> {
     }
 
     let path = Path::new(key);
-    let icon = image_file_data_url(path)
-        .or_else(|| {
-            explicit_icon_candidates_for_path(path)
-                .into_iter()
-                .find_map(|candidate| image_file_data_url(&candidate))
-        })
-        .or_else(|| {
-            package_icon_candidates(path)
-                .into_iter()
-                .find_map(|candidate| image_file_data_url(&candidate))
-        })
-        .or_else(|| extract_native_icon_data_url(key));
+    let icon = icon_lookup_steps_for_path(path)
+        .into_iter()
+        .find_map(|step| match step {
+            IconLookupStep::DirectImageFile(candidate)
+            | IconLookupStep::ExplicitLocalFile(candidate)
+            | IconLookupStep::DiscoveredLocalFile(candidate)
+            | IconLookupStep::PackageFile(candidate) => image_file_data_url(&candidate),
+            IconLookupStep::NativeExecutable => extract_native_icon_data_url(key),
+        });
     if let Ok(mut icons) = cache.lock() {
         icons.insert(key.to_string(), icon.clone());
     }
     icon
+}
+
+fn icon_lookup_steps_for_path(path: &Path) -> Vec<IconLookupStep> {
+    let mut steps = vec![
+        IconLookupStep::DirectImageFile(path.to_path_buf()),
+        IconLookupStep::NativeExecutable,
+    ];
+    let mut seen = HashSet::new();
+
+    for candidate in local_explicit_icon_candidates_for_path(path) {
+        push_file_lookup_step(
+            &mut steps,
+            &mut seen,
+            IconLookupStep::ExplicitLocalFile(candidate),
+        );
+    }
+    for candidate in local_discovered_icon_candidates_for_path(path) {
+        push_file_lookup_step(
+            &mut steps,
+            &mut seen,
+            IconLookupStep::DiscoveredLocalFile(candidate),
+        );
+    }
+    for candidate in package_icon_candidates(path) {
+        push_file_lookup_step(
+            &mut steps,
+            &mut seen,
+            IconLookupStep::PackageFile(candidate),
+        );
+    }
+
+    steps
+}
+
+fn push_file_lookup_step(
+    steps: &mut Vec<IconLookupStep>,
+    seen: &mut HashSet<PathBuf>,
+    step: IconLookupStep,
+) {
+    let path = match &step {
+        IconLookupStep::DirectImageFile(path)
+        | IconLookupStep::ExplicitLocalFile(path)
+        | IconLookupStep::DiscoveredLocalFile(path)
+        | IconLookupStep::PackageFile(path) => path,
+        IconLookupStep::NativeExecutable => return,
+    };
+    if seen.insert(path.clone()) {
+        steps.push(step);
+    }
 }
 
 fn image_file_data_url(path: &Path) -> Option<String> {
@@ -50,7 +105,27 @@ fn image_file_data_url(path: &Path) -> Option<String> {
     encode_rgba_png_data_url(rgba.as_raw(), width, height)
 }
 
+#[cfg(test)]
 fn explicit_icon_candidates_for_path(path: &Path) -> Vec<PathBuf> {
+    let mut candidates = local_explicit_icon_candidates_for_path(path);
+    candidates.extend(local_discovered_icon_candidates_for_path(path));
+    candidates
+}
+
+fn local_explicit_icon_candidates_for_path(path: &Path) -> Vec<PathBuf> {
+    local_icon_candidates_for_path(path, |dir, _executable_stem| {
+        explicit_icon_candidates_in_dir(dir)
+    })
+}
+
+fn local_discovered_icon_candidates_for_path(path: &Path) -> Vec<PathBuf> {
+    local_icon_candidates_for_path(path, discover_icon_assets)
+}
+
+fn local_icon_candidates_for_path<F>(path: &Path, mut candidates_in_dir: F) -> Vec<PathBuf>
+where
+    F: FnMut(&Path, &str) -> Vec<PathBuf>,
+{
     let start_dir = if path.is_dir() {
         path
     } else {
@@ -72,7 +147,7 @@ fn explicit_icon_candidates_for_path(path: &Path) -> Vec<PathBuf> {
             break;
         };
 
-        for candidate in icon_candidates_in_dir(current_dir, &executable_stem) {
+        for candidate in candidates_in_dir(current_dir, &executable_stem) {
             if candidate.exists() && seen.insert(candidate.clone()) {
                 candidates.push(candidate);
             }
@@ -84,7 +159,13 @@ fn explicit_icon_candidates_for_path(path: &Path) -> Vec<PathBuf> {
 }
 
 fn icon_candidates_in_dir(dir: &Path, executable_stem: &str) -> Vec<PathBuf> {
-    let mut candidates = vec![
+    let mut candidates = explicit_icon_candidates_in_dir(dir);
+    candidates.extend(discover_icon_assets(dir, executable_stem));
+    candidates
+}
+
+fn explicit_icon_candidates_in_dir(dir: &Path) -> Vec<PathBuf> {
+    vec![
         dir.join("resources").join("icon.ico"),
         dir.join("resources").join("icon.png"),
         dir.join("resources").join("app.ico"),
@@ -99,9 +180,7 @@ fn icon_candidates_in_dir(dir: &Path, executable_stem: &str) -> Vec<PathBuf> {
         dir.join("icons").join("icon.png"),
         dir.join("icon.ico"),
         dir.join("icon.png"),
-    ];
-    candidates.extend(discover_icon_assets(dir, executable_stem));
-    candidates
+    ]
 }
 
 fn discover_icon_assets(dir: &Path, executable_stem: &str) -> Vec<PathBuf> {
@@ -597,6 +676,32 @@ mod tests {
         let candidates = super::explicit_icon_candidates_for_path(&executable_path);
 
         assert!(candidates.contains(&icon_path));
+    }
+
+    #[test]
+    fn lookup_order_prefers_native_executable_before_discovered_assets() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let app_dir = temp_dir.path().join("Listary");
+        let images_dir = app_dir.join("Images");
+        std::fs::create_dir_all(&images_dir).expect("images dir");
+        let executable_path = app_dir.join("Listary.exe");
+        let discovered_icon_path = images_dir.join("expand-icon.png");
+        std::fs::write(&executable_path, b"MZ").expect("exe placeholder");
+        std::fs::write(&discovered_icon_path, []).expect("icon placeholder");
+
+        let steps = super::icon_lookup_steps_for_path(&executable_path);
+        let native_position = steps
+            .iter()
+            .position(|step| step == &super::IconLookupStep::NativeExecutable)
+            .expect("native step");
+        let discovered_position = steps
+            .iter()
+            .position(|step| {
+                step == &super::IconLookupStep::DiscoveredLocalFile(discovered_icon_path.clone())
+            })
+            .expect("discovered asset step");
+
+        assert!(native_position < discovered_position);
     }
 
     #[test]

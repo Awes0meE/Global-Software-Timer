@@ -31,8 +31,7 @@ export function SummaryCards({ summary }: Props) {
             </p>
           </div>
           <div className="trophy-visual" aria-hidden="true">
-            <Trophy size={96} strokeWidth={1.4} />
-            <span>1</span>
+            <SolidTrophyIcon />
           </div>
         </div>
       </article>
@@ -71,5 +70,18 @@ export function SummaryCards({ summary }: Props) {
         </div>
       </article>
     </section>
+  );
+}
+
+function SolidTrophyIcon() {
+  return (
+    <svg viewBox="0 0 96 96" width="96" height="96" fill="currentColor" aria-hidden="true">
+      <path d="M30 14h36v18c0 11.6-8.1 21-18 21s-18-9.4-18-21V14Z" />
+      <path d="M27 21H15v6c0 10 6.7 18.2 16 20.5v-9.2c-4.2-2-7-6.3-7-11.3v-6Z" />
+      <path d="M69 21h12v6c0 10-6.7 18.2-16 20.5v-9.2c4.2-2 7-6.3 7-11.3v-6Z" />
+      <rect x="43" y="51" width="10" height="18" rx="4" fill="currentColor" />
+      <rect className="trophy-base" x="31" y="69" width="34" height="10" rx="4" fill="currentColor" />
+      <rect className="trophy-base" x="23" y="80" width="50" height="8" rx="4" fill="currentColor" />
+    </svg>
   );
 }

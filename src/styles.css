@@ -461,14 +461,6 @@ a:focus-visible {
   filter: drop-shadow(0 14px 24px rgba(242, 189, 66, 0.18));
 }
 
-.trophy-visual span {
-  position: absolute;
-  top: 32px;
-  color: #201707;
-  font-size: 21px;
-  font-weight: 900;
-}
-
 .clock-visual,
 .activity-visual {
   display: grid;
