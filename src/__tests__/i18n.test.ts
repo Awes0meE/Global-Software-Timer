@@ -9,4 +9,10 @@ describe("formatDurationZh", () => {
   it("formats durations below one hour as minutes", () => {
     expect(formatDurationZh(42 * 60)).toBe("42分钟");
   });
+
+  it("formats positive durations below one minute as less than one minute", () => {
+    expect(formatDurationZh(1)).toBe("<1分钟");
+    expect(formatDurationZh(59)).toBe("<1分钟");
+    expect(formatDurationZh(0)).toBe("0分钟");
+  });
 });

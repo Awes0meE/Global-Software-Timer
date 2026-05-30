@@ -3,7 +3,10 @@ pub mod app_state;
 pub mod classifier;
 pub mod commands;
 pub mod domain;
+pub mod foreground;
+pub mod native_icon;
 pub mod process_source;
+pub mod single_instance;
 pub mod storage;
 pub mod tracker;
 pub mod tray;
@@ -11,6 +14,7 @@ pub mod tray;
 use app_state::AppState;
 use app_state::SharedTracker;
 use chrono::Local;
+use single_instance::SingleInstance;
 use std::time::{Duration, Instant};
 use tauri::Manager;
 
@@ -19,6 +23,15 @@ const ACTIVE_IDLE_THRESHOLD: Duration = Duration::from_secs(5 * 60);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _single_instance_guard = match single_instance::acquire_app_lock() {
+        Ok(SingleInstance::Acquired(guard)) => guard,
+        Ok(SingleInstance::AlreadyRunning) => {
+            eprintln!("Global Software Timer is already running");
+            return;
+        }
+        Err(error) => panic!("failed to acquire single-instance lock: {error}"),
+    };
+
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -40,7 +53,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_dashboard_summary,
-            commands::run_tracker_scan_once
+            commands::run_tracker_scan_once,
+            commands::get_close_behavior_preference,
+            commands::apply_window_close_choice
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Global Software Timer");
@@ -57,9 +72,11 @@ fn start_background_scan_loop(tracker: SharedTracker) {
 
             match tracker.lock() {
                 Ok(mut tracker) => {
-                    if let Err(error) = tracker::run_tracker_tick(
+                    let foreground_source = foreground::WindowsForegroundWindowSource;
+                    if let Err(error) = tracker::run_tracker_tick_with_foreground(
                         &mut tracker,
                         &activity_source,
+                        &foreground_source,
                         Local::now().date_naive(),
                         tick_duration,
                         ACTIVE_IDLE_THRESHOLD,

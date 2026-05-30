@@ -1,5 +1,11 @@
 export function formatDurationZh(totalSeconds: number): string {
-  const totalMinutes = Math.max(0, Math.floor(totalSeconds / 60));
+  const normalizedSeconds = Math.max(0, Math.floor(totalSeconds));
+
+  if (normalizedSeconds > 0 && normalizedSeconds < 60) {
+    return "<1分钟";
+  }
+
+  const totalMinutes = Math.floor(normalizedSeconds / 60);
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
