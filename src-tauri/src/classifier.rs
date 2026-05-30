@@ -137,7 +137,9 @@ fn is_helper_process(name: &str, path: &str) -> bool {
         "webview",
         "wpscloud",
         "sync",
+        "setup",
         "installer",
+        "packagemanager",
         "hookhost",
         "servicehost",
     ];
@@ -149,6 +151,7 @@ fn is_helper_process(name: &str, path: &str) -> bool {
         || HELPER_STEMS.contains(&stem)
         || stem.starts_with("global_software_timer_lib-")
         || stem == "service"
+        || stem.starts_with("codex-windows-sandbox")
         || stem.ends_with("service")
         || stem.ends_with("srv")
         || stem.ends_with("host")
