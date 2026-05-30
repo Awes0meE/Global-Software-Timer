@@ -285,6 +285,36 @@ fn app_usage_summary_merges_wps_suite_components() {
 }
 
 #[test]
+fn app_usage_summary_uses_wps_main_executable_for_suite_icon() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let wps_pdf = store
+        .upsert_app(
+            "wpspdf.exe",
+            r"C:\Users\dev\AppData\Local\Kingsoft\WPS Office\office6\wpspdf.exe",
+            "wpspdf",
+        )
+        .expect("pdf app");
+    let day_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap();
+    let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+    let ended_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 5, 0).unwrap();
+    let session_id = store.start_session(wps_pdf.id, started_at).expect("start");
+    store
+        .close_session(session_id, ended_at, "process_closed", false)
+        .expect("close");
+
+    let rows = store
+        .app_usage_summary(day_start, ended_at)
+        .expect("usage summary");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].display_name, "WPS Office");
+    assert_eq!(rows[0].process_name, "wpspdf.exe");
+    assert!(rows[0].executable_path.ends_with(r"\office6\wps.exe"));
+}
+
+#[test]
 fn app_usage_summary_counts_overlapping_same_app_sessions_once() {
     let db_file = NamedTempFile::new().expect("temp db");
     let store = Store::open(db_file.path()).expect("open store");

@@ -457,13 +457,15 @@ impl Store {
                 let today_seconds = merged_interval_seconds(&mut totals.today_intervals);
                 let mut app_ids = totals.app_ids.into_iter().collect::<Vec<_>>();
                 app_ids.sort_unstable();
+                let executable_path =
+                    representative_executable_path(&totals.display_name, &totals.executable_path);
 
                 AppUsageSummary {
                     app_id: totals.app_id,
                     app_ids,
                     display_name: totals.display_name,
                     process_name: totals.process_name,
-                    executable_path: totals.executable_path,
+                    executable_path,
                     total_seconds,
                     today_seconds,
                     active_today_seconds: totals.active_today_seconds,
@@ -762,6 +764,23 @@ fn executable_path_score(path: &str, display_name: &str, process_name: &str) -> 
     }
 
     score
+}
+
+fn representative_executable_path(display_name: &str, executable_path: &str) -> String {
+    let path = executable_path.trim().replace('/', "\\");
+    if !display_name.eq_ignore_ascii_case("WPS Office") {
+        return path;
+    }
+
+    let lower_path = path.to_lowercase();
+    for component in [r"\et.exe", r"\wpp.exe", r"\wpspdf.exe"] {
+        if lower_path.ends_with(component) {
+            let directory = &path[..path.len() - component.len()];
+            return format!(r"{directory}\wps.exe");
+        }
+    }
+
+    path
 }
 
 fn non_negative_seconds(start: DateTime<Utc>, end: DateTime<Utc>) -> i64 {
