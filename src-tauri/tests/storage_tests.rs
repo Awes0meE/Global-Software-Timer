@@ -315,6 +315,52 @@ fn app_usage_summary_prefers_primary_install_path_for_merged_apps() {
 }
 
 #[test]
+fn app_usage_summary_merges_foreground_active_seconds_for_today() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let first_codex = store
+        .upsert_app(
+            "codex.exe",
+            r"C:\Program Files\WindowsApps\OpenAI.Codex\app\Codex.exe",
+            "Codex",
+        )
+        .expect("first codex");
+    let second_codex = store
+        .upsert_app(
+            "codex.exe",
+            r"C:\Users\dev\AppData\Local\OpenAI\Codex\bin\codex.exe",
+            "Codex",
+        )
+        .expect("second codex");
+    let date = chrono::NaiveDate::from_ymd_opt(2026, 5, 29).unwrap();
+    let day_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap();
+    let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+    let ended_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 5, 0).unwrap();
+
+    for app_id in [first_codex.id, second_codex.id] {
+        let session_id = store.start_session(app_id, started_at).expect("start");
+        store
+            .close_session(session_id, ended_at, "process_closed", false)
+            .expect("close");
+    }
+    store
+        .increment_daily_app_usage(date, first_codex.id, 0, 7)
+        .expect("first active");
+    store
+        .increment_daily_app_usage(date, second_codex.id, 0, 5)
+        .expect("second active");
+
+    let rows = store
+        .app_usage_summary_for_date(day_start, ended_at, date)
+        .expect("usage summary");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].display_name, "Codex");
+    assert_eq!(rows[0].active_today_seconds, 12);
+}
+
+#[test]
 fn daily_system_usage_accumulates_and_defaults_to_none() {
     let db_file = NamedTempFile::new().expect("temp db");
     let store = Store::open(db_file.path()).expect("open store");

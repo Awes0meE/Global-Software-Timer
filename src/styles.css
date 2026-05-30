@@ -278,7 +278,7 @@ a:focus-visible {
   display: grid;
   min-height: 74px;
   place-items: center;
-  gap: 3px;
+  gap: 0;
   border-radius: 8px;
   background: transparent;
   color: #aab7c7;
@@ -290,6 +290,8 @@ a:focus-visible {
 
 .nav-item span {
   font-size: 14px;
+  line-height: 1;
+  margin-top: -2px;
 }
 
 .nav-item:hover {

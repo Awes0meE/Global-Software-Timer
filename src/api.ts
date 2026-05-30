@@ -9,6 +9,7 @@ export interface AppUsageRow {
   icon_data_url: string | null;
   total_seconds: number;
   today_seconds: number;
+  active_today_seconds: number;
   is_running: boolean;
 }
 

@@ -75,5 +75,6 @@ pub struct AppUsageSummary {
     pub executable_path: String,
     pub total_seconds: i64,
     pub today_seconds: i64,
+    pub active_today_seconds: i64,
     pub is_running: bool,
 }

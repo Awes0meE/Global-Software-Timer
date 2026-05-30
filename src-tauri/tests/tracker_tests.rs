@@ -1,9 +1,12 @@
 use chrono::{TimeZone, Utc};
 use global_software_timer_lib::activity::ActivitySource;
 use global_software_timer_lib::app_state::AppState;
+use global_software_timer_lib::foreground::ForegroundWindowSource;
 use global_software_timer_lib::process_source::{ProcessSnapshot, ProcessSource};
 use global_software_timer_lib::storage::Store;
-use global_software_timer_lib::tracker::{run_tracker_tick, Tracker};
+use global_software_timer_lib::tracker::{
+    run_tracker_tick, run_tracker_tick_with_foreground, Tracker,
+};
 use std::time::Duration;
 use tempfile::NamedTempFile;
 
@@ -39,6 +42,16 @@ impl ActivitySource for FakeActivitySource {
     }
 }
 
+struct FakeForegroundWindowSource {
+    pid: Option<u32>,
+}
+
+impl ForegroundWindowSource for FakeForegroundWindowSource {
+    fn foreground_pid(&self) -> Option<u32> {
+        self.pid
+    }
+}
+
 fn code_process() -> ProcessSnapshot {
     ProcessSnapshot {
         pid: 42,
@@ -46,6 +59,37 @@ fn code_process() -> ProcessSnapshot {
         executable_path: r"C:\Users\dev\AppData\Local\Programs\Microsoft VS Code\Code.exe"
             .to_string(),
     }
+}
+
+#[test]
+fn tracker_tick_records_foreground_active_time_for_matching_process() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+    let source = FakeProcessSource::new(vec![vec![code_process()]]);
+    let mut tracker = Tracker::new(store, source);
+    let activity = FakeActivitySource {
+        idle_duration: Duration::from_secs(60),
+    };
+    let foreground = FakeForegroundWindowSource { pid: Some(42) };
+    let now = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+
+    run_tracker_tick_with_foreground(
+        &mut tracker,
+        &activity,
+        &foreground,
+        now.date_naive(),
+        Duration::from_secs(5),
+        Duration::from_secs(300),
+    )
+    .expect("tick");
+
+    let rows = tracker
+        .store()
+        .app_usage_summary_for_date(now, now, now.date_naive())
+        .expect("usage summary");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].active_today_seconds, 5);
 }
 
 #[test]

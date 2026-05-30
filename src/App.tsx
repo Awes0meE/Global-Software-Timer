@@ -213,10 +213,7 @@ export default function App() {
             <div className="overview-grid">
               <AppUsageTable apps={summary.apps} />
               <div className="right-rail">
-                <TodayMix
-                  apps={summary.apps}
-                  recordedTodaySeconds={summary.recorded_today_seconds}
-                />
+                <TodayMix apps={summary.apps} />
                 <RecentActivity apps={summary.apps} />
               </div>
             </div>

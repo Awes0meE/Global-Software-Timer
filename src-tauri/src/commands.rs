@@ -26,6 +26,7 @@ pub struct AppUsageRow {
     pub icon_data_url: Option<String>,
     pub total_seconds: i64,
     pub today_seconds: i64,
+    pub active_today_seconds: i64,
     pub is_running: bool,
 }
 
@@ -70,7 +71,10 @@ pub fn run_tracker_scan_once(state: State<'_, AppState>) -> Result<(), String> {
         .tracker
         .lock()
         .map_err(|_| "tracker mutex poisoned".to_string())?;
-    tracker.scan_once().map_err(|error| error.to_string())
+    tracker
+        .scan_once()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -125,12 +129,13 @@ fn dashboard_summary_from_store(
     day_start_utc: DateTime<Utc>,
     now_utc: DateTime<Utc>,
 ) -> Result<DashboardSummary, StoreError> {
+    let usage_date = day_start_utc.with_timezone(&Local).date_naive();
     let apps = store
-        .app_usage_summary(day_start_utc, now_utc)?
+        .app_usage_summary_for_date(day_start_utc, now_utc, usage_date)?
         .into_iter()
         .map(AppUsageRow::from)
         .collect::<Vec<_>>();
-    let daily_usage = store.daily_system_usage(day_start_utc.with_timezone(&Local).date_naive())?;
+    let daily_usage = store.daily_system_usage(usage_date)?;
 
     Ok(DashboardSummary {
         product_title: "全局软件计时器".to_string(),
@@ -166,6 +171,7 @@ impl From<AppUsageSummary> for AppUsageRow {
             icon_data_url: native_icon_data_url_for_path(&summary.executable_path),
             total_seconds: summary.total_seconds,
             today_seconds: summary.today_seconds,
+            active_today_seconds: summary.active_today_seconds,
             is_running: summary.is_running,
         }
     }

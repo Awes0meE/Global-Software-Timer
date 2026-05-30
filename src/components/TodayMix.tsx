@@ -3,17 +3,16 @@ import { formatDurationZh } from "../i18n";
 
 interface Props {
   apps: AppUsageRow[];
-  recordedTodaySeconds: number;
 }
 
 const segmentColors = ["#4c8dff", "#ef5350", "#6ea8ff", "#8e65d7", "#6fc082", "#e2b44f", "#9aa5b1"];
 
-export function TodayMix({ apps, recordedTodaySeconds }: Props) {
+export function TodayMix({ apps }: Props) {
   const rows = apps
-    .filter((app) => app.today_seconds > 0)
-    .sort((left, right) => right.today_seconds - left.today_seconds);
-  const appUsageTotal = rows.reduce((sum, app) => sum + app.today_seconds, 0);
-  const total = Math.max(0, recordedTodaySeconds);
+    .filter((app) => app.active_today_seconds > 0)
+    .sort((left, right) => right.active_today_seconds - left.active_today_seconds);
+  const appUsageTotal = rows.reduce((sum, app) => sum + app.active_today_seconds, 0);
+  const total = Math.max(0, appUsageTotal);
 
   return (
     <aside className="panel mix-panel" aria-label="今日分布">
@@ -31,7 +30,7 @@ export function TodayMix({ apps, recordedTodaySeconds }: Props) {
             className="mix-segment"
             key={app.app_id}
             style={{
-              width: `${appUsageTotal > 0 ? (app.today_seconds / appUsageTotal) * 100 : 0}%`,
+              width: `${appUsageTotal > 0 ? (app.active_today_seconds / appUsageTotal) * 100 : 0}%`,
               backgroundColor: segmentColors[index % segmentColors.length],
             }}
           />
@@ -46,8 +45,10 @@ export function TodayMix({ apps, recordedTodaySeconds }: Props) {
                 <i style={{ backgroundColor: segmentColors[index % segmentColors.length] }} aria-hidden="true" />
                 {app.display_name}
               </span>
-              <span>{formatDurationZh(app.today_seconds)}</span>
-              <strong>{appUsageTotal > 0 ? ((app.today_seconds / appUsageTotal) * 100).toFixed(1) : "0.0"}%</strong>
+              <span>{formatDurationZh(app.active_today_seconds)}</span>
+              <strong>
+                {appUsageTotal > 0 ? ((app.active_today_seconds / appUsageTotal) * 100).toFixed(1) : "0.0"}%
+              </strong>
             </div>
           ))}
         </div>

@@ -2,7 +2,7 @@ use crate::classifier::{classify_process, Classification};
 use crate::domain::{AppIdentity, AppUsageSummary, DailySystemUsage, RunEventKind, UsageSession};
 use chrono::{DateTime, NaiveDate, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use thiserror::Error;
 
@@ -342,6 +342,15 @@ impl Store {
         day_start_utc: DateTime<Utc>,
         now_utc: DateTime<Utc>,
     ) -> StoreResult<Vec<AppUsageSummary>> {
+        self.app_usage_summary_for_date(day_start_utc, now_utc, day_start_utc.date_naive())
+    }
+
+    pub fn app_usage_summary_for_date(
+        &self,
+        day_start_utc: DateTime<Utc>,
+        now_utc: DateTime<Utc>,
+        usage_date: NaiveDate,
+    ) -> StoreResult<Vec<AppUsageSummary>> {
         #[derive(Debug)]
         struct AppTotals {
             app_id: i64,
@@ -350,9 +359,12 @@ impl Store {
             executable_path: String,
             total_intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
             today_intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
+            active_today_seconds: i64,
+            active_app_ids: HashSet<i64>,
             is_running: bool,
         }
 
+        let active_seconds_by_app_id = self.daily_app_active_seconds(usage_date)?;
         let mut stmt = self.conn.prepare(
             r#"
             SELECT apps.id,
@@ -408,8 +420,14 @@ impl Store {
                 executable_path: executable_path.clone(),
                 total_intervals: Vec::new(),
                 today_intervals: Vec::new(),
+                active_today_seconds: 0,
+                active_app_ids: HashSet::new(),
                 is_running: false,
             });
+            if entry.active_app_ids.insert(app_id) {
+                entry.active_today_seconds +=
+                    active_seconds_by_app_id.get(&app_id).copied().unwrap_or(0);
+            }
             if should_prefer_executable_path(
                 &entry.executable_path,
                 &executable_path,
@@ -442,6 +460,7 @@ impl Store {
                     executable_path: totals.executable_path,
                     total_seconds,
                     today_seconds,
+                    active_today_seconds: totals.active_today_seconds,
                     is_running: totals.is_running,
                 }
             })
@@ -454,6 +473,50 @@ impl Store {
                 .then_with(|| left.display_name.cmp(&right.display_name))
         });
         Ok(summaries)
+    }
+
+    fn daily_app_active_seconds(&self, date: NaiveDate) -> StoreResult<HashMap<i64, i64>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT app_id, active_seconds FROM daily_app_usage WHERE usage_date = ?1")?;
+        let mut rows = stmt.query(params![date.to_string()])?;
+        let mut active_seconds_by_app_id = HashMap::new();
+
+        while let Some(row) = rows.next()? {
+            active_seconds_by_app_id.insert(row.get::<_, i64>(0)?, row.get::<_, i64>(1)?);
+        }
+
+        Ok(active_seconds_by_app_id)
+    }
+
+    pub fn increment_daily_app_usage(
+        &self,
+        date: NaiveDate,
+        app_id: i64,
+        runtime_seconds: i64,
+        active_seconds: i64,
+    ) -> StoreResult<()> {
+        self.conn.execute(
+            r#"
+            INSERT INTO daily_app_usage (
+                usage_date,
+                app_id,
+                runtime_seconds,
+                active_seconds
+            )
+            VALUES (?1, ?2, ?3, ?4)
+            ON CONFLICT(usage_date, app_id) DO UPDATE SET
+                runtime_seconds = runtime_seconds + excluded.runtime_seconds,
+                active_seconds = active_seconds + excluded.active_seconds
+            "#,
+            params![
+                date.to_string(),
+                app_id,
+                runtime_seconds.max(0),
+                active_seconds.max(0)
+            ],
+        )?;
+        Ok(())
     }
 
     pub fn increment_daily_system_usage(

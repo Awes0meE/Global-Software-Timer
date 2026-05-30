@@ -3,6 +3,7 @@ pub mod app_state;
 pub mod classifier;
 pub mod commands;
 pub mod domain;
+pub mod foreground;
 pub mod native_icon;
 pub mod process_source;
 pub mod single_instance;
@@ -71,9 +72,11 @@ fn start_background_scan_loop(tracker: SharedTracker) {
 
             match tracker.lock() {
                 Ok(mut tracker) => {
-                    if let Err(error) = tracker::run_tracker_tick(
+                    let foreground_source = foreground::WindowsForegroundWindowSource;
+                    if let Err(error) = tracker::run_tracker_tick_with_foreground(
                         &mut tracker,
                         &activity_source,
+                        &foreground_source,
                         Local::now().date_naive(),
                         tick_duration,
                         ACTIVE_IDLE_THRESHOLD,

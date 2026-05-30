@@ -1,6 +1,7 @@
 use crate::activity::ActivitySource;
 use crate::classifier::{classify_process, Classification};
 use crate::domain::RunEventKind;
+use crate::foreground::{ForegroundWindowSource, NoForegroundWindowSource};
 use crate::process_source::{ProcessSnapshot, ProcessSource};
 use crate::storage::{Store, StoreError};
 use chrono::{NaiveDate, Utc};
@@ -22,6 +23,11 @@ struct RunningApp {
     session_id: i64,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ScanOutcome {
+    pub app_ids_by_pid: HashMap<u32, i64>,
+}
+
 pub struct Tracker<S: ProcessSource> {
     store: Store,
     source: S,
@@ -41,9 +47,10 @@ impl<S: ProcessSource> Tracker<S> {
         &self.store
     }
 
-    pub fn scan_once(&mut self) -> TrackerResult<()> {
+    pub fn scan_once(&mut self) -> TrackerResult<ScanOutcome> {
         let snapshots = self.source.snapshot();
         let mut seen_keys = HashSet::new();
+        let mut app_ids_by_pid = HashMap::new();
 
         for snapshot in snapshots {
             let Some((key, display_name)) = self.trackable_snapshot(&snapshot) else {
@@ -52,6 +59,7 @@ impl<S: ProcessSource> Tracker<S> {
             seen_keys.insert(key.clone());
 
             if let Some(running) = self.running_by_key.get(&key) {
+                app_ids_by_pid.insert(snapshot.pid, running.app_id);
                 self.store
                     .heartbeat_session(running.session_id, Utc::now())?;
                 self.store.insert_run_event(
@@ -71,6 +79,7 @@ impl<S: ProcessSource> Tracker<S> {
             let session_id =
                 self.store
                     .start_session_with_event(app.id, Utc::now(), Some(&payload_json))?;
+            app_ids_by_pid.insert(snapshot.pid, app.id);
             self.running_by_key.insert(
                 key,
                 RunningApp {
@@ -100,7 +109,7 @@ impl<S: ProcessSource> Tracker<S> {
             }
         }
 
-        Ok(())
+        Ok(ScanOutcome { app_ids_by_pid })
     }
 
     fn trackable_snapshot(&self, snapshot: &ProcessSnapshot) -> Option<(String, String)> {
@@ -124,6 +133,30 @@ pub fn run_tracker_tick<S: ProcessSource, A: ActivitySource>(
     tick_duration: Duration,
     active_threshold: Duration,
 ) -> TrackerResult<()> {
+    let foreground_source = NoForegroundWindowSource;
+    run_tracker_tick_with_foreground(
+        tracker,
+        activity_source,
+        &foreground_source,
+        usage_date,
+        tick_duration,
+        active_threshold,
+    )
+}
+
+pub fn run_tracker_tick_with_foreground<S, A, F>(
+    tracker: &mut Tracker<S>,
+    activity_source: &A,
+    foreground_source: &F,
+    usage_date: NaiveDate,
+    tick_duration: Duration,
+    active_threshold: Duration,
+) -> TrackerResult<()>
+where
+    S: ProcessSource,
+    A: ActivitySource,
+    F: ForegroundWindowSource,
+{
     let scan_result = tracker.scan_once();
     let seconds = tick_duration.as_secs().min(i64::MAX as u64) as i64;
     let active_seconds = if activity_source.is_active(active_threshold) {
@@ -131,8 +164,22 @@ pub fn run_tracker_tick<S: ProcessSource, A: ActivitySource>(
     } else {
         0
     };
+    let foreground_app_id = scan_result.as_ref().ok().and_then(|outcome| {
+        foreground_source
+            .foreground_pid()
+            .and_then(|pid| outcome.app_ids_by_pid.get(&pid).copied())
+    });
+
     tracker
         .store()
         .increment_daily_system_usage(usage_date, seconds, active_seconds, seconds)?;
-    scan_result
+    if active_seconds > 0 {
+        if let Some(app_id) = foreground_app_id {
+            tracker
+                .store()
+                .increment_daily_app_usage(usage_date, app_id, 0, active_seconds)?;
+        }
+    }
+
+    scan_result.map(|_| ())
 }
