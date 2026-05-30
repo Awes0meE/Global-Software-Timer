@@ -32,16 +32,33 @@ fn recognizes_common_user_apps() {
         }
     );
 
-    let wps = classify_process(
-        "wps.exe",
-        r"D:\Users\dev\AppData\Local\Kingsoft\WPS Office\office6\wps.exe",
-    );
-    assert_eq!(
-        wps,
-        Classification::Tracked {
-            display_name: "WPS Office".to_string()
-        }
-    );
+    let wps_suite_processes = [
+        (
+            "wps.exe",
+            r"D:\Users\dev\AppData\Local\Kingsoft\WPS Office\office6\wps.exe",
+        ),
+        (
+            "et.exe",
+            r"D:\Users\dev\AppData\Local\Kingsoft\WPS Office\office6\et.exe",
+        ),
+        (
+            "wpp.exe",
+            r"D:\Users\dev\AppData\Local\Kingsoft\WPS Office\office6\wpp.exe",
+        ),
+        (
+            "wpspdf.exe",
+            r"D:\Users\dev\AppData\Local\Kingsoft\WPS Office\office6\wpspdf.exe",
+        ),
+    ];
+    for (process_name, executable_path) in wps_suite_processes {
+        assert_eq!(
+            classify_process(process_name, executable_path),
+            Classification::Tracked {
+                display_name: "WPS Office".to_string()
+            },
+            "{process_name} should be grouped under WPS Office"
+        );
+    }
 }
 
 #[test]

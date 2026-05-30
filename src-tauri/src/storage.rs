@@ -360,6 +360,7 @@ impl Store {
             total_intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
             today_intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
             active_today_seconds: i64,
+            app_ids: HashSet<i64>,
             active_app_ids: HashSet<i64>,
             is_running: bool,
         }
@@ -421,9 +422,11 @@ impl Store {
                 total_intervals: Vec::new(),
                 today_intervals: Vec::new(),
                 active_today_seconds: 0,
+                app_ids: HashSet::new(),
                 active_app_ids: HashSet::new(),
                 is_running: false,
             });
+            entry.app_ids.insert(app_id);
             if entry.active_app_ids.insert(app_id) {
                 entry.active_today_seconds +=
                     active_seconds_by_app_id.get(&app_id).copied().unwrap_or(0);
@@ -452,9 +455,12 @@ impl Store {
             .map(|(_, mut totals)| {
                 let total_seconds = merged_interval_seconds(&mut totals.total_intervals);
                 let today_seconds = merged_interval_seconds(&mut totals.today_intervals);
+                let mut app_ids = totals.app_ids.into_iter().collect::<Vec<_>>();
+                app_ids.sort_unstable();
 
                 AppUsageSummary {
                     app_id: totals.app_id,
+                    app_ids,
                     display_name: totals.display_name,
                     process_name: totals.process_name,
                     executable_path: totals.executable_path,

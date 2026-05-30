@@ -78,6 +78,7 @@ pub enum AppRuntimeStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AppUsageSummary {
     pub app_id: i64,
+    pub app_ids: Vec<i64>,
     pub display_name: String,
     pub process_name: String,
     pub executable_path: String,

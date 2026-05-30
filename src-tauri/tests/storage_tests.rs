@@ -226,6 +226,65 @@ fn app_usage_summary_merges_same_classified_application_rows() {
 }
 
 #[test]
+fn app_usage_summary_merges_wps_suite_components() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let apps = [
+        store
+            .upsert_app(
+                "wps.exe",
+                r"C:\Users\dev\AppData\Local\Kingsoft\WPS Office\office6\wps.exe",
+                "wps",
+            )
+            .expect("wps app"),
+        store
+            .upsert_app(
+                "et.exe",
+                r"C:\Users\dev\AppData\Local\Kingsoft\WPS Office\office6\et.exe",
+                "et",
+            )
+            .expect("spreadsheet app"),
+        store
+            .upsert_app(
+                "wpp.exe",
+                r"C:\Users\dev\AppData\Local\Kingsoft\WPS Office\office6\wpp.exe",
+                "wpp",
+            )
+            .expect("presentation app"),
+        store
+            .upsert_app(
+                "wpspdf.exe",
+                r"C:\Users\dev\AppData\Local\Kingsoft\WPS Office\office6\wpspdf.exe",
+                "wpspdf",
+            )
+            .expect("pdf app"),
+    ];
+
+    let day_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap();
+    let query_at = Utc.with_ymd_and_hms(2026, 5, 29, 10, 10, 0).unwrap();
+    for (index, app) in apps.iter().enumerate() {
+        let started_at = Utc
+            .with_ymd_and_hms(2026, 5, 29, 9, index as u32 * 2, 0)
+            .unwrap();
+        let ended_at = started_at + chrono::Duration::minutes(1);
+        let session_id = store.start_session(app.id, started_at).expect("start");
+        store
+            .close_session(session_id, ended_at, "process_closed", false)
+            .expect("close");
+    }
+
+    let rows = store
+        .app_usage_summary(day_start, query_at)
+        .expect("usage summary");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].display_name, "WPS Office");
+    assert_eq!(rows[0].total_seconds, 240);
+    assert_eq!(rows[0].today_seconds, 240);
+}
+
+#[test]
 fn app_usage_summary_counts_overlapping_same_app_sessions_once() {
     let db_file = NamedTempFile::new().expect("temp db");
     let store = Store::open(db_file.path()).expect("open store");

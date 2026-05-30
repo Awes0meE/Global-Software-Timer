@@ -175,10 +175,7 @@ impl AppUsageRow {
         summary: AppUsageSummary,
         runtime_status_by_app_id: &HashMap<i64, AppRuntimeStatus>,
     ) -> Self {
-        let status = runtime_status_by_app_id
-            .get(&summary.app_id)
-            .copied()
-            .unwrap_or(AppRuntimeStatus::Closed);
+        let status = runtime_status_for_summary(&summary, runtime_status_by_app_id);
 
         Self {
             app_id: summary.app_id,
@@ -191,6 +188,36 @@ impl AppUsageRow {
             status,
             is_running: status == AppRuntimeStatus::Foreground,
         }
+    }
+}
+
+fn runtime_status_for_summary(
+    summary: &AppUsageSummary,
+    runtime_status_by_app_id: &HashMap<i64, AppRuntimeStatus>,
+) -> AppRuntimeStatus {
+    let mut status = runtime_status_by_app_id
+        .get(&summary.app_id)
+        .copied()
+        .unwrap_or(AppRuntimeStatus::Closed);
+
+    for app_id in &summary.app_ids {
+        let candidate = runtime_status_by_app_id
+            .get(app_id)
+            .copied()
+            .unwrap_or(AppRuntimeStatus::Closed);
+        if runtime_status_rank(candidate) > runtime_status_rank(status) {
+            status = candidate;
+        }
+    }
+
+    status
+}
+
+fn runtime_status_rank(status: AppRuntimeStatus) -> u8 {
+    match status {
+        AppRuntimeStatus::Closed => 0,
+        AppRuntimeStatus::Background => 1,
+        AppRuntimeStatus::Foreground => 2,
     }
 }
 
@@ -278,5 +305,50 @@ mod tests {
 
         assert_eq!(summary.apps[0].status, AppRuntimeStatus::Background);
         assert!(!summary.apps[0].is_running);
+    }
+
+    #[test]
+    fn dashboard_summary_overlays_foreground_status_from_merged_wps_component() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+        let short_path_wps = store
+            .upsert_app(
+                "wps.exe",
+                r"D:\Users\123\AppData\Local\Kingsoft\WPSOFF~1\1210~1.263\office6\wps.exe",
+                "WPS Office",
+            )
+            .expect("short path app");
+        let wps_pdf = store
+            .upsert_app(
+                "wpspdf.exe",
+                r"D:\Users\123\AppData\Local\Kingsoft\WPS Office\12.1.0.26375\office6\wpspdf.exe",
+                "WPS Office",
+            )
+            .expect("pdf app");
+        let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 8, 0, 0).unwrap();
+        let ended_at = Utc.with_ymd_and_hms(2026, 5, 29, 8, 1, 0).unwrap();
+        for app_id in [short_path_wps.id, wps_pdf.id] {
+            let session_id = store.start_session(app_id, started_at).expect("start");
+            store
+                .close_session(session_id, ended_at, "process_closed", false)
+                .expect("close");
+        }
+        let mut statuses = HashMap::new();
+        statuses.insert(short_path_wps.id, AppRuntimeStatus::Background);
+        statuses.insert(wps_pdf.id, AppRuntimeStatus::Foreground);
+
+        let summary = dashboard_summary_from_store(
+            &store,
+            Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
+            &statuses,
+        )
+        .expect("summary");
+
+        assert_eq!(summary.apps.len(), 1);
+        assert_eq!(summary.apps[0].display_name, "WPS Office");
+        assert_eq!(summary.apps[0].status, AppRuntimeStatus::Foreground);
+        assert!(summary.apps[0].is_running);
     }
 }
