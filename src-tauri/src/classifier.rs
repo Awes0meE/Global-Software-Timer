@@ -6,9 +6,13 @@ pub enum Classification {
 
 pub fn classify_process(process_name: &str, executable_path: &str) -> Classification {
     let name = process_name.trim().to_lowercase();
-    let path = executable_path.trim().to_lowercase();
+    let path = executable_path.trim().replace('/', "\\").to_lowercase();
 
     if is_system_process(&name, &path) {
+        return Classification::Hidden;
+    }
+
+    if is_known_backend_helper(&name, &path) {
         return Classification::Hidden;
     }
 
@@ -53,6 +57,16 @@ fn known_display_name(name: &str) -> Option<&'static str> {
         "wt.exe" => Some("Windows Terminal"),
         _ => None,
     }
+}
+
+fn is_known_backend_helper(name: &str, path: &str) -> bool {
+    if executable_stem(name) != "codex" {
+        return false;
+    }
+
+    path.contains(r"\app\resources\codex.exe")
+        || path.contains(r"\appdata\local\openai\codex\bin\")
+        || path.contains(r"\.vscode\extensions\openai.chatgpt-")
 }
 
 fn is_system_process(name: &str, path: &str) -> bool {

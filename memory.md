@@ -17,6 +17,7 @@ Last updated: 2026-05-28
 - Stack: Tauri v2, Rust, React, TypeScript, SQLite.
 - Storage strategy: event log plus summary tables from v0.1.
 - Runtime tracking: v0.1 tracks application process runtime.
+- Runtime sessions require a user-visible top-level window; Browser/Electron child helpers are filtered with transient command-line flag checks. Window titles and command lines are not stored in SQLite or shown in the UI.
 - Active time: v0.1 tracks daily machine-level active time using keyboard/mouse idle state.
 - Long-term direction: record both runtime and active usage, with foreground/window-level features only as explicit opt-in.
 - Permissions: v0.1 runs as a normal user-space app and does not request administrator permission by default.

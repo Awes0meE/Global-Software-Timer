@@ -58,6 +58,19 @@ fn code_process() -> ProcessSnapshot {
         process_name: "Code.exe".to_string(),
         executable_path: r"C:\Users\dev\AppData\Local\Programs\Microsoft VS Code\Code.exe"
             .to_string(),
+        is_background_helper: false,
+        has_visible_window: true,
+    }
+}
+
+fn edge_process(pid: u32, is_background_helper: bool, has_visible_window: bool) -> ProcessSnapshot {
+    ProcessSnapshot {
+        pid,
+        process_name: "msedge.exe".to_string(),
+        executable_path: r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+            .to_string(),
+        is_background_helper,
+        has_visible_window,
     }
 }
 
@@ -104,6 +117,55 @@ fn tracker_creates_and_closes_sessions_from_process_changes() {
     tracker.scan_once().expect("first scan starts session");
     tracker.scan_once().expect("second scan heartbeats session");
     tracker.scan_once().expect("third scan closes session");
+
+    let sessions = tracker.store().all_sessions().expect("sessions");
+    assert_eq!(sessions.len(), 1);
+    assert!(sessions[0].ended_at.is_some());
+    assert_eq!(sessions[0].close_reason.as_deref(), Some("process_closed"));
+}
+
+#[test]
+fn tracker_closes_browser_session_when_only_background_helpers_remain() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+
+    let source = FakeProcessSource::new(vec![
+        vec![
+            edge_process(100, false, true),
+            edge_process(101, true, false),
+        ],
+        vec![edge_process(101, true, false)],
+    ]);
+    let mut tracker = Tracker::new(store, source);
+
+    tracker.scan_once().expect("first scan starts session");
+    tracker
+        .scan_once()
+        .expect("second scan closes session without visible process");
+
+    let sessions = tracker.store().all_sessions().expect("sessions");
+    assert_eq!(sessions.len(), 1);
+    assert!(sessions[0].ended_at.is_some());
+    assert_eq!(sessions[0].close_reason.as_deref(), Some("process_closed"));
+}
+
+#[test]
+fn tracker_closes_session_when_process_remains_without_visible_windows() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+
+    let source = FakeProcessSource::new(vec![
+        vec![edge_process(100, false, true)],
+        vec![edge_process(100, false, false)],
+    ]);
+    let mut tracker = Tracker::new(store, source);
+
+    tracker.scan_once().expect("first scan starts session");
+    tracker
+        .scan_once()
+        .expect("second scan closes session without visible windows");
 
     let sessions = tracker.store().all_sessions().expect("sessions");
     assert_eq!(sessions.len(), 1);

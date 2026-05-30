@@ -240,7 +240,7 @@ fn app_usage_summary_counts_overlapping_same_app_sessions_once() {
     let second_codex = store
         .upsert_app(
             "codex.exe",
-            r"C:\Users\dev\AppData\Local\OpenAI\Codex\bin\codex.exe",
+            r"C:\Program Files\WindowsApps\OpenAI.Codex_2.0.0.0_x64__abc\app\Codex.exe",
             "Codex",
         )
         .expect("second codex");
@@ -274,17 +274,17 @@ fn app_usage_summary_counts_overlapping_same_app_sessions_once() {
 }
 
 #[test]
-fn app_usage_summary_prefers_primary_install_path_for_merged_apps() {
+fn app_usage_summary_ignores_codex_backend_helper_when_packaged_app_exists() {
     let db_file = NamedTempFile::new().expect("temp db");
     let store = Store::open(db_file.path()).expect("open store");
     store.migrate().expect("migrate");
-    let helper_codex = store
+    let backend_codex = store
         .upsert_app(
             "codex.exe",
             r"C:\Users\dev\AppData\Local\OpenAI\Codex\bin\958d608b5e0546a5\codex.exe",
             "Codex",
         )
-        .expect("helper codex");
+        .expect("backend codex");
     let packaged_codex = store
         .upsert_app(
             "codex.exe",
@@ -296,7 +296,7 @@ fn app_usage_summary_prefers_primary_install_path_for_merged_apps() {
     let day_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap();
     let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
     let ended_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 5, 0).unwrap();
-    for app_id in [helper_codex.id, packaged_codex.id] {
+    for app_id in [backend_codex.id, packaged_codex.id] {
         let session_id = store.start_session(app_id, started_at).expect("start");
         store
             .close_session(session_id, ended_at, "process_closed", false)
@@ -308,10 +308,58 @@ fn app_usage_summary_prefers_primary_install_path_for_merged_apps() {
         .expect("usage summary");
 
     assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].total_seconds, 300);
     assert_eq!(
         rows[0].executable_path,
         r"C:\Program Files\WindowsApps\OpenAI.Codex_1.0.0.0_x64__abc\app\Codex.exe"
     );
+}
+
+#[test]
+fn open_codex_backend_helper_does_not_keep_closed_desktop_app_running() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let desktop_codex = store
+        .upsert_app(
+            "codex.exe",
+            r"C:\Program Files\WindowsApps\OpenAI.Codex_1.0.0.0_x64__abc\app\Codex.exe",
+            "Codex",
+        )
+        .expect("desktop codex");
+    let backend_codex = store
+        .upsert_app(
+            "codex.exe",
+            r"C:\Program Files\WindowsApps\OpenAI.Codex_1.0.0.0_x64__abc\app\resources\codex.exe",
+            "Codex",
+        )
+        .expect("backend codex");
+
+    let day_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap();
+    let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+    let desktop_end = Utc.with_ymd_and_hms(2026, 5, 29, 9, 5, 0).unwrap();
+    let query_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 10, 0).unwrap();
+    let desktop_session = store
+        .start_session(desktop_codex.id, started_at)
+        .expect("desktop start");
+    store
+        .close_session(desktop_session, desktop_end, "process_closed", false)
+        .expect("desktop close");
+    let backend_session = store
+        .start_session(backend_codex.id, started_at)
+        .expect("backend start");
+    store
+        .heartbeat_session(backend_session, query_at)
+        .expect("backend heartbeat");
+
+    let rows = store
+        .app_usage_summary(day_start, query_at)
+        .expect("usage summary");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].display_name, "Codex");
+    assert_eq!(rows[0].total_seconds, 300);
+    assert!(!rows[0].is_running);
 }
 
 #[test]
@@ -377,7 +425,7 @@ fn app_usage_summary_merges_foreground_active_seconds_for_today() {
     let second_codex = store
         .upsert_app(
             "codex.exe",
-            r"C:\Users\dev\AppData\Local\OpenAI\Codex\bin\codex.exe",
+            r"C:\Program Files\WindowsApps\OpenAI.Codex_2.0.0.0_x64__abc\app\Codex.exe",
             "Codex",
         )
         .expect("second codex");

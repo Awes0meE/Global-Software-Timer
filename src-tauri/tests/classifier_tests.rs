@@ -184,6 +184,42 @@ fn known_apps_are_not_hidden_by_helper_words_in_path() {
 }
 
 #[test]
+fn hides_codex_backend_helpers_but_keeps_desktop_app_visible() {
+    assert_eq!(
+        classify_process(
+            "Codex.exe",
+            r"C:\Program Files\WindowsApps\OpenAI.Codex_26.527.3686.0_x64__2p2nqsd0c76g0\app\Codex.exe",
+        ),
+        Classification::Tracked {
+            display_name: "Codex".to_string()
+        }
+    );
+
+    let helper_processes = [
+        (
+            "codex.exe",
+            r"C:\Program Files\WindowsApps\OpenAI.Codex_26.527.3686.0_x64__2p2nqsd0c76g0\app\resources\codex.exe",
+        ),
+        (
+            "codex.exe",
+            r"C:\Users\dev\AppData\Local\OpenAI\Codex\bin\7dea4a003bc76627\codex.exe",
+        ),
+        (
+            "codex.exe",
+            r"C:\Users\dev\.vscode\extensions\openai.chatgpt-26.519.32039-win32-x64\bin\windows-x86_64\codex.exe",
+        ),
+    ];
+
+    for (process_name, executable_path) in helper_processes {
+        assert_eq!(
+            classify_process(process_name, executable_path),
+            Classification::Hidden,
+            "{executable_path} should be hidden"
+        );
+    }
+}
+
+#[test]
 fn fallback_apps_are_not_hidden_by_helper_words_inside_name() {
     assert_eq!(
         classify_process("ServiceStudio.exe", r"C:\Tools\ServiceStudio.exe"),

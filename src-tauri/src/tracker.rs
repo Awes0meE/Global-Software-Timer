@@ -113,6 +113,10 @@ impl<S: ProcessSource> Tracker<S> {
     }
 
     fn trackable_snapshot(&self, snapshot: &ProcessSnapshot) -> Option<(String, String)> {
+        if snapshot.is_background_helper || !snapshot.has_visible_window {
+            return None;
+        }
+
         match classify_process(&snapshot.process_name, &snapshot.executable_path) {
             Classification::Hidden => None,
             Classification::Tracked { display_name } => {
