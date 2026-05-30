@@ -315,6 +315,54 @@ fn app_usage_summary_prefers_primary_install_path_for_merged_apps() {
 }
 
 #[test]
+fn app_usage_summary_prefers_existing_install_path_over_stale_package_path() {
+    let temp_dir = tempfile::tempdir().expect("temp dir");
+    let stale_path = temp_dir
+        .path()
+        .join("Program Files")
+        .join("WindowsApps")
+        .join("OpenAI.Codex_26.519.11010.0_x64__abc")
+        .join("app")
+        .join("Codex.exe");
+    let current_path = temp_dir
+        .path()
+        .join("Program Files")
+        .join("WindowsApps")
+        .join("OpenAI.Codex_26.527.3686.0_x64__abc")
+        .join("app")
+        .join("Codex.exe");
+    std::fs::create_dir_all(current_path.parent().expect("current parent")).expect("current dir");
+    std::fs::write(&current_path, b"MZ").expect("current exe placeholder");
+
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let stale_codex = store
+        .upsert_app("codex.exe", &stale_path.to_string_lossy(), "Codex")
+        .expect("stale codex");
+    let current_codex = store
+        .upsert_app("codex.exe", &current_path.to_string_lossy(), "Codex")
+        .expect("current codex");
+
+    let day_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap();
+    let started_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+    let ended_at = Utc.with_ymd_and_hms(2026, 5, 29, 9, 5, 0).unwrap();
+    for app_id in [stale_codex.id, current_codex.id] {
+        let session_id = store.start_session(app_id, started_at).expect("start");
+        store
+            .close_session(session_id, ended_at, "process_closed", false)
+            .expect("close");
+    }
+
+    let rows = store
+        .app_usage_summary(day_start, ended_at)
+        .expect("usage summary");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].executable_path, current_path.to_string_lossy());
+}
+
+#[test]
 fn app_usage_summary_merges_foreground_active_seconds_for_today() {
     let db_file = NamedTempFile::new().expect("temp db");
     let store = Store::open(db_file.path()).expect("open store");

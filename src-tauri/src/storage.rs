@@ -723,6 +723,9 @@ fn executable_path_score(path: &str, display_name: &str, process_name: &str) -> 
         .to_lowercase();
 
     let mut score = 0;
+    if Path::new(path.trim()).exists() {
+        score += 500;
+    }
     if normalized.contains("\\windowsapps\\")
         || normalized.contains("\\program files\\")
         || normalized.contains("\\program files (x86)\\")

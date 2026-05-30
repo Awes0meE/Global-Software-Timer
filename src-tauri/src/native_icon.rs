@@ -6,7 +6,7 @@ static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::
 
 pub fn native_icon_data_url_for_path(executable_path: &str) -> Option<String> {
     let key = executable_path.trim();
-    if key.is_empty() || !Path::new(key).exists() {
+    if key.is_empty() {
         return None;
     }
 
@@ -25,7 +25,7 @@ pub fn native_icon_data_url_for_path(executable_path: &str) -> Option<String> {
                 .find_map(|candidate| image_file_data_url(&candidate))
         })
         .or_else(|| {
-            codex_package_icon_candidates(path)
+            package_icon_candidates(path)
                 .into_iter()
                 .find_map(|candidate| image_file_data_url(&candidate))
         })
@@ -201,14 +201,19 @@ fn is_broad_icon_search_dir(dir: &Path) -> bool {
     )
 }
 
-fn codex_package_icon_candidates(path: &Path) -> Vec<PathBuf> {
-    codex_package_icon_candidates_for_roots(path, &default_codex_package_roots())
+fn package_icon_candidates(path: &Path) -> Vec<PathBuf> {
+    package_icon_candidates_for_roots(path, &default_package_roots_for_path(path))
 }
 
 #[cfg(target_os = "windows")]
-fn default_codex_package_roots() -> Vec<PathBuf> {
+fn default_package_roots_for_path(path: &Path) -> Vec<PathBuf> {
     let mut roots = Vec::new();
     let mut seen = HashSet::new();
+    if let Some(root) = windowsapps_root_from_path(path) {
+        if seen.insert(root.clone()) {
+            roots.push(root);
+        }
+    }
     for variable in ["ProgramFiles", "ProgramW6432"] {
         if let Some(root) = std::env::var_os(variable).map(PathBuf::from) {
             let windows_apps = root.join("WindowsApps");
@@ -225,14 +230,19 @@ fn default_codex_package_roots() -> Vec<PathBuf> {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn default_codex_package_roots() -> Vec<PathBuf> {
+fn default_package_roots_for_path(_path: &Path) -> Vec<PathBuf> {
     Vec::new()
 }
 
-fn codex_package_icon_candidates_for_roots(path: &Path, package_roots: &[PathBuf]) -> Vec<PathBuf> {
-    if !is_codex_executable_path(path) {
+fn package_icon_candidates_for_roots(path: &Path, package_roots: &[PathBuf]) -> Vec<PathBuf> {
+    let package_prefixes = inferred_package_prefixes(path);
+    if package_prefixes.is_empty() {
         return Vec::new();
     }
+    let executable_stem = path
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
 
     let mut packages = Vec::new();
     for root in package_roots {
@@ -245,7 +255,11 @@ fn codex_package_icon_candidates_for_roots(path: &Path, package_roots: &[PathBuf
                 .file_name()
                 .map(|name| name.to_string_lossy().to_lowercase())
                 .unwrap_or_default();
-            if name.starts_with("openai.codex_") && package_dir.is_dir() {
+            if package_prefixes
+                .iter()
+                .any(|prefix| name.starts_with(&format!("{}_", prefix)))
+                && package_dir.is_dir()
+            {
                 packages.push(package_dir);
             }
         }
@@ -262,15 +276,20 @@ fn codex_package_icon_candidates_for_roots(path: &Path, package_roots: &[PathBuf
             package_dir.join("assets").join("Square44x44Logo.png"),
             package_dir.join("app").join("resources").join("icon.ico"),
             package_dir.join("app").join("resources").join("icon.png"),
+            package_dir.join("resources").join("icon.ico"),
+            package_dir.join("resources").join("icon.png"),
         ];
         for candidate in preferred_candidates {
             if candidate.exists() && seen.insert(candidate.clone()) {
                 candidates.push(candidate);
             }
         }
-        for candidate in icon_candidates_in_dir(&package_dir, "codex")
+        for candidate in icon_candidates_in_dir(&package_dir, &executable_stem)
             .into_iter()
-            .chain(icon_candidates_in_dir(&package_dir.join("app"), "codex"))
+            .chain(icon_candidates_in_dir(
+                &package_dir.join("app"),
+                &executable_stem,
+            ))
         {
             if candidate.exists() && seen.insert(candidate.clone()) {
                 candidates.push(candidate);
@@ -281,10 +300,105 @@ fn codex_package_icon_candidates_for_roots(path: &Path, package_roots: &[PathBuf
     candidates
 }
 
-fn is_codex_executable_path(path: &Path) -> bool {
-    path.file_stem()
-        .map(|stem| stem.to_string_lossy().eq_ignore_ascii_case("codex"))
-        .unwrap_or(false)
+fn inferred_package_prefixes(path: &Path) -> Vec<String> {
+    let segments = normal_path_segments(path);
+    let mut prefixes = Vec::new();
+    let mut seen = HashSet::new();
+
+    for (index, segment) in segments.iter().enumerate() {
+        if segment.eq_ignore_ascii_case("windowsapps") {
+            if let Some(package_name) = segments.get(index + 1) {
+                if let Some(prefix) = package_name.split('_').next() {
+                    push_package_prefix(prefix, &mut prefixes, &mut seen);
+                }
+            }
+        }
+    }
+
+    for pair in segments.windows(2) {
+        let left = package_name_part(&pair[0]);
+        let right = package_name_part(&pair[1]);
+        if let (Some(left), Some(right)) = (left, right) {
+            push_package_prefix(&format!("{left}.{right}"), &mut prefixes, &mut seen);
+        }
+    }
+
+    prefixes
+}
+
+fn normal_path_segments(path: &Path) -> Vec<String> {
+    path.components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(value) => Some(value.to_string_lossy().to_string()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn package_name_part(segment: &str) -> Option<String> {
+    let normalized = segment.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+    let lower = normalized.to_lowercase();
+    if matches!(
+        lower.as_str(),
+        "users"
+            | "appdata"
+            | "local"
+            | "roaming"
+            | "program files"
+            | "program files (x86)"
+            | "windowsapps"
+            | "programs"
+            | "bin"
+            | "app"
+            | "resources"
+            | "assets"
+    ) || lower.ends_with(".exe")
+        || looks_like_hash_segment(&lower)
+    {
+        return None;
+    }
+
+    let part = normalized
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .collect::<String>();
+    (!part.is_empty()).then_some(part)
+}
+
+fn looks_like_hash_segment(segment: &str) -> bool {
+    segment.len() >= 8
+        && segment
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+}
+
+fn push_package_prefix(prefix: &str, prefixes: &mut Vec<String>, seen: &mut HashSet<String>) {
+    let normalized = prefix.trim().to_lowercase();
+    if normalized.is_empty() || !normalized.contains('.') {
+        return;
+    }
+    if seen.insert(normalized.clone()) {
+        prefixes.push(normalized);
+    }
+}
+
+fn windowsapps_root_from_path(path: &Path) -> Option<PathBuf> {
+    let mut root = PathBuf::new();
+    for component in path.components() {
+        root.push(component.as_os_str());
+        if component
+            .as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case("windowsapps")
+        {
+            return Some(root);
+        }
+    }
+
+    None
 }
 
 fn encode_rgba_png_data_url(rgba: &[u8], width: u32, height: u32) -> Option<String> {
@@ -509,10 +623,63 @@ mod tests {
         std::fs::write(&executable_path, []).expect("exe placeholder");
         std::fs::write(&icon_path, []).expect("icon placeholder");
 
-        let candidates = super::codex_package_icon_candidates_for_roots(
+        let candidates = super::package_icon_candidates_for_roots(
             &executable_path,
             &[temp_dir.path().join("Program Files").join("WindowsApps")],
         );
+
+        assert_eq!(candidates.first(), Some(&icon_path));
+    }
+
+    #[test]
+    fn finds_installed_package_icon_for_local_vendor_app_binary() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let local_app_dir = temp_dir
+            .path()
+            .join("AppData")
+            .join("Local")
+            .join("Acme")
+            .join("Notebook")
+            .join("bin")
+            .join("abc123");
+        let package_assets_dir = temp_dir
+            .path()
+            .join("Program Files")
+            .join("WindowsApps")
+            .join("Acme.Notebook_1.2.3.0_x64__abc")
+            .join("assets");
+        std::fs::create_dir_all(&local_app_dir).expect("local app dir");
+        std::fs::create_dir_all(&package_assets_dir).expect("package assets dir");
+        let executable_path = local_app_dir.join("notebook.exe");
+        let icon_path = package_assets_dir.join("icon.png");
+        std::fs::write(&executable_path, []).expect("exe placeholder");
+        std::fs::write(&icon_path, []).expect("icon placeholder");
+
+        let candidates = super::package_icon_candidates_for_roots(
+            &executable_path,
+            &[temp_dir.path().join("Program Files").join("WindowsApps")],
+        );
+
+        assert_eq!(candidates.first(), Some(&icon_path));
+    }
+
+    #[test]
+    fn finds_current_codex_package_icon_for_stale_windowsapps_path() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let windows_apps_dir = temp_dir.path().join("Program Files").join("WindowsApps");
+        let current_assets_dir = windows_apps_dir
+            .join("OpenAI.Codex_26.527.3686.0_x64__2p2nqsd0c76g0")
+            .join("assets");
+        std::fs::create_dir_all(&current_assets_dir).expect("package assets dir");
+        let stale_executable_path = windows_apps_dir
+            .join("OpenAI.Codex_26.519.11010.0_x64__2p2nqsd0c76g0")
+            .join("app")
+            .join("Codex.exe");
+        let icon_path = current_assets_dir.join("icon.png");
+        std::fs::write(&icon_path, []).expect("icon placeholder");
+
+        let candidates =
+            super::package_icon_candidates_for_roots(&stale_executable_path, &[windows_apps_dir]);
 
         assert_eq!(candidates.first(), Some(&icon_path));
     }
