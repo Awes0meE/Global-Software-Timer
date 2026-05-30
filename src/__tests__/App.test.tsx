@@ -206,7 +206,7 @@ describe("App", () => {
     expect(container.querySelector(".recent-scroll")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /查看全部/ })).not.toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "今日分布" })).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: "当前运行" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "当前前台运行" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();
     expect(container.querySelector(".trophy-visual svg")).toHaveAttribute("fill", "currentColor");
     expect(container.querySelector(".trophy-visual .trophy-base")).toHaveAttribute("fill", "currentColor");
@@ -237,7 +237,7 @@ describe("App", () => {
       screen.getByRole("button", { name: "设置" }),
       screen.getByRole("button", { name: "更多" }),
       screen.getByRole("button", { name: /查看更多今日分布/ }),
-      screen.getByRole("button", { name: /查看更多当前运行/ }),
+      screen.getByRole("button", { name: /查看更多当前前台运行/ }),
       screen.getByRole("button", { name: /\d{4}-\d{2}-\d{2}/ }),
       screen.getByRole("button", { name: "导出" }),
     ];
@@ -347,6 +347,9 @@ describe("App", () => {
     expect(screen.getAllByLabelText("Microsoft Edge 图标")[0]).toHaveTextContent("M");
     expect(screen.getAllByLabelText("Steam 图标")[0]).toHaveTextContent("S");
     expect(screen.getAllByLabelText("WPS Office 图标")[0]).toHaveTextContent("W");
+    expect(screen.getAllByText("运行中").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("不在前台").length).toBeGreaterThan(0);
+    expect(screen.queryByText("已关闭")).not.toBeInTheDocument();
   });
 
   it("asks whether to exit or minimize to tray on the first window close", async () => {

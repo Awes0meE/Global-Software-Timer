@@ -42,7 +42,7 @@ export function AppUsageTable({ apps }: Props) {
               <span>{formatDurationZh(app.today_seconds)}</span>
               <span className={`status-badge ${app.is_running ? "running" : "closed"}`}>
                 <i aria-hidden="true" />
-                {app.is_running ? "运行中" : "已关闭"}
+                {app.is_running ? "运行中" : "不在前台"}
               </span>
             </div>
           ))
