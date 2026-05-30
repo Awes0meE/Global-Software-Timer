@@ -1,0 +1,54 @@
+name: Bug report
+description: Report something that is broken or unreliable.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Global Software Timer. Please avoid sharing private usage data.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+      placeholder: The dashboard shows...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Tell us how to reproduce the issue.
+      placeholder: |
+        1. Start the app
+        2. Open ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS version, app version, install type, and anything else useful.
+      placeholder: |
+        - Windows version:
+        - App version:
+        - Installer: EXE / MSI / dev build
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed private data such as file names, document names, webpage titles, and personal paths where possible.
+          required: true
+

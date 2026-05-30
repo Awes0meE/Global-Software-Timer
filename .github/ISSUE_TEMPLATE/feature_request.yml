@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest an improvement or new capability.
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem would this solve?
+      placeholder: I want to understand...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What would you like Global Software Timer to do?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Dashboard
+        - Tracker
+        - App classification
+        - Storage
+        - Tray / startup
+        - Export / backup
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy impact
+      options:
+        - label: This feature does not require collecting window titles, document names, webpage titles, keystrokes, mouse coordinates, file contents, browser history, or cloud data.
+          required: false
+        - label: This feature may affect privacy boundaries and should be discussed carefully before implementation.
+          required: false
+
