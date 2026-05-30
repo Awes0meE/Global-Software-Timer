@@ -24,6 +24,11 @@ pub fn native_icon_data_url_for_path(executable_path: &str) -> Option<String> {
                 .into_iter()
                 .find_map(|candidate| image_file_data_url(&candidate))
         })
+        .or_else(|| {
+            codex_package_icon_candidates(path)
+                .into_iter()
+                .find_map(|candidate| image_file_data_url(&candidate))
+        })
         .or_else(|| extract_native_icon_data_url(key));
     if let Ok(mut icons) = cache.lock() {
         icons.insert(key.to_string(), icon.clone());
@@ -194,6 +199,92 @@ fn is_broad_icon_search_dir(dir: &Path) -> bool {
         name.as_str(),
         "temp" | "tmp" | "windowsapps" | "program files" | "program files (x86)"
     )
+}
+
+fn codex_package_icon_candidates(path: &Path) -> Vec<PathBuf> {
+    codex_package_icon_candidates_for_roots(path, &default_codex_package_roots())
+}
+
+#[cfg(target_os = "windows")]
+fn default_codex_package_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    let mut seen = HashSet::new();
+    for variable in ["ProgramFiles", "ProgramW6432"] {
+        if let Some(root) = std::env::var_os(variable).map(PathBuf::from) {
+            let windows_apps = root.join("WindowsApps");
+            if seen.insert(windows_apps.clone()) {
+                roots.push(windows_apps);
+            }
+        }
+    }
+    let fallback = PathBuf::from(r"C:\Program Files\WindowsApps");
+    if seen.insert(fallback.clone()) {
+        roots.push(fallback);
+    }
+    roots
+}
+
+#[cfg(not(target_os = "windows"))]
+fn default_codex_package_roots() -> Vec<PathBuf> {
+    Vec::new()
+}
+
+fn codex_package_icon_candidates_for_roots(path: &Path, package_roots: &[PathBuf]) -> Vec<PathBuf> {
+    if !is_codex_executable_path(path) {
+        return Vec::new();
+    }
+
+    let mut packages = Vec::new();
+    for root in package_roots {
+        let Ok(entries) = std::fs::read_dir(root) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let package_dir = entry.path();
+            let name = package_dir
+                .file_name()
+                .map(|name| name.to_string_lossy().to_lowercase())
+                .unwrap_or_default();
+            if name.starts_with("openai.codex_") && package_dir.is_dir() {
+                packages.push(package_dir);
+            }
+        }
+    }
+
+    packages.sort_by(|left, right| right.file_name().cmp(&left.file_name()));
+
+    let mut candidates = Vec::new();
+    let mut seen = HashSet::new();
+    for package_dir in packages {
+        let preferred_candidates = [
+            package_dir.join("assets").join("icon.png"),
+            package_dir.join("assets").join("Square150x150Logo.png"),
+            package_dir.join("assets").join("Square44x44Logo.png"),
+            package_dir.join("app").join("resources").join("icon.ico"),
+            package_dir.join("app").join("resources").join("icon.png"),
+        ];
+        for candidate in preferred_candidates {
+            if candidate.exists() && seen.insert(candidate.clone()) {
+                candidates.push(candidate);
+            }
+        }
+        for candidate in icon_candidates_in_dir(&package_dir, "codex")
+            .into_iter()
+            .chain(icon_candidates_in_dir(&package_dir.join("app"), "codex"))
+        {
+            if candidate.exists() && seen.insert(candidate.clone()) {
+                candidates.push(candidate);
+            }
+        }
+    }
+
+    candidates
+}
+
+fn is_codex_executable_path(path: &Path) -> bool {
+    path.file_stem()
+        .map(|stem| stem.to_string_lossy().eq_ignore_ascii_case("codex"))
+        .unwrap_or(false)
 }
 
 fn encode_rgba_png_data_url(rgba: &[u8], width: u32, height: u32) -> Option<String> {
@@ -392,6 +483,38 @@ mod tests {
         let candidates = super::explicit_icon_candidates_for_path(&executable_path);
 
         assert!(candidates.contains(&icon_path));
+    }
+
+    #[test]
+    fn finds_installed_codex_package_icon_for_local_codex_binary() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let local_codex_dir = temp_dir
+            .path()
+            .join("AppData")
+            .join("Local")
+            .join("OpenAI")
+            .join("Codex")
+            .join("bin")
+            .join("7dea4a003bc76627");
+        let package_assets_dir = temp_dir
+            .path()
+            .join("Program Files")
+            .join("WindowsApps")
+            .join("OpenAI.Codex_26.527.3686.0_x64__2p2nqsd0c76g0")
+            .join("assets");
+        std::fs::create_dir_all(&local_codex_dir).expect("local codex dir");
+        std::fs::create_dir_all(&package_assets_dir).expect("package assets dir");
+        let executable_path = local_codex_dir.join("codex.exe");
+        let icon_path = package_assets_dir.join("icon.png");
+        std::fs::write(&executable_path, []).expect("exe placeholder");
+        std::fs::write(&icon_path, []).expect("icon placeholder");
+
+        let candidates = super::codex_package_icon_candidates_for_roots(
+            &executable_path,
+            &[temp_dir.path().join("Program Files").join("WindowsApps")],
+        );
+
+        assert_eq!(candidates.first(), Some(&icon_path));
     }
 
     #[cfg(target_os = "windows")]
