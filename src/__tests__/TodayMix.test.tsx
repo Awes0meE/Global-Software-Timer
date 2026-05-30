@@ -27,10 +27,10 @@ describe("TodayMix", () => {
 
     const { container } = render(<TodayMix apps={apps} />);
 
-    expect(container.querySelector(".mix-total")).toHaveTextContent("2分钟");
+    expect(container.querySelector(".mix-total")).toHaveTextContent("0.0小时");
     expect(screen.getByText("App 2")).toBeInTheDocument();
     expect(screen.queryByText("App 3")).not.toBeInTheDocument();
-    expect(screen.queryByText("1小时0分钟")).not.toBeInTheDocument();
+    expect(screen.queryByText("1.0小时")).not.toBeInTheDocument();
     expect(screen.queryByText("其他")).not.toBeInTheDocument();
   });
 });

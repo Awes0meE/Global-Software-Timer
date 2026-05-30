@@ -27,7 +27,7 @@ export function SummaryCards({ summary }: Props) {
             )}
             <p className="metric-label">累计使用</p>
             <p className="metric-value">
-              {summary.most_used ? formatDurationZh(summary.most_used.total_seconds) : "0分钟"}
+              {summary.most_used ? formatDurationZh(summary.most_used.total_seconds) : formatDurationZh(0)}
             </p>
           </div>
           <div className="trophy-visual" aria-hidden="true">

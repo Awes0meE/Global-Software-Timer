@@ -10,7 +10,7 @@ Last updated: 2026-05-28
 - Later platform direction: macOS with a more polished native-feeling UI, then mobile companion apps.
 - v0.1 shape: system tray app, background tracking, dashboard on demand.
 - UI direction: dark Steam-like software library, not a marketing landing page.
-- Chinese duration format: `8小时16分钟`; below one hour: `42分钟`.
+- Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`.
 
 ## Technical Decisions
 
