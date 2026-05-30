@@ -36,7 +36,7 @@ v0.1 includes:
 - Smart default filtering of noisy processes.
 - Steam-like dark dashboard.
 - Chinese UI title: `全局软件计时器`.
-- Chinese time format: `8小时16分钟`, or `42分钟` below one hour.
+- Chinese time format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`.
 
 v0.1 excludes:
 
@@ -91,4 +91,4 @@ For each implementation task:
 
 ## Source References
 
-The approved spec and implementation plan are the source of truth. If they conflict, stop and ask the coordinating agent rather than guessing.
+The approved spec, current code, `CHANGELOG.md`, and `memory.md` are the source of truth for the current release state. The implementation plan is historical once a release has shipped. If they conflict in a way that affects behavior, stop and ask the coordinating agent rather than guessing.

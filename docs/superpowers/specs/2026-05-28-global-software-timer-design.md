@@ -160,8 +160,7 @@ The first screen includes:
 Chinese UI copy rules:
 
 - Product title: 全局软件计时器
-- Time format: 8小时16分钟
-- If below one hour: 42分钟
+- Time format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`
 
 ### 7.5 Tray And Startup
 

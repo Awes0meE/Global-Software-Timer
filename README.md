@@ -9,8 +9,8 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
 一个 Windows 优先、本地优先的桌面状态栏软件，用来记录每个软件的运行时长。
 
 <p>
-  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.0">
-    <img alt="Release v0.1.0" src="https://img.shields.io/badge/Release-v0.1.0-2f81f7?style=for-the-badge" />
+  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.1">
+    <img alt="Release v0.1.1" src="https://img.shields.io/badge/Release-v0.1.1-2f81f7?style=for-the-badge" />
   </a>
   <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=for-the-badge&logo=windows&logoColor=white" />
   <img alt="Local First" src="https://img.shields.io/badge/Local--First-Privacy-2ea043?style=for-the-badge" />
@@ -32,7 +32,7 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
   ·
   <a href="#english">English</a>
   ·
-  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.0">Download</a>
+  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.1">Download</a>
   ·
   <a href="./PRIVACY.md">Privacy</a>
 </p>
@@ -47,7 +47,7 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
 
 Global Software Timer（全局软件计时器）是一款本地优先的 Windows 桌面状态栏应用。它会在后台记录桌面软件的运行时长，并在仪表盘中以类似 Steam 游戏时长库的方式展示你的软件使用数据。
 
-它适合想知道自己在 VS Code、浏览器、Office、设计工具、工程软件等桌面应用上投入了多少时间的人。v0.1.0 的重点是可靠、本地、隐私边界清晰，以及一个舒服的深色软件库式仪表盘。
+它适合想知道自己在 VS Code、浏览器、Office、设计工具、工程软件等桌面应用上投入了多少时间的人。v0.1.1 的重点是可靠、本地、隐私边界清晰，以及一个舒服的深色软件库式仪表盘。
 
 ![Dashboard preview](./UI_Reference.png)
 
@@ -80,23 +80,23 @@ Global Software Timer（全局软件计时器）是一款本地优先的 Windows
 - 展示累计软件时长、今日记录时长、今日活跃时长、最常用软件和今日分布。
 - 深色 Steam-like 软件库风格仪表盘。
 - 中文 UI 标题：`全局软件计时器`。
-- 中文时长格式：`8小时16分钟`，不足一小时显示为 `42分钟`。
+- 中文时长格式：小数小时，例如 `8.3小时` 或 `0.7小时`。
 - 未完成页面入口会明确显示 `该功能暂未完成`，避免误导。
 
 ### 下载安装
 
-前往 [v0.1.0 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.0) 下载 Windows x64 安装包。
+前往 [v0.1.1 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.1) 下载 Windows x64 安装包。
 
 推荐下载：
 
-- `Global.Software.Timer_0.1.0_x64-setup.exe`
-- `Global.Software.Timer_0.1.0_x64_en-US.msi`
+- `Global Software Timer_0.1.1_x64-setup.exe`
+- `Global Software Timer_0.1.1_x64_en-US.msi`
 
 > 当前安装包未签名，Windows 首次安装时可能会显示 SmartScreen 提示。
 
 ### 隐私边界
 
-v0.1.0 只记录本地软件使用统计所需的数据。
+v0.1.1 只记录本地软件使用统计所需的数据。
 
 会记录：
 
@@ -205,7 +205,7 @@ npm run tauri:build
 
 ### 路线图
 
-v0.1.0 已聚焦于 Windows、本地记录、基础仪表盘、系统状态栏和隐私边界。
+v0.1.1 已聚焦于 Windows、本地记录、基础仪表盘、系统状态栏和隐私边界。
 
 后续可能加入：
 
@@ -216,7 +216,7 @@ v0.1.0 已聚焦于 Windows、本地记录、基础仪表盘、系统状态栏�
 - Notion、Obsidian 等工具的导出或插件工作流。
 - 可选的增强检测能力，但必须明确说明隐私影响并由用户主动开启。
 
-明确不属于 v0.1.0 的内容：
+明确不属于 v0.1.1 的内容：
 
 - 云同步。
 - 用户账号。
@@ -247,18 +247,18 @@ The app runs quietly in the background, stores data locally, and opens a dark so
 
 ### Installation
 
-Download the Windows x64 installer from [v0.1.0 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.0).
+Download the Windows x64 installer from [v0.1.1 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.1).
 
 Available bundles:
 
-- `Global.Software.Timer_0.1.0_x64-setup.exe`
-- `Global.Software.Timer_0.1.0_x64_en-US.msi`
+- `Global Software Timer_0.1.1_x64-setup.exe`
+- `Global Software Timer_0.1.1_x64_en-US.msi`
 
 > The current Windows installers are unsigned, so Windows may show a SmartScreen warning on first install.
 
 ### Privacy Model
 
-Global Software Timer v0.1.0 records only app-level local usage data.
+Global Software Timer v0.1.1 records only app-level local usage data.
 
 It records:
 
