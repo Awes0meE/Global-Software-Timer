@@ -16,6 +16,7 @@ vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: getCurrentWindowMock,
 }));
 
+import packageJson from "../../package.json";
 import App from "../App";
 
 describe("App", () => {
@@ -60,6 +61,12 @@ describe("App", () => {
 
     expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
     expect(screen.getByText("正在记录")).toBeInTheDocument();
+  });
+
+  it("renders the app version from package metadata", async () => {
+    render(<App />);
+
+    expect(await screen.findByText(`v${packageJson.version}`)).toBeInTheDocument();
   });
 
   it("shows a friendly warning instead of raw Tauri runtime errors", async () => {

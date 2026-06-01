@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import packageJson from "../package.json";
 import {
   BarChart3,
   CalendarDays,
@@ -208,7 +209,7 @@ export default function App() {
                 <i className="status-dot status-dot-muted" aria-hidden="true" />
                 离线模式
               </span>
-              <small>v0.1.0</small>
+              <small>v{packageJson.version}</small>
             </div>
           </aside>
 
