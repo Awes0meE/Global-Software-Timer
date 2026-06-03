@@ -8,6 +8,7 @@ Read these files before implementation work:
 
 - `docs/superpowers/specs/2026-05-28-global-software-timer-design.md`
 - `docs/superpowers/plans/2026-05-28-global-software-timer-v01.md`
+- `docs/superpowers/specs/2026-06-04-settings-autostart-design.md`
 - `memory.md`
 
 ## Required Working Style
@@ -38,6 +39,13 @@ v0.1 includes:
 - Chinese UI title: `全局软件计时器`.
 - Chinese time format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`.
 
+v0.1.2 additionally includes:
+
+- A real Settings page in the existing app shell.
+- Startup-at-login control, enabled by default through the current-user autostart mechanism.
+- Close-window behavior control: minimize to tray or exit directly.
+- First-close choice dialog that saves the user's choice automatically.
+
 v0.1 excludes:
 
 - macOS implementation.
@@ -54,6 +62,7 @@ v0.1 excludes:
 - Do not add telemetry.
 - Do not add network upload.
 - Do not request administrator permission by default.
+- Startup at login must not request administrator permission.
 - Do not collect window titles, document names, webpage titles, keystrokes, mouse coordinates, file contents, or browser history.
 - Keep privacy-sensitive future features explicit and opt-in.
 

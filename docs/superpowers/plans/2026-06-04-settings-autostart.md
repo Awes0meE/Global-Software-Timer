@@ -4,6 +4,8 @@
 
 **Goal:** Add a real Settings page with startup-at-login and close-window behavior switches.
 
+**Status:** Completed and released in `v0.1.2`.
+
 **Architecture:** Keep the current single React app shell and switch the main content between Overview and Settings. Use the existing Tauri autostart plugin from the frontend, and keep close behavior plus autostart preference persistence in Rust/SQLite.
 
 **Tech Stack:** React, TypeScript, Vitest, Tauri v2, Rust, SQLite.

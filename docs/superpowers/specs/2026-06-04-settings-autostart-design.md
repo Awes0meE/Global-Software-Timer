@@ -1,10 +1,11 @@
 # Settings And Autostart Design
 
 Date: 2026-06-04
+Status: Shipped in `v0.1.2`
 
 ## Goal
 
-Add a Settings page for the next Global Software Timer release. The page keeps the existing app chrome and left navigation, then adds settings content for startup at login and close-window behavior.
+Add a Settings page for Global Software Timer `v0.1.2`. The page keeps the existing app chrome and left navigation, then adds settings content for startup at login and close-window behavior.
 
 ## Visual Reference
 
