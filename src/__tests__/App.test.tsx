@@ -1,8 +1,13 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockInvoke = vi.hoisted(() => vi.fn());
 const getCurrentWindowMock = vi.hoisted(() => vi.fn());
+const autostartMocks = vi.hoisted(() => ({
+  disable: vi.fn(),
+  enable: vi.fn(),
+  isEnabled: vi.fn(),
+}));
 const closeRequestMock = vi.hoisted(() => ({
   handler: undefined as undefined | ((event: { preventDefault: () => void }) => void | Promise<void>),
   unlisten: vi.fn(),
@@ -16,8 +21,25 @@ vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: getCurrentWindowMock,
 }));
 
+vi.mock("@tauri-apps/plugin-autostart", () => ({
+  disable: autostartMocks.disable,
+  enable: autostartMocks.enable,
+  isEnabled: autostartMocks.isEnabled,
+}));
+
 import packageJson from "../../package.json";
 import App from "../App";
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return { promise, resolve, reject };
+}
 
 describe("App", () => {
   afterEach(() => {
@@ -28,6 +50,12 @@ describe("App", () => {
   beforeEach(() => {
     mockInvoke.mockReset();
     getCurrentWindowMock.mockReset();
+    autostartMocks.disable.mockReset();
+    autostartMocks.enable.mockReset();
+    autostartMocks.isEnabled.mockReset();
+    autostartMocks.disable.mockResolvedValue(undefined);
+    autostartMocks.enable.mockResolvedValue(undefined);
+    autostartMocks.isEnabled.mockResolvedValue(false);
     closeRequestMock.handler = undefined;
     closeRequestMock.unlisten.mockReset();
     getCurrentWindowMock.mockReturnValue({
@@ -37,8 +65,21 @@ describe("App", () => {
       }),
     });
     mockInvoke.mockImplementation((command) => {
-      if (command === "get_close_behavior_preference") {
-        return Promise.resolve(null);
+      if (command === "get_app_settings") {
+        return Promise.resolve({
+          close_behavior: "minimize_to_tray",
+          close_behavior_configured: false,
+          autostart_enabled: true,
+          autostart_configured: false,
+        });
+      }
+
+      if (command === "set_autostart_preference") {
+        return Promise.resolve(undefined);
+      }
+
+      if (command === "set_close_behavior_preference") {
+        return Promise.resolve(undefined);
       }
 
       if (command === "apply_window_close_choice") {
@@ -95,8 +136,13 @@ describe("App", () => {
     vi.useFakeTimers();
     let dashboardCalls = 0;
     mockInvoke.mockImplementation((command) => {
-      if (command === "get_close_behavior_preference") {
-        return Promise.resolve(null);
+      if (command === "get_app_settings") {
+        return Promise.resolve({
+          close_behavior: "minimize_to_tray",
+          close_behavior_configured: false,
+          autostart_enabled: true,
+          autostart_configured: false,
+        });
       }
 
       if (command !== "get_dashboard_summary") {
@@ -250,7 +296,6 @@ describe("App", () => {
       screen.getByRole("button", { name: "统计" }),
       screen.getByRole("button", { name: "时间轴" }),
       screen.getByRole("button", { name: "日报" }),
-      screen.getByRole("button", { name: "设置" }),
       screen.getByRole("button", { name: "更多" }),
       screen.getByRole("button", { name: /查看更多今日分布/ }),
       screen.getByRole("button", { name: /查看更多当前前台运行/ }),
@@ -281,6 +326,123 @@ describe("App", () => {
 
     fireEvent.blur(unavailableButtons[0]);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("opens the settings page while keeping the existing left navigation", async () => {
+    render(<App />);
+
+    expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+
+    expect(screen.getByRole("heading", { name: "设置" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "概览" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "软件" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "统计" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "时间轴" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "日报" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "设置" })).toHaveAttribute("aria-current", "page");
+    const startupSwitch = screen.getByRole("switch", { name: "开机自启动" });
+    const closeSwitch = screen.getByRole("switch", { name: "关闭窗口时最小化到后台" });
+    await waitFor(() => expect(startupSwitch).not.toBeDisabled());
+    await waitFor(() => expect(closeSwitch).not.toBeDisabled());
+    expect(startupSwitch).toHaveAttribute("aria-checked", "true");
+    expect(closeSwitch).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("enables startup at login by default without a permission dialog", async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const startupSwitch = screen.getByRole("switch", { name: "开机自启动" });
+    await waitFor(() => expect(autostartMocks.enable).toHaveBeenCalledTimes(1));
+    expect(startupSwitch).not.toBeDisabled();
+    expect(startupSwitch).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByRole("dialog", { name: /管理员权限/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/本软件不会使用管理员权限/)).not.toBeInTheDocument();
+  });
+
+  it("disables startup at login directly when the startup switch is turned off", async () => {
+    autostartMocks.isEnabled.mockResolvedValue(true);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const startupSwitch = screen.getByRole("switch", { name: "开机自启动" });
+    await waitFor(() => expect(startupSwitch).toHaveAttribute("aria-checked", "true"));
+    expect(startupSwitch).not.toBeDisabled();
+
+    fireEvent.click(startupSwitch);
+
+    await waitFor(() => expect(autostartMocks.disable).toHaveBeenCalledTimes(1));
+    expect(mockInvoke).toHaveBeenCalledWith("set_autostart_preference", { enabled: false });
+    expect(startupSwitch).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("saves the close-window behavior from the settings switch", async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const closeSwitch = screen.getByRole("switch", { name: "关闭窗口时最小化到后台" });
+    await waitFor(() => expect(closeSwitch).not.toBeDisabled());
+    expect(closeSwitch).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(closeSwitch);
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("set_close_behavior_preference", {
+        choice: "exit",
+      }),
+    );
+    expect(closeSwitch).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("keeps settings switches disabled until startup and settings state load", async () => {
+    const appSettings = createDeferred<{
+      close_behavior: "exit";
+      close_behavior_configured: true;
+      autostart_enabled: true;
+      autostart_configured: false;
+    }>();
+    const startupEnabled = createDeferred<boolean>();
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_app_settings") {
+        return appSettings.promise;
+      }
+
+      if (command === "set_close_behavior_preference" || command === "apply_window_close_choice") {
+        return Promise.resolve(undefined);
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+    autostartMocks.isEnabled.mockReturnValue(startupEnabled.promise);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const startupSwitch = screen.getByRole("switch", { name: "开机自启动" });
+    const closeSwitch = screen.getByRole("switch", { name: "关闭窗口时最小化到后台" });
+    expect(startupSwitch).toBeDisabled();
+    expect(closeSwitch).toBeDisabled();
+
+    appSettings.resolve({
+      close_behavior: "exit",
+      close_behavior_configured: true,
+      autostart_enabled: true,
+      autostart_configured: false,
+    });
+    startupEnabled.resolve(true);
+
+    await waitFor(() => expect(startupSwitch).not.toBeDisabled());
+    expect(closeSwitch).not.toBeDisabled();
+    expect(startupSwitch).toHaveAttribute("aria-checked", "true");
+    expect(closeSwitch).toHaveAttribute("aria-checked", "false");
   });
 
   it("keeps the dashboard shell visible when the Tauri window API is unavailable", async () => {
@@ -386,22 +548,78 @@ describe("App", () => {
 
     expect(preventDefault).toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "关闭全局软件计时器" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "退出软件" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "最小化到状态栏" })).toBeInTheDocument();
+    expect(screen.getByText("后续可在设置中更改。")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "记住本次选择" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "记住本次选择" }));
     fireEvent.click(screen.getByRole("button", { name: "最小化到状态栏" }));
 
-    expect(mockInvoke).toHaveBeenCalledWith("apply_window_close_choice", {
-      choice: "minimize_to_tray",
-      remember: true,
-    });
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("apply_window_close_choice", {
+        choice: "minimize_to_tray",
+        remember: true,
+      }),
+    );
   });
 
-  it("uses the remembered close choice without showing the dialog", async () => {
+  it("keeps the first-close dialog open when saving the choice fails", async () => {
     mockInvoke.mockImplementation((command) => {
-      if (command === "get_close_behavior_preference") {
-        return Promise.resolve("minimize_to_tray");
+      if (command === "get_app_settings") {
+        return Promise.resolve({
+          close_behavior: "minimize_to_tray",
+          close_behavior_configured: false,
+          autostart_enabled: true,
+          autostart_configured: false,
+        });
+      }
+
+      if (command === "set_autostart_preference" || command === "set_close_behavior_preference") {
+        return Promise.resolve(undefined);
+      }
+
+      if (command === "apply_window_close_choice") {
+        return Promise.reject(new Error("hide failed"));
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
+    await act(async () => {
+      await closeRequestMock.handler?.({ preventDefault: vi.fn() });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "最小化到状态栏" }));
+
+    expect(await screen.findByText("关闭操作失败，请重试。")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "关闭全局软件计时器" })).toBeInTheDocument();
+  });
+
+  it("uses the persisted close behavior from app settings", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_app_settings") {
+        return Promise.resolve({
+          close_behavior: "exit",
+          close_behavior_configured: true,
+          autostart_enabled: true,
+          autostart_configured: false,
+        });
+      }
+
+      if (command === "set_autostart_preference") {
+        return Promise.resolve(undefined);
+      }
+
+      if (command === "set_close_behavior_preference") {
+        return Promise.resolve(undefined);
       }
 
       if (command === "apply_window_close_choice") {
@@ -429,7 +647,7 @@ describe("App", () => {
     expect(preventDefault).toHaveBeenCalled();
     expect(screen.queryByRole("dialog", { name: "关闭全局软件计时器" })).not.toBeInTheDocument();
     expect(mockInvoke).toHaveBeenCalledWith("apply_window_close_choice", {
-      choice: "minimize_to_tray",
+      choice: "exit",
       remember: false,
     });
   });

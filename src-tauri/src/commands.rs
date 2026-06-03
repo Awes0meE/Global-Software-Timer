@@ -8,6 +8,9 @@ use std::collections::HashMap;
 use tauri::{AppHandle, Manager, State};
 
 const CLOSE_BEHAVIOR_SETTING_KEY: &str = "window.close_behavior";
+const AUTOSTART_SETTING_KEY: &str = "startup.autostart_enabled";
+const DEFAULT_CLOSE_BEHAVIOR: CloseBehavior = CloseBehavior::MinimizeToTray;
+const DEFAULT_AUTOSTART_ENABLED: bool = true;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DashboardSummary {
@@ -32,7 +35,7 @@ pub struct AppUsageRow {
     pub is_running: bool,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CloseBehavior {
     Exit,
@@ -54,6 +57,14 @@ impl CloseBehavior {
             _ => None,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AppSettings {
+    pub close_behavior: CloseBehavior,
+    pub close_behavior_configured: bool,
+    pub autostart_enabled: bool,
+    pub autostart_configured: bool,
 }
 
 #[tauri::command]
@@ -85,6 +96,15 @@ pub fn run_tracker_scan_once(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn get_app_settings(state: State<'_, AppState>) -> Result<AppSettings, String> {
+    let tracker = state
+        .tracker
+        .lock()
+        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    app_settings_from_store(tracker.store()).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn get_close_behavior_preference(state: State<'_, AppState>) -> Result<Option<String>, String> {
     let tracker = state
         .tracker
@@ -99,6 +119,33 @@ pub fn get_close_behavior_preference(state: State<'_, AppState>) -> Result<Optio
         .as_deref()
         .and_then(CloseBehavior::from_setting)
         .map(|behavior| behavior.as_str().to_string()))
+}
+
+#[tauri::command]
+pub fn set_close_behavior_preference(
+    state: State<'_, AppState>,
+    choice: CloseBehavior,
+) -> Result<(), String> {
+    let tracker = state
+        .tracker
+        .lock()
+        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    tracker
+        .store()
+        .set_setting_value(CLOSE_BEHAVIOR_SETTING_KEY, choice.as_str())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn set_autostart_preference(state: State<'_, AppState>, enabled: bool) -> Result<(), String> {
+    let tracker = state
+        .tracker
+        .lock()
+        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    tracker
+        .store()
+        .set_setting_value(AUTOSTART_SETTING_KEY, if enabled { "true" } else { "false" })
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -129,6 +176,39 @@ pub fn apply_window_close_choice(
     }
 
     Ok(())
+}
+
+fn app_settings_from_store(store: &Store) -> Result<AppSettings, StoreError> {
+    let stored_close_behavior = store
+        .setting_value(CLOSE_BEHAVIOR_SETTING_KEY)?
+        .as_deref()
+        .and_then(CloseBehavior::from_setting);
+    let close_behavior = stored_close_behavior.unwrap_or(DEFAULT_CLOSE_BEHAVIOR);
+    let (autostart_enabled, autostart_configured) =
+        bool_setting_from_store(store, AUTOSTART_SETTING_KEY, DEFAULT_AUTOSTART_ENABLED)?;
+
+    Ok(AppSettings {
+        close_behavior,
+        close_behavior_configured: stored_close_behavior.is_some(),
+        autostart_enabled,
+        autostart_configured,
+    })
+}
+
+fn bool_setting_from_store(
+    store: &Store,
+    key: &str,
+    default_value: bool,
+) -> Result<(bool, bool), StoreError> {
+    let Some(value) = store.setting_value(key)? else {
+        return Ok((default_value, false));
+    };
+
+    match value.as_str() {
+        "true" => Ok((true, true)),
+        "false" => Ok((false, true)),
+        _ => Ok((default_value, false)),
+    }
 }
 
 fn dashboard_summary_from_store(
@@ -223,7 +303,7 @@ fn runtime_status_rank(status: AppRuntimeStatus) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::dashboard_summary_from_store;
+    use super::{app_settings_from_store, dashboard_summary_from_store, CloseBehavior};
     use crate::domain::AppRuntimeStatus;
     use crate::storage::Store;
     use chrono::{TimeZone, Utc};
@@ -350,5 +430,57 @@ mod tests {
         assert_eq!(summary.apps[0].display_name, "WPS Office");
         assert_eq!(summary.apps[0].status, AppRuntimeStatus::Foreground);
         assert!(summary.apps[0].is_running);
+    }
+
+    #[test]
+    fn app_settings_defaults_close_behavior_to_minimize_to_tray() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.close_behavior, CloseBehavior::MinimizeToTray);
+        assert!(!settings.close_behavior_configured);
+        assert!(settings.autostart_enabled);
+        assert!(!settings.autostart_configured);
+
+        store
+            .set_setting_value("window.close_behavior", "exit")
+            .expect("set setting");
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.close_behavior, CloseBehavior::Exit);
+        assert!(settings.close_behavior_configured);
+
+        store
+            .set_setting_value("window.close_behavior", "unexpected")
+            .expect("set invalid setting");
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.close_behavior, CloseBehavior::MinimizeToTray);
+        assert!(!settings.close_behavior_configured);
+    }
+
+    #[test]
+    fn app_settings_defaults_autostart_to_enabled() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert!(settings.autostart_enabled);
+        assert!(!settings.autostart_configured);
+
+        store
+            .set_setting_value("startup.autostart_enabled", "false")
+            .expect("set setting");
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert!(!settings.autostart_enabled);
+        assert!(settings.autostart_configured);
+
+        store
+            .set_setting_value("startup.autostart_enabled", "unexpected")
+            .expect("set invalid setting");
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert!(settings.autostart_enabled);
+        assert!(!settings.autostart_configured);
     }
 }
