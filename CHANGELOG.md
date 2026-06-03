@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.2 - 2026-06-04
+
+- Added a Settings page while keeping the existing left navigation layout.
+- Added startup-at-login control, enabled by default through the current-user autostart mechanism.
+- Added a Settings control for close-window behavior: minimize to tray or exit directly.
+- Kept the first-close choice dialog, now saving the user's choice automatically and noting that it can be changed later in Settings.
+- Preserved the privacy model: no telemetry, no network upload, no administrator permission for startup at login, and no window-title/document-title/webpage-title collection.
+
 ## v0.1.1 - 2026-05-31
 
 - Improved default filtering for installer, package-manager, sandbox, toolchain, and background helper processes.
