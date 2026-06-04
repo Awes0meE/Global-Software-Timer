@@ -24,6 +24,39 @@ Read these files before implementation work:
 - Do not start implementation on `main`; use an isolated worktree/branch.
 - Commit after each completed task or coherent checkpoint.
 
+## Git Commit Discipline
+
+Use Conventional Commits-style messages so GitHub history reads like a clear engineering log, not a pile of release chores. Reference: https://blog.csdn.net/chenyajundd/article/details/139322838
+
+Format:
+
+```text
+<type>(optional-scope): <short summary>
+```
+
+Use the most specific type that describes the actual change:
+
+- `feat`: user-visible feature or behavior addition.
+- `fix`: bug fix or regression fix.
+- `docs`: documentation-only change.
+- `style`: formatting or style-only change that does not affect behavior.
+- `refactor`: code restructuring that is neither a feature nor a fix.
+- `perf`: performance improvement.
+- `test`: adding or changing tests.
+- `build`: build system, packaging, or external dependency changes.
+- `ci`: CI workflow/configuration changes.
+- `chore`: repository maintenance, tooling, generated metadata, or other auxiliary work only.
+- `revert`: revert a previous commit.
+
+Do not hide feature work, bug fixes, tests, or documentation inside `chore`. A release/version bump may use `chore(release): ...` only when the underlying feature/fix/doc/test commits already exist separately.
+
+Commit granularity:
+
+- Prefer one commit per completed feature, fix, test addition, documentation update, or coherent checkpoint.
+- Do not batch unrelated features into one end-of-release commit.
+- After finishing a step and running its checks/reviews, commit immediately when the user has given permission for commits in that task/session.
+- If commit permission has not been given, leave the work uncommitted and report the suggested commit message.
+
 ## Project Scope Guardrails
 
 v0.1 includes:
