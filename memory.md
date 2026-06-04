@@ -5,6 +5,7 @@ Last updated: 2026-06-04
 ## Product Decisions
 
 - Product name: Global Software Timer.
+- `GST` is an accepted shorthand for Global Software Timer in project discussions and docs.
 - Chinese UI name: 全局软件计时器.
 - v0.1 platform: Windows 10/11 first.
 - Later platform direction: macOS with a more polished native-feeling UI, then mobile companion apps.
@@ -15,10 +16,15 @@ Last updated: 2026-06-04
 - v0.1.2 adds a Settings page with startup-at-login and close-window behavior controls.
 - Startup at login defaults to enabled in v0.1.2, uses the current-user autostart mechanism, and does not require administrator permission.
 - First window close still asks whether to exit or minimize to tray; the choice is saved automatically and can be changed later in Settings.
+- Planned v0.1.3 scope: make the left-nav `软件` page real, with `特别关注`, `隐藏软件列表`, and read-only `已发现软件`.
+- `隐藏软件列表` is a global display filter: GST still records the software locally, but default summaries, rankings, distributions, and future report-style pages exclude it unless a future view explicitly includes hidden software.
+- `特别关注` and `隐藏软件列表` are mutually exclusive. If abnormal data creates a conflict, hidden wins as the defensive fallback.
+- v0.1.3 software-page active time means the software identity has Windows foreground focus. It is separate from the overview page's current keyboard/mouse active-time semantics.
 
 ## Technical Decisions
 
 - Stack: Tauri v2, Rust, React, TypeScript, SQLite.
+- v0.1.3 software-page design should use a robust software identity layer keyed by merged user-visible software identity, not raw single executable app IDs. WPS-style components should behave as one software identity.
 - Storage strategy: event log plus summary tables from v0.1.
 - Runtime tracking: v0.1 tracks application process runtime.
 - Runtime sessions require a user-visible top-level window; Browser/Electron child helpers are filtered with transient command-line flag checks. Dashboard status is tri-state: foreground window plus process is `前台运行`, background process without foreground window is `后台运行`, no detected process is `未运行`. Window titles and command lines are not stored in SQLite or shown in the UI.
