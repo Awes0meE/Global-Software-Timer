@@ -3,6 +3,7 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 
 export type CloseBehavior = "exit" | "minimize_to_tray";
 export type AppRuntimeStatus = "foreground" | "background" | "closed";
+export type SoftwareMark = "none" | "focused" | "hidden";
 
 export interface AppUsageRow {
   app_id: number;
@@ -25,6 +26,26 @@ export interface DashboardSummary {
   apps: AppUsageRow[];
 }
 
+export interface SoftwarePageRow {
+  identity_key: string;
+  display_name: string;
+  process_name: string;
+  icon_data_url: string | null;
+  today_runtime_seconds: number;
+  today_focused_seconds: number;
+  total_runtime_seconds: number;
+  total_focused_seconds: number;
+  last_opened_at: string | null;
+  status: AppRuntimeStatus;
+  mark: SoftwareMark;
+}
+
+export interface SoftwarePageSummary {
+  focused: SoftwarePageRow[];
+  hidden: SoftwarePageRow[];
+  discovered: SoftwarePageRow[];
+}
+
 export interface AppSettings {
   close_behavior: CloseBehavior;
   close_behavior_configured: boolean;
@@ -34,6 +55,26 @@ export interface AppSettings {
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   return invoke<DashboardSummary>("get_dashboard_summary");
+}
+
+export async function getSoftwarePageSummary(): Promise<SoftwarePageSummary> {
+  return invoke<SoftwarePageSummary>("get_software_page_summary");
+}
+
+export async function addFocusedSoftwareIdentities(identityKeys: string[]): Promise<void> {
+  return invoke("add_focused_software_identities", { identityKeys });
+}
+
+export async function removeFocusedSoftwareIdentity(identityKey: string): Promise<void> {
+  return invoke("remove_focused_software_identity", { identityKey });
+}
+
+export async function addHiddenSoftwareIdentities(identityKeys: string[]): Promise<void> {
+  return invoke("add_hidden_software_identities", { identityKeys });
+}
+
+export async function removeHiddenSoftwareIdentity(identityKey: string): Promise<void> {
+  return invoke("remove_hidden_software_identity", { identityKey });
 }
 
 export async function getAppSettings(): Promise<AppSettings> {
