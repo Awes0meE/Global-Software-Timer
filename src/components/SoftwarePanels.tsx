@@ -8,7 +8,7 @@ import { SoftwareIcon } from "./SoftwareIcon";
 interface ManagedPanelProps {
   rows: SoftwarePageRow[];
   editing: boolean;
-  onAdd: () => void;
+  onAdd: (opener: HTMLButtonElement) => void;
   onEditToggle: () => void;
   onRemove: (identityKey: string) => void;
 }
@@ -90,6 +90,8 @@ function ManagedSoftwarePanel({
   onEditToggle,
   onRemove,
 }: ManagedSoftwarePanelProps) {
+  const addLabel = kind === "hidden" ? "添加隐藏软件" : `添加${title}`;
+
   return (
     <section
       className={`software-panel software-panel-${kind}${editing ? " is-editing" : ""}`}
@@ -111,8 +113,8 @@ function ManagedSoftwarePanel({
           <button
             className="panel-add-button"
             type="button"
-            aria-label={`添加${title}`}
-            onClick={onAdd}
+            aria-label={addLabel}
+            onClick={(event) => onAdd(event.currentTarget)}
           >
             添加
           </button>

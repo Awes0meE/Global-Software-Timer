@@ -495,6 +495,489 @@ describe("App", () => {
     expect(screen.queryByText("没有匹配的软件")).not.toBeInTheDocument();
   });
 
+  it("opens a shared add dialog with target-specific title and multi-selects rows", async () => {
+    let summaryCalls = 0;
+    mockInvoke.mockImplementation((command, args) => {
+      if (command === "get_software_page_summary") {
+        summaryCalls += 1;
+        return Promise.resolve({
+          focused: [],
+          hidden: [],
+          discovered: [
+            {
+              identity_key: "app:bitdock",
+              display_name: "BitDock",
+              process_name: "BitDock.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 0,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 0,
+              last_opened_at: "2026-06-05T08:10:00Z",
+              status: "background",
+              mark: summaryCalls > 1 ? "hidden" : "none",
+            },
+            {
+              identity_key: "app:wallpaper",
+              display_name: "Wallpaper Engine",
+              process_name: "wallpaper64.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 0,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 0,
+              last_opened_at: "2026-06-05T08:08:00Z",
+              status: "background",
+              mark: summaryCalls > 1 ? "hidden" : "none",
+            },
+          ],
+        });
+      }
+
+      if (command === "add_hidden_software_identities") {
+        expect(args).toEqual({ identityKeys: ["app:bitdock", "app:wallpaper"] });
+        return Promise.resolve(undefined);
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "添加隐藏软件" }));
+
+    const dialog = screen.getByRole("dialog", { name: "添加隐藏软件" });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByPlaceholderText("搜索已发现软件")).toHaveFocus();
+    expect(within(dialog).getByRole("button", { name: "添加" })).toBeDisabled();
+    fireEvent.click(within(dialog).getByText("BitDock"));
+    fireEvent.click(within(dialog).getByText("Wallpaper Engine"));
+    expect(within(dialog).getByRole("button", { name: "添加 2 个" })).toBeEnabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "添加 2 个" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "添加隐藏软件" })).not.toBeInTheDocument(),
+    );
+    expect(await screen.findAllByText("已隐藏")).not.toHaveLength(0);
+  });
+
+  it("shows a conflict prompt for mutually exclusive software in the add dialog", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({
+          focused: [],
+          hidden: [],
+          discovered: [
+            {
+              identity_key: "app:bitdock",
+              display_name: "BitDock",
+              process_name: "BitDock.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 0,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 0,
+              last_opened_at: "2026-06-05T08:10:00Z",
+              status: "background",
+              mark: "hidden",
+            },
+          ],
+        });
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "添加特别关注" }));
+    const dialog = screen.getByRole("dialog", { name: "添加特别关注" });
+    fireEvent.click(within(dialog).getByText("BitDock"));
+
+    expect(within(dialog).getByText("该软件已加入隐藏列表哦！请先移出再尝试")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "添加" })).toBeDisabled();
+  });
+
+  it("keeps add dialog search no-results quiet with the primary action disabled", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({
+          focused: [],
+          hidden: [],
+          discovered: [
+            {
+              identity_key: "app:bitdock",
+              display_name: "BitDock",
+              process_name: "BitDock.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 0,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 0,
+              last_opened_at: "2026-06-05T08:10:00Z",
+              status: "background",
+              mark: "none",
+            },
+          ],
+        });
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "添加特别关注" }));
+    const dialog = screen.getByRole("dialog", { name: "添加特别关注" });
+
+    expect(within(dialog).getByText("BitDock")).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByRole("searchbox", { name: "搜索已发现软件" }), {
+      target: { value: "Photoshop" },
+    });
+
+    expect(within(dialog).queryByText("BitDock")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("没有匹配的软件")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "添加" })).toBeDisabled();
+  });
+
+  it("exits focused edit mode before opening the add dialog", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({
+          focused: [
+            {
+              identity_key: "app:code",
+              display_name: "Visual Studio Code",
+              process_name: "Code.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 1800,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 3600,
+              last_opened_at: "2026-06-05T09:00:00Z",
+              status: "foreground",
+              mark: "focused",
+            },
+          ],
+          hidden: [],
+          discovered: [
+            {
+              identity_key: "app:bitdock",
+              display_name: "BitDock",
+              process_name: "BitDock.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 0,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 0,
+              last_opened_at: "2026-06-05T08:10:00Z",
+              status: "background",
+              mark: "none",
+            },
+          ],
+        });
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "编辑特别关注" }));
+
+    expect(screen.getByRole("button", { name: "完成特别关注" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "移出 Visual Studio Code" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "添加特别关注" }));
+    expect(screen.getByRole("dialog", { name: "添加特别关注" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "移出 Visual Studio Code" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.getByRole("button", { name: "编辑特别关注" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "完成特别关注" })).not.toBeInTheDocument();
+  });
+
+  it("closes the add dialog on Escape and returns focus to the opener", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({
+          focused: [],
+          hidden: [],
+          discovered: [
+            {
+              identity_key: "app:bitdock",
+              display_name: "BitDock",
+              process_name: "BitDock.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 0,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 0,
+              last_opened_at: "2026-06-05T08:10:00Z",
+              status: "background",
+              mark: "none",
+            },
+          ],
+        });
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    const opener = screen.getByRole("button", { name: "添加特别关注" });
+    opener.focus();
+    fireEvent.click(opener);
+
+    expect(screen.getByRole("dialog", { name: "添加特别关注" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "添加特别关注" })).not.toBeInTheDocument(),
+    );
+    expect(opener).toHaveFocus();
+  });
+
+  it("closes the add dialog from the close button and returns focus to the opener", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({
+          focused: [],
+          hidden: [],
+          discovered: [
+            {
+              identity_key: "app:bitdock",
+              display_name: "BitDock",
+              process_name: "BitDock.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 0,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 0,
+              last_opened_at: "2026-06-05T08:10:00Z",
+              status: "background",
+              mark: "none",
+            },
+          ],
+        });
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    const opener = screen.getByRole("button", { name: "添加特别关注" });
+    opener.focus();
+    fireEvent.click(opener);
+    const dialog = screen.getByRole("dialog", { name: "添加特别关注" });
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "关闭" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "添加特别关注" })).not.toBeInTheDocument(),
+    );
+    expect(opener).toHaveFocus();
+  });
+
+  it("closes the add dialog and shows a list warning when refresh fails after add succeeds", async () => {
+    let summaryCalls = 0;
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        summaryCalls += 1;
+
+        if (summaryCalls > 1) {
+          return Promise.reject(new Error("summary refresh failed"));
+        }
+
+        return Promise.resolve({
+          focused: [],
+          hidden: [],
+          discovered: [
+            {
+              identity_key: "app:code",
+              display_name: "Visual Studio Code",
+              process_name: "Code.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 1800,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 3600,
+              last_opened_at: "2026-06-05T09:00:00Z",
+              status: "foreground",
+              mark: "none",
+            },
+          ],
+        });
+      }
+
+      if (command === "add_focused_software_identities") {
+        return Promise.resolve(undefined);
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "添加特别关注" }));
+    const dialog = screen.getByRole("dialog", { name: "添加特别关注" });
+    fireEvent.click(within(dialog).getByText("Visual Studio Code"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "添加 1 个" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "添加特别关注" })).not.toBeInTheDocument(),
+    );
+    expect(await screen.findByText("无法读取软件列表")).toBeInTheDocument();
+    expect(screen.queryByText("添加失败，请重试。")).not.toBeInTheDocument();
+  });
+
+  it("traps Tab focus inside the add dialog", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({
+          focused: [],
+          hidden: [],
+          discovered: [
+            {
+              identity_key: "app:bitdock",
+              display_name: "BitDock",
+              process_name: "BitDock.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 0,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 0,
+              last_opened_at: "2026-06-05T08:10:00Z",
+              status: "background",
+              mark: "none",
+            },
+          ],
+        });
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "添加特别关注" }));
+    const dialog = screen.getByRole("dialog", { name: "添加特别关注" });
+    fireEvent.click(within(dialog).getByText("BitDock"));
+    const primaryButton = within(dialog).getByRole("button", { name: "添加 1 个" });
+    primaryButton.focus();
+
+    fireEvent.keyDown(primaryButton, { key: "Tab" });
+
+    expect(within(dialog).getByRole("button", { name: "关闭" })).toHaveFocus();
+  });
+
+  it("keeps the add dialog open and shows a retry message when add rejects", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({
+          focused: [],
+          hidden: [],
+          discovered: [
+            {
+              identity_key: "app:code",
+              display_name: "Visual Studio Code",
+              process_name: "Code.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 1800,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 3600,
+              last_opened_at: "2026-06-05T09:00:00Z",
+              status: "foreground",
+              mark: "none",
+            },
+          ],
+        });
+      }
+
+      if (command === "add_focused_software_identities") {
+        return Promise.reject(new Error("conflict"));
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "添加特别关注" }));
+    const dialog = screen.getByRole("dialog", { name: "添加特别关注" });
+    fireEvent.click(within(dialog).getByText("Visual Studio Code"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "添加 1 个" }));
+
+    expect(await within(dialog).findByText("添加失败，请重试。")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "添加特别关注" })).toBeInTheDocument();
+  });
+
   it("shows list-load warning when remove succeeds but refresh fails", async () => {
     let softwareSummaryCalls = 0;
     mockInvoke.mockImplementation((command) => {

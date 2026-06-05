@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  addFocusedSoftwareIdentities,
+  addHiddenSoftwareIdentities,
   getSoftwarePageSummary,
   removeFocusedSoftwareIdentity,
   removeHiddenSoftwareIdentity,
   type SoftwarePageSummary,
 } from "../api";
+import { AddSoftwareDialog, type AddTarget } from "./AddSoftwareDialog";
 import {
   DiscoveredSoftwarePanel,
   FocusedSoftwarePanel,
@@ -23,6 +26,8 @@ export function SoftwarePage() {
   const [removeError, setRemoveError] = useState(false);
   const [focusedEditing, setFocusedEditing] = useState(false);
   const [hiddenEditing, setHiddenEditing] = useState(false);
+  const [addTarget, setAddTarget] = useState<AddTarget | null>(null);
+  const addOpenerRef = useRef<HTMLButtonElement | null>(null);
 
   const refreshSummary = useCallback(async (): Promise<boolean> => {
     try {
@@ -79,6 +84,47 @@ export function SoftwarePage() {
     }
   };
 
+  const handleFocusedAdd = (opener: HTMLButtonElement) => {
+    addOpenerRef.current = opener;
+    setFocusedEditing(false);
+    setAddTarget("focused");
+  };
+
+  const handleHiddenAdd = (opener: HTMLButtonElement) => {
+    addOpenerRef.current = opener;
+    setHiddenEditing(false);
+    setAddTarget("hidden");
+  };
+
+  const handleAddClose = () => {
+    const opener = addOpenerRef.current;
+    setAddTarget(null);
+
+    if (opener && document.contains(opener)) {
+      opener.focus();
+    }
+
+    addOpenerRef.current = null;
+  };
+
+  const handleAddSubmit = async (identityKeys: string[]) => {
+    const target = addTarget;
+
+    if (!target) {
+      return;
+    }
+
+    setRemoveError(false);
+
+    if (target === "focused") {
+      await addFocusedSoftwareIdentities(identityKeys);
+    } else {
+      await addHiddenSoftwareIdentities(identityKeys);
+    }
+
+    await refreshSummary();
+  };
+
   return (
     <main className="software-page" id="software-content">
       {fetchError ? <div className="warning">无法读取软件列表</div> : null}
@@ -89,20 +135,29 @@ export function SoftwarePage() {
           <FocusedSoftwarePanel
             rows={summary.focused}
             editing={focusedEditing}
-            onAdd={() => setFocusedEditing(false)}
+            onAdd={handleFocusedAdd}
             onEditToggle={() => setFocusedEditing((current) => !current)}
             onRemove={(identityKey) => void handleFocusedRemove(identityKey)}
           />
           <HiddenSoftwarePanel
             rows={summary.hidden}
             editing={hiddenEditing}
-            onAdd={() => setHiddenEditing(false)}
+            onAdd={handleHiddenAdd}
             onEditToggle={() => setHiddenEditing((current) => !current)}
             onRemove={(identityKey) => void handleHiddenRemove(identityKey)}
           />
         </div>
         <DiscoveredSoftwarePanel rows={summary.discovered} />
       </div>
+
+      {addTarget ? (
+        <AddSoftwareDialog
+          rows={summary.discovered}
+          target={addTarget}
+          onClose={handleAddClose}
+          onSubmit={handleAddSubmit}
+        />
+      ) : null}
     </main>
   );
 }
