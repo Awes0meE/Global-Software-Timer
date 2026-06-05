@@ -57,6 +57,7 @@ Last updated: 2026-06-05
   - `docs/superpowers/specs/2026-06-04-settings-autostart-design.md`
   - `docs/superpowers/plans/2026-06-04-settings-autostart.md`
 - v0.1.3 implementation work is on branch `codex/software-page-v013`; no GitHub release or tag exists for v0.1.3 yet.
+- For future development/release checkpoints, update the app's bottom-left sidebar version display as a default final step after feature work and verification.
 - Karpathy Guidelines skill is already installed at `C:\Users\123\.codex\skills\karpathy-guidelines`.
 - Requested execution mode: Superpowers subagent-driven development.
 - Local toolchain prepared on 2026-05-28:
