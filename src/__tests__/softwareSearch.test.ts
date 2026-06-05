@@ -81,21 +81,31 @@ describe("softwareSearch", () => {
 
   it("formats last opened times with approved Chinese copy", () => {
     const now = new Date("2026-06-05T12:00:00+08:00");
+    const options = { timeZone: "Asia/Shanghai" };
 
-    expect(formatLastOpenedAt("2026-06-05T11:50:00+08:00", now)).toBe("10分钟前");
-    expect(formatLastOpenedAt("2026-06-05T09:42:00+08:00", now)).toBe("今天 09:42");
-    expect(formatLastOpenedAt("2026-06-04T21:18:00+08:00", now)).toBe("昨天 21:18");
-    expect(formatLastOpenedAt("2026-06-03T15:09:00+08:00", now)).toBe("前天 15:09");
-    expect(formatLastOpenedAt("2026-06-02T08:00:00+08:00", now)).toBe("这周二");
-    expect(formatLastOpenedAt("2026-05-27T08:00:00+08:00", now)).toBe("上周三");
-    expect(formatLastOpenedAt("2026-05-01T08:00:00+08:00", now)).toBe("2026-05-01");
+    expect(formatLastOpenedAt("2026-06-05T11:50:00+08:00", now, options)).toBe("10分钟前");
+    expect(formatLastOpenedAt("2026-06-05T09:42:00+08:00", now, options)).toBe("今天 09:42");
+    expect(formatLastOpenedAt("2026-06-04T21:18:00+08:00", now, options)).toBe("昨天 21:18");
+    expect(formatLastOpenedAt("2026-06-03T15:09:00+08:00", now, options)).toBe("前天 15:09");
+    expect(formatLastOpenedAt("2026-06-02T08:00:00+08:00", now, options)).toBe("这周二");
+    expect(formatLastOpenedAt("2026-05-27T08:00:00+08:00", now, options)).toBe("上周三");
+    expect(formatLastOpenedAt("2026-05-01T08:00:00+08:00", now, options)).toBe("2026-05-01");
+  });
+
+  it("honors an explicit time zone for deterministic formatting", () => {
+    const now = new Date("2026-06-05T12:00:00+08:00");
+
+    expect(formatLastOpenedAt("2026-06-05T09:42:00+08:00", now, { timeZone: "UTC" })).toBe(
+      "今天 01:42",
+    );
   });
 
   it("only labels the current and immediately previous Monday-based weeks", () => {
     const now = new Date("2026-06-08T12:00:00+08:00");
+    const options = { timeZone: "Asia/Shanghai" };
 
-    expect(formatLastOpenedAt("2026-06-05T08:00:00+08:00", now)).toBe("上周五");
-    expect(formatLastOpenedAt("2026-05-26T08:00:00+08:00", now)).toBe("2026-05-26");
+    expect(formatLastOpenedAt("2026-06-05T08:00:00+08:00", now, options)).toBe("上周五");
+    expect(formatLastOpenedAt("2026-05-26T08:00:00+08:00", now, options)).toBe("2026-05-26");
   });
 
   it("sorts empty queries by last opened descending", () => {
