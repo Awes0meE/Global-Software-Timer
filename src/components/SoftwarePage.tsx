@@ -20,7 +20,11 @@ const emptySoftwareSummary: SoftwarePageSummary = {
   discovered: [],
 };
 
-export function SoftwarePage() {
+interface SoftwarePageProps {
+  onDefaultSummariesChanged: () => void;
+}
+
+export function SoftwarePage({ onDefaultSummariesChanged }: SoftwarePageProps) {
   const [summary, setSummary] = useState<SoftwarePageSummary>(emptySoftwareSummary);
   const [fetchError, setFetchError] = useState(false);
   const [removeError, setRemoveError] = useState(false);
@@ -78,6 +82,7 @@ export function SoftwarePage() {
 
     try {
       await removeHiddenSoftwareIdentity(identityKey);
+      onDefaultSummariesChanged();
       void refreshSummary();
     } catch {
       setRemoveError(true);
@@ -120,6 +125,7 @@ export function SoftwarePage() {
       await addFocusedSoftwareIdentities(identityKeys);
     } else {
       await addHiddenSoftwareIdentities(identityKeys);
+      onDefaultSummariesChanged();
     }
 
     await refreshSummary();
