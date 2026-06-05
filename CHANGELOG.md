@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Bumped app metadata and the sidebar version display to `V0.1.3`.
 - Added the `软件` page with focused software, hidden software, discovered software, and local search.
 - Added software-page foreground/background runtime split for focused software rows.
 - Added software-page focused active time based on the foreground Windows-focused software identity, without changing overview active-time semantics.

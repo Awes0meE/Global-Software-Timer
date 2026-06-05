@@ -356,7 +356,7 @@ export default function App() {
                 <i className="status-dot status-dot-muted" aria-hidden="true" />
                 离线模式
               </span>
-              <small>v{packageJson.version}</small>
+              <small>V{packageJson.version}</small>
             </div>
           </aside>
 

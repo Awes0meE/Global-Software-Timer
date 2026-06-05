@@ -107,7 +107,7 @@ describe("App", () => {
   it("renders the app version from package metadata", async () => {
     render(<App />);
 
-    expect(await screen.findByText(`v${packageJson.version}`)).toBeInTheDocument();
+    expect(await screen.findByText(`V${packageJson.version}`)).toBeInTheDocument();
   });
 
   it("shows a friendly warning instead of raw Tauri runtime errors", async () => {
