@@ -15,11 +15,24 @@ export interface HighlightSegment {
   highlighted: boolean;
 }
 
+export interface LastOpenedFormatOptions {
+  timeZone?: string;
+}
+
 interface RankedRow<T extends SearchableSoftwareRow> {
   row: T;
   score: number;
   lastOpened: number;
   index: number;
+}
+
+interface ZonedDateParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  weekday: number;
 }
 
 const FUZZY_SCORE = 6;
@@ -121,7 +134,11 @@ export function highlightDisplayName(displayName: string, query: string): Highli
   return segments;
 }
 
-export function formatLastOpenedAt(value: string | null, now = new Date()): string {
+export function formatLastOpenedAt(
+  value: string | null,
+  now = new Date(),
+  options: LastOpenedFormatOptions = {},
+): string {
   if (!value) {
     return "从未打开";
   }
@@ -138,8 +155,10 @@ export function formatLastOpenedAt(value: string | null, now = new Date()): stri
     return `${Math.max(0, Math.floor(diffMs / (60 * 1000)))}分钟前`;
   }
 
-  const diffDays = calendarDayNumber(now) - calendarDayNumber(openedAt);
-  const timeText = formatLocalTime(openedAt);
+  const openedParts = zonedDateParts(openedAt, options.timeZone);
+  const nowParts = zonedDateParts(now, options.timeZone);
+  const diffDays = calendarDayNumber(nowParts) - calendarDayNumber(openedParts);
+  const timeText = formatZonedTime(openedParts);
 
   if (diffDays === 0) {
     return `今天 ${timeText}`;
@@ -154,19 +173,19 @@ export function formatLastOpenedAt(value: string | null, now = new Date()): stri
   }
 
   if (diffDays > 2 && diffDays < 14) {
-    const openedWeekStart = weekStartDayNumber(openedAt);
-    const currentWeekStart = weekStartDayNumber(now);
+    const openedWeekStart = weekStartDayNumber(openedParts);
+    const currentWeekStart = weekStartDayNumber(nowParts);
 
     if (openedWeekStart === currentWeekStart) {
-      return `这周${formatWeekday(openedAt)}`;
+      return `这周${formatWeekday(openedParts)}`;
     }
 
     if (openedWeekStart === currentWeekStart - 7) {
-      return `上周${formatWeekday(openedAt)}`;
+      return `上周${formatWeekday(openedParts)}`;
     }
   }
 
-  return formatLocalDate(openedAt);
+  return formatZonedDate(openedParts);
 }
 
 function scoreRow(row: SearchableSoftwareRow, normalizedQuery: string): number {
@@ -313,25 +332,66 @@ function lastOpenedTimestamp(value: string | null): number {
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
 }
 
-function formatLocalTime(date: Date): string {
-  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+function zonedDateParts(date: Date, timeZone?: string): ZonedDateParts {
+  if (!timeZone) {
+    return {
+      year: date.getFullYear(),
+      month: date.getMonth() + 1,
+      day: date.getDate(),
+      hour: date.getHours(),
+      minute: date.getMinutes(),
+      weekday: date.getDay(),
+    };
+  }
+
+  const values: Record<string, string> = {};
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+
+  for (const part of formatter.formatToParts(date)) {
+    values[part.type] = part.value;
+  }
+
+  const year = Number(values.year);
+  const month = Number(values.month);
+  const day = Number(values.day);
+
+  return {
+    year,
+    month,
+    day,
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+    weekday: new Date(Date.UTC(year, month - 1, day)).getUTCDay(),
+  };
 }
 
-function formatLocalDate(date: Date): string {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+function formatZonedTime(parts: ZonedDateParts): string {
+  return `${pad2(parts.hour)}:${pad2(parts.minute)}`;
 }
 
-function formatWeekday(date: Date): string {
-  return WEEKDAY_NAMES[date.getDay()];
+function formatZonedDate(parts: ZonedDateParts): string {
+  return `${parts.year}-${pad2(parts.month)}-${pad2(parts.day)}`;
 }
 
-function calendarDayNumber(date: Date): number {
-  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY_MS;
+function formatWeekday(parts: ZonedDateParts): string {
+  return WEEKDAY_NAMES[parts.weekday];
 }
 
-function weekStartDayNumber(date: Date): number {
-  const dayNumber = calendarDayNumber(date);
-  const mondayBasedDay = (date.getDay() + 6) % 7;
+function calendarDayNumber(parts: ZonedDateParts): number {
+  return Date.UTC(parts.year, parts.month - 1, parts.day) / DAY_MS;
+}
+
+function weekStartDayNumber(parts: ZonedDateParts): number {
+  const dayNumber = calendarDayNumber(parts);
+  const mondayBasedDay = (parts.weekday + 6) % 7;
 
   return dayNumber - mondayBasedDay;
 }
