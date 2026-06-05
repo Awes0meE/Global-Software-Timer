@@ -827,3 +827,37 @@ fn hidden_conflict_wins_when_reading_identity_mark() {
         "hidden"
     );
 }
+
+#[test]
+fn daily_software_focus_usage_accumulates_by_identity() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("app");
+    let identity = store
+        .upsert_software_identity_for_app(app.id)
+        .expect("identity");
+    let date = chrono::NaiveDate::from_ymd_opt(2026, 6, 5).unwrap();
+
+    store
+        .increment_daily_software_focus_usage(date, &identity.identity_key, 5)
+        .expect("first increment");
+    store
+        .increment_daily_software_focus_usage(date, &identity.identity_key, 7)
+        .expect("second increment");
+
+    assert_eq!(
+        store
+            .software_focus_seconds_for_date(date)
+            .expect("focus seconds")
+            .get(&identity.identity_key)
+            .copied(),
+        Some(12)
+    );
+}

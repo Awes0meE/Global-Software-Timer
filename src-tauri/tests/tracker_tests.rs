@@ -107,6 +107,99 @@ fn tracker_tick_records_foreground_active_time_for_matching_process() {
 }
 
 #[test]
+fn tracker_records_software_focus_time_even_when_machine_is_idle() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+    let source = FakeProcessSource::new(vec![vec![code_process()]]);
+    let mut tracker = Tracker::new(store, source);
+    let activity = FakeActivitySource {
+        idle_duration: Duration::from_secs(3600),
+    };
+    let foreground = FakeForegroundWindowSource { pid: Some(42) };
+    let now = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+
+    run_tracker_tick_with_foreground(
+        &mut tracker,
+        &activity,
+        &foreground,
+        now.date_naive(),
+        Duration::from_secs(5),
+        Duration::from_secs(300),
+    )
+    .expect("tick");
+
+    let identity = tracker
+        .store()
+        .upsert_software_identity_for_app(
+            tracker.store().all_sessions().expect("sessions")[0].app_id,
+        )
+        .expect("identity");
+    assert_eq!(
+        tracker
+            .store()
+            .software_focus_seconds_for_date(now.date_naive())
+            .expect("focus seconds")
+            .get(&identity.identity_key)
+            .copied(),
+        Some(5)
+    );
+
+    let overview_usage = tracker
+        .store()
+        .daily_system_usage(now.date_naive())
+        .expect("daily usage")
+        .expect("daily usage row");
+    assert_eq!(overview_usage.active_seconds, 0);
+}
+
+#[test]
+fn tracker_persists_overview_usage_when_software_focus_write_fails() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+    let corrupt_conn = rusqlite::Connection::open(db_file.path()).expect("open corrupt conn");
+    corrupt_conn
+        .execute("DROP TABLE daily_software_focus_usage", [])
+        .expect("drop focus usage table");
+    drop(corrupt_conn);
+
+    let source = FakeProcessSource::new(vec![vec![code_process()]]);
+    let mut tracker = Tracker::new(store, source);
+    let activity = FakeActivitySource {
+        idle_duration: Duration::from_secs(60),
+    };
+    let foreground = FakeForegroundWindowSource { pid: Some(42) };
+    let now = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+
+    let result = run_tracker_tick_with_foreground(
+        &mut tracker,
+        &activity,
+        &foreground,
+        now.date_naive(),
+        Duration::from_secs(5),
+        Duration::from_secs(300),
+    );
+
+    assert!(result.is_err());
+    let overview_usage = tracker
+        .store()
+        .daily_system_usage(now.date_naive())
+        .expect("daily usage")
+        .expect("daily usage row");
+    assert_eq!(overview_usage.recorded_seconds, 5);
+    assert_eq!(overview_usage.active_seconds, 5);
+    assert_eq!(overview_usage.tracker_uptime_seconds, 5);
+
+    let rows = tracker
+        .store()
+        .app_usage_summary_for_date(now, now, now.date_naive())
+        .expect("usage summary");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].active_today_seconds, 5);
+}
+
+#[test]
 fn tracker_creates_and_closes_sessions_from_process_changes() {
     let db_file = NamedTempFile::new().expect("temp db");
     let store = Store::open(db_file.path()).expect("open");

@@ -874,6 +874,45 @@ impl Store {
         Ok(())
     }
 
+    pub fn increment_daily_software_focus_usage(
+        &self,
+        date: NaiveDate,
+        identity_key: &str,
+        focused_seconds: i64,
+    ) -> StoreResult<()> {
+        self.conn.execute(
+            r#"
+            INSERT INTO daily_software_focus_usage (
+                usage_date,
+                identity_key,
+                focused_seconds
+            )
+            VALUES (?1, ?2, ?3)
+            ON CONFLICT(usage_date, identity_key) DO UPDATE SET
+                focused_seconds = focused_seconds + excluded.focused_seconds
+            "#,
+            params![date.to_string(), identity_key, focused_seconds.max(0)],
+        )?;
+        Ok(())
+    }
+
+    pub fn software_focus_seconds_for_date(
+        &self,
+        date: NaiveDate,
+    ) -> StoreResult<HashMap<String, i64>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT identity_key, focused_seconds FROM daily_software_focus_usage WHERE usage_date = ?1",
+        )?;
+        let mut rows = stmt.query(params![date.to_string()])?;
+        let mut seconds = HashMap::new();
+
+        while let Some(row) = rows.next()? {
+            seconds.insert(row.get::<_, String>(0)?, row.get::<_, i64>(1)?);
+        }
+
+        Ok(seconds)
+    }
+
     pub fn increment_daily_system_usage(
         &self,
         date: NaiveDate,
