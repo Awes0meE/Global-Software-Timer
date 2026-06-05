@@ -56,10 +56,11 @@ Rows show:
 
 - Software icon.
 - Software name.
-- Status: current GST runtime status, using the existing `前台运行`, `后台运行`, `未运行` labels.
-- `今日运行`.
+- `今日前台`.
+- `今日后台`.
 - `今日活跃`.
-- `共计运行`.
+- `共计前台`.
+- `共计后台`.
 - `共计活跃`.
 - `上次打开`.
 
@@ -300,9 +301,11 @@ All duration values use the existing project-wide Chinese decimal-hour format wi
 
 This applies to:
 
-- `今日运行`.
+- `今日前台`.
+- `今日后台`.
 - `今日活跃`.
-- `共计运行`.
+- `共计前台`.
+- `共计后台`.
 - `共计活跃`.
 
 `上次打开` uses:
@@ -449,7 +452,8 @@ During scans and dashboard/software queries, GST should keep the identity cache 
 
 For merged identities, aggregate:
 
-- Runtime intervals across all member app IDs.
+- Runtime intervals across all member app IDs for legacy foreground-runtime fallback.
+- Software-page foreground/background runtime seconds by identity key.
 - Last opened as the maximum session start across all members.
 - Runtime status as the highest current status across members, using the existing foreground > background > closed rank.
 - Focused active seconds by identity key.
@@ -478,8 +482,12 @@ Each row should include:
 - `icon_data_url`.
 - `status`.
 - `today_runtime_seconds`.
+- `today_foreground_seconds`.
+- `today_background_seconds`.
 - `today_focused_seconds`.
 - `total_runtime_seconds`.
+- `total_foreground_seconds`.
+- `total_background_seconds`.
 - `total_focused_seconds`.
 - `last_opened_at`.
 - `mark`: `focused`, `hidden`, or `none`.
