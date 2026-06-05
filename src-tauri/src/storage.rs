@@ -1,9 +1,11 @@
 use crate::classifier::{classify_process, Classification};
 use crate::domain::{
-    AppIdentity, AppUsageSummary, DailySystemUsage, RunEventKind, SoftwareIdentity, UsageSession,
+    AppIdentity, AppRuntimeStatus, AppUsageSummary, DailySystemUsage, RunEventKind,
+    SoftwareIdentity, SoftwarePageRow, SoftwarePageRows, UsageSession,
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use thiserror::Error;
@@ -699,6 +701,18 @@ impl Store {
         usage_date: NaiveDate,
     ) -> StoreResult<Vec<AppUsageSummary>> {
         #[derive(Debug)]
+        struct AppSessionRow {
+            app_id: i64,
+            stored_display_name: String,
+            process_name: String,
+            executable_path: String,
+            is_user_renamed: bool,
+            started_at: String,
+            ended_at: Option<String>,
+            last_heartbeat_at: String,
+        }
+
+        #[derive(Debug)]
         struct AppTotals {
             app_id: i64,
             display_name: String,
@@ -713,6 +727,10 @@ impl Store {
         }
 
         let active_seconds_by_app_id = self.daily_app_active_seconds(usage_date)?;
+        let hidden_identity_keys = self
+            .hidden_software_identity_keys()?
+            .into_iter()
+            .collect::<HashSet<_>>();
         let mut stmt = self.conn.prepare(
             r#"
             SELECT apps.id,
@@ -730,42 +748,66 @@ impl Store {
             "#,
         )?;
         let mut rows = stmt.query([])?;
-        let mut totals: HashMap<String, AppTotals> = HashMap::new();
+        let mut session_rows = Vec::new();
 
         while let Some(row) = rows.next()? {
-            let app_id: i64 = row.get(0)?;
-            let stored_display_name: String = row.get(1)?;
-            let process_name: String = row.get(2)?;
-            let executable_path: String = row.get(3)?;
-            let is_user_renamed = row.get::<_, i64>(4)? != 0;
-            let classification = classify_process(&process_name, &executable_path);
+            session_rows.push(AppSessionRow {
+                app_id: row.get(0)?,
+                stored_display_name: row.get(1)?,
+                process_name: row.get(2)?,
+                executable_path: row.get(3)?,
+                is_user_renamed: row.get::<_, i64>(4)? != 0,
+                started_at: row.get(5)?,
+                ended_at: row.get(6)?,
+                last_heartbeat_at: row.get(7)?,
+            });
+        }
+        drop(rows);
+        drop(stmt);
+
+        let mut totals: HashMap<String, AppTotals> = HashMap::new();
+        let mut identity_keys_by_app_id: HashMap<i64, String> = HashMap::new();
+
+        for row in session_rows {
+            let classification = classify_process(&row.process_name, &row.executable_path);
             let display_name = match classification {
                 Classification::Hidden => continue,
-                Classification::Tracked { display_name: _ } if is_user_renamed => {
-                    stored_display_name
+                Classification::Tracked { display_name: _ } if row.is_user_renamed => {
+                    row.stored_display_name
                 }
                 Classification::Tracked {
                     display_name: classified_display_name,
                 } => classified_display_name,
             };
 
-            let started_at: String = row.get(5)?;
-            let ended_at: Option<String> = row.get(6)?;
-            let last_heartbeat_at: String = row.get(7)?;
-            let started_at = DateTime::parse_from_rfc3339(&started_at)?.with_timezone(&Utc);
-            let ended_at = ended_at
+            let identity_key = if let Some(identity_key) = identity_keys_by_app_id.get(&row.app_id)
+            {
+                identity_key.clone()
+            } else {
+                let identity = self.upsert_software_identity_for_app(row.app_id)?;
+                let identity_key = identity.identity_key;
+                identity_keys_by_app_id.insert(row.app_id, identity_key.clone());
+                identity_key
+            };
+            if hidden_identity_keys.contains(&identity_key) {
+                continue;
+            }
+
+            let started_at = DateTime::parse_from_rfc3339(&row.started_at)?.with_timezone(&Utc);
+            let ended_at = row
+                .ended_at
                 .map(|value| DateTime::parse_from_rfc3339(&value).map(|dt| dt.with_timezone(&Utc)))
                 .transpose()?;
             let last_heartbeat_at =
-                DateTime::parse_from_rfc3339(&last_heartbeat_at)?.with_timezone(&Utc);
+                DateTime::parse_from_rfc3339(&row.last_heartbeat_at)?.with_timezone(&Utc);
             let display_end = ended_at.unwrap_or(last_heartbeat_at);
 
             let summary_key = display_name.to_lowercase();
             let entry = totals.entry(summary_key).or_insert(AppTotals {
-                app_id,
+                app_id: row.app_id,
                 display_name,
-                process_name: process_name.clone(),
-                executable_path: executable_path.clone(),
+                process_name: row.process_name.clone(),
+                executable_path: row.executable_path.clone(),
                 total_intervals: Vec::new(),
                 today_intervals: Vec::new(),
                 active_today_seconds: 0,
@@ -773,20 +815,22 @@ impl Store {
                 active_app_ids: HashSet::new(),
                 is_running: false,
             });
-            entry.app_ids.insert(app_id);
-            if entry.active_app_ids.insert(app_id) {
-                entry.active_today_seconds +=
-                    active_seconds_by_app_id.get(&app_id).copied().unwrap_or(0);
+            entry.app_ids.insert(row.app_id);
+            if entry.active_app_ids.insert(row.app_id) {
+                entry.active_today_seconds += active_seconds_by_app_id
+                    .get(&row.app_id)
+                    .copied()
+                    .unwrap_or(0);
             }
             if should_prefer_executable_path(
                 &entry.executable_path,
-                &executable_path,
+                &row.executable_path,
                 &entry.display_name,
-                &process_name,
+                &row.process_name,
             ) {
-                entry.app_id = app_id;
-                entry.process_name = process_name.clone();
-                entry.executable_path = executable_path.clone();
+                entry.app_id = row.app_id;
+                entry.process_name = row.process_name.clone();
+                entry.executable_path = row.executable_path.clone();
             }
             entry.total_intervals.push((started_at, display_end));
             let today_start = started_at.max(day_start_utc);
@@ -798,8 +842,8 @@ impl Store {
         }
 
         let mut summaries = totals
-            .into_iter()
-            .map(|(_, mut totals)| {
+            .into_values()
+            .map(|mut totals| {
                 let total_seconds = merged_interval_seconds(&mut totals.total_intervals);
                 let today_seconds = merged_interval_seconds(&mut totals.today_intervals);
                 let mut app_ids = totals.app_ids.into_iter().collect::<Vec<_>>();
@@ -828,6 +872,255 @@ impl Store {
                 .then_with(|| left.display_name.cmp(&right.display_name))
         });
         Ok(summaries)
+    }
+
+    pub fn software_page_rows(
+        &self,
+        day_start_utc: DateTime<Utc>,
+        now_utc: DateTime<Utc>,
+        usage_date: NaiveDate,
+        _runtime_status_by_app_id: &HashMap<i64, AppRuntimeStatus>,
+    ) -> StoreResult<SoftwarePageRows> {
+        #[derive(Debug)]
+        struct SoftwarePageTotals {
+            identity_key: String,
+            display_name: String,
+            process_name: String,
+            executable_path: String,
+            app_ids: Vec<i64>,
+            total_intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
+            today_intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
+            total_focused_seconds: i64,
+            today_focused_seconds: i64,
+            last_opened_at: Option<DateTime<Utc>>,
+            mark: String,
+        }
+
+        #[derive(Debug)]
+        struct SessionIntervalRow {
+            app_id: i64,
+            started_at: String,
+            ended_at: Option<String>,
+            last_heartbeat_at: String,
+        }
+
+        let app_rows = {
+            let mut stmt = self.conn.prepare(
+                r#"
+                SELECT id,
+                       process_name,
+                       executable_path,
+                       display_name,
+                       normalized_key,
+                       is_hidden,
+                       is_user_renamed
+                FROM apps
+                WHERE is_hidden = 0
+                ORDER BY id
+                "#,
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok(AppIdentity {
+                    id: row.get(0)?,
+                    process_name: row.get(1)?,
+                    executable_path: row.get(2)?,
+                    display_name: row.get(3)?,
+                    normalized_key: row.get(4)?,
+                    is_hidden: row.get::<_, i64>(5)? != 0,
+                    is_user_renamed: row.get::<_, i64>(6)? != 0,
+                })
+            })?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+
+        let mut identity_key_by_app_id = HashMap::new();
+        for app in app_rows {
+            if matches!(
+                classify_process(&app.process_name, &app.executable_path),
+                Classification::Hidden
+            ) {
+                continue;
+            }
+
+            let identity = self.upsert_software_identity_for_app(app.id)?;
+            identity_key_by_app_id.insert(app.id, identity.identity_key);
+        }
+
+        let mut app_ids_by_identity: HashMap<String, Vec<i64>> = HashMap::new();
+        for (app_id, identity_key) in &identity_key_by_app_id {
+            app_ids_by_identity
+                .entry(identity_key.clone())
+                .or_default()
+                .push(*app_id);
+        }
+        for app_ids in app_ids_by_identity.values_mut() {
+            app_ids.sort_unstable();
+            app_ids.dedup();
+        }
+
+        let focused_orders = self.software_identity_list_orders("focused_software_identities")?;
+        let hidden_orders = self.software_identity_list_orders("hidden_software_identities")?;
+        let today_focus_by_identity = self.software_focus_seconds_for_date(usage_date)?;
+        let total_focus_by_identity = self.total_software_focus_seconds_by_identity()?;
+        let identity_rows = {
+            let mut stmt = self.conn.prepare(
+                r#"
+                SELECT identity_key,
+                       display_name,
+                       process_name,
+                       representative_executable_path,
+                       last_opened_at
+                FROM software_identities
+                ORDER BY identity_key
+                "#,
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+
+        let mut totals_by_identity = HashMap::new();
+        for (
+            identity_key,
+            display_name,
+            process_name,
+            representative_executable_path,
+            last_opened_at,
+        ) in identity_rows
+        {
+            let Some(app_ids) = app_ids_by_identity.get(&identity_key) else {
+                continue;
+            };
+            let mark = if hidden_orders.contains_key(&identity_key) {
+                "hidden"
+            } else if focused_orders.contains_key(&identity_key) {
+                "focused"
+            } else {
+                "none"
+            };
+
+            totals_by_identity.insert(
+                identity_key.clone(),
+                SoftwarePageTotals {
+                    identity_key: identity_key.clone(),
+                    display_name,
+                    process_name,
+                    executable_path: representative_executable_path,
+                    app_ids: app_ids.clone(),
+                    total_intervals: Vec::new(),
+                    today_intervals: Vec::new(),
+                    total_focused_seconds: total_focus_by_identity
+                        .get(&identity_key)
+                        .copied()
+                        .unwrap_or(0),
+                    today_focused_seconds: today_focus_by_identity
+                        .get(&identity_key)
+                        .copied()
+                        .unwrap_or(0),
+                    last_opened_at: parse_optional_utc(last_opened_at)?,
+                    mark: mark.to_string(),
+                },
+            );
+        }
+
+        let session_rows = {
+            let mut stmt = self.conn.prepare(
+                r#"
+                SELECT app_id,
+                       started_at,
+                       ended_at,
+                       last_heartbeat_at
+                FROM usage_sessions
+                ORDER BY app_id, id
+                "#,
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok(SessionIntervalRow {
+                    app_id: row.get(0)?,
+                    started_at: row.get(1)?,
+                    ended_at: row.get(2)?,
+                    last_heartbeat_at: row.get(3)?,
+                })
+            })?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+
+        for row in session_rows {
+            let Some(identity_key) = identity_key_by_app_id.get(&row.app_id) else {
+                continue;
+            };
+            let Some(totals) = totals_by_identity.get_mut(identity_key) else {
+                continue;
+            };
+
+            let started_at = DateTime::parse_from_rfc3339(&row.started_at)?.with_timezone(&Utc);
+            let ended_at = row
+                .ended_at
+                .map(|value| DateTime::parse_from_rfc3339(&value).map(|dt| dt.with_timezone(&Utc)))
+                .transpose()?;
+            let last_heartbeat_at =
+                DateTime::parse_from_rfc3339(&row.last_heartbeat_at)?.with_timezone(&Utc);
+            let display_end = ended_at.unwrap_or(last_heartbeat_at);
+
+            totals.total_intervals.push((started_at, display_end));
+            let today_start = started_at.max(day_start_utc);
+            let today_end = display_end.min(now_utc);
+            if today_end > today_start {
+                totals.today_intervals.push((today_start, today_end));
+            }
+        }
+
+        let mut discovered = totals_by_identity
+            .into_values()
+            .map(|mut totals| SoftwarePageRow {
+                identity_key: totals.identity_key,
+                display_name: totals.display_name,
+                process_name: totals.process_name,
+                executable_path: totals.executable_path,
+                app_ids: totals.app_ids,
+                total_runtime_seconds: merged_interval_seconds(&mut totals.total_intervals),
+                today_runtime_seconds: merged_interval_seconds(&mut totals.today_intervals),
+                total_focused_seconds: totals.total_focused_seconds,
+                today_focused_seconds: totals.today_focused_seconds,
+                last_opened_at: totals.last_opened_at,
+                mark: totals.mark,
+            })
+            .collect::<Vec<_>>();
+
+        discovered.sort_by(compare_last_opened_desc);
+
+        let mut focused = discovered
+            .iter()
+            .filter(|row| row.mark == "focused")
+            .cloned()
+            .collect::<Vec<_>>();
+        focused.sort_by(|left, right| {
+            compare_list_order_desc(&focused_orders, left, right)
+                .then_with(|| compare_last_opened_desc(left, right))
+        });
+
+        let mut hidden = discovered
+            .iter()
+            .filter(|row| row.mark == "hidden")
+            .cloned()
+            .collect::<Vec<_>>();
+        hidden.sort_by(|left, right| {
+            compare_list_order_desc(&hidden_orders, left, right)
+                .then_with(|| compare_last_opened_desc(left, right))
+        });
+
+        Ok(SoftwarePageRows {
+            focused,
+            hidden,
+            discovered,
+        })
     }
 
     fn daily_app_active_seconds(&self, date: NaiveDate) -> StoreResult<HashMap<i64, i64>> {
@@ -911,6 +1204,42 @@ impl Store {
         }
 
         Ok(seconds)
+    }
+
+    fn total_software_focus_seconds_by_identity(&self) -> StoreResult<HashMap<String, i64>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT identity_key, SUM(focused_seconds) FROM daily_software_focus_usage GROUP BY identity_key",
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut seconds = HashMap::new();
+
+        while let Some(row) = rows.next()? {
+            seconds.insert(row.get::<_, String>(0)?, row.get::<_, i64>(1)?);
+        }
+
+        Ok(seconds)
+    }
+
+    fn software_identity_list_orders(
+        &self,
+        table_name: &'static str,
+    ) -> StoreResult<HashMap<String, SoftwareIdentityListOrder>> {
+        let sql = format!("SELECT identity_key, created_at, rowid FROM {table_name}");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let mut rows = stmt.query([])?;
+        let mut orders = HashMap::new();
+
+        while let Some(row) = rows.next()? {
+            orders.insert(
+                row.get::<_, String>(0)?,
+                SoftwareIdentityListOrder {
+                    created_at: row.get(1)?,
+                    rowid: row.get(2)?,
+                },
+            );
+        }
+
+        Ok(orders)
     }
 
     pub fn increment_daily_system_usage(
@@ -1074,11 +1403,53 @@ impl Store {
     }
 }
 
+#[derive(Debug, Clone)]
+struct SoftwareIdentityListOrder {
+    created_at: String,
+    rowid: i64,
+}
+
 struct SoftwareIdentityParts {
     identity_key: String,
     display_name: String,
     process_name: String,
     representative_executable_path: String,
+}
+
+fn compare_last_opened_desc(left: &SoftwarePageRow, right: &SoftwarePageRow) -> Ordering {
+    let order = match (&left.last_opened_at, &right.last_opened_at) {
+        (Some(left_opened_at), Some(right_opened_at)) => right_opened_at.cmp(left_opened_at),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
+    };
+
+    order
+        .then_with(|| left.display_name.cmp(&right.display_name))
+        .then_with(|| left.identity_key.cmp(&right.identity_key))
+}
+
+fn compare_list_order_desc(
+    orders: &HashMap<String, SoftwareIdentityListOrder>,
+    left: &SoftwarePageRow,
+    right: &SoftwarePageRow,
+) -> Ordering {
+    let order = match (
+        orders.get(&left.identity_key),
+        orders.get(&right.identity_key),
+    ) {
+        (Some(left_order), Some(right_order)) => right_order
+            .created_at
+            .cmp(&left_order.created_at)
+            .then_with(|| right_order.rowid.cmp(&left_order.rowid)),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
+    };
+
+    order
+        .then_with(|| left.display_name.cmp(&right.display_name))
+        .then_with(|| left.identity_key.cmp(&right.identity_key))
 }
 
 fn software_identity_parts_for_app(app: &AppIdentity) -> SoftwareIdentityParts {

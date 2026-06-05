@@ -104,3 +104,25 @@ pub struct AppUsageSummary {
     pub active_today_seconds: i64,
     pub is_running: bool,
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SoftwarePageRows {
+    pub focused: Vec<SoftwarePageRow>,
+    pub hidden: Vec<SoftwarePageRow>,
+    pub discovered: Vec<SoftwarePageRow>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SoftwarePageRow {
+    pub identity_key: String,
+    pub display_name: String,
+    pub process_name: String,
+    pub executable_path: String,
+    pub app_ids: Vec<i64>,
+    pub total_runtime_seconds: i64,
+    pub today_runtime_seconds: i64,
+    pub total_focused_seconds: i64,
+    pub today_focused_seconds: i64,
+    pub last_opened_at: Option<DateTime<Utc>>,
+    pub mark: String,
+}

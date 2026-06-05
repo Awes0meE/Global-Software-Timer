@@ -1,5 +1,5 @@
 use crate::app_state::AppState;
-use crate::domain::{AppRuntimeStatus, AppUsageSummary};
+use crate::domain::{AppRuntimeStatus, AppUsageSummary, SoftwarePageRow};
 use crate::native_icon::native_icon_data_url_for_path;
 use crate::storage::{Store, StoreError};
 use chrono::{DateTime, Local, TimeZone, Utc};
@@ -33,6 +33,28 @@ pub struct AppUsageRow {
     pub active_today_seconds: i64,
     pub status: AppRuntimeStatus,
     pub is_running: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SoftwarePageSummary {
+    pub focused: Vec<SoftwarePageRowDto>,
+    pub hidden: Vec<SoftwarePageRowDto>,
+    pub discovered: Vec<SoftwarePageRowDto>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SoftwarePageRowDto {
+    pub identity_key: String,
+    pub display_name: String,
+    pub process_name: String,
+    pub icon_data_url: Option<String>,
+    pub today_runtime_seconds: i64,
+    pub today_focused_seconds: i64,
+    pub total_runtime_seconds: i64,
+    pub total_focused_seconds: i64,
+    pub last_opened_at: Option<String>,
+    pub status: AppRuntimeStatus,
+    pub mark: String,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -84,6 +106,24 @@ pub fn get_dashboard_summary(state: State<'_, AppState>) -> Result<DashboardSumm
 }
 
 #[tauri::command]
+pub fn get_software_page_summary(
+    state: State<'_, AppState>,
+) -> Result<SoftwarePageSummary, String> {
+    let tracker = state
+        .tracker
+        .lock()
+        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    let now_utc = Utc::now();
+    software_page_summary_from_store(
+        tracker.store(),
+        local_day_start_utc(),
+        now_utc,
+        tracker.runtime_status_by_app_id(),
+    )
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn run_tracker_scan_once(state: State<'_, AppState>) -> Result<(), String> {
     let mut tracker = state
         .tracker
@@ -92,6 +132,66 @@ pub fn run_tracker_scan_once(state: State<'_, AppState>) -> Result<(), String> {
     tracker
         .scan_once()
         .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn add_focused_software_identities(
+    state: State<'_, AppState>,
+    identity_keys: Vec<String>,
+) -> Result<(), String> {
+    let tracker = state
+        .tracker
+        .lock()
+        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    tracker
+        .store()
+        .add_focused_software_identities(&identity_keys)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn remove_focused_software_identity(
+    state: State<'_, AppState>,
+    identity_key: String,
+) -> Result<(), String> {
+    let tracker = state
+        .tracker
+        .lock()
+        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    tracker
+        .store()
+        .remove_focused_software_identity(&identity_key)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn add_hidden_software_identities(
+    state: State<'_, AppState>,
+    identity_keys: Vec<String>,
+) -> Result<(), String> {
+    let tracker = state
+        .tracker
+        .lock()
+        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    tracker
+        .store()
+        .add_hidden_software_identities(&identity_keys)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn remove_hidden_software_identity(
+    state: State<'_, AppState>,
+    identity_key: String,
+) -> Result<(), String> {
+    let tracker = state
+        .tracker
+        .lock()
+        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    tracker
+        .store()
+        .remove_hidden_software_identity(&identity_key)
         .map_err(|error| error.to_string())
 }
 
@@ -144,7 +244,10 @@ pub fn set_autostart_preference(state: State<'_, AppState>, enabled: bool) -> Re
         .map_err(|_| "tracker mutex poisoned".to_string())?;
     tracker
         .store()
-        .set_setting_value(AUTOSTART_SETTING_KEY, if enabled { "true" } else { "false" })
+        .set_setting_value(
+            AUTOSTART_SETTING_KEY,
+            if enabled { "true" } else { "false" },
+        )
         .map_err(|error| error.to_string())
 }
 
@@ -241,6 +344,35 @@ fn dashboard_summary_from_store(
     })
 }
 
+fn software_page_summary_from_store(
+    store: &Store,
+    day_start_utc: DateTime<Utc>,
+    now_utc: DateTime<Utc>,
+    runtime_status_by_app_id: &HashMap<i64, AppRuntimeStatus>,
+) -> Result<SoftwarePageSummary, StoreError> {
+    let usage_date = day_start_utc.with_timezone(&Local).date_naive();
+    let rows =
+        store.software_page_rows(day_start_utc, now_utc, usage_date, runtime_status_by_app_id)?;
+
+    Ok(SoftwarePageSummary {
+        focused: rows
+            .focused
+            .into_iter()
+            .map(|row| SoftwarePageRowDto::from_row(row, runtime_status_by_app_id))
+            .collect(),
+        hidden: rows
+            .hidden
+            .into_iter()
+            .map(|row| SoftwarePageRowDto::from_row(row, runtime_status_by_app_id))
+            .collect(),
+        discovered: rows
+            .discovered
+            .into_iter()
+            .map(|row| SoftwarePageRowDto::from_row(row, runtime_status_by_app_id))
+            .collect(),
+    })
+}
+
 fn local_day_start_utc() -> DateTime<Utc> {
     let local_date = Local::now().date_naive();
     let local_midnight = Local
@@ -271,16 +403,43 @@ impl AppUsageRow {
     }
 }
 
+impl SoftwarePageRowDto {
+    fn from_row(
+        row: SoftwarePageRow,
+        runtime_status_by_app_id: &HashMap<i64, AppRuntimeStatus>,
+    ) -> Self {
+        let status = runtime_status_for_app_ids(&row.app_ids, runtime_status_by_app_id);
+
+        Self {
+            identity_key: row.identity_key,
+            display_name: row.display_name,
+            process_name: row.process_name,
+            icon_data_url: native_icon_data_url_for_path(&row.executable_path),
+            today_runtime_seconds: row.today_runtime_seconds,
+            today_focused_seconds: row.today_focused_seconds,
+            total_runtime_seconds: row.total_runtime_seconds,
+            total_focused_seconds: row.total_focused_seconds,
+            last_opened_at: row.last_opened_at.map(|value| value.to_rfc3339()),
+            status,
+            mark: row.mark,
+        }
+    }
+}
+
 fn runtime_status_for_summary(
     summary: &AppUsageSummary,
     runtime_status_by_app_id: &HashMap<i64, AppRuntimeStatus>,
 ) -> AppRuntimeStatus {
-    let mut status = runtime_status_by_app_id
-        .get(&summary.app_id)
-        .copied()
-        .unwrap_or(AppRuntimeStatus::Closed);
+    runtime_status_for_app_ids(&summary.app_ids, runtime_status_by_app_id)
+}
 
-    for app_id in &summary.app_ids {
+fn runtime_status_for_app_ids(
+    app_ids: &[i64],
+    runtime_status_by_app_id: &HashMap<i64, AppRuntimeStatus>,
+) -> AppRuntimeStatus {
+    let mut status = AppRuntimeStatus::Closed;
+
+    for app_id in app_ids {
         let candidate = runtime_status_by_app_id
             .get(app_id)
             .copied()
