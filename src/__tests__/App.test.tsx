@@ -292,7 +292,6 @@ describe("App", () => {
 
     expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
     const unavailableButtons = [
-      screen.getByRole("button", { name: "软件" }),
       screen.getByRole("button", { name: "统计" }),
       screen.getByRole("button", { name: "时间轴" }),
       screen.getByRole("button", { name: "日报" }),
@@ -310,13 +309,13 @@ describe("App", () => {
       expect(button).toHaveAttribute("aria-disabled", "true");
     }
 
-    const softwareTrigger = unavailableButtons[0].closest("[data-tooltip='该功能暂未完成']");
-    expect(softwareTrigger).not.toBeNull();
+    const statisticsTrigger = unavailableButtons[0].closest("[data-tooltip='该功能暂未完成']");
+    expect(statisticsTrigger).not.toBeNull();
 
-    fireEvent.mouseEnter(softwareTrigger as Element);
+    fireEvent.mouseEnter(statisticsTrigger as Element);
     expect(screen.getByRole("tooltip")).toHaveTextContent("该功能暂未完成");
 
-    fireEvent.mouseLeave(softwareTrigger as Element);
+    fireEvent.mouseLeave(statisticsTrigger as Element);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 
     fireEvent.focus(unavailableButtons[0]);
@@ -326,6 +325,234 @@ describe("App", () => {
 
     fireEvent.blur(unavailableButtons[0]);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("opens the software page with three panels", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({ focused: [], hidden: [], discovered: [] });
+      }
+
+      if (command === "get_app_settings") {
+        return Promise.resolve({
+          close_behavior: "minimize_to_tray",
+          close_behavior_configured: false,
+          autostart_enabled: true,
+          autostart_configured: false,
+        });
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+
+    expect(screen.getByRole("heading", { name: "特别关注" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "隐藏软件列表" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "已发现软件" })).toBeInTheDocument();
+    expect(screen.getByText("还没有特别关注的软件")).toBeInTheDocument();
+    expect(screen.getByText("还没有隐藏的软件")).toBeInTheDocument();
+    expect(screen.getByText("还没有发现软件")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "编辑" })).not.toBeInTheDocument();
+  });
+
+  it("shows active time help from the software page", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({
+          focused: [
+            {
+              identity_key: "app:code",
+              display_name: "Visual Studio Code",
+              process_name: "Code.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 1800,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 3600,
+              last_opened_at: "2026-06-05T09:00:00Z",
+              status: "foreground",
+              mark: "focused",
+            },
+          ],
+          hidden: [],
+          discovered: [],
+        });
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "什么是活跃时长" }));
+
+    expect(screen.getByRole("dialog", { name: "什么是活跃时长？" })).toBeInTheDocument();
+    expect(screen.getByText(/运行时长表示软件被 GST 记录为正在运行的时间/)).toBeInTheDocument();
+  });
+
+  it("shows the approved hidden row secondary copy", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({
+          focused: [],
+          hidden: [
+            {
+              identity_key: "app:bitdock",
+              display_name: "BitDock",
+              process_name: "BitDock.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 0,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 0,
+              last_opened_at: "2026-06-05T09:00:00Z",
+              status: "background",
+              mark: "hidden",
+            },
+          ],
+          discovered: [],
+        });
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+
+    expect(await screen.findByText("概览隐藏 · 不参与排行 · 仍正常记录")).toBeInTheDocument();
+    expect(screen.getByText("已隐藏")).toBeInTheDocument();
+    expect(screen.queryByText("BitDock.exe")).not.toBeInTheDocument();
+  });
+
+  it("keeps discovered search quiet when no rows match", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({
+          focused: [],
+          hidden: [],
+          discovered: [
+            {
+              identity_key: "app:code",
+              display_name: "Visual Studio Code",
+              process_name: "Code.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 1800,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 3600,
+              last_opened_at: "2026-06-05T09:00:00Z",
+              status: "closed",
+              mark: "none",
+            },
+          ],
+        });
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    expect(await screen.findByText("Visual Studio Code")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "搜索已发现软件" }), {
+      target: { value: "Photoshop" },
+    });
+
+    expect(screen.queryByText("Visual Studio Code")).not.toBeInTheDocument();
+    expect(screen.queryByText("没有匹配的软件")).not.toBeInTheDocument();
+  });
+
+  it("shows list-load warning when remove succeeds but refresh fails", async () => {
+    let softwareSummaryCalls = 0;
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        softwareSummaryCalls += 1;
+
+        if (softwareSummaryCalls > 1) {
+          return Promise.reject(new Error("summary refresh failed"));
+        }
+
+        return Promise.resolve({
+          focused: [
+            {
+              identity_key: "app:code",
+              display_name: "Visual Studio Code",
+              process_name: "Code.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 1800,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 3600,
+              last_opened_at: "2026-06-05T09:00:00Z",
+              status: "foreground",
+              mark: "focused",
+            },
+          ],
+          hidden: [],
+          discovered: [],
+        });
+      }
+
+      if (command === "remove_focused_software_identity") {
+        return Promise.resolve(undefined);
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "编辑特别关注" }));
+    fireEvent.click(await screen.findByRole("button", { name: "移出 Visual Studio Code" }));
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("remove_focused_software_identity", {
+        identityKey: "app:code",
+      }),
+    );
+    expect(await screen.findByText("无法读取软件列表")).toBeInTheDocument();
+    expect(screen.queryByText("移出软件失败")).not.toBeInTheDocument();
+    expect(screen.getByText("Visual Studio Code")).toBeInTheDocument();
   });
 
   it("opens the settings page while keeping the existing left navigation", async () => {
