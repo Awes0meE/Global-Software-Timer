@@ -52,6 +52,10 @@ pub struct SoftwarePageRowDto {
     pub today_focused_seconds: i64,
     pub total_runtime_seconds: i64,
     pub total_focused_seconds: i64,
+    pub today_foreground_seconds: i64,
+    pub today_background_seconds: i64,
+    pub total_foreground_seconds: i64,
+    pub total_background_seconds: i64,
     pub last_opened_at: Option<String>,
     pub status: AppRuntimeStatus,
     pub mark: String,
@@ -147,7 +151,7 @@ pub fn add_focused_software_identities(
     tracker
         .store()
         .add_focused_software_identities(&identity_keys)
-        .map_err(|error| error.to_string())
+        .map_err(software_list_command_error)
 }
 
 #[tauri::command]
@@ -177,7 +181,7 @@ pub fn add_hidden_software_identities(
     tracker
         .store()
         .add_hidden_software_identities(&identity_keys)
-        .map_err(|error| error.to_string())
+        .map_err(software_list_command_error)
 }
 
 #[tauri::command]
@@ -314,6 +318,20 @@ fn bool_setting_from_store(
     }
 }
 
+fn software_list_command_error(error: StoreError) -> String {
+    match error {
+        StoreError::SoftwareIdentityListConflict {
+            conflicting_list: "hidden",
+            ..
+        } => "software_conflict_hidden".to_string(),
+        StoreError::SoftwareIdentityListConflict {
+            conflicting_list: "focused",
+            ..
+        } => "software_conflict_focused".to_string(),
+        error => error.to_string(),
+    }
+}
+
 fn dashboard_summary_from_store(
     store: &Store,
     day_start_utc: DateTime<Utc>,
@@ -419,6 +437,10 @@ impl SoftwarePageRowDto {
             today_focused_seconds: row.today_focused_seconds,
             total_runtime_seconds: row.total_runtime_seconds,
             total_focused_seconds: row.total_focused_seconds,
+            today_foreground_seconds: row.today_foreground_seconds,
+            today_background_seconds: row.today_background_seconds,
+            total_foreground_seconds: row.total_foreground_seconds,
+            total_background_seconds: row.total_background_seconds,
             last_opened_at: row.last_opened_at.map(|value| value.to_rfc3339()),
             status,
             mark: row.mark,
@@ -462,9 +484,12 @@ fn runtime_status_rank(status: AppRuntimeStatus) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::{app_settings_from_store, dashboard_summary_from_store, CloseBehavior};
+    use super::{
+        app_settings_from_store, dashboard_summary_from_store, software_list_command_error,
+        CloseBehavior,
+    };
     use crate::domain::AppRuntimeStatus;
-    use crate::storage::Store;
+    use crate::storage::{Store, StoreError};
     use chrono::{TimeZone, Utc};
     use std::collections::HashMap;
     use tempfile::NamedTempFile;
@@ -641,5 +666,26 @@ mod tests {
         let settings = app_settings_from_store(&store).expect("settings");
         assert!(settings.autostart_enabled);
         assert!(!settings.autostart_configured);
+    }
+
+    #[test]
+    fn software_list_command_error_returns_stable_conflict_codes() {
+        let hidden_error = StoreError::SoftwareIdentityListConflict {
+            identity_key: "app:bitdock".to_string(),
+            conflicting_list: "hidden",
+        };
+        let focused_error = StoreError::SoftwareIdentityListConflict {
+            identity_key: "app:code".to_string(),
+            conflicting_list: "focused",
+        };
+
+        assert_eq!(
+            software_list_command_error(hidden_error),
+            "software_conflict_hidden"
+        );
+        assert_eq!(
+            software_list_command_error(focused_error),
+            "software_conflict_focused"
+        );
     }
 }

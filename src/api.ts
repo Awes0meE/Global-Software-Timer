@@ -35,6 +35,10 @@ export interface SoftwarePageRow {
   today_focused_seconds: number;
   total_runtime_seconds: number;
   total_focused_seconds: number;
+  today_foreground_seconds?: number;
+  today_background_seconds?: number;
+  total_foreground_seconds?: number;
+  total_background_seconds?: number;
   last_opened_at: string | null;
   status: AppRuntimeStatus;
   mark: SoftwareMark;

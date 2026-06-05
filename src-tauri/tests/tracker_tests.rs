@@ -382,6 +382,88 @@ fn tracker_tick_scans_and_records_daily_active_time() {
 }
 
 #[test]
+fn tracker_tick_records_software_foreground_runtime_for_visible_windows() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+    let source = FakeProcessSource::new(vec![vec![code_process()]]);
+    let mut tracker = Tracker::new(store, source);
+    let activity = FakeActivitySource {
+        idle_duration: Duration::from_secs(60),
+    };
+    let now = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+
+    run_tracker_tick(
+        &mut tracker,
+        &activity,
+        now.date_naive(),
+        Duration::from_secs(5),
+        Duration::from_secs(300),
+    )
+    .expect("tick");
+
+    let rows = tracker
+        .store()
+        .software_page_rows(
+            now,
+            now,
+            now.date_naive(),
+            tracker.runtime_status_by_app_id(),
+        )
+        .expect("software rows");
+
+    assert_eq!(rows.discovered.len(), 1);
+    assert_eq!(rows.discovered[0].today_foreground_seconds, 5);
+    assert_eq!(rows.discovered[0].today_background_seconds, 0);
+}
+
+#[test]
+fn tracker_tick_records_software_background_runtime_for_known_background_processes() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open");
+    store.migrate().expect("migrate");
+    store
+        .upsert_app(
+            "Code.exe",
+            code_process().executable_path.as_str(),
+            "Visual Studio Code",
+        )
+        .expect("known app");
+    let mut background_code = code_process();
+    background_code.has_visible_window = false;
+    let source = FakeProcessSource::new(vec![vec![background_code]]);
+    let mut tracker = Tracker::new(store, source);
+    let activity = FakeActivitySource {
+        idle_duration: Duration::from_secs(60),
+    };
+    let now = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+
+    run_tracker_tick(
+        &mut tracker,
+        &activity,
+        now.date_naive(),
+        Duration::from_secs(5),
+        Duration::from_secs(300),
+    )
+    .expect("tick");
+
+    let rows = tracker
+        .store()
+        .software_page_rows(
+            now,
+            now,
+            now.date_naive(),
+            tracker.runtime_status_by_app_id(),
+        )
+        .expect("software rows");
+
+    assert_eq!(rows.discovered.len(), 1);
+    assert_eq!(rows.discovered[0].today_foreground_seconds, 0);
+    assert_eq!(rows.discovered[0].today_background_seconds, 5);
+    assert!(tracker.store().all_sessions().expect("sessions").is_empty());
+}
+
+#[test]
 fn app_state_startup_recovers_open_sessions_at_last_heartbeat() {
     let db_file = NamedTempFile::new().expect("temp db");
     let db_path = db_file.path().to_path_buf();

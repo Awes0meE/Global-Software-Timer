@@ -1,4 +1,4 @@
-use chrono::{TimeZone, Utc};
+use chrono::{Duration, Local, TimeZone, Utc};
 use global_software_timer_lib::storage::Store;
 use tempfile::NamedTempFile;
 
@@ -14,6 +14,7 @@ fn migrate_creates_expected_tables_and_wal_mode() {
     assert!(tables.contains(&"usage_sessions".to_string()));
     assert!(tables.contains(&"daily_app_usage".to_string()));
     assert!(tables.contains(&"daily_system_usage".to_string()));
+    assert!(tables.contains(&"daily_software_runtime_usage".to_string()));
     assert!(tables.contains(&"app_settings".to_string()));
     assert_eq!(store.journal_mode().expect("journal mode"), "wal");
 }
@@ -619,6 +620,7 @@ fn migrate_creates_software_identity_tables() {
     assert!(tables.contains(&"focused_software_identities".to_string()));
     assert!(tables.contains(&"hidden_software_identities".to_string()));
     assert!(tables.contains(&"daily_software_focus_usage".to_string()));
+    assert!(tables.contains(&"daily_software_runtime_usage".to_string()));
 }
 
 #[test]
@@ -1152,6 +1154,169 @@ fn software_page_rows_split_today_and_total_focus_seconds() {
 }
 
 #[test]
+fn software_page_rows_split_foreground_and_background_runtime_seconds() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("app");
+    let identity = store
+        .upsert_software_identity_for_app(app.id)
+        .expect("identity");
+    let previous_date = chrono::NaiveDate::from_ymd_opt(2026, 6, 4).unwrap();
+    let usage_date = chrono::NaiveDate::from_ymd_opt(2026, 6, 5).unwrap();
+    store
+        .increment_daily_software_runtime_usage(
+            previous_date,
+            &identity.identity_key,
+            5,
+            2,
+            Utc.with_ymd_and_hms(2026, 6, 4, 9, 0, 0).unwrap(),
+        )
+        .expect("previous runtime");
+    store
+        .increment_daily_software_runtime_usage(
+            usage_date,
+            &identity.identity_key,
+            7,
+            3,
+            Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap(),
+        )
+        .expect("today runtime");
+
+    let start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    let end = Utc.with_ymd_and_hms(2026, 6, 5, 9, 5, 0).unwrap();
+    let rows = store
+        .software_page_rows(start, end, usage_date, &Default::default())
+        .expect("software rows");
+
+    assert_eq!(rows.discovered.len(), 1);
+    assert_eq!(rows.discovered[0].today_foreground_seconds, 7);
+    assert_eq!(rows.discovered[0].today_background_seconds, 3);
+    assert_eq!(rows.discovered[0].today_runtime_seconds, 10);
+    assert_eq!(rows.discovered[0].total_foreground_seconds, 12);
+    assert_eq!(rows.discovered[0].total_background_seconds, 5);
+    assert_eq!(rows.discovered[0].total_runtime_seconds, 17);
+}
+
+#[test]
+fn software_page_rows_keep_legacy_runtime_when_split_runtime_exists_for_newer_dates() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("app");
+    let identity = store
+        .upsert_software_identity_for_app(app.id)
+        .expect("identity");
+    let previous_start = Utc.with_ymd_and_hms(2026, 6, 4, 9, 0, 0).unwrap();
+    let previous_end = Utc.with_ymd_and_hms(2026, 6, 4, 9, 5, 0).unwrap();
+    let local_today_start = Local
+        .with_ymd_and_hms(2026, 6, 5, 0, 30, 0)
+        .single()
+        .expect("local start");
+    let today_start = local_today_start.with_timezone(&Utc);
+    let today_end = today_start + Duration::minutes(5);
+
+    for (start, end) in [(previous_start, previous_end), (today_start, today_end)] {
+        let session = store.start_session(app.id, start).expect("start");
+        store
+            .close_session(session, end, "process_closed", false)
+            .expect("close");
+    }
+    store
+        .increment_daily_software_runtime_usage(
+            local_today_start.date_naive(),
+            &identity.identity_key,
+            7,
+            3,
+            today_start,
+        )
+        .expect("today split runtime");
+
+    let rows = store
+        .software_page_rows(
+            local_today_start
+                .date_naive()
+                .and_hms_opt(0, 0, 0)
+                .and_then(|value| Local.from_local_datetime(&value).single())
+                .expect("local day start")
+                .with_timezone(&Utc),
+            today_end,
+            local_today_start.date_naive(),
+            &Default::default(),
+        )
+        .expect("software rows");
+
+    assert_eq!(rows.discovered.len(), 1);
+    assert_eq!(rows.discovered[0].today_foreground_seconds, 7);
+    assert_eq!(rows.discovered[0].today_background_seconds, 3);
+    assert_eq!(rows.discovered[0].total_foreground_seconds, 5 * 60 + 7);
+    assert_eq!(rows.discovered[0].total_background_seconds, 3);
+    assert_eq!(rows.discovered[0].total_runtime_seconds, 5 * 60 + 10);
+}
+
+#[test]
+fn software_page_rows_backfill_last_opened_from_legacy_sessions() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("app");
+    store
+        .upsert_software_identity_for_app(app.id)
+        .expect("identity without opened time");
+    let older_start = Utc.with_ymd_and_hms(2026, 6, 4, 9, 0, 0).unwrap();
+    let older_end = Utc.with_ymd_and_hms(2026, 6, 4, 9, 5, 0).unwrap();
+    let newer_start = Utc.with_ymd_and_hms(2026, 6, 5, 10, 0, 0).unwrap();
+    let newer_end = Utc.with_ymd_and_hms(2026, 6, 5, 10, 5, 0).unwrap();
+    let raw_conn = rusqlite::Connection::open(db_file.path()).expect("open raw conn");
+    raw_conn
+        .execute(
+            r#"
+            INSERT INTO usage_sessions (app_id, started_at, ended_at, last_heartbeat_at)
+            VALUES (?1, ?2, ?3, ?3), (?1, ?4, ?5, ?5)
+            "#,
+            (
+                app.id,
+                older_start.to_rfc3339(),
+                older_end.to_rfc3339(),
+                newer_start.to_rfc3339(),
+                newer_end.to_rfc3339(),
+            ),
+        )
+        .expect("insert legacy sessions");
+    drop(raw_conn);
+
+    let rows = store
+        .software_page_rows(
+            Utc.with_ymd_and_hms(2026, 6, 5, 0, 0, 0).unwrap(),
+            newer_end,
+            newer_start.date_naive(),
+            &Default::default(),
+        )
+        .expect("software rows");
+
+    assert_eq!(rows.discovered.len(), 1);
+    assert_eq!(rows.discovered[0].last_opened_at, Some(newer_start));
+}
+
+#[test]
 fn software_page_rows_merge_overlapping_runtime_across_wps_app_ids() {
     let db_file = NamedTempFile::new().expect("temp db");
     let store = Store::open(db_file.path()).expect("open store");
@@ -1194,4 +1359,8 @@ fn software_page_rows_merge_overlapping_runtime_across_wps_app_ids() {
     assert_eq!(rows.discovered[0].app_ids, vec![wps.id, sheet.id]);
     assert_eq!(rows.discovered[0].total_runtime_seconds, 15 * 60);
     assert_eq!(rows.discovered[0].today_runtime_seconds, 15 * 60);
+    assert_eq!(rows.discovered[0].total_foreground_seconds, 15 * 60);
+    assert_eq!(rows.discovered[0].today_foreground_seconds, 15 * 60);
+    assert_eq!(rows.discovered[0].total_background_seconds, 0);
+    assert_eq!(rows.discovered[0].today_background_seconds, 0);
 }

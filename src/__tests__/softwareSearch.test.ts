@@ -37,6 +37,31 @@ describe("softwareSearch", () => {
     expect(rankSoftwareRows(rows, "微")).toHaveLength(1);
   });
 
+  it("supports built-in offline aliases for common English software names", () => {
+    const rows = [
+      row({
+        identity_key: "app:wechat",
+        display_name: "WeChat",
+        process_name: "WeChat.exe",
+      }),
+      row({
+        identity_key: "known:wps-office",
+        display_name: "WPS Office",
+        process_name: "wps.exe",
+      }),
+    ];
+
+    expect(rankSoftwareRows(rows, "微信").map((item) => item.identity_key)).toEqual([
+      "app:wechat",
+    ]);
+    expect(rankSoftwareRows(rows, "weixin").map((item) => item.identity_key)).toEqual([
+      "app:wechat",
+    ]);
+    expect(rankSoftwareRows(rows, "jsbg").map((item) => item.identity_key)).toEqual([
+      "known:wps-office",
+    ]);
+  });
+
   it("highlights visible English and Chinese matches only", () => {
     expect(highlightDisplayName("Chrome", "ch")).toEqual([
       { text: "Ch", highlighted: true },
@@ -48,6 +73,9 @@ describe("softwareSearch", () => {
     ]);
     expect(highlightDisplayName("微信", "wx")).toEqual([
       { text: "微信", highlighted: false },
+    ]);
+    expect(highlightDisplayName("WeChat", "微信")).toEqual([
+      { text: "WeChat", highlighted: false },
     ]);
   });
 

@@ -234,6 +234,9 @@ where
     tracker
         .store()
         .increment_daily_system_usage(usage_date, seconds, active_seconds, seconds)?;
+    if scan_result.is_ok() {
+        record_daily_software_runtime_usage(tracker, usage_date, seconds)?;
+    }
     if active_seconds > 0 {
         if let Some(app_id) = foreground_app_id {
             tracker
@@ -251,4 +254,47 @@ where
     }
 
     scan_result.map(|_| ())
+}
+
+fn record_daily_software_runtime_usage<S: ProcessSource>(
+    tracker: &Tracker<S>,
+    usage_date: NaiveDate,
+    seconds: i64,
+) -> TrackerResult<()> {
+    if seconds <= 0 {
+        return Ok(());
+    }
+
+    let mut status_by_identity: HashMap<String, AppRuntimeStatus> = HashMap::new();
+
+    for (app_id, status) in tracker.runtime_status_by_app_id() {
+        if *status == AppRuntimeStatus::Closed {
+            continue;
+        }
+
+        let identity = tracker.store().upsert_software_identity_for_app(*app_id)?;
+        let entry = status_by_identity
+            .entry(identity.identity_key)
+            .or_insert(AppRuntimeStatus::Closed);
+        if runtime_status_rank(*status) > runtime_status_rank(*entry) {
+            *entry = *status;
+        }
+    }
+
+    for (identity_key, status) in status_by_identity {
+        let (foreground_seconds, background_seconds) = match status {
+            AppRuntimeStatus::Foreground => (seconds, 0),
+            AppRuntimeStatus::Background => (0, seconds),
+            AppRuntimeStatus::Closed => (0, 0),
+        };
+        tracker.store().increment_daily_software_runtime_usage(
+            usage_date,
+            &identity_key,
+            foreground_seconds,
+            background_seconds,
+            Utc::now(),
+        )?;
+    }
+
+    Ok(())
 }
