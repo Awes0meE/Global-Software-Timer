@@ -53,7 +53,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_dashboard_summary,
+            commands::get_software_page_summary,
             commands::run_tracker_scan_once,
+            commands::add_focused_software_identities,
+            commands::remove_focused_software_identity,
+            commands::add_hidden_software_identities,
+            commands::remove_hidden_software_identity,
             commands::get_app_settings,
             commands::get_close_behavior_preference,
             commands::set_autostart_preference,

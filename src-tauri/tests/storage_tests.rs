@@ -732,10 +732,10 @@ fn focused_and_hidden_identity_lists_are_mutually_exclusive_and_sorted_newest_fi
         .expect("chrome identity");
 
     store
-        .add_focused_software_identities(&[code_identity.identity_key.clone()])
+        .add_focused_software_identities(std::slice::from_ref(&code_identity.identity_key))
         .expect("focus code");
     store
-        .add_focused_software_identities(&[chrome_identity.identity_key.clone()])
+        .add_focused_software_identities(std::slice::from_ref(&chrome_identity.identity_key))
         .expect("focus chrome");
 
     let focused = store
@@ -776,7 +776,7 @@ fn focused_identity_mixed_batch_conflict_rolls_back_valid_keys() {
         .expect("chrome identity");
 
     store
-        .add_hidden_software_identities(&[code_identity.identity_key.clone()])
+        .add_hidden_software_identities(std::slice::from_ref(&code_identity.identity_key))
         .expect("hide code");
     let result = store.add_focused_software_identities(&[
         chrome_identity.identity_key.clone(),
@@ -860,4 +860,338 @@ fn daily_software_focus_usage_accumulates_by_identity() {
             .copied(),
         Some(12)
     );
+}
+
+#[test]
+fn app_usage_summary_excludes_hidden_software_identities() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let code = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("code");
+    let bitdock = store
+        .upsert_app("BitDock.exe", r"C:\Tools\BitDock\BitDock.exe", "BitDock")
+        .expect("bitdock");
+    let hidden_identity = store
+        .upsert_software_identity_for_app(bitdock.id)
+        .expect("hidden identity");
+    store
+        .add_hidden_software_identities(&[hidden_identity.identity_key])
+        .expect("hide bitdock");
+
+    let start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    let end = Utc.with_ymd_and_hms(2026, 6, 5, 9, 5, 0).unwrap();
+    for app_id in [code.id, bitdock.id] {
+        let session = store.start_session(app_id, start).expect("start");
+        store
+            .close_session(session, end, "process_closed", false)
+            .expect("close");
+    }
+
+    let rows = store
+        .app_usage_summary_for_date(start, end, start.date_naive())
+        .expect("summary");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].display_name, "Visual Studio Code");
+}
+
+#[test]
+fn software_page_summary_rows_include_marks_and_last_opened() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let code = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("code");
+    let start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    let end = Utc.with_ymd_and_hms(2026, 6, 5, 9, 5, 0).unwrap();
+    let session = store.start_session(code.id, start).expect("start");
+    store
+        .close_session(session, end, "process_closed", false)
+        .expect("close");
+    let identity = store
+        .upsert_software_identity_for_app_started_at(code.id, start)
+        .expect("identity");
+    store
+        .add_focused_software_identities(std::slice::from_ref(&identity.identity_key))
+        .expect("focus");
+
+    let rows = store
+        .software_page_rows(start, end, start.date_naive(), &Default::default())
+        .expect("software rows");
+
+    assert_eq!(rows.discovered.len(), 1);
+    assert_eq!(rows.focused.len(), 1);
+    assert_eq!(rows.hidden.len(), 0);
+    assert_eq!(rows.discovered[0].mark, "focused");
+    assert_eq!(rows.discovered[0].last_opened_at, Some(start));
+}
+
+#[test]
+fn hidden_software_filter_can_be_removed_without_losing_raw_sessions() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let code = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("code");
+    let chrome = store
+        .upsert_app("chrome.exe", r"C:\Chrome\chrome.exe", "Google Chrome")
+        .expect("chrome");
+    let hidden_identity = store
+        .upsert_software_identity_for_app(chrome.id)
+        .expect("hidden identity");
+    store
+        .add_hidden_software_identities(std::slice::from_ref(&hidden_identity.identity_key))
+        .expect("hide chrome");
+
+    let start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    let end = Utc.with_ymd_and_hms(2026, 6, 5, 9, 5, 0).unwrap();
+    for app_id in [code.id, chrome.id] {
+        let session = store.start_session(app_id, start).expect("start");
+        store
+            .close_session(session, end, "process_closed", false)
+            .expect("close");
+    }
+    assert_eq!(store.all_sessions().expect("raw sessions").len(), 2);
+
+    let hidden_rows = store
+        .app_usage_summary_for_date(start, end, start.date_naive())
+        .expect("hidden summary");
+    assert_eq!(hidden_rows.len(), 1);
+    assert_eq!(hidden_rows[0].display_name, "Visual Studio Code");
+
+    store
+        .remove_hidden_software_identity(&hidden_identity.identity_key)
+        .expect("unhide chrome");
+    let restored_rows = store
+        .app_usage_summary_for_date(start, end, start.date_naive())
+        .expect("restored summary");
+    let restored_names = restored_rows
+        .iter()
+        .map(|row| row.display_name.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(restored_rows.len(), 2);
+    assert!(restored_names.contains(&"Google Chrome"));
+    assert!(restored_names.contains(&"Visual Studio Code"));
+    assert_eq!(store.all_sessions().expect("unchanged sessions").len(), 2);
+}
+
+#[test]
+fn software_page_rows_show_hidden_identity_and_hidden_wins_conflict() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("app");
+    let identity = store
+        .upsert_software_identity_for_app(app.id)
+        .expect("identity");
+    store
+        .add_hidden_software_identities(std::slice::from_ref(&identity.identity_key))
+        .expect("hide");
+
+    let conflict_conn = rusqlite::Connection::open(db_file.path()).expect("open conflict conn");
+    conflict_conn
+        .execute(
+            "INSERT INTO focused_software_identities (identity_key) VALUES (?1)",
+            [&identity.identity_key],
+        )
+        .expect("force focused conflict");
+
+    let start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    let end = Utc.with_ymd_and_hms(2026, 6, 5, 9, 5, 0).unwrap();
+    let rows = store
+        .software_page_rows(start, end, start.date_naive(), &Default::default())
+        .expect("software rows");
+
+    assert_eq!(rows.discovered.len(), 1);
+    assert_eq!(rows.hidden.len(), 1);
+    assert_eq!(rows.focused.len(), 0);
+    assert_eq!(rows.discovered[0].identity_key, identity.identity_key);
+    assert_eq!(rows.discovered[0].mark, "hidden");
+    assert_eq!(rows.hidden[0].mark, "hidden");
+}
+
+#[test]
+fn software_page_rows_sort_focused_and_hidden_newest_added_first() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let code = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("code");
+    let chrome = store
+        .upsert_app("chrome.exe", r"C:\Chrome\chrome.exe", "Google Chrome")
+        .expect("chrome");
+    let bitdock = store
+        .upsert_app("BitDock.exe", r"C:\Tools\BitDock\BitDock.exe", "BitDock")
+        .expect("bitdock");
+    let obsidian = store
+        .upsert_app(
+            "Obsidian.exe",
+            r"C:\Tools\Obsidian\Obsidian.exe",
+            "Obsidian",
+        )
+        .expect("obsidian");
+    let code_identity = store
+        .upsert_software_identity_for_app(code.id)
+        .expect("code identity");
+    let chrome_identity = store
+        .upsert_software_identity_for_app(chrome.id)
+        .expect("chrome identity");
+    let bitdock_identity = store
+        .upsert_software_identity_for_app(bitdock.id)
+        .expect("bitdock identity");
+    let obsidian_identity = store
+        .upsert_software_identity_for_app(obsidian.id)
+        .expect("obsidian identity");
+
+    store
+        .add_focused_software_identities(std::slice::from_ref(&code_identity.identity_key))
+        .expect("focus code");
+    store
+        .add_focused_software_identities(std::slice::from_ref(&chrome_identity.identity_key))
+        .expect("focus chrome");
+    store
+        .add_hidden_software_identities(std::slice::from_ref(&bitdock_identity.identity_key))
+        .expect("hide bitdock");
+    store
+        .add_hidden_software_identities(std::slice::from_ref(&obsidian_identity.identity_key))
+        .expect("hide obsidian");
+
+    let start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    let end = Utc.with_ymd_and_hms(2026, 6, 5, 9, 5, 0).unwrap();
+    let rows = store
+        .software_page_rows(start, end, start.date_naive(), &Default::default())
+        .expect("software rows");
+    let focused_keys = rows
+        .focused
+        .iter()
+        .map(|row| row.identity_key.as_str())
+        .collect::<Vec<_>>();
+    let hidden_keys = rows
+        .hidden
+        .iter()
+        .map(|row| row.identity_key.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        focused_keys,
+        vec![
+            chrome_identity.identity_key.as_str(),
+            code_identity.identity_key.as_str()
+        ]
+    );
+    assert_eq!(
+        hidden_keys,
+        vec![
+            obsidian_identity.identity_key.as_str(),
+            bitdock_identity.identity_key.as_str()
+        ]
+    );
+}
+
+#[test]
+fn software_page_rows_split_today_and_total_focus_seconds() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("app");
+    let identity = store
+        .upsert_software_identity_for_app(app.id)
+        .expect("identity");
+    let previous_date = chrono::NaiveDate::from_ymd_opt(2026, 6, 4).unwrap();
+    let usage_date = chrono::NaiveDate::from_ymd_opt(2026, 6, 5).unwrap();
+    store
+        .increment_daily_software_focus_usage(previous_date, &identity.identity_key, 5)
+        .expect("previous focus");
+    store
+        .increment_daily_software_focus_usage(usage_date, &identity.identity_key, 7)
+        .expect("today focus");
+
+    let start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    let end = Utc.with_ymd_and_hms(2026, 6, 5, 9, 5, 0).unwrap();
+    let rows = store
+        .software_page_rows(start, end, usage_date, &Default::default())
+        .expect("software rows");
+
+    assert_eq!(rows.discovered.len(), 1);
+    assert_eq!(rows.discovered[0].today_focused_seconds, 7);
+    assert_eq!(rows.discovered[0].total_focused_seconds, 12);
+}
+
+#[test]
+fn software_page_rows_merge_overlapping_runtime_across_wps_app_ids() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let wps = store
+        .upsert_app("wps.exe", r"C:\Kingsoft\WPS Office\office6\wps.exe", "wps")
+        .expect("wps");
+    let sheet = store
+        .upsert_app("et.exe", r"C:\Kingsoft\WPS Office\office6\et.exe", "et")
+        .expect("sheet");
+    let day_start = Utc.with_ymd_and_hms(2026, 6, 5, 0, 0, 0).unwrap();
+    let wps_start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    let wps_end = Utc.with_ymd_and_hms(2026, 6, 5, 9, 10, 0).unwrap();
+    let sheet_start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 5, 0).unwrap();
+    let sheet_end = Utc.with_ymd_and_hms(2026, 6, 5, 9, 15, 0).unwrap();
+    let query_at = Utc.with_ymd_and_hms(2026, 6, 5, 9, 20, 0).unwrap();
+
+    let wps_session = store.start_session(wps.id, wps_start).expect("wps start");
+    store
+        .close_session(wps_session, wps_end, "process_closed", false)
+        .expect("wps close");
+    let sheet_session = store
+        .start_session(sheet.id, sheet_start)
+        .expect("sheet start");
+    store
+        .close_session(sheet_session, sheet_end, "process_closed", false)
+        .expect("sheet close");
+
+    let rows = store
+        .software_page_rows(
+            day_start,
+            query_at,
+            day_start.date_naive(),
+            &Default::default(),
+        )
+        .expect("software rows");
+
+    assert_eq!(rows.discovered.len(), 1);
+    assert_eq!(rows.discovered[0].display_name, "WPS Office");
+    assert_eq!(rows.discovered[0].app_ids, vec![wps.id, sheet.id]);
+    assert_eq!(rows.discovered[0].total_runtime_seconds, 15 * 60);
+    assert_eq!(rows.discovered[0].today_runtime_seconds, 15 * 60);
 }
