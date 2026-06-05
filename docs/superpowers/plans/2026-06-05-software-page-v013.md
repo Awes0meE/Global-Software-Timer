@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** Completed, merged into `main` through PR #10, and released in `v0.1.3` on 2026-06-05.
+
 **Goal:** Build the v0.1.3 `软件` page with focused software, hidden software, discovered software, local search, and software-page focused active time.
 
 **Architecture:** Add a robust software identity layer in Rust/SQLite so user rules apply to merged user-visible software, not raw executable rows. Expose dedicated Tauri commands for the software page and keep hidden software filtered from default summaries while retaining raw history. Implement the React page as focused components with shared local search utilities and a shared add dialog.
@@ -2513,10 +2515,10 @@ After Task 7:
 - [ ] Do a spec-compliance review of the changed behavior.
 - [ ] Fix any findings before release/version commits.
 
-Suggested release-prep commit only after all feature/fix/test/docs commits already exist:
+Suggested version/package metadata commit only after all feature/fix/test/docs commits already exist:
 
 ```powershell
-git commit -m "chore(release): prepare v0.1.3"
+git commit -m "build: bump app version to 0.1.3"
 ```
 
 Use this only for version/package metadata and release notes, not for feature implementation.

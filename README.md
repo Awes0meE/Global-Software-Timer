@@ -9,8 +9,8 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
 一个 Windows 优先、本地优先的桌面状态栏软件，用来记录每个软件的运行时长。
 
 <p>
-  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.2">
-    <img alt="Release v0.1.2" src="https://img.shields.io/badge/Release-v0.1.2-2f81f7?style=for-the-badge" />
+  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.3">
+    <img alt="Release v0.1.3" src="https://img.shields.io/badge/Release-v0.1.3-2f81f7?style=for-the-badge" />
   </a>
   <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=for-the-badge&logo=windows&logoColor=white" />
   <img alt="Local First" src="https://img.shields.io/badge/Local--First-Privacy-2ea043?style=for-the-badge" />
@@ -32,7 +32,7 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
   ·
   <a href="#english">English</a>
   ·
-  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.2">Download</a>
+  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.3">Download</a>
   ·
   <a href="./PRIVACY.md">Privacy</a>
 </p>
@@ -47,7 +47,7 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
 
 Global Software Timer（全局软件计时器）是一款本地优先的 Windows 桌面状态栏应用。它会在后台记录桌面软件的运行时长，并在仪表盘中以类似 Steam 游戏时长库的方式展示你的软件使用数据。
 
-它适合想知道自己在 VS Code、浏览器、Office、设计工具、工程软件等桌面应用上投入了多少时间的人。v0.1.2 的重点是可靠、本地、隐私边界清晰、一个舒服的深色软件库式仪表盘，以及可直接修改的本机设置。
+它适合想知道自己在 VS Code、浏览器、Office、设计工具、工程软件等桌面应用上投入了多少时间的人。v0.1.3 的重点是可靠、本地、隐私边界清晰、一个舒服的深色软件库式仪表盘、可直接修改的本机设置，以及可管理软件关注/隐藏状态的 `软件` 页面。
 
 ![Dashboard preview](./UI_Reference.png)
 
@@ -79,6 +79,10 @@ Global Software Timer（全局软件计时器）是一款本地优先的 Windows
 - 自动识别常见用户软件，并默认过滤系统进程、驱动进程、更新助手、同步助手等噪声。
 - 展示累计软件时长、今日记录时长、今日活跃时长、最常用软件和今日分布。
 - 深色 Steam-like 软件库风格仪表盘。
+- `软件` 页面支持 `特别关注`、`隐藏软件列表` 和只读 `已发现软件`。
+- `特别关注` 显示今日/共计前台运行、后台运行、活跃时长和上次打开时间。
+- `隐藏软件列表` 会继续本地记录软件，但从默认概览、排行和分布中隐藏。
+- `已发现软件` 支持英文、中文、拼音全拼和拼音首字母的本地离线搜索。
 - 设置页支持开机自启动和关闭窗口行为偏好。
 - 开机自启动默认开启，使用当前用户级自启动机制，不需要管理员权限。
 - 首次关闭窗口时会询问“直接退出”或“最小化到状态栏”，后续可在设置中更改。
@@ -88,18 +92,18 @@ Global Software Timer（全局软件计时器）是一款本地优先的 Windows
 
 ### 下载安装
 
-前往 [v0.1.2 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.2) 下载 Windows x64 安装包。
+前往 [v0.1.3 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.3) 下载 Windows x64 安装包。
 
 推荐下载：
 
-- `Global.Software.Timer_0.1.2_x64-setup.exe`
-- `Global.Software.Timer_0.1.2_x64_en-US.msi`
+- `Global Software Timer_0.1.3_x64-setup.exe`
+- `Global Software Timer_0.1.3_x64_en-US.msi`
 
 > 当前安装包未签名，Windows 首次安装时可能会显示 SmartScreen 提示。
 
 ### 隐私边界
 
-v0.1.2 只记录本地软件使用统计和本机偏好所需的数据。
+v0.1.3 只记录本地软件使用统计和本机偏好所需的数据。
 
 会记录：
 
@@ -108,6 +112,8 @@ v0.1.2 只记录本地软件使用统计和本机偏好所需的数据。
 - 应用运行时长。
 - 今日电脑记录时长。
 - 基于键盘/鼠标空闲状态的今日活跃时长。
+- `软件` 页面标记，例如特别关注或隐藏。
+- `软件` 页面前台/后台运行汇总和前台聚焦活跃时长。
 - 本机设置偏好，例如开机自启动和关闭窗口行为。
 
 不会记录：
@@ -146,7 +152,7 @@ v0.1.2 只记录本地软件使用统计和本机偏好所需的数据。
 
 - `tracker`：周期性扫描进程，维护运行会话和心跳。
 - `classifier`：把原始进程转换成用户关心的软件，并过滤噪声。
-- `storage`：SQLite schema、事件日志、会话和汇总表。
+- `storage`：SQLite schema、事件日志、会话、软件身份和汇总表。
 - `activity`：基于 Windows 空闲时间检测今日活跃时长。
 - `commands`：给前端仪表盘提供 Tauri command API。
 - `tray`：系统状态栏入口、打开仪表盘和退出。
@@ -209,7 +215,7 @@ npm run tauri:build
 
 ### 路线图
 
-v0.1.2 已聚焦于 Windows、本地记录、基础仪表盘、设置页、系统状态栏和隐私边界。
+v0.1.3 已聚焦于 Windows、本地记录、基础仪表盘、设置页、`软件` 页面、系统状态栏和隐私边界。
 
 后续可能加入：
 
@@ -220,7 +226,7 @@ v0.1.2 已聚焦于 Windows、本地记录、基础仪表盘、设置页、系�
 - Notion、Obsidian 等工具的导出或插件工作流。
 - 可选的增强检测能力，但必须明确说明隐私影响并由用户主动开启。
 
-明确不属于 v0.1.2 的内容：
+明确不属于 v0.1.3 的内容：
 
 - 云同步。
 - 用户账号。
@@ -249,23 +255,25 @@ The app runs quietly in the background, stores data locally, and opens a dark so
 - Settings page for startup at login and close-window behavior.
 - Startup at login is enabled by default through the current-user autostart mechanism and does not require administrator permission.
 - The first close asks whether to exit or minimize to tray; the saved choice can be changed later in Settings.
+- Software page with focused software, hidden software, discovered software, local search, and per-software focused active time.
+- Hidden software remains recorded locally but is excluded from default dashboard summaries and rankings.
 - Privacy-first design: no account, no telemetry, no cloud upload.
 - Chinese UI readiness with the title `全局软件计时器`.
 
 ### Installation
 
-Download the Windows x64 installer from [v0.1.2 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.2).
+Download the Windows x64 installer from [v0.1.3 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.3).
 
 Available bundles:
 
-- `Global.Software.Timer_0.1.2_x64-setup.exe`
-- `Global.Software.Timer_0.1.2_x64_en-US.msi`
+- `Global Software Timer_0.1.3_x64-setup.exe`
+- `Global Software Timer_0.1.3_x64_en-US.msi`
 
 > The current Windows installers are unsigned, so Windows may show a SmartScreen warning on first install.
 
 ### Privacy Model
 
-Global Software Timer v0.1.2 records only app-level local usage data and local app preferences.
+Global Software Timer v0.1.3 records only app-level local usage data and local app preferences.
 
 It records:
 
@@ -274,6 +282,8 @@ It records:
 - Application runtime.
 - Daily recorded computer time.
 - Daily active computer time based on keyboard/mouse idle state.
+- Software-page marks such as focused or hidden.
+- Software-page foreground/background runtime aggregates and focused active time.
 - Local app preferences such as startup at login and close-window behavior.
 
 It does not record:

@@ -2,11 +2,14 @@
 
 ## Unreleased
 
+## v0.1.3 - 2026-06-05
+
 - Bumped app metadata and the sidebar version display to `V0.1.3`.
 - Added the `软件` page with focused software, hidden software, discovered software, and local search.
 - Added software-page foreground/background runtime split for focused software rows.
 - Added software-page focused active time based on the foreground Windows-focused software identity, without changing overview active-time semantics.
 - Added hidden software filtering for default dashboard summaries while preserving local raw history.
+- Fixed last-opened time formatting so tests and UI helpers are deterministic across machine time zones.
 
 ## v0.1.2 - 2026-06-04
 

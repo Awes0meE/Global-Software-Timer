@@ -1,7 +1,7 @@
 # Software Page v0.1.3 Design
 
 Date: 2026-06-05
-Status: Draft for user review
+Status: Shipped in `v0.1.3`
 
 ## Goal
 

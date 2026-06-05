@@ -12,7 +12,7 @@ Last updated: 2026-06-05
 - v0.1 shape: system tray app, background tracking, dashboard on demand.
 - UI direction: dark Steam-like software library, not a marketing landing page.
 - Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`.
-- Latest release: `v0.1.2`, published on GitHub on 2026-06-04.
+- Latest release: `v0.1.3`, published on GitHub on 2026-06-05.
 - v0.1.2 adds a Settings page with startup-at-login and close-window behavior controls.
 - Startup at login defaults to enabled in v0.1.2, uses the current-user autostart mechanism, and does not require administrator permission.
 - First window close still asks whether to exit or minimize to tray; the choice is saved automatically and can be changed later in Settings.
@@ -34,7 +34,7 @@ Last updated: 2026-06-05
 - Active time: v0.1 tracks daily machine-level active time using keyboard/mouse idle state.
 - App settings are stored locally in the existing SQLite `app_settings` table, including `window.close_behavior` and `startup.autostart_enabled`.
 - Long-term direction: record both runtime and active usage, with foreground/window-level features only as explicit opt-in.
-- Permissions: v0.1.2 runs as a normal user-space app and does not request administrator permission by default, including for startup at login.
+- Permissions: v0.1.3 runs as a normal user-space app and does not request administrator permission by default, including for startup at login.
 
 ## Privacy Decisions
 
@@ -49,6 +49,14 @@ Last updated: 2026-06-05
 - Long-term stage: launch mobile companion apps for full-device time tracking.
 - Monetization direction: free core, one-time paid advanced analytics, future small-team local deployment.
 
+## Future Development Directions
+
+- Settings should eventually expose a software-page active-time logic switch. Off/default keeps the current v0.1.3 behavior: a software identity counts as active whenever it has the Windows foreground focused window. On should count the current Windows focused software as active only when keyboard or mouse input was recent.
+- The `软件` page can later add Excel-style sorting or simple sort controls for managed and discovered lists, such as add time, last opened time, or usage time. v0.1.3 keeps simple defaults: managed lists newest-added first and discovered software last-opened descending.
+- A future software details drawer can show richer per-software history and analytics. v0.1.3 intentionally omits drawers so the first page stays dense and stable.
+- A future add flow may offer manual `.exe` selection for software GST has not discovered yet. v0.1.3 intentionally uses the discovered software directory because it is friendlier for non-technical users.
+- Hidden software should remain excluded from default summaries and rankings, but future report-style pages may provide an explicit opt-in view that includes hidden software.
+
 ## Current Repository State
 
 - Design spec committed.
@@ -56,7 +64,10 @@ Last updated: 2026-06-05
 - Settings/autostart spec and implementation plan committed:
   - `docs/superpowers/specs/2026-06-04-settings-autostart-design.md`
   - `docs/superpowers/plans/2026-06-04-settings-autostart.md`
-- v0.1.3 implementation work is on branch `codex/software-page-v013`; no GitHub release or tag exists for v0.1.3 yet.
+- Software page v0.1.3 spec and implementation plan committed:
+  - `docs/superpowers/specs/2026-06-05-software-page-design.md`
+  - `docs/superpowers/plans/2026-06-05-software-page-v013.md`
+- v0.1.3 software-page implementation was merged into `main` through PR #10 on 2026-06-05.
 - For future development/release checkpoints, update the app's bottom-left sidebar version display as a default final step after feature work and verification.
 - Karpathy Guidelines skill is already installed at `C:\Users\123\.codex\skills\karpathy-guidelines`.
 - Requested execution mode: Superpowers subagent-driven development.
@@ -74,7 +85,7 @@ Last updated: 2026-06-05
 - `v0.1.0` was the initial Windows-first GitHub release on 2026-05-30.
 - `v0.1.1` is the first stability patch release, published on GitHub on 2026-05-31.
 - `v0.1.2` adds Settings, default-on current-user startup at login, and close-window behavior controls; it was published on GitHub on 2026-06-04.
-- `v0.1.3` is implemented on branch `codex/software-page-v013` but is not released or tagged yet.
+- `v0.1.3` adds the `软件` page, focused/hidden/discovered software lists, local pinyin-capable search, hidden-software default summary filtering, and software-page focused active time; it was published on GitHub on 2026-06-05.
 - Release bundles are built with `npm run tauri:build`.
 
 ## Historical Implementation Plan
@@ -104,3 +115,4 @@ Plan tasks:
 - Commit history should follow Conventional Commits-style types. Use `feat` for new user-visible behavior, `fix` for bug fixes, `docs` for documentation-only changes, `test` for tests, `build`/`ci` for build and workflow changes, and reserve `chore` for auxiliary maintenance/tooling only.
 - Do not bundle a batch of new features or fixes into a final `chore(release)` commit. Release/version commits may be `chore(release): ...` only after the underlying feature/fix/doc/test commits have already been made separately.
 - Prefer one commit per completed feature, fix, documentation update, test addition, or coherent checkpoint. Once the user has granted commit permission for the task/session, commit after each finished step rather than waiting until the release is complete.
+- The GitHub repository allows rebase merges as of 2026-06-05. Prefer rebase merge over squash merge when the user wants every stage commit preserved on `main`.

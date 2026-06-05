@@ -79,6 +79,15 @@ v0.1.2 additionally includes:
 - Close-window behavior control: minimize to tray or exit directly.
 - First-close choice dialog that saves the user's choice automatically.
 
+v0.1.3 additionally includes:
+
+- The real `软件` page in the existing app shell.
+- `特别关注`, `隐藏软件列表`, and read-only `已发现软件` panels.
+- Local offline software search with English, Chinese, pinyin full spelling, and pinyin initials.
+- Software-page foreground/background runtime aggregates and focused active time.
+- Hidden software filtering from default dashboard summaries while keeping raw local history.
+- App sidebar version display updated to `V0.1.3`.
+
 v0.1 excludes:
 
 - macOS implementation.
