@@ -3,7 +3,7 @@ use crate::domain::{
     AppIdentity, AppRuntimeStatus, AppUsageSummary, DailySystemUsage, RunEventKind,
     SoftwareIdentity, SoftwarePageRow, SoftwarePageRows, UsageSession,
 };
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Local, NaiveDate, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
@@ -29,6 +29,18 @@ pub enum StoreError {
 }
 
 pub type StoreResult<T> = Result<T, StoreError>;
+
+#[derive(Debug, Clone, Copy, Default)]
+struct SoftwareRuntimeSeconds {
+    foreground_seconds: i64,
+    background_seconds: i64,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct SoftwareLegacyRuntimeSeconds {
+    total_seconds: i64,
+    today_seconds: i64,
+}
 
 pub struct Store {
     conn: Connection,
@@ -134,6 +146,17 @@ impl Store {
                 FOREIGN KEY(identity_key) REFERENCES software_identities(identity_key)
             );
 
+            CREATE TABLE IF NOT EXISTS daily_software_runtime_usage (
+                usage_date TEXT NOT NULL,
+                identity_key TEXT NOT NULL,
+                foreground_seconds INTEGER NOT NULL DEFAULT 0,
+                background_seconds INTEGER NOT NULL DEFAULT 0,
+                first_recorded_at TEXT NOT NULL,
+                last_recorded_at TEXT NOT NULL,
+                PRIMARY KEY (usage_date, identity_key),
+                FOREIGN KEY(identity_key) REFERENCES software_identities(identity_key)
+            );
+
             CREATE TABLE IF NOT EXISTS app_settings (
                 setting_key TEXT PRIMARY KEY,
                 setting_value TEXT NOT NULL,
@@ -141,7 +164,50 @@ impl Store {
             );
             "#,
         )?;
+        self.ensure_daily_software_runtime_usage_columns()?;
         Ok(())
+    }
+
+    fn ensure_daily_software_runtime_usage_columns(&self) -> StoreResult<()> {
+        if !self
+            .table_columns("daily_software_runtime_usage")?
+            .contains(&"first_recorded_at".to_string())
+        {
+            self.conn.execute(
+                "ALTER TABLE daily_software_runtime_usage ADD COLUMN first_recorded_at TEXT",
+                [],
+            )?;
+            self.conn.execute(
+                "UPDATE daily_software_runtime_usage SET first_recorded_at = usage_date || 'T23:59:59+00:00' WHERE first_recorded_at IS NULL",
+                [],
+            )?;
+        }
+
+        if !self
+            .table_columns("daily_software_runtime_usage")?
+            .contains(&"last_recorded_at".to_string())
+        {
+            self.conn.execute(
+                "ALTER TABLE daily_software_runtime_usage ADD COLUMN last_recorded_at TEXT",
+                [],
+            )?;
+            self.conn.execute(
+                "UPDATE daily_software_runtime_usage SET last_recorded_at = first_recorded_at WHERE last_recorded_at IS NULL",
+                [],
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn table_columns(&self, table_name: &str) -> StoreResult<Vec<String>> {
+        let mut stmt = self
+            .conn
+            .prepare(&format!("PRAGMA table_info({table_name})"))?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(1))?;
+
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StoreError::from)
     }
 
     pub fn table_names(&self) -> StoreResult<Vec<String>> {
@@ -888,8 +954,12 @@ impl Store {
             process_name: String,
             executable_path: String,
             app_ids: Vec<i64>,
-            total_intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
-            today_intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
+            legacy_total_intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
+            legacy_today_intervals: Vec<(DateTime<Utc>, DateTime<Utc>)>,
+            total_foreground_seconds: i64,
+            today_foreground_seconds: i64,
+            total_background_seconds: i64,
+            today_background_seconds: i64,
             total_focused_seconds: i64,
             today_focused_seconds: i64,
             last_opened_at: Option<DateTime<Utc>>,
@@ -962,6 +1032,10 @@ impl Store {
         let hidden_orders = self.software_identity_list_orders("hidden_software_identities")?;
         let today_focus_by_identity = self.software_focus_seconds_for_date(usage_date)?;
         let total_focus_by_identity = self.total_software_focus_seconds_by_identity()?;
+        let today_runtime_by_identity = self.software_runtime_seconds_for_date(usage_date)?;
+        let total_runtime_by_identity = self.total_software_runtime_seconds_by_identity()?;
+        let split_started_at_by_identity_date =
+            self.software_runtime_first_recorded_at_by_identity_date()?;
         let identity_rows = {
             let mut stmt = self.conn.prepare(
                 r#"
@@ -1005,6 +1079,14 @@ impl Store {
             } else {
                 "none"
             };
+            let today_runtime = today_runtime_by_identity
+                .get(&identity_key)
+                .copied()
+                .unwrap_or_default();
+            let total_runtime = total_runtime_by_identity
+                .get(&identity_key)
+                .copied()
+                .unwrap_or_default();
 
             totals_by_identity.insert(
                 identity_key.clone(),
@@ -1014,8 +1096,12 @@ impl Store {
                     process_name,
                     executable_path: representative_executable_path,
                     app_ids: app_ids.clone(),
-                    total_intervals: Vec::new(),
-                    today_intervals: Vec::new(),
+                    legacy_total_intervals: Vec::new(),
+                    legacy_today_intervals: Vec::new(),
+                    total_foreground_seconds: total_runtime.foreground_seconds,
+                    today_foreground_seconds: today_runtime.foreground_seconds,
+                    total_background_seconds: total_runtime.background_seconds,
+                    today_background_seconds: today_runtime.background_seconds,
                     total_focused_seconds: total_focus_by_identity
                         .get(&identity_key)
                         .copied()
@@ -1068,29 +1154,57 @@ impl Store {
             let last_heartbeat_at =
                 DateTime::parse_from_rfc3339(&row.last_heartbeat_at)?.with_timezone(&Utc);
             let display_end = ended_at.unwrap_or(last_heartbeat_at);
+            let session_date = started_at.with_timezone(&Local).date_naive();
 
-            totals.total_intervals.push((started_at, display_end));
-            let today_start = started_at.max(day_start_utc);
-            let today_end = display_end.min(now_utc);
-            if today_end > today_start {
-                totals.today_intervals.push((today_start, today_end));
+            totals.last_opened_at = latest_optional_datetime(totals.last_opened_at, started_at);
+            let split_started_at = split_started_at_by_identity_date
+                .get(identity_key)
+                .and_then(|dates| dates.get(&session_date));
+            let is_split_runtime_session =
+                split_started_at.is_some_and(|first_recorded_at| started_at >= *first_recorded_at);
+            if !is_split_runtime_session {
+                totals
+                    .legacy_total_intervals
+                    .push((started_at, display_end));
+                let today_start = started_at.max(day_start_utc);
+                let today_end = display_end.min(now_utc);
+                if today_end > today_start {
+                    totals.legacy_today_intervals.push((today_start, today_end));
+                }
             }
         }
 
         let mut discovered = totals_by_identity
             .into_values()
-            .map(|mut totals| SoftwarePageRow {
-                identity_key: totals.identity_key,
-                display_name: totals.display_name,
-                process_name: totals.process_name,
-                executable_path: totals.executable_path,
-                app_ids: totals.app_ids,
-                total_runtime_seconds: merged_interval_seconds(&mut totals.total_intervals),
-                today_runtime_seconds: merged_interval_seconds(&mut totals.today_intervals),
-                total_focused_seconds: totals.total_focused_seconds,
-                today_focused_seconds: totals.today_focused_seconds,
-                last_opened_at: totals.last_opened_at,
-                mark: totals.mark,
+            .map(|mut totals| {
+                let legacy_runtime = SoftwareLegacyRuntimeSeconds {
+                    total_seconds: merged_interval_seconds(&mut totals.legacy_total_intervals),
+                    today_seconds: merged_interval_seconds(&mut totals.legacy_today_intervals),
+                };
+                let total_foreground_seconds =
+                    totals.total_foreground_seconds + legacy_runtime.total_seconds;
+                let today_foreground_seconds =
+                    totals.today_foreground_seconds + legacy_runtime.today_seconds;
+                let total_background_seconds = totals.total_background_seconds;
+                let today_background_seconds = totals.today_background_seconds;
+
+                SoftwarePageRow {
+                    identity_key: totals.identity_key,
+                    display_name: totals.display_name,
+                    process_name: totals.process_name,
+                    executable_path: totals.executable_path,
+                    app_ids: totals.app_ids,
+                    total_runtime_seconds: total_foreground_seconds + total_background_seconds,
+                    today_runtime_seconds: today_foreground_seconds + today_background_seconds,
+                    total_foreground_seconds,
+                    today_foreground_seconds,
+                    total_background_seconds,
+                    today_background_seconds,
+                    total_focused_seconds: totals.total_focused_seconds,
+                    today_focused_seconds: totals.today_focused_seconds,
+                    last_opened_at: totals.last_opened_at,
+                    mark: totals.mark,
+                }
             })
             .collect::<Vec<_>>();
 
@@ -1189,6 +1303,51 @@ impl Store {
         Ok(())
     }
 
+    pub fn increment_daily_software_runtime_usage(
+        &self,
+        date: NaiveDate,
+        identity_key: &str,
+        foreground_seconds: i64,
+        background_seconds: i64,
+        recorded_at: DateTime<Utc>,
+    ) -> StoreResult<()> {
+        let recorded_at = recorded_at.to_rfc3339();
+        self.conn.execute(
+            r#"
+            INSERT INTO daily_software_runtime_usage (
+                usage_date,
+                identity_key,
+                foreground_seconds,
+                background_seconds,
+                first_recorded_at,
+                last_recorded_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+            ON CONFLICT(usage_date, identity_key) DO UPDATE SET
+                foreground_seconds = foreground_seconds + excluded.foreground_seconds,
+                background_seconds = background_seconds + excluded.background_seconds,
+                first_recorded_at = CASE
+                    WHEN daily_software_runtime_usage.first_recorded_at < excluded.first_recorded_at
+                    THEN daily_software_runtime_usage.first_recorded_at
+                    ELSE excluded.first_recorded_at
+                END,
+                last_recorded_at = CASE
+                    WHEN daily_software_runtime_usage.last_recorded_at > excluded.last_recorded_at
+                    THEN daily_software_runtime_usage.last_recorded_at
+                    ELSE excluded.last_recorded_at
+                END
+            "#,
+            params![
+                date.to_string(),
+                identity_key,
+                foreground_seconds.max(0),
+                background_seconds.max(0),
+                recorded_at,
+            ],
+        )?;
+        Ok(())
+    }
+
     pub fn software_focus_seconds_for_date(
         &self,
         date: NaiveDate,
@@ -1206,6 +1365,33 @@ impl Store {
         Ok(seconds)
     }
 
+    fn software_runtime_seconds_for_date(
+        &self,
+        date: NaiveDate,
+    ) -> StoreResult<HashMap<String, SoftwareRuntimeSeconds>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT identity_key, foreground_seconds, background_seconds
+            FROM daily_software_runtime_usage
+            WHERE usage_date = ?1
+            "#,
+        )?;
+        let mut rows = stmt.query(params![date.to_string()])?;
+        let mut seconds = HashMap::new();
+
+        while let Some(row) = rows.next()? {
+            seconds.insert(
+                row.get::<_, String>(0)?,
+                SoftwareRuntimeSeconds {
+                    foreground_seconds: row.get(1)?,
+                    background_seconds: row.get(2)?,
+                },
+            );
+        }
+
+        Ok(seconds)
+    }
+
     fn total_software_focus_seconds_by_identity(&self) -> StoreResult<HashMap<String, i64>> {
         let mut stmt = self.conn.prepare(
             "SELECT identity_key, SUM(focused_seconds) FROM daily_software_focus_usage GROUP BY identity_key",
@@ -1218,6 +1404,55 @@ impl Store {
         }
 
         Ok(seconds)
+    }
+
+    fn total_software_runtime_seconds_by_identity(
+        &self,
+    ) -> StoreResult<HashMap<String, SoftwareRuntimeSeconds>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT identity_key, SUM(foreground_seconds), SUM(background_seconds)
+            FROM daily_software_runtime_usage
+            GROUP BY identity_key
+            "#,
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut seconds = HashMap::new();
+
+        while let Some(row) = rows.next()? {
+            seconds.insert(
+                row.get::<_, String>(0)?,
+                SoftwareRuntimeSeconds {
+                    foreground_seconds: row.get(1)?,
+                    background_seconds: row.get(2)?,
+                },
+            );
+        }
+
+        Ok(seconds)
+    }
+
+    fn software_runtime_first_recorded_at_by_identity_date(
+        &self,
+    ) -> StoreResult<HashMap<String, HashMap<NaiveDate, DateTime<Utc>>>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT identity_key, usage_date, first_recorded_at FROM daily_software_runtime_usage",
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut first_recorded_at_by_identity_date = HashMap::new();
+
+        while let Some(row) = rows.next()? {
+            let identity_key = row.get::<_, String>(0)?;
+            let usage_date = NaiveDate::parse_from_str(&row.get::<_, String>(1)?, "%Y-%m-%d")?;
+            let first_recorded_at =
+                DateTime::parse_from_rfc3339(&row.get::<_, String>(2)?)?.with_timezone(&Utc);
+            first_recorded_at_by_identity_date
+                .entry(identity_key)
+                .or_insert_with(HashMap::new)
+                .insert(usage_date, first_recorded_at);
+        }
+
+        Ok(first_recorded_at_by_identity_date)
     }
 
     fn software_identity_list_orders(
@@ -1491,6 +1726,13 @@ fn parse_optional_utc(value: Option<String>) -> Result<Option<DateTime<Utc>>, ch
     value
         .map(|value| DateTime::parse_from_rfc3339(&value).map(|dt| dt.with_timezone(&Utc)))
         .transpose()
+}
+
+fn latest_optional_datetime(
+    current: Option<DateTime<Utc>>,
+    candidate: DateTime<Utc>,
+) -> Option<DateTime<Utc>> {
+    Some(current.map_or(candidate, |value| value.max(candidate)))
 }
 
 pub fn normalize_identity_key(executable_path: &str, process_name: &str) -> String {

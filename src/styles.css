@@ -1528,7 +1528,7 @@ a:focus-visible {
 }
 
 .focused-table {
-  min-width: 1010px;
+  min-width: 1160px;
 }
 
 .focused-table-row {
@@ -1536,10 +1536,11 @@ a:focus-visible {
   grid-template-columns:
     var(--software-remove-column)
     minmax(220px, 1.35fr)
-    112px
-    106px
+    104px
+    104px
     126px
-    106px
+    104px
+    104px
     106px
     128px;
   min-height: 54px;
@@ -1562,6 +1563,7 @@ a:focus-visible {
   position: sticky;
   top: 0;
   z-index: 3;
+  --software-remove-column: 0px;
   min-height: 44px;
   background: rgba(255, 255, 255, 0.035);
   color: #c7d4e2;
@@ -1920,7 +1922,7 @@ a:focus-visible {
   }
 
   .focused-table {
-    min-width: 940px;
+    min-width: 1080px;
   }
 
   .focused-table-row {
@@ -1930,6 +1932,7 @@ a:focus-visible {
       104px
       96px
       116px
+      96px
       96px
       96px
       112px;

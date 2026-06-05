@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { AppRuntimeStatus, SoftwarePageRow } from "../api";
+import type { SoftwarePageRow } from "../api";
 import { formatDurationZh } from "../i18n";
 import { formatLastOpenedAt, highlightDisplayName, rankSoftwareRows } from "../softwareSearch";
 import { ActiveTimeHelpPopover } from "./ActiveTimeHelpPopover";
@@ -146,13 +146,14 @@ function FocusedSoftwareTable({
         <div className="focused-table-row focused-table-head">
           <span aria-hidden="true" />
           <span>软件</span>
-          <span>状态</span>
-          <span>今日运行</span>
+          <span>今日前台</span>
+          <span>今日后台</span>
           <span className="active-column-head">
             今日活跃
             <ActiveTimeHelpPopover />
           </span>
-          <span>共计运行</span>
+          <span>共计前台</span>
+          <span>共计后台</span>
           <span>共计活跃</span>
           <span>上次打开</span>
         </div>
@@ -166,13 +167,11 @@ function FocusedSoftwareTable({
                 <small>{row.process_name}</small>
               </span>
             </div>
-            <span className={`status-badge ${statusClassName(row.status)}`}>
-              <i aria-hidden="true" />
-              {statusLabel(row.status)}
-            </span>
-            <span>{formatDurationZh(row.today_runtime_seconds)}</span>
+            <span>{formatDurationZh(todayForegroundSeconds(row))}</span>
+            <span>{formatDurationZh(todayBackgroundSeconds(row))}</span>
             <span>{formatDurationZh(row.today_focused_seconds)}</span>
-            <span>{formatDurationZh(row.total_runtime_seconds)}</span>
+            <span>{formatDurationZh(totalForegroundSeconds(row))}</span>
+            <span>{formatDurationZh(totalBackgroundSeconds(row))}</span>
             <span>{formatDurationZh(row.total_focused_seconds)}</span>
             <span>{formatLastOpenedAt(row.last_opened_at)}</span>
           </div>
@@ -282,26 +281,18 @@ function SoftwareEmptyState({ title, description }: { title: string; description
   );
 }
 
-function statusLabel(status: AppRuntimeStatus): string {
-  if (status === "foreground") {
-    return "前台运行";
-  }
-
-  if (status === "background") {
-    return "后台运行";
-  }
-
-  return "未运行";
+function todayForegroundSeconds(row: SoftwarePageRow): number {
+  return row.today_foreground_seconds ?? row.today_runtime_seconds;
 }
 
-function statusClassName(status: AppRuntimeStatus): string {
-  if (status === "foreground") {
-    return "running";
-  }
+function todayBackgroundSeconds(row: SoftwarePageRow): number {
+  return row.today_background_seconds ?? 0;
+}
 
-  if (status === "background") {
-    return "background";
-  }
+function totalForegroundSeconds(row: SoftwarePageRow): number {
+  return row.total_foreground_seconds ?? row.total_runtime_seconds;
+}
 
-  return "closed";
+function totalBackgroundSeconds(row: SoftwarePageRow): number {
+  return row.total_background_seconds ?? 0;
 }

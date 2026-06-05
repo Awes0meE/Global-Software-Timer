@@ -376,8 +376,12 @@ describe("App", () => {
               process_name: "Code.exe",
               icon_data_url: null,
               today_runtime_seconds: 3600,
+              today_foreground_seconds: 2400,
+              today_background_seconds: 1200,
               today_focused_seconds: 1800,
               total_runtime_seconds: 7200,
+              total_foreground_seconds: 5400,
+              total_background_seconds: 1800,
               total_focused_seconds: 3600,
               last_opened_at: "2026-06-05T09:00:00Z",
               status: "foreground",
@@ -401,6 +405,15 @@ describe("App", () => {
 
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+
+    expect(await screen.findByText("今日前台")).toBeInTheDocument();
+    expect(screen.getByText("今日后台")).toBeInTheDocument();
+    expect(screen.getByText("今日活跃")).toBeInTheDocument();
+    expect(screen.getByText("共计前台")).toBeInTheDocument();
+    expect(screen.getByText("共计后台")).toBeInTheDocument();
+    expect(screen.getByText("共计活跃")).toBeInTheDocument();
+    expect(screen.queryByText("今日运行")).not.toBeInTheDocument();
+    expect(screen.queryByText("共计运行")).not.toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "什么是活跃时长" }));
 
     expect(screen.getByRole("dialog", { name: "什么是活跃时长？" })).toBeInTheDocument();
@@ -989,6 +1002,58 @@ describe("App", () => {
     fireEvent.keyDown(primaryButton, { key: "Tab" });
 
     expect(within(dialog).getByRole("button", { name: "关闭" })).toHaveFocus();
+  });
+
+  it("keeps the add dialog open with the exact conflict prompt when add rejects with a list conflict", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({
+          focused: [],
+          hidden: [],
+          discovered: [
+            {
+              identity_key: "app:bitdock",
+              display_name: "BitDock",
+              process_name: "BitDock.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 0,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 0,
+              last_opened_at: "2026-06-05T08:10:00Z",
+              status: "background",
+              mark: "none",
+            },
+          ],
+        });
+      }
+
+      if (command === "add_focused_software_identities") {
+        return Promise.reject("software_conflict_hidden");
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "添加特别关注" }));
+    const dialog = screen.getByRole("dialog", { name: "添加特别关注" });
+    fireEvent.click(within(dialog).getByText("BitDock"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "添加 1 个" }));
+
+    expect(
+      await within(dialog).findByText("该软件已加入隐藏列表哦！请先移出再尝试"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "添加特别关注" })).toBeInTheDocument();
+    expect(within(dialog).queryByText("添加失败，请重试。")).not.toBeInTheDocument();
   });
 
   it("keeps the add dialog open and shows a retry message when add rejects", async () => {

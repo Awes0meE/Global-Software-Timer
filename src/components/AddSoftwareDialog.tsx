@@ -90,8 +90,8 @@ export function AddSoftwareDialog({ rows, target, onClose, onSubmit }: Props) {
     try {
       await onSubmit(selectedKeys);
       onClose();
-    } catch {
-      setMessage("添加失败，请重试。");
+    } catch (error) {
+      setMessage(submitErrorMessage(error));
       setSubmitting(false);
     }
   };
@@ -231,6 +231,7 @@ function AddSoftwareRow({
       type="button"
       aria-pressed={selected}
       aria-disabled={disabled}
+      tabIndex={disabled ? -1 : 0}
       onClick={onClick}
     >
       <SoftwareIcon app={row} size="sm" />
@@ -293,4 +294,24 @@ function getConflictMessage(row: SoftwarePageRow): string | null {
   }
 
   return null;
+}
+
+function submitErrorMessage(error: unknown): string {
+  const message = String(error instanceof Error ? error.message : error);
+
+  if (
+    message.includes("software_conflict_hidden") ||
+    message.includes("already exists in hidden")
+  ) {
+    return hiddenConflictMessage;
+  }
+
+  if (
+    message.includes("software_conflict_focused") ||
+    message.includes("already exists in focused")
+  ) {
+    return focusedConflictMessage;
+  }
+
+  return "添加失败，请重试。";
 }
