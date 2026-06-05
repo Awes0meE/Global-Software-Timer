@@ -1,5 +1,7 @@
 use crate::classifier::{classify_process, Classification};
-use crate::domain::{AppIdentity, AppUsageSummary, DailySystemUsage, RunEventKind, UsageSession};
+use crate::domain::{
+    AppIdentity, AppUsageSummary, DailySystemUsage, RunEventKind, SoftwareIdentity, UsageSession,
+};
 use chrono::{DateTime, NaiveDate, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::{HashMap, HashSet};
@@ -16,6 +18,11 @@ pub enum StoreError {
     UnexpectedUpdateCount {
         operation: &'static str,
         count: usize,
+    },
+    #[error("software identity {identity_key} already exists in {conflicting_list}")]
+    SoftwareIdentityListConflict {
+        identity_key: String,
+        conflicting_list: &'static str,
     },
 }
 
@@ -83,6 +90,46 @@ impl Store {
                 recorded_seconds INTEGER NOT NULL DEFAULT 0,
                 active_seconds INTEGER NOT NULL DEFAULT 0,
                 tracker_uptime_seconds INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS software_identities (
+                identity_key TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                process_name TEXT NOT NULL,
+                representative_executable_path TEXT NOT NULL,
+                last_opened_at TEXT,
+                last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS software_identity_members (
+                identity_key TEXT NOT NULL,
+                app_id INTEGER NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (identity_key, app_id),
+                FOREIGN KEY(identity_key) REFERENCES software_identities(identity_key),
+                FOREIGN KEY(app_id) REFERENCES apps(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS focused_software_identities (
+                identity_key TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(identity_key) REFERENCES software_identities(identity_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS hidden_software_identities (
+                identity_key TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(identity_key) REFERENCES software_identities(identity_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS daily_software_focus_usage (
+                usage_date TEXT NOT NULL,
+                identity_key TEXT NOT NULL,
+                focused_seconds INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (usage_date, identity_key),
+                FOREIGN KEY(identity_key) REFERENCES software_identities(identity_key)
             );
 
             CREATE TABLE IF NOT EXISTS app_settings (
@@ -166,6 +213,285 @@ impl Store {
             .map_err(StoreError::from)
     }
 
+    fn find_app_by_id(&self, app_id: i64) -> StoreResult<Option<AppIdentity>> {
+        self.conn
+            .query_row(
+                "SELECT id, process_name, executable_path, display_name, normalized_key, is_hidden, is_user_renamed
+                 FROM apps WHERE id = ?1",
+                params![app_id],
+                |row| {
+                    Ok(AppIdentity {
+                        id: row.get(0)?,
+                        process_name: row.get(1)?,
+                        executable_path: row.get(2)?,
+                        display_name: row.get(3)?,
+                        normalized_key: row.get(4)?,
+                        is_hidden: row.get::<_, i64>(5)? != 0,
+                        is_user_renamed: row.get::<_, i64>(6)? != 0,
+                    })
+                },
+            )
+            .optional()
+            .map_err(StoreError::from)
+    }
+
+    pub fn software_identity_key_for_app(&self, app_id: i64) -> StoreResult<Option<String>> {
+        let Some(app) = self.find_app_by_id(app_id)? else {
+            return Ok(None);
+        };
+
+        Ok(Some(software_identity_parts_for_app(&app).identity_key))
+    }
+
+    pub fn upsert_software_identity_for_app(&self, app_id: i64) -> StoreResult<SoftwareIdentity> {
+        self.upsert_software_identity_for_app_with_started_at(app_id, None)
+    }
+
+    pub fn upsert_software_identity_for_app_started_at(
+        &self,
+        app_id: i64,
+        started_at: DateTime<Utc>,
+    ) -> StoreResult<SoftwareIdentity> {
+        self.upsert_software_identity_for_app_with_started_at(app_id, Some(started_at))
+    }
+
+    fn upsert_software_identity_for_app_with_started_at(
+        &self,
+        app_id: i64,
+        started_at: Option<DateTime<Utc>>,
+    ) -> StoreResult<SoftwareIdentity> {
+        let app = self
+            .find_app_by_id(app_id)?
+            .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+        let mut parts = software_identity_parts_for_app(&app);
+
+        if let Some(existing) = self.find_software_identity(&parts.identity_key)? {
+            if !should_prefer_executable_path(
+                &existing.representative_executable_path,
+                &parts.representative_executable_path,
+                &parts.display_name,
+                &parts.process_name,
+            ) {
+                parts.process_name = existing.process_name;
+                parts.representative_executable_path = existing.representative_executable_path;
+            }
+        }
+
+        let last_opened_at = started_at.map(|value| value.to_rfc3339());
+        self.conn.execute(
+            r#"
+            INSERT INTO software_identities (
+                identity_key,
+                display_name,
+                process_name,
+                representative_executable_path,
+                last_opened_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5)
+            ON CONFLICT(identity_key) DO UPDATE SET
+                display_name = excluded.display_name,
+                process_name = excluded.process_name,
+                representative_executable_path = excluded.representative_executable_path,
+                last_opened_at = CASE
+                    WHEN excluded.last_opened_at IS NULL THEN software_identities.last_opened_at
+                    WHEN software_identities.last_opened_at IS NULL THEN excluded.last_opened_at
+                    WHEN software_identities.last_opened_at < excluded.last_opened_at THEN excluded.last_opened_at
+                    ELSE software_identities.last_opened_at
+                END,
+                last_seen_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            "#,
+            params![
+                parts.identity_key,
+                parts.display_name,
+                parts.process_name,
+                parts.representative_executable_path,
+                last_opened_at
+            ],
+        )?;
+        self.conn.execute(
+            r#"
+            INSERT INTO software_identity_members (identity_key, app_id, updated_at)
+            VALUES (?1, ?2, CURRENT_TIMESTAMP)
+            ON CONFLICT(identity_key, app_id) DO UPDATE SET
+                updated_at = CURRENT_TIMESTAMP
+            "#,
+            params![parts.identity_key, app_id],
+        )?;
+
+        self.find_software_identity(&parts.identity_key)?
+            .ok_or(rusqlite::Error::QueryReturnedNoRows.into())
+    }
+
+    fn find_software_identity(&self, identity_key: &str) -> StoreResult<Option<SoftwareIdentity>> {
+        let row = self
+            .conn
+            .query_row(
+                r#"
+                SELECT identity_key,
+                       display_name,
+                       process_name,
+                       representative_executable_path,
+                       last_opened_at
+                FROM software_identities
+                WHERE identity_key = ?1
+                "#,
+                params![identity_key],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, Option<String>>(4)?,
+                    ))
+                },
+            )
+            .optional()?;
+
+        row.map(
+            |(
+                identity_key,
+                display_name,
+                process_name,
+                representative_executable_path,
+                last_opened_at,
+            )| {
+                Ok(SoftwareIdentity {
+                    identity_key,
+                    display_name,
+                    process_name,
+                    representative_executable_path,
+                    last_opened_at: parse_optional_utc(last_opened_at)?,
+                })
+            },
+        )
+        .transpose()
+    }
+
+    pub fn software_identity_member_ids(&self, identity_key: &str) -> StoreResult<Vec<i64>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT app_id FROM software_identity_members WHERE identity_key = ?1 ORDER BY app_id",
+        )?;
+        let rows = stmt.query_map(params![identity_key], |row| row.get::<_, i64>(0))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StoreError::from)
+    }
+
+    pub fn focused_software_identity_keys(&self) -> StoreResult<Vec<String>> {
+        self.software_identity_keys_from_list("focused_software_identities")
+    }
+
+    pub fn hidden_software_identity_keys(&self) -> StoreResult<Vec<String>> {
+        self.software_identity_keys_from_list("hidden_software_identities")
+    }
+
+    fn software_identity_keys_from_list(
+        &self,
+        table_name: &'static str,
+    ) -> StoreResult<Vec<String>> {
+        let sql =
+            format!("SELECT identity_key FROM {table_name} ORDER BY created_at DESC, rowid DESC");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StoreError::from)
+    }
+
+    pub fn software_identity_mark(&self, identity_key: &str) -> StoreResult<&'static str> {
+        if self.identity_exists_in_list("hidden_software_identities", identity_key)? {
+            return Ok("hidden");
+        }
+        if self.identity_exists_in_list("focused_software_identities", identity_key)? {
+            return Ok("focused");
+        }
+        Ok("none")
+    }
+
+    pub fn add_focused_software_identities(&self, identity_keys: &[String]) -> StoreResult<()> {
+        self.add_software_identities_to_list(
+            identity_keys,
+            "focused_software_identities",
+            "hidden_software_identities",
+            "hidden",
+        )
+    }
+
+    pub fn remove_focused_software_identity(&self, identity_key: &str) -> StoreResult<()> {
+        self.conn.execute(
+            "DELETE FROM focused_software_identities WHERE identity_key = ?1",
+            params![identity_key],
+        )?;
+        Ok(())
+    }
+
+    pub fn add_hidden_software_identities(&self, identity_keys: &[String]) -> StoreResult<()> {
+        self.add_software_identities_to_list(
+            identity_keys,
+            "hidden_software_identities",
+            "focused_software_identities",
+            "focused",
+        )
+    }
+
+    pub fn remove_hidden_software_identity(&self, identity_key: &str) -> StoreResult<()> {
+        self.conn.execute(
+            "DELETE FROM hidden_software_identities WHERE identity_key = ?1",
+            params![identity_key],
+        )?;
+        Ok(())
+    }
+
+    fn add_software_identities_to_list(
+        &self,
+        identity_keys: &[String],
+        target_table: &'static str,
+        conflict_table: &'static str,
+        conflicting_list: &'static str,
+    ) -> StoreResult<()> {
+        self.conn.execute_batch("BEGIN IMMEDIATE")?;
+        let result = (|| {
+            for identity_key in identity_keys {
+                if self.identity_exists_in_list(conflict_table, identity_key)? {
+                    return Err(StoreError::SoftwareIdentityListConflict {
+                        identity_key: identity_key.clone(),
+                        conflicting_list,
+                    });
+                }
+            }
+
+            let sql = format!("INSERT OR IGNORE INTO {target_table} (identity_key) VALUES (?1)");
+            for identity_key in identity_keys {
+                self.conn.execute(&sql, params![identity_key])?;
+            }
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                self.conn.execute_batch("COMMIT")?;
+                Ok(())
+            }
+            Err(error) => {
+                let _ = self.conn.execute_batch("ROLLBACK");
+                Err(error)
+            }
+        }
+    }
+
+    fn identity_exists_in_list(
+        &self,
+        table_name: &'static str,
+        identity_key: &str,
+    ) -> StoreResult<bool> {
+        let sql = format!("SELECT 1 FROM {table_name} WHERE identity_key = ?1 LIMIT 1");
+        self.conn
+            .query_row(&sql, params![identity_key], |_| Ok(()))
+            .optional()
+            .map(|row| row.is_some())
+            .map_err(StoreError::from)
+    }
+
     pub fn insert_run_event(
         &self,
         app_id: Option<i64>,
@@ -180,6 +506,26 @@ impl Store {
     }
 
     pub fn start_session(&self, app_id: i64, now: DateTime<Utc>) -> StoreResult<i64> {
+        self.conn.execute_batch("BEGIN IMMEDIATE")?;
+        let result = (|| {
+            let session_id = self.insert_session_row(app_id, now)?;
+            self.upsert_software_identity_for_app_started_at(app_id, now)?;
+            Ok(session_id)
+        })();
+
+        match result {
+            Ok(session_id) => {
+                self.conn.execute_batch("COMMIT")?;
+                Ok(session_id)
+            }
+            Err(error) => {
+                let _ = self.conn.execute_batch("ROLLBACK");
+                Err(error)
+            }
+        }
+    }
+
+    fn insert_session_row(&self, app_id: i64, now: DateTime<Utc>) -> StoreResult<i64> {
         self.conn.execute(
             "INSERT INTO usage_sessions (app_id, started_at, last_heartbeat_at)
              VALUES (?1, ?2, ?2)",
@@ -196,7 +542,8 @@ impl Store {
     ) -> StoreResult<i64> {
         self.conn.execute_batch("BEGIN IMMEDIATE")?;
         let result = (|| {
-            let session_id = self.start_session(app_id, now)?;
+            let session_id = self.insert_session_row(app_id, now)?;
+            self.upsert_software_identity_for_app_started_at(app_id, now)?;
             self.insert_run_event(Some(app_id), RunEventKind::AppSeenStarted, payload_json)?;
             Ok(session_id)
         })();
@@ -686,6 +1033,54 @@ impl Store {
         )?;
         Ok(())
     }
+}
+
+struct SoftwareIdentityParts {
+    identity_key: String,
+    display_name: String,
+    process_name: String,
+    representative_executable_path: String,
+}
+
+fn software_identity_parts_for_app(app: &AppIdentity) -> SoftwareIdentityParts {
+    let display_name = display_name_for_app(app);
+    let identity_key = if is_wps_suite_component(&app.process_name) {
+        "known:wps-office".to_string()
+    } else {
+        format!("app:{}", app.normalized_key)
+    };
+    let representative_executable_path =
+        representative_executable_path(&display_name, &app.executable_path);
+
+    SoftwareIdentityParts {
+        identity_key,
+        display_name,
+        process_name: app.process_name.clone(),
+        representative_executable_path,
+    }
+}
+
+fn display_name_for_app(app: &AppIdentity) -> String {
+    match classify_process(&app.process_name, &app.executable_path) {
+        Classification::Hidden => app.display_name.clone(),
+        Classification::Tracked { display_name: _ } if app.is_user_renamed => {
+            app.display_name.clone()
+        }
+        Classification::Tracked { display_name } => display_name,
+    }
+}
+
+fn is_wps_suite_component(process_name: &str) -> bool {
+    matches!(
+        process_name.trim().to_lowercase().as_str(),
+        "wps.exe" | "et.exe" | "wpp.exe" | "wpspdf.exe"
+    )
+}
+
+fn parse_optional_utc(value: Option<String>) -> Result<Option<DateTime<Utc>>, chrono::ParseError> {
+    value
+        .map(|value| DateTime::parse_from_rfc3339(&value).map(|dt| dt.with_timezone(&Utc)))
+        .transpose()
 }
 
 pub fn normalize_identity_key(executable_path: &str, process_name: &str) -> String {
