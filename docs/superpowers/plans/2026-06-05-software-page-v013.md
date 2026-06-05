@@ -2549,4 +2549,3 @@ Type consistency:
 - Backend uses `identity_key` and frontend uses `identity_key`.
 - Backend commands use `focused_software_identities` and `hidden_software_identities`.
 - Frontend API wrapper names mirror backend command names.
-
