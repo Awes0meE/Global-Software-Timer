@@ -1089,6 +1089,205 @@ a:focus-visible {
   font-size: 12px;
 }
 
+.add-software-dialog {
+  display: grid;
+  width: min(720px, 100%);
+  max-height: calc(100dvh - 48px);
+  min-height: min(620px, calc(100dvh - 48px));
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid rgba(136, 166, 193, 0.34);
+  border-radius: 8px;
+  background: #0f1f2d;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5);
+}
+
+.add-software-head {
+  display: flex;
+  min-height: 62px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid rgba(116, 145, 170, 0.14);
+  padding: 0 18px 0 22px;
+}
+
+.add-software-head h2 {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.add-software-close {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  cursor: pointer;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #dbe5ef;
+}
+
+.add-software-close:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+}
+
+.add-software-close:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.add-software-search-wrap {
+  border-bottom: 1px solid rgba(116, 145, 170, 0.14);
+  padding: 14px 18px;
+}
+
+.add-software-search {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(136, 166, 193, 0.24);
+  border-radius: 8px;
+  background: rgba(4, 12, 19, 0.48);
+  color: #eef6ff;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.add-software-search::placeholder {
+  color: #718196;
+}
+
+.add-software-results {
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+  align-content: start;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.add-software-results:focus-visible,
+.add-software-search:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+
+.add-software-row {
+  display: grid;
+  width: 100%;
+  min-height: 64px;
+  grid-template-columns: 32px minmax(0, 1fr) auto 108px;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  border: 0;
+  border-bottom: 1px solid rgba(116, 145, 170, 0.14);
+  background: transparent;
+  color: #dce7f2;
+  padding: 0 18px;
+  text-align: left;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.add-software-row:hover {
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.add-software-row.is-selected {
+  background: rgba(76, 141, 255, 0.24);
+  box-shadow: inset 4px 0 0 var(--blue);
+}
+
+.add-software-row.is-selected:hover {
+  background: rgba(76, 141, 255, 0.3);
+}
+
+.add-software-row.is-disabled {
+  cursor: not-allowed;
+  color: #aebccc;
+}
+
+.add-software-row.is-disabled:hover {
+  background: rgba(168, 182, 199, 0.055);
+}
+
+.add-software-row > span {
+  min-width: 0;
+}
+
+.add-software-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.add-software-copy strong,
+.add-software-copy small,
+.add-software-last-opened {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.add-software-copy strong {
+  min-width: 0;
+  color: #f5f8ff;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.add-software-copy small,
+.add-software-last-opened {
+  color: #91a0b1;
+  font-size: 12px;
+}
+
+.add-software-copy mark {
+  border-radius: 3px;
+  background: rgba(242, 189, 66, 0.2);
+  color: #ffe4a3;
+  padding: 0 1px;
+}
+
+.add-software-last-opened {
+  justify-self: end;
+  text-align: right;
+}
+
+.add-software-footer {
+  display: grid;
+  min-height: 70px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid rgba(116, 145, 170, 0.14);
+  padding: 14px 18px;
+}
+
+.add-software-message {
+  margin: 0;
+  color: #f4d898;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.add-software-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .close-dialog-actions {
   display: flex;
   justify-content: flex-end;
@@ -1742,6 +1941,29 @@ a:focus-visible {
     justify-content: space-between;
     gap: 12px;
     padding: 0 14px;
+  }
+
+  .add-software-dialog {
+    width: 100%;
+    max-height: calc(100dvh - 28px);
+    min-height: min(560px, calc(100dvh - 28px));
+  }
+
+  .add-software-backdrop {
+    padding: 14px;
+  }
+
+  .add-software-row {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    padding: 0 14px;
+  }
+
+  .add-software-last-opened {
+    display: none;
+  }
+
+  .add-software-footer {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
