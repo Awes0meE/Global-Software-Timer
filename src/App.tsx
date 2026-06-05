@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import packageJson from "../package.json";
 import {
@@ -68,35 +68,36 @@ export default function App() {
   const [closeDialogError, setCloseDialogError] = useState<string | null>(null);
   const [closeChoiceBusy, setCloseChoiceBusy] = useState(false);
   const [closeBehavior, setCloseBehavior] = useState<CloseBehavior>(defaultCloseBehavior);
+  const dashboardMountedRef = useRef(false);
   const closePreferenceRef = useRef<CloseBehavior>(defaultCloseBehavior);
   const closeBehaviorConfiguredRef = useRef(false);
 
+  const loadDashboard = useCallback(async () => {
+    try {
+      const nextSummary = await getDashboardSummary();
+
+      if (dashboardMountedRef.current) {
+        setSummary(nextSummary);
+        setError(null);
+      }
+    } catch {
+      if (dashboardMountedRef.current) {
+        setError(dashboardLoadError);
+      }
+    }
+  }, []);
+
   useEffect(() => {
-    let cancelled = false;
+    dashboardMountedRef.current = true;
 
-    const loadDashboard = () => {
-      getDashboardSummary()
-        .then((nextSummary) => {
-          if (!cancelled) {
-            setSummary(nextSummary);
-            setError(null);
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setError(dashboardLoadError);
-          }
-        });
-    };
-
-    loadDashboard();
-    const refreshId = window.setInterval(loadDashboard, dashboardRefreshIntervalMs);
+    void loadDashboard();
+    const refreshId = window.setInterval(() => void loadDashboard(), dashboardRefreshIntervalMs);
 
     return () => {
-      cancelled = true;
+      dashboardMountedRef.current = false;
       window.clearInterval(refreshId);
     };
-  }, []);
+  }, [loadDashboard]);
 
   useEffect(() => {
     let cancelled = false;
@@ -371,7 +372,7 @@ export default function App() {
               onCloseBehaviorToggle={handleCloseBehaviorToggle}
             />
           ) : activePage === "software" ? (
-            <SoftwarePage />
+            <SoftwarePage onDefaultSummariesChanged={loadDashboard} />
           ) : (
             <main className="overview-page" id="overview-content">
               {error ? <div className="warning">{error}</div> : null}

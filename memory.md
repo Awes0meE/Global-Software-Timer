@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-06-04
+Last updated: 2026-06-05
 
 ## Product Decisions
 
@@ -16,8 +16,9 @@ Last updated: 2026-06-04
 - v0.1.2 adds a Settings page with startup-at-login and close-window behavior controls.
 - Startup at login defaults to enabled in v0.1.2, uses the current-user autostart mechanism, and does not require administrator permission.
 - First window close still asks whether to exit or minimize to tray; the choice is saved automatically and can be changed later in Settings.
-- Planned v0.1.3 scope: make the left-nav `软件` page real, with `特别关注`, `隐藏软件列表`, and read-only `已发现软件`.
+- v0.1.3 implements the `软件` page with `特别关注`, `隐藏软件列表`, read-only `已发现软件`, local pinyin-capable search, and software-page focused active time.
 - `隐藏软件列表` is a global display filter: GST still records the software locally, but default summaries, rankings, distributions, and future report-style pages exclude it unless a future view explicitly includes hidden software.
+- Hidden add/remove changes refresh the default dashboard summaries immediately so hidden software leaves the overview without waiting for the normal polling interval.
 - `特别关注` and `隐藏软件列表` are mutually exclusive. If abnormal data creates a conflict, hidden wins as the defensive fallback.
 - v0.1.3 software-page active time means the software identity has Windows foreground focus. It is separate from the overview page's current keyboard/mouse active-time semantics.
 
@@ -36,9 +37,9 @@ Last updated: 2026-06-04
 
 ## Privacy Decisions
 
-- v0.1.2 records app identity, app runtime, daily recorded computer time, daily active computer time, and local app settings.
-- v0.1.2 does not record window titles, document names, webpage titles, keystrokes, mouse coordinates, file contents, browser history, or cloud data.
-- v0.1.2 does not upload data or require an account.
+- v0.1.3 records app identity, app runtime, daily recorded computer time, daily active computer time, software-page marks, software-page focused active time, and local app settings.
+- v0.1.3 does not record window titles, document names, webpage titles, keystrokes, mouse coordinates, file contents, browser history, or cloud data.
+- v0.1.3 does not upload data or require an account.
 
 ## Product Strategy
 
@@ -54,6 +55,7 @@ Last updated: 2026-06-04
 - Settings/autostart spec and implementation plan committed:
   - `docs/superpowers/specs/2026-06-04-settings-autostart-design.md`
   - `docs/superpowers/plans/2026-06-04-settings-autostart.md`
+- v0.1.3 implementation work is on branch `codex/software-page-v013`; no GitHub release or tag exists for v0.1.3 yet.
 - Karpathy Guidelines skill is already installed at `C:\Users\123\.codex\skills\karpathy-guidelines`.
 - Requested execution mode: Superpowers subagent-driven development.
 - Local toolchain prepared on 2026-05-28:
@@ -70,6 +72,7 @@ Last updated: 2026-06-04
 - `v0.1.0` was the initial Windows-first GitHub release on 2026-05-30.
 - `v0.1.1` is the first stability patch release, published on GitHub on 2026-05-31.
 - `v0.1.2` adds Settings, default-on current-user startup at login, and close-window behavior controls; it was published on GitHub on 2026-06-04.
+- `v0.1.3` is implemented on branch `codex/software-page-v013` but is not released or tagged yet.
 - Release bundles are built with `npm run tauri:build`.
 
 ## Historical Implementation Plan

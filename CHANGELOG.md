@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added the `软件` page with focused software, hidden software, discovered software, and local search.
+- Added software-page focused active time based on the foreground Windows-focused software identity, without changing overview active-time semantics.
+- Added hidden software filtering for default dashboard summaries while preserving local raw history.
+
 ## v0.1.2 - 2026-06-04
 
 - Added a Settings page while keeping the existing left navigation layout.

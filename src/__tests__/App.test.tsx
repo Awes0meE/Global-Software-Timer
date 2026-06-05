@@ -568,6 +568,68 @@ describe("App", () => {
     expect(await screen.findAllByText("已隐藏")).not.toHaveLength(0);
   });
 
+  it("refreshes overview data after hidden software changes", async () => {
+    let softwareCalls = 0;
+    let dashboardCalls = 0;
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_software_page_summary") {
+        softwareCalls += 1;
+        return Promise.resolve({
+          focused: [],
+          hidden: [],
+          discovered: [
+            {
+              identity_key: "app:bitdock",
+              display_name: "BitDock",
+              process_name: "BitDock.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 3600,
+              today_focused_seconds: 0,
+              total_runtime_seconds: 7200,
+              total_focused_seconds: 0,
+              last_opened_at: "2026-06-05T08:10:00Z",
+              status: "background",
+              mark: "none",
+            },
+          ],
+        });
+      }
+
+      if (command === "add_hidden_software_identities") {
+        return Promise.resolve(undefined);
+      }
+
+      if (command === "get_dashboard_summary") {
+        dashboardCalls += 1;
+        return Promise.resolve({
+          product_title: "全局软件计时器",
+          locale: "zh-CN",
+          most_used: null,
+          recorded_today_seconds: 0,
+          active_today_seconds: 0,
+          apps: [],
+        });
+      }
+
+      return Promise.resolve({
+        close_behavior: "minimize_to_tray",
+        close_behavior_configured: false,
+        autostart_enabled: true,
+        autostart_configured: false,
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "添加隐藏软件" }));
+    const dialog = screen.getByRole("dialog", { name: "添加隐藏软件" });
+    fireEvent.click(within(dialog).getByText("BitDock"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "添加 1 个" }));
+
+    await waitFor(() => expect(softwareCalls).toBeGreaterThan(1));
+    expect(dashboardCalls).toBeGreaterThan(1);
+  });
+
   it("shows a conflict prompt for mutually exclusive software in the add dialog", async () => {
     mockInvoke.mockImplementation((command) => {
       if (command === "get_software_page_summary") {
