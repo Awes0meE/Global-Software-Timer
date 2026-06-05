@@ -96,8 +96,8 @@ Global Software Timer（全局软件计时器）是一款本地优先的 Windows
 
 推荐下载：
 
-- `Global Software Timer_0.1.3_x64-setup.exe`
-- `Global Software Timer_0.1.3_x64_en-US.msi`
+- `Global.Software.Timer_0.1.3_x64-setup.exe`
+- `Global.Software.Timer_0.1.3_x64_en-US.msi`
 
 > 当前安装包未签名，Windows 首次安装时可能会显示 SmartScreen 提示。
 
@@ -266,8 +266,8 @@ Download the Windows x64 installer from [v0.1.3 Release](https://github.com/Awes
 
 Available bundles:
 
-- `Global Software Timer_0.1.3_x64-setup.exe`
-- `Global Software Timer_0.1.3_x64_en-US.msi`
+- `Global.Software.Timer_0.1.3_x64-setup.exe`
+- `Global.Software.Timer_0.1.3_x64_en-US.msi`
 
 > The current Windows installers are unsigned, so Windows may show a SmartScreen warning on first install.
 
