@@ -12,6 +12,23 @@ pub struct AppIdentity {
     pub is_user_renamed: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SoftwareIdentity {
+    pub identity_key: String,
+    pub display_name: String,
+    pub process_name: String,
+    pub representative_executable_path: String,
+    pub last_opened_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SoftwareMark {
+    None,
+    Focused,
+    Hidden,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RunEventKind {
     TrackerStarted,

@@ -606,3 +606,224 @@ fn settings_round_trip_and_can_be_removed() {
         None
     );
 }
+
+#[test]
+fn migrate_creates_software_identity_tables() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+
+    let tables = store.table_names().expect("table names");
+    assert!(tables.contains(&"software_identities".to_string()));
+    assert!(tables.contains(&"software_identity_members".to_string()));
+    assert!(tables.contains(&"focused_software_identities".to_string()));
+    assert!(tables.contains(&"hidden_software_identities".to_string()));
+    assert!(tables.contains(&"daily_software_focus_usage".to_string()));
+}
+
+#[test]
+fn software_identity_groups_wps_components_under_one_key() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let wps = store
+        .upsert_app("wps.exe", r"C:\Kingsoft\WPS Office\office6\wps.exe", "wps")
+        .expect("wps");
+    let sheet = store
+        .upsert_app("et.exe", r"C:\Kingsoft\WPS Office\office6\et.exe", "et")
+        .expect("sheet");
+
+    let first = store
+        .upsert_software_identity_for_app(wps.id)
+        .expect("first identity");
+    let second = store
+        .upsert_software_identity_for_app(sheet.id)
+        .expect("second identity");
+
+    assert_eq!(first.identity_key, "known:wps-office");
+    assert_eq!(second.identity_key, first.identity_key);
+    assert_eq!(first.display_name, "WPS Office");
+    assert_eq!(
+        store
+            .software_identity_member_ids("known:wps-office")
+            .expect("members"),
+        vec![wps.id, sheet.id]
+    );
+}
+
+#[test]
+fn start_session_rolls_back_when_identity_cache_refresh_fails() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("app");
+    let schema_conn = rusqlite::Connection::open(db_file.path()).expect("open schema conn");
+    schema_conn
+        .execute("DROP TABLE software_identity_members", [])
+        .expect("drop members table");
+    drop(schema_conn);
+
+    let started_at = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    let result = store.start_session(app.id, started_at);
+
+    assert!(result.is_err());
+    assert!(store.all_sessions().expect("sessions").is_empty());
+}
+
+#[test]
+fn start_session_updates_identity_membership_and_keeps_latest_opened_time() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("app");
+    let started_at = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    let older_opened_at = Utc.with_ymd_and_hms(2026, 6, 5, 8, 0, 0).unwrap();
+
+    store.start_session(app.id, started_at).expect("start");
+    let identity_key = store
+        .software_identity_key_for_app(app.id)
+        .expect("identity key")
+        .expect("identity key exists");
+    assert_eq!(
+        store
+            .software_identity_member_ids(&identity_key)
+            .expect("members"),
+        vec![app.id]
+    );
+
+    let identity = store
+        .upsert_software_identity_for_app_started_at(app.id, older_opened_at)
+        .expect("older identity upsert");
+    assert_eq!(identity.last_opened_at, Some(started_at));
+}
+
+#[test]
+fn focused_and_hidden_identity_lists_are_mutually_exclusive_and_sorted_newest_first() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let code = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("code");
+    let chrome = store
+        .upsert_app("chrome.exe", r"C:\Chrome\chrome.exe", "Google Chrome")
+        .expect("chrome");
+    let code_identity = store
+        .upsert_software_identity_for_app(code.id)
+        .expect("code identity");
+    let chrome_identity = store
+        .upsert_software_identity_for_app(chrome.id)
+        .expect("chrome identity");
+
+    store
+        .add_focused_software_identities(&[code_identity.identity_key.clone()])
+        .expect("focus code");
+    store
+        .add_focused_software_identities(&[chrome_identity.identity_key.clone()])
+        .expect("focus chrome");
+
+    let focused = store
+        .focused_software_identity_keys()
+        .expect("focused rows");
+    assert_eq!(
+        focused,
+        vec![
+            chrome_identity.identity_key.clone(),
+            code_identity.identity_key.clone()
+        ]
+    );
+
+    let hidden_result = store.add_hidden_software_identities(&[code_identity.identity_key]);
+    assert!(hidden_result.is_err());
+}
+
+#[test]
+fn focused_identity_mixed_batch_conflict_rolls_back_valid_keys() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let code = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("code");
+    let chrome = store
+        .upsert_app("chrome.exe", r"C:\Chrome\chrome.exe", "Google Chrome")
+        .expect("chrome");
+    let code_identity = store
+        .upsert_software_identity_for_app(code.id)
+        .expect("code identity");
+    let chrome_identity = store
+        .upsert_software_identity_for_app(chrome.id)
+        .expect("chrome identity");
+
+    store
+        .add_hidden_software_identities(&[code_identity.identity_key.clone()])
+        .expect("hide code");
+    let result = store.add_focused_software_identities(&[
+        chrome_identity.identity_key.clone(),
+        code_identity.identity_key.clone(),
+    ]);
+
+    assert!(result.is_err());
+    assert!(store
+        .focused_software_identity_keys()
+        .expect("focused rows")
+        .is_empty());
+}
+
+#[test]
+fn hidden_conflict_wins_when_reading_identity_mark() {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let store = Store::open(db_file.path()).expect("open store");
+    store.migrate().expect("migrate");
+    let app = store
+        .upsert_app(
+            "Code.exe",
+            r"C:\Tools\VS Code\Code.exe",
+            "Visual Studio Code",
+        )
+        .expect("app");
+    let identity = store
+        .upsert_software_identity_for_app(app.id)
+        .expect("identity");
+
+    let conflict_conn = rusqlite::Connection::open(db_file.path()).expect("open conflict conn");
+    conflict_conn
+        .execute(
+            "INSERT INTO focused_software_identities (identity_key) VALUES (?1)",
+            [&identity.identity_key],
+        )
+        .expect("force focus");
+    conflict_conn
+        .execute(
+            "INSERT INTO hidden_software_identities (identity_key) VALUES (?1)",
+            [&identity.identity_key],
+        )
+        .expect("force hidden");
+
+    assert_eq!(
+        store
+            .software_identity_mark(&identity.identity_key)
+            .expect("mark"),
+        "hidden"
+    );
+}
