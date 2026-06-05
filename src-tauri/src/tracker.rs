@@ -241,6 +241,14 @@ where
                 .increment_daily_app_usage(usage_date, app_id, 0, active_seconds)?;
         }
     }
+    if let Some(app_id) = foreground_app_id {
+        let identity = tracker.store().upsert_software_identity_for_app(app_id)?;
+        tracker.store().increment_daily_software_focus_usage(
+            usage_date,
+            &identity.identity_key,
+            seconds,
+        )?;
+    }
 
     scan_result.map(|_| ())
 }
