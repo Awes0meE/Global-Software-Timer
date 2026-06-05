@@ -26,6 +26,7 @@ import {
 } from "./api";
 import { AppUsageTable } from "./components/AppUsageTable";
 import { RecentActivity } from "./components/RecentActivity";
+import { SoftwarePage } from "./components/SoftwarePage";
 import { SummaryCards } from "./components/SummaryCards";
 import { TodayMix } from "./components/TodayMix";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
@@ -43,11 +44,11 @@ const dashboardLoadError = "无法读取本地数据";
 const dashboardRefreshIntervalMs = 5000;
 const defaultCloseBehavior: CloseBehavior = "minimize_to_tray";
 
-type PageId = "overview" | "settings";
+type PageId = "overview" | "settings" | "software";
 
 const navItems = [
   { id: "overview", label: "概览", icon: Home, available: true },
-  { id: "software", label: "软件", icon: Monitor, available: false },
+  { id: "software", label: "软件", icon: Monitor, available: true },
   { id: "statistics", label: "统计", icon: BarChart3, available: false },
   { id: "timeline", label: "时间轴", icon: Clock3, available: false },
   { id: "daily", label: "日报", icon: CalendarDays, available: false },
@@ -279,7 +280,12 @@ export default function App() {
     }
   };
 
-  const contentId = activePage === "settings" ? "settings-content" : "overview-content";
+  const contentId =
+    activePage === "settings"
+      ? "settings-content"
+      : activePage === "software"
+        ? "software-content"
+        : "overview-content";
 
   return (
     <div className="desktop-root">
@@ -364,6 +370,8 @@ export default function App() {
               onAutostartToggle={handleAutostartToggle}
               onCloseBehaviorToggle={handleCloseBehaviorToggle}
             />
+          ) : activePage === "software" ? (
+            <SoftwarePage />
           ) : (
             <main className="overview-page" id="overview-content">
               {error ? <div className="warning">{error}</div> : null}
