@@ -275,6 +275,62 @@ describe("App", () => {
     expect(container.querySelector(".trophy-visual span")).not.toBeInTheDocument();
   });
 
+  it("uses the selected duration format across overview duration displays", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_app_settings") {
+        return Promise.resolve({
+          close_behavior: "minimize_to_tray",
+          close_behavior_configured: false,
+          autostart_enabled: true,
+          autostart_configured: false,
+          duration_format: "hours_minutes",
+          duration_format_configured: true,
+        });
+      }
+
+      if (command === "set_autostart_preference") {
+        return Promise.resolve(undefined);
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: {
+          app_id: 1,
+          display_name: "Visual Studio Code",
+          process_name: "Code.exe",
+          icon_data_url: null,
+          total_seconds: 8 * 3600 + 35 * 60,
+          today_seconds: 90 * 60,
+          active_today_seconds: 42 * 60,
+          status: "foreground",
+          is_running: true,
+        },
+        recorded_today_seconds: 8 * 3600 + 35 * 60,
+        active_today_seconds: 42 * 60,
+        apps: [
+          {
+            app_id: 1,
+            display_name: "Visual Studio Code",
+            process_name: "Code.exe",
+            icon_data_url: null,
+            total_seconds: 8 * 3600 + 35 * 60,
+            today_seconds: 90 * 60,
+            active_today_seconds: 42 * 60,
+            status: "foreground",
+            is_running: true,
+          },
+        ],
+      });
+    });
+
+    render(<App />);
+
+    expect(await screen.findAllByText("8小时35分钟")).not.toHaveLength(0);
+    expect(screen.getAllByText("1小时30分钟").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("42分钟").length).toBeGreaterThan(0);
+  });
+
   it("removes duplicated settings and statistics actions from the top right header", async () => {
     const { container } = render(<App />);
 
@@ -418,6 +474,67 @@ describe("App", () => {
 
     expect(screen.getByRole("dialog", { name: "什么是活跃时长？" })).toBeInTheDocument();
     expect(screen.getByText(/运行时长表示软件被 GST 记录为正在运行的时间/)).toBeInTheDocument();
+  });
+
+  it("uses the selected duration format on the focused software page", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_app_settings") {
+        return Promise.resolve({
+          close_behavior: "minimize_to_tray",
+          close_behavior_configured: false,
+          autostart_enabled: true,
+          autostart_configured: false,
+          duration_format: "hours_minutes",
+          duration_format_configured: true,
+        });
+      }
+
+      if (command === "get_software_page_summary") {
+        return Promise.resolve({
+          focused: [
+            {
+              identity_key: "app:code",
+              display_name: "Visual Studio Code",
+              process_name: "Code.exe",
+              icon_data_url: null,
+              today_runtime_seconds: 90 * 60,
+              today_foreground_seconds: 60 * 60,
+              today_background_seconds: 30 * 60,
+              today_focused_seconds: 90 * 60,
+              total_runtime_seconds: 8 * 3600 + 35 * 60,
+              total_foreground_seconds: 8 * 3600,
+              total_background_seconds: 35 * 60,
+              total_focused_seconds: 90 * 60,
+              last_opened_at: "2026-06-05T09:00:00Z",
+              status: "foreground",
+              mark: "focused",
+            },
+          ],
+          hidden: [],
+          discovered: [],
+        });
+      }
+
+      if (command === "set_autostart_preference") {
+        return Promise.resolve(undefined);
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "软件" }));
+
+    expect(await screen.findAllByText("1小时30分钟")).not.toHaveLength(0);
+    expect(screen.getByText("8小时")).toBeInTheDocument();
+    expect(screen.getByText("35分钟")).toBeInTheDocument();
   });
 
   it("shows the approved hidden row secondary copy", async () => {
@@ -1230,6 +1347,133 @@ describe("App", () => {
       }),
     );
     expect(closeSwitch).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("renders the duration minutes switch off by default", async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const durationSwitch = screen.getByRole("switch", { name: "显示分钟数" });
+
+    await waitFor(() => expect(durationSwitch).not.toBeDisabled());
+    expect(durationSwitch).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("开启后将会显示具体分钟数，如“8小时35分钟”")).toBeInTheDocument();
+    expect(screen.getAllByText("已关闭").length).toBeGreaterThan(0);
+  });
+
+  it("saves hours-minutes duration display from the settings switch", async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const durationSwitch = screen.getByRole("switch", { name: "显示分钟数" });
+    await waitFor(() => expect(durationSwitch).not.toBeDisabled());
+
+    fireEvent.click(durationSwitch);
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("set_duration_format_preference", {
+        durationFormat: "hours_minutes",
+      }),
+    );
+    expect(durationSwitch).toHaveAttribute("aria-checked", "true");
+    expect(screen.getAllByText("已开启").length).toBeGreaterThan(0);
+  });
+
+  it("prevents concurrent duration display saves", async () => {
+    const durationSave = createDeferred<void>();
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_app_settings") {
+        return Promise.resolve({
+          close_behavior: "minimize_to_tray",
+          close_behavior_configured: false,
+          autostart_enabled: true,
+          autostart_configured: false,
+          duration_format: "decimal_hours",
+          duration_format_configured: false,
+        });
+      }
+
+      if (command === "set_duration_format_preference") {
+        return durationSave.promise;
+      }
+
+      if (command === "set_autostart_preference") {
+        return Promise.resolve(undefined);
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const durationSwitch = screen.getByRole("switch", { name: "显示分钟数" });
+    await waitFor(() => expect(durationSwitch).not.toBeDisabled());
+
+    fireEvent.click(durationSwitch);
+
+    await waitFor(() => expect(durationSwitch).toBeDisabled());
+    fireEvent.click(durationSwitch);
+    expect(
+      mockInvoke.mock.calls.filter(([command]) => command === "set_duration_format_preference"),
+    ).toHaveLength(1);
+    expect(mockInvoke).toHaveBeenCalledWith("set_duration_format_preference", {
+      durationFormat: "hours_minutes",
+    });
+
+    durationSave.resolve(undefined);
+    await waitFor(() => expect(durationSwitch).not.toBeDisabled());
+    expect(durationSwitch).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("rolls back the duration display switch when saving fails", async () => {
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_app_settings") {
+        return Promise.resolve({
+          close_behavior: "minimize_to_tray",
+          close_behavior_configured: false,
+          autostart_enabled: true,
+          autostart_configured: false,
+          duration_format: "decimal_hours",
+          duration_format_configured: false,
+        });
+      }
+
+      if (command === "set_duration_format_preference") {
+        return Promise.reject(new Error("locked"));
+      }
+
+      if (command === "set_autostart_preference") {
+        return Promise.resolve(undefined);
+      }
+
+      return Promise.resolve({
+        product_title: "全局软件计时器",
+        locale: "zh-CN",
+        most_used: null,
+        recorded_today_seconds: 0,
+        active_today_seconds: 0,
+        apps: [],
+      });
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const durationSwitch = screen.getByRole("switch", { name: "显示分钟数" });
+    await waitFor(() => expect(durationSwitch).not.toBeDisabled());
+
+    fireEvent.click(durationSwitch);
+
+    await waitFor(() => expect(screen.getByText("时间显示设置保存失败")).toBeInTheDocument());
+    expect(durationSwitch).toHaveAttribute("aria-checked", "false");
   });
 
   it("keeps settings switches disabled until startup and settings state load", async () => {

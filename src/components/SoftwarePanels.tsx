@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { SoftwarePageRow } from "../api";
+import type { DurationFormat, SoftwarePageRow } from "../api";
 import { formatDurationZh } from "../i18n";
 import { formatLastOpenedAt, highlightDisplayName, rankSoftwareRows } from "../softwareSearch";
 import { ActiveTimeHelpPopover } from "./ActiveTimeHelpPopover";
@@ -7,6 +7,7 @@ import { SoftwareIcon } from "./SoftwareIcon";
 
 interface ManagedPanelProps {
   rows: SoftwarePageRow[];
+  durationFormat?: DurationFormat;
   editing: boolean;
   onAdd: (opener: HTMLButtonElement) => void;
   onEditToggle: () => void;
@@ -82,6 +83,7 @@ export function DiscoveredSoftwarePanel({ rows }: { rows: SoftwarePageRow[] }) {
 function ManagedSoftwarePanel({
   rows,
   editing,
+  durationFormat,
   kind,
   title,
   emptyTitle,
@@ -123,7 +125,12 @@ function ManagedSoftwarePanel({
       {rows.length === 0 ? (
         <SoftwareEmptyState title={emptyTitle} description={emptyDescription} />
       ) : kind === "focused" ? (
-        <FocusedSoftwareTable rows={rows} editing={editing} onRemove={onRemove} />
+        <FocusedSoftwareTable
+          rows={rows}
+          durationFormat={durationFormat}
+          editing={editing}
+          onRemove={onRemove}
+        />
       ) : (
         <HiddenSoftwareList rows={rows} editing={editing} onRemove={onRemove} />
       )}
@@ -133,10 +140,12 @@ function ManagedSoftwarePanel({
 
 function FocusedSoftwareTable({
   rows,
+  durationFormat = "decimal_hours",
   editing,
   onRemove,
 }: {
   rows: SoftwarePageRow[];
+  durationFormat?: DurationFormat;
   editing: boolean;
   onRemove: (identityKey: string) => void;
 }) {
@@ -167,12 +176,12 @@ function FocusedSoftwareTable({
                 <small>{row.process_name}</small>
               </span>
             </div>
-            <span>{formatDurationZh(todayForegroundSeconds(row))}</span>
-            <span>{formatDurationZh(todayBackgroundSeconds(row))}</span>
-            <span>{formatDurationZh(row.today_focused_seconds)}</span>
-            <span>{formatDurationZh(totalForegroundSeconds(row))}</span>
-            <span>{formatDurationZh(totalBackgroundSeconds(row))}</span>
-            <span>{formatDurationZh(row.total_focused_seconds)}</span>
+            <span>{formatDurationZh(todayForegroundSeconds(row), durationFormat)}</span>
+            <span>{formatDurationZh(todayBackgroundSeconds(row), durationFormat)}</span>
+            <span>{formatDurationZh(row.today_focused_seconds, durationFormat)}</span>
+            <span>{formatDurationZh(totalForegroundSeconds(row), durationFormat)}</span>
+            <span>{formatDurationZh(totalBackgroundSeconds(row), durationFormat)}</span>
+            <span>{formatDurationZh(row.total_focused_seconds, durationFormat)}</span>
             <span>{formatLastOpenedAt(row.last_opened_at)}</span>
           </div>
         ))}

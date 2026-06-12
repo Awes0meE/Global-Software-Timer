@@ -1,14 +1,15 @@
-import type { AppUsageRow } from "../api";
+import type { AppUsageRow, DurationFormat } from "../api";
 import { formatDurationZh } from "../i18n";
 import { UnavailableTooltip } from "./UnavailableTooltip";
 
 interface Props {
   apps: AppUsageRow[];
+  durationFormat?: DurationFormat;
 }
 
 const segmentColors = ["#4c8dff", "#ef5350", "#6ea8ff", "#8e65d7", "#6fc082", "#e2b44f", "#9aa5b1"];
 
-export function TodayMix({ apps }: Props) {
+export function TodayMix({ apps, durationFormat = "decimal_hours" }: Props) {
   const rows = apps
     .filter((app) => app.active_today_seconds > 0)
     .sort((left, right) => right.active_today_seconds - left.active_today_seconds);
@@ -26,7 +27,7 @@ export function TodayMix({ apps }: Props) {
           </button>
         </UnavailableTooltip>
       </div>
-      <p className="mix-total">{formatDurationZh(total)}</p>
+      <p className="mix-total">{formatDurationZh(total, durationFormat)}</p>
       <div className="mix-bar" aria-label="今日使用分布条">
         {rows.map((app, index) => (
           <span
@@ -48,7 +49,7 @@ export function TodayMix({ apps }: Props) {
                 <i style={{ backgroundColor: segmentColors[index % segmentColors.length] }} aria-hidden="true" />
                 {app.display_name}
               </span>
-              <span>{formatDurationZh(app.active_today_seconds)}</span>
+              <span>{formatDurationZh(app.active_today_seconds, durationFormat)}</span>
               <strong>
                 {appUsageTotal > 0 ? ((app.active_today_seconds / appUsageTotal) * 100).toFixed(1) : "0.0"}%
               </strong>

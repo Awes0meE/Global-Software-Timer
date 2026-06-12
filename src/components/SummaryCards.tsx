@@ -1,13 +1,14 @@
-import type { DashboardSummary } from "../api";
+import type { DashboardSummary, DurationFormat } from "../api";
 import { formatDurationZh } from "../i18n";
 import { Activity, CalendarDays, Clock3, Trophy } from "lucide-react";
 import { SoftwareIcon } from "./SoftwareIcon";
 
 interface Props {
   summary: DashboardSummary;
+  durationFormat?: DurationFormat;
 }
 
-export function SummaryCards({ summary }: Props) {
+export function SummaryCards({ summary, durationFormat = "decimal_hours" }: Props) {
   return (
     <section className="summary-grid" aria-label="今日总览">
       <article className="summary-card most-used-card">
@@ -27,7 +28,9 @@ export function SummaryCards({ summary }: Props) {
             )}
             <p className="metric-label">累计使用</p>
             <p className="metric-value">
-              {summary.most_used ? formatDurationZh(summary.most_used.total_seconds) : formatDurationZh(0)}
+              {summary.most_used
+                ? formatDurationZh(summary.most_used.total_seconds, durationFormat)
+                : formatDurationZh(0, durationFormat)}
             </p>
           </div>
           <div className="trophy-visual" aria-hidden="true">
@@ -43,7 +46,7 @@ export function SummaryCards({ summary }: Props) {
         <div className="summary-card-body">
           <div>
             <p className="metric-label">今日使用总时长</p>
-            <h2>{formatDurationZh(summary.recorded_today_seconds)}</h2>
+            <h2>{formatDurationZh(summary.recorded_today_seconds, durationFormat)}</h2>
             <p className="trend trend-blue">本地持续记录中</p>
           </div>
           <div className="clock-visual" aria-hidden="true">
@@ -59,7 +62,7 @@ export function SummaryCards({ summary }: Props) {
         <div className="summary-card-body">
           <div>
             <p className="metric-label">今日活跃时长</p>
-            <h2>{formatDurationZh(summary.active_today_seconds)}</h2>
+            <h2>{formatDurationZh(summary.active_today_seconds, durationFormat)}</h2>
             <p className="trend trend-green">检测到键盘或鼠标操作</p>
           </div>
           <div className="activity-visual" aria-hidden="true">

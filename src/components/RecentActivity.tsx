@@ -1,13 +1,14 @@
-import type { AppUsageRow } from "../api";
+import type { AppUsageRow, DurationFormat } from "../api";
 import { formatDurationZh } from "../i18n";
 import { SoftwareIcon } from "./SoftwareIcon";
 import { UnavailableTooltip } from "./UnavailableTooltip";
 
 interface Props {
   apps: AppUsageRow[];
+  durationFormat?: DurationFormat;
 }
 
-export function RecentActivity({ apps }: Props) {
+export function RecentActivity({ apps, durationFormat = "decimal_hours" }: Props) {
   const runningApps = apps.filter((app) => app.status === "foreground");
 
   return (
@@ -34,7 +35,9 @@ export function RecentActivity({ apps }: Props) {
                   <strong>{app.display_name}</strong>
                   <span>{app.process_name}</span>
                 </div>
-                <span className="recent-duration">{formatDurationZh(app.today_seconds)}</span>
+                <span className="recent-duration">
+                  {formatDurationZh(app.today_seconds, durationFormat)}
+                </span>
               </div>
             ))}
           </div>

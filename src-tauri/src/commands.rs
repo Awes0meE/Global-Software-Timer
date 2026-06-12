@@ -9,8 +9,10 @@ use tauri::{AppHandle, Manager, State};
 
 const CLOSE_BEHAVIOR_SETTING_KEY: &str = "window.close_behavior";
 const AUTOSTART_SETTING_KEY: &str = "startup.autostart_enabled";
+const DURATION_FORMAT_SETTING_KEY: &str = "ui.duration_format";
 const DEFAULT_CLOSE_BEHAVIOR: CloseBehavior = CloseBehavior::MinimizeToTray;
 const DEFAULT_AUTOSTART_ENABLED: bool = true;
+const DEFAULT_DURATION_FORMAT: DurationFormat = DurationFormat::DecimalHours;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DashboardSummary {
@@ -85,12 +87,38 @@ impl CloseBehavior {
     }
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DurationFormat {
+    DecimalHours,
+    HoursMinutes,
+}
+
+impl DurationFormat {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::DecimalHours => "decimal_hours",
+            Self::HoursMinutes => "hours_minutes",
+        }
+    }
+
+    fn from_setting(value: &str) -> Option<Self> {
+        match value {
+            "decimal_hours" => Some(Self::DecimalHours),
+            "hours_minutes" => Some(Self::HoursMinutes),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AppSettings {
     pub close_behavior: CloseBehavior,
     pub close_behavior_configured: bool,
     pub autostart_enabled: bool,
     pub autostart_configured: bool,
+    pub duration_format: DurationFormat,
+    pub duration_format_configured: bool,
 }
 
 #[tauri::command]
@@ -256,6 +284,19 @@ pub fn set_autostart_preference(state: State<'_, AppState>, enabled: bool) -> Re
 }
 
 #[tauri::command]
+pub fn set_duration_format_preference(
+    state: State<'_, AppState>,
+    duration_format: DurationFormat,
+) -> Result<(), String> {
+    let tracker = state
+        .tracker
+        .lock()
+        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    save_duration_format_preference(tracker.store(), duration_format)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn apply_window_close_choice(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -293,13 +334,27 @@ fn app_settings_from_store(store: &Store) -> Result<AppSettings, StoreError> {
     let close_behavior = stored_close_behavior.unwrap_or(DEFAULT_CLOSE_BEHAVIOR);
     let (autostart_enabled, autostart_configured) =
         bool_setting_from_store(store, AUTOSTART_SETTING_KEY, DEFAULT_AUTOSTART_ENABLED)?;
+    let stored_duration_format = store
+        .setting_value(DURATION_FORMAT_SETTING_KEY)?
+        .as_deref()
+        .and_then(DurationFormat::from_setting);
+    let duration_format = stored_duration_format.unwrap_or(DEFAULT_DURATION_FORMAT);
 
     Ok(AppSettings {
         close_behavior,
         close_behavior_configured: stored_close_behavior.is_some(),
         autostart_enabled,
         autostart_configured,
+        duration_format,
+        duration_format_configured: stored_duration_format.is_some(),
     })
+}
+
+fn save_duration_format_preference(
+    store: &Store,
+    duration_format: DurationFormat,
+) -> Result<(), StoreError> {
+    store.set_setting_value(DURATION_FORMAT_SETTING_KEY, duration_format.as_str())
 }
 
 fn bool_setting_from_store(
@@ -486,7 +541,7 @@ fn runtime_status_rank(status: AppRuntimeStatus) -> u8 {
 mod tests {
     use super::{
         app_settings_from_store, dashboard_summary_from_store, software_list_command_error,
-        CloseBehavior,
+        save_duration_format_preference, CloseBehavior, DurationFormat,
     };
     use crate::domain::AppRuntimeStatus;
     use crate::storage::{Store, StoreError};
@@ -666,6 +721,48 @@ mod tests {
         let settings = app_settings_from_store(&store).expect("settings");
         assert!(settings.autostart_enabled);
         assert!(!settings.autostart_configured);
+    }
+
+    #[test]
+    fn app_settings_defaults_duration_format_to_decimal_hours() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.duration_format, DurationFormat::DecimalHours);
+        assert!(!settings.duration_format_configured);
+
+        store
+            .set_setting_value("ui.duration_format", "hours_minutes")
+            .expect("set setting");
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.duration_format, DurationFormat::HoursMinutes);
+        assert!(settings.duration_format_configured);
+
+        store
+            .set_setting_value("ui.duration_format", "unexpected")
+            .expect("set invalid setting");
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.duration_format, DurationFormat::DecimalHours);
+        assert!(!settings.duration_format_configured);
+    }
+
+    #[test]
+    fn save_duration_format_preference_writes_setting_key() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+
+        save_duration_format_preference(&store, DurationFormat::HoursMinutes).expect("save");
+
+        assert_eq!(
+            store
+                .setting_value("ui.duration_format")
+                .expect("read setting")
+                .as_deref(),
+            Some("hours_minutes")
+        );
     }
 
     #[test]

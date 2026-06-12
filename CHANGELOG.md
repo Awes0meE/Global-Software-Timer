@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a Settings switch for global Chinese duration display: default decimal hours or concrete hours/minutes.
+
 ## v0.1.3 - 2026-06-05
 
 - Bumped app metadata and the sidebar version display to `V0.1.3`.
