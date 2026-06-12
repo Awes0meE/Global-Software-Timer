@@ -5,6 +5,7 @@ import {
   getSoftwarePageSummary,
   removeFocusedSoftwareIdentity,
   removeHiddenSoftwareIdentity,
+  type DurationFormat,
   type SoftwarePageSummary,
 } from "../api";
 import { AddSoftwareDialog, type AddTarget } from "./AddSoftwareDialog";
@@ -21,10 +22,14 @@ const emptySoftwareSummary: SoftwarePageSummary = {
 };
 
 interface SoftwarePageProps {
+  durationFormat?: DurationFormat;
   onDefaultSummariesChanged: () => void;
 }
 
-export function SoftwarePage({ onDefaultSummariesChanged }: SoftwarePageProps) {
+export function SoftwarePage({
+  durationFormat = "decimal_hours",
+  onDefaultSummariesChanged,
+}: SoftwarePageProps) {
   const [summary, setSummary] = useState<SoftwarePageSummary>(emptySoftwareSummary);
   const [fetchError, setFetchError] = useState(false);
   const [removeError, setRemoveError] = useState(false);
@@ -140,6 +145,7 @@ export function SoftwarePage({ onDefaultSummariesChanged }: SoftwarePageProps) {
         <div className="software-managed-column">
           <FocusedSoftwarePanel
             rows={summary.focused}
+            durationFormat={durationFormat}
             editing={focusedEditing}
             onAdd={handleFocusedAdd}
             onEditToggle={() => setFocusedEditing((current) => !current)}
@@ -147,6 +153,7 @@ export function SoftwarePage({ onDefaultSummariesChanged }: SoftwarePageProps) {
           />
           <HiddenSoftwarePanel
             rows={summary.hidden}
+            durationFormat={durationFormat}
             editing={hiddenEditing}
             onAdd={handleHiddenAdd}
             onEditToggle={() => setHiddenEditing((current) => !current)}

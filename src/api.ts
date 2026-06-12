@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
+import type { DurationFormat } from "./i18n";
+
+export type { DurationFormat } from "./i18n";
 
 export type CloseBehavior = "exit" | "minimize_to_tray";
 export type AppRuntimeStatus = "foreground" | "background" | "closed";
@@ -55,6 +58,8 @@ export interface AppSettings {
   close_behavior_configured: boolean;
   autostart_enabled: boolean;
   autostart_configured: boolean;
+  duration_format: DurationFormat;
+  duration_format_configured: boolean;
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
@@ -83,12 +88,16 @@ export async function removeHiddenSoftwareIdentity(identityKey: string): Promise
 
 export async function getAppSettings(): Promise<AppSettings> {
   const settings = (await invoke<Partial<AppSettings> | null>("get_app_settings")) ?? {};
+  const durationFormat = normalizeDurationFormat(settings.duration_format);
 
   return {
     close_behavior: normalizeCloseBehavior(settings.close_behavior),
     close_behavior_configured: settings.close_behavior_configured === true,
     autostart_enabled: settings.autostart_enabled !== false,
     autostart_configured: settings.autostart_configured === true,
+    duration_format: durationFormat,
+    duration_format_configured:
+      settings.duration_format_configured === true && settings.duration_format === durationFormat,
   };
 }
 
@@ -104,6 +113,10 @@ export async function setCloseBehaviorPreference(choice: CloseBehavior): Promise
 
 export async function setAutostartPreference(enabled: boolean): Promise<void> {
   return invoke("set_autostart_preference", { enabled });
+}
+
+export async function setDurationFormatPreference(durationFormat: DurationFormat): Promise<void> {
+  return invoke("set_duration_format_preference", { durationFormat });
 }
 
 export async function applyWindowCloseChoice(
@@ -127,4 +140,8 @@ export async function setAutostartEnabled(enabled: boolean): Promise<void> {
 
 function normalizeCloseBehavior(value: unknown): CloseBehavior {
   return value === "exit" || value === "minimize_to_tray" ? value : "minimize_to_tray";
+}
+
+function normalizeDurationFormat(value: unknown): DurationFormat {
+  return value === "hours_minutes" ? value : "decimal_hours";
 }

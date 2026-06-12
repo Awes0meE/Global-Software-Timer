@@ -21,8 +21,10 @@ import {
   setAutostartPreference,
   setAutostartEnabled,
   setCloseBehaviorPreference,
+  setDurationFormatPreference,
   type CloseBehavior,
   type DashboardSummary,
+  type DurationFormat,
 } from "./api";
 import { AppUsageTable } from "./components/AppUsageTable";
 import { RecentActivity } from "./components/RecentActivity";
@@ -43,6 +45,7 @@ const fallbackSummary: DashboardSummary = {
 const dashboardLoadError = "无法读取本地数据";
 const dashboardRefreshIntervalMs = 5000;
 const defaultCloseBehavior: CloseBehavior = "minimize_to_tray";
+const defaultDurationFormat: DurationFormat = "decimal_hours";
 
 type PageId = "overview" | "settings" | "software";
 
@@ -68,9 +71,12 @@ export default function App() {
   const [closeDialogError, setCloseDialogError] = useState<string | null>(null);
   const [closeChoiceBusy, setCloseChoiceBusy] = useState(false);
   const [closeBehavior, setCloseBehavior] = useState<CloseBehavior>(defaultCloseBehavior);
+  const [durationFormat, setDurationFormat] = useState<DurationFormat>(defaultDurationFormat);
+  const [durationFormatBusy, setDurationFormatBusy] = useState(false);
   const dashboardMountedRef = useRef(false);
   const closePreferenceRef = useRef<CloseBehavior>(defaultCloseBehavior);
   const closeBehaviorConfiguredRef = useRef(false);
+  const durationFormatSaveInFlightRef = useRef(false);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -111,12 +117,14 @@ export default function App() {
 
         if (!cancelled) {
           setCloseBehavior(settings.close_behavior);
+          setDurationFormat(settings.duration_format);
           closePreferenceRef.current = settings.close_behavior;
           closeBehaviorConfiguredRef.current = settings.close_behavior_configured;
         }
       } catch {
         if (!cancelled) {
           setSettingsError("设置读取失败");
+          setDurationFormat(defaultDurationFormat);
           closePreferenceRef.current = defaultCloseBehavior;
           closeBehaviorConfiguredRef.current = false;
         }
@@ -254,6 +262,30 @@ export default function App() {
     });
   };
 
+  const handleDurationFormatToggle = () => {
+    if (!settingsLoaded || durationFormatSaveInFlightRef.current) {
+      return;
+    }
+
+    const previous = durationFormat;
+    const next: DurationFormat =
+      durationFormat === "decimal_hours" ? "hours_minutes" : "decimal_hours";
+    durationFormatSaveInFlightRef.current = true;
+    setDurationFormatBusy(true);
+    setDurationFormat(next);
+    setSettingsError(null);
+
+    setDurationFormatPreference(next)
+      .catch(() => {
+        setDurationFormat(previous);
+        setSettingsError("时间显示设置保存失败");
+      })
+      .finally(() => {
+        durationFormatSaveInFlightRef.current = false;
+        setDurationFormatBusy(false);
+      });
+  };
+
   const handleCloseChoice = async (choice: CloseBehavior) => {
     if (closeChoiceBusy) {
       return;
@@ -367,22 +399,28 @@ export default function App() {
               autostartEnabled={autostartEnabled}
               closeBehavior={closeBehavior}
               closeBehaviorDisabled={!settingsLoaded}
+              durationFormat={durationFormat}
+              durationFormatDisabled={!settingsLoaded || durationFormatBusy}
               error={settingsError}
               onAutostartToggle={handleAutostartToggle}
               onCloseBehaviorToggle={handleCloseBehaviorToggle}
+              onDurationFormatToggle={handleDurationFormatToggle}
             />
           ) : activePage === "software" ? (
-            <SoftwarePage onDefaultSummariesChanged={loadDashboard} />
+            <SoftwarePage
+              durationFormat={durationFormat}
+              onDefaultSummariesChanged={loadDashboard}
+            />
           ) : (
             <main className="overview-page" id="overview-content">
               {error ? <div className="warning">{error}</div> : null}
-              <SummaryCards summary={summary} />
+              <SummaryCards summary={summary} durationFormat={durationFormat} />
 
               <div className="overview-grid">
-                <AppUsageTable apps={summary.apps} />
+                <AppUsageTable apps={summary.apps} durationFormat={durationFormat} />
                 <div className="right-rail">
-                  <TodayMix apps={summary.apps} />
-                  <RecentActivity apps={summary.apps} />
+                  <TodayMix apps={summary.apps} durationFormat={durationFormat} />
+                  <RecentActivity apps={summary.apps} durationFormat={durationFormat} />
                 </div>
               </div>
             </main>
@@ -450,9 +488,12 @@ interface SettingsPageProps {
   autostartEnabled: boolean;
   closeBehavior: CloseBehavior;
   closeBehaviorDisabled: boolean;
+  durationFormat: DurationFormat;
+  durationFormatDisabled: boolean;
   error: string | null;
   onAutostartToggle: () => void;
   onCloseBehaviorToggle: () => void;
+  onDurationFormatToggle: () => void;
 }
 
 function SettingsPage({
@@ -461,9 +502,12 @@ function SettingsPage({
   autostartEnabled,
   closeBehavior,
   closeBehaviorDisabled,
+  durationFormat,
+  durationFormatDisabled,
   error,
   onAutostartToggle,
   onCloseBehaviorToggle,
+  onDurationFormatToggle,
 }: SettingsPageProps) {
   return (
     <main className="settings-page" id="settings-content">
@@ -492,6 +536,15 @@ function SettingsPage({
           title="关闭窗口时最小化到后台"
           disabled={closeBehaviorDisabled}
           onToggle={onCloseBehaviorToggle}
+        />
+        <SettingSwitchRow
+          checked={durationFormat === "hours_minutes"}
+          description="开启后将会显示具体分钟数，如“8小时35分钟”"
+          disabled={durationFormatDisabled}
+          icon={<Clock3 size={21} aria-hidden="true" />}
+          statusText={durationFormat === "hours_minutes" ? "已开启" : "已关闭"}
+          title="显示分钟数"
+          onToggle={onDurationFormatToggle}
         />
       </section>
     </main>

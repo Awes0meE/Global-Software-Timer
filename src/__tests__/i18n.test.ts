@@ -15,4 +15,16 @@ describe("formatDurationZh", () => {
     expect(formatDurationZh(59)).toBe("0.0小时");
     expect(formatDurationZh(0)).toBe("0.0小时");
   });
+
+  it("formats concrete hours and minutes when minutes display is enabled", () => {
+    expect(formatDurationZh(8 * 3600 + 35 * 60, "hours_minutes")).toBe("8小时35分钟");
+    expect(formatDurationZh(42 * 60, "hours_minutes")).toBe("42分钟");
+    expect(formatDurationZh(8 * 3600, "hours_minutes")).toBe("8小时");
+    expect(formatDurationZh(59, "hours_minutes")).toBe("0分钟");
+  });
+
+  it("normalizes invalid minutes-display durations to zero", () => {
+    expect(formatDurationZh(Number.NaN, "hours_minutes")).toBe("0分钟");
+    expect(formatDurationZh(-60, "hours_minutes")).toBe("0分钟");
+  });
 });

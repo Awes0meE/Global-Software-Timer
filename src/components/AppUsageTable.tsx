@@ -1,13 +1,14 @@
-import type { AppRuntimeStatus, AppUsageRow } from "../api";
+import type { AppRuntimeStatus, AppUsageRow, DurationFormat } from "../api";
 import { formatDurationZh } from "../i18n";
 import { ArrowDown, ArrowUpDown } from "lucide-react";
 import { SoftwareIcon } from "./SoftwareIcon";
 
 interface Props {
   apps: AppUsageRow[];
+  durationFormat?: DurationFormat;
 }
 
-export function AppUsageTable({ apps }: Props) {
+export function AppUsageTable({ apps, durationFormat = "decimal_hours" }: Props) {
   return (
     <section className="panel table-panel" aria-label="应用时长列表">
       <div className="panel-heading table-heading">
@@ -38,8 +39,8 @@ export function AppUsageTable({ apps }: Props) {
                   <small>{app.process_name}</small>
                 </span>
               </div>
-              <span>{formatDurationZh(app.total_seconds)}</span>
-              <span>{formatDurationZh(app.today_seconds)}</span>
+              <span>{formatDurationZh(app.total_seconds, durationFormat)}</span>
+              <span>{formatDurationZh(app.today_seconds, durationFormat)}</span>
               <span className={`status-badge ${statusClassName(app.status)}`}>
                 <i aria-hidden="true" />
                 {statusLabel(app.status)}
