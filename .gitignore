@@ -4,6 +4,7 @@ src-tauri/target/
 src-tauri/gen/
 
 .superpowers/
+.worktrees/
 
 .env
 .env.*
