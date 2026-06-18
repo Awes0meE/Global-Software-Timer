@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added a Settings switch for global Chinese duration display: default decimal hours or concrete hours/minutes.
+- Improved default noise filtering for ASUS Armoury Crate helper processes and NVIDIA container background processes while keeping the main Armoury Crate app visible.
 
 ## v0.1.3 - 2026-06-05
 

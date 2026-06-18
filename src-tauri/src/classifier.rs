@@ -46,6 +46,7 @@ fn known_display_name(name: &str) -> Option<&'static str> {
         "codex.exe" => Some("Codex"),
         "steam.exe" => Some("Steam"),
         "steam++.exe" => Some("Watt Toolkit"),
+        "armourycrate.exe" => Some("Armoury Crate"),
         "wps.exe" | "et.exe" | "wpp.exe" | "wpspdf.exe" => Some("WPS Office"),
         "wechat.exe" => Some("WeChat"),
         "weixin.exe" => Some("WeChat"),
@@ -65,6 +66,25 @@ fn is_known_backend_helper(name: &str, path: &str) -> bool {
     path.contains(r"\app\resources\codex.exe")
         || path.contains(r"\appdata\local\openai\codex\bin\")
         || path.contains(r"\.vscode\extensions\openai.chatgpt-")
+}
+
+fn is_hardware_vendor_background_noise(name: &str) -> bool {
+    const VENDOR_HELPER_STEMS: &[&str] = &[
+        "acpowernotification",
+        "armourycrate.denoiseai",
+        "armouryhtmldebugserver",
+        "armourysocketserver",
+        "asus_framework",
+        "asusmultiantennasvc",
+        "asussmartdisplaycontrol",
+        "nvcontainer",
+    ];
+
+    let stem = executable_stem(name);
+
+    VENDOR_HELPER_STEMS.contains(&stem)
+        || stem.starts_with("armourycrate.")
+        || (stem.starts_with("armoury") && stem.ends_with("server"))
 }
 
 fn is_system_process(name: &str, path: &str) -> bool {
@@ -148,6 +168,7 @@ fn is_helper_process(name: &str, path: &str) -> bool {
     let stem = executable_stem(name);
 
     path.is_empty()
+        || is_hardware_vendor_background_noise(name)
         || HELPER_STEMS.contains(&stem)
         || stem.starts_with("global_software_timer_lib-")
         || stem == "service"

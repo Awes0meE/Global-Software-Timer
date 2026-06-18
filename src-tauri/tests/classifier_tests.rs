@@ -193,6 +193,78 @@ fn hides_background_services_hosts_and_toolchain_children() {
 }
 
 #[test]
+fn hides_hardware_vendor_background_noise_without_hiding_main_apps() {
+    assert_eq!(
+        classify_process(
+            "ArmouryCrate.exe",
+            r"C:\Program Files\ASUS\ARMOURY CRATE Service\ArmouryCrate.exe",
+        ),
+        Classification::Tracked {
+            display_name: "Armoury Crate".to_string()
+        }
+    );
+
+    let noisy_processes = [
+        (
+            "asus_framework.exe",
+            r"C:\Program Files\ASUS\ARMOURY CRATE Service\asus_framework.exe",
+        ),
+        (
+            "NvContainer.exe",
+            r"C:\Program Files\NVIDIA Corporation\NvContainer\nvcontainer.exe",
+        ),
+        (
+            "ACPowerNotification.exe",
+            r"C:\Program Files\ASUS\ArmouryDevice\ACPowerNotification.exe",
+        ),
+        (
+            "ArmouryCrate.DenoiseAI.exe",
+            r"C:\Program Files\ASUS\ARMOURY CRATE Service\ArmouryCrate.DenoiseAI.exe",
+        ),
+        (
+            "ArmouryHtmlDebugServer.exe",
+            r"C:\Program Files\ASUS\ARMOURY CRATE Service\ArmouryHtmlDebugServer.exe",
+        ),
+        (
+            "ArmourySocketServer.exe",
+            r"C:\Program Files\ASUS\ARMOURY CRATE Service\ArmourySocketServer.exe",
+        ),
+        (
+            "AsusMultiAntennaSvc.exe",
+            r"C:\Program Files\ASUS\ArmouryDevice\AsusMultiAntennaSvc.exe",
+        ),
+        (
+            "AsusSmartDisplayControl.exe",
+            r"C:\Program Files\ASUS\ArmouryDevice\AsusSmartDisplayControl.exe",
+        ),
+    ];
+
+    for (process_name, executable_path) in noisy_processes {
+        assert_eq!(
+            classify_process(process_name, executable_path),
+            Classification::Hidden,
+            "{process_name} should be hidden"
+        );
+    }
+
+    assert_eq!(
+        classify_process("MyArmouryTool.exe", r"D:\Tools\MyArmouryTool.exe"),
+        Classification::Tracked {
+            display_name: "MyArmouryTool".to_string()
+        }
+    );
+    assert_eq!(
+        classify_process(
+            "NvidiaApp.exe",
+            r"C:\Program Files\NVIDIA Corporation\NVIDIA app\NvidiaApp.exe",
+        ),
+        Classification::Tracked {
+            display_name: "NvidiaApp".to_string()
+        }
+    );
+}
+
+#[test]
 fn falls_back_to_clean_exe_name() {
     assert_eq!(
         classify_process("MyResearchTool.exe", r"D:\Tools\MyResearchTool.exe"),

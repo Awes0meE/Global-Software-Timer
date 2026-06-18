@@ -30,6 +30,7 @@ Last updated: 2026-06-12
 - Storage strategy: event log plus summary tables from v0.1.
 - Runtime tracking: v0.1 tracks application process runtime.
 - Runtime sessions require a user-visible top-level window; Browser/Electron child helpers are filtered with transient command-line flag checks. Dashboard status is tri-state: foreground window plus process is `前台运行`, background process without foreground window is `后台运行`, no detected process is `未运行`. Window titles and command lines are not stored in SQLite or shown in the UI.
+- Default classifier noise filtering uses conservative process-name rules for hardware vendor background helpers. ASUS Armoury Crate helper processes and `nvcontainer.exe` are hidden by default, while the main `armourycrate.exe` app remains visible as `Armoury Crate`; avoid broad vendor path substring filters that could hide user-launched apps.
 - WPS suite components are grouped as `WPS Office` for usage summaries, including `wps.exe`, `et.exe`, `wpp.exe`, and `wpspdf.exe`; live status for merged rows is taken from the highest-priority status across all grouped app ids. WPS grouped rows use the main `wps.exe` sibling path for icon lookup, even when the visible component is `wpspdf.exe`, `et.exe`, or `wpp.exe`.
 - Active time: v0.1 tracks daily machine-level active time using keyboard/mouse idle state.
 - App settings are stored locally in the existing SQLite `app_settings` table, including `window.close_behavior`, `startup.autostart_enabled`, and the unreleased `ui.duration_format` display preference.
