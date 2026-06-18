@@ -110,9 +110,11 @@ export function SoftwarePage({
     const opener = addOpenerRef.current;
     setAddTarget(null);
 
-    if (opener && document.contains(opener)) {
-      opener.focus();
-    }
+    window.setTimeout(() => {
+      if (opener && document.contains(opener)) {
+        opener.focus();
+      }
+    }, 0);
 
     addOpenerRef.current = null;
   };

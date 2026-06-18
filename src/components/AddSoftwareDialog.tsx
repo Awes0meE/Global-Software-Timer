@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type { SoftwareMark, SoftwarePageRow } from "../api";
 import { formatLastOpenedAt, highlightDisplayName, rankSoftwareRows } from "../softwareSearch";
@@ -40,13 +34,29 @@ export function AddSoftwareDialog({ rows, target, onClose, onSubmit }: Props) {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !submitting) {
         onClose();
+        return;
+      }
+
+      if (event.key === "Tab") {
+        trapTabFocus(event);
+      }
+    };
+    const handleFocusIn = (event: FocusEvent) => {
+      if (
+        dialogRef.current &&
+        event.target instanceof Node &&
+        !dialogRef.current.contains(event.target)
+      ) {
+        getFocusableElements(dialogRef.current)[0]?.focus();
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("focusin", handleFocusIn, true);
 
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("focusin", handleFocusIn, true);
     };
   }, [onClose, submitting]);
 
@@ -96,11 +106,7 @@ export function AddSoftwareDialog({ rows, target, onClose, onSubmit }: Props) {
     }
   };
 
-  const handleDialogKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
-    if (event.key !== "Tab") {
-      return;
-    }
-
+  const trapTabFocus = (event: KeyboardEvent) => {
     const focusableElements = getFocusableElements(dialogRef.current);
 
     if (focusableElements.length === 0) {
@@ -110,16 +116,18 @@ export function AddSoftwareDialog({ rows, target, onClose, onSubmit }: Props) {
     const firstElement = focusableElements[0];
     const lastElement = focusableElements[focusableElements.length - 1];
     const activeElement = document.activeElement;
+    const activeElementIsInsideDialog =
+      activeElement instanceof HTMLElement && dialogRef.current?.contains(activeElement);
 
     if (event.shiftKey) {
-      if (activeElement === firstElement || !dialogRef.current?.contains(activeElement)) {
+      if (activeElement === firstElement || !activeElementIsInsideDialog) {
         event.preventDefault();
         lastElement.focus();
       }
       return;
     }
 
-    if (activeElement === lastElement) {
+    if (activeElement === lastElement || !activeElementIsInsideDialog) {
       event.preventDefault();
       firstElement.focus();
     }
@@ -133,7 +141,11 @@ export function AddSoftwareDialog({ rows, target, onClose, onSubmit }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-software-title"
-        onKeyDown={handleDialogKeyDown}
+        onKeyDownCapture={(event) => {
+          if (event.key === "Tab") {
+            trapTabFocus(event.nativeEvent);
+          }
+        }}
       >
         <div className="add-software-head">
           <h2 id="add-software-title">{title}</h2>

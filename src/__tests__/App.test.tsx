@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockInvoke = vi.hoisted(() => vi.fn());
@@ -1116,7 +1117,7 @@ describe("App", () => {
     const primaryButton = within(dialog).getByRole("button", { name: "添加 1 个" });
     primaryButton.focus();
 
-    fireEvent.keyDown(primaryButton, { key: "Tab" });
+    await userEvent.tab();
 
     expect(within(dialog).getByRole("button", { name: "关闭" })).toHaveFocus();
   });
