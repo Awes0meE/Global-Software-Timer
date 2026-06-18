@@ -6,6 +6,7 @@
 - Improved default noise filtering for ASUS Armoury Crate helper processes and NVIDIA container background processes while keeping the main Armoury Crate app visible.
 - Added a strict local development workflow with reusable check and release-build scripts.
 - Upgraded the Vite/Vitest/jsdom frontend toolchain to clear the current npm audit findings.
+- Documented the remaining non-Windows `glib` Dependabot alert and its current upstream Tauri dependency constraint.
 
 ## v0.1.3 - 2026-06-05
 

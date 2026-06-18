@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-06-12
+Last updated: 2026-06-18
 
 ## Product Decisions
 
@@ -76,14 +76,15 @@ Last updated: 2026-06-12
 - Karpathy Guidelines skill is already installed at `C:\Users\123\.codex\skills\karpathy-guidelines`.
 - Requested execution mode: Superpowers subagent-driven development.
 - Local workflow entrypoint: `npm.cmd run check` loads frontend tests, frontend production build, Rust formatting check, Rust tests, and npm audit. `npm.cmd run release:build` runs that gate, builds Tauri bundles, stages installer assets, and prints SHA256 hashes.
+- Dependency audit status on 2026-06-18: npm audit is clear at moderate severity or higher. GitHub Dependabot still reports a medium Rust `glib` alert from `src-tauri/Cargo.lock`, but `glib` is absent from the Windows target dependency tree and appears only under `cargo tree --target all` through Tauri's Linux GTK/WebKit/tray stack. `cargo update -p glib --dry-run` cannot move it under current upstream constraints.
 - The older `superpowers:*` skill files were not found in the local skills directory on 2026-06-18; use the repository workflow in `docs/DEVELOPMENT_WORKFLOW.md`, `AGENTS.md`, Karpathy Guidelines, and available multi-agent tools as the practical replacement.
-- Local toolchain prepared on 2026-05-28:
-  - Node `v24.15.0`
-  - npm `11.12.1`
-  - Rust `1.95.0`
-  - Cargo `1.95.0`
+- Local toolchain verified on 2026-06-18:
+  - Node `v22.18.0`
+  - npm `10.9.3`
+  - Rust `1.96.0`
+  - Cargo `1.96.0`
   - Visual Studio 2022 Build Tools with C++ workload
-  - Microsoft Edge WebView2 Runtime `148.0.3967.83`
+  - Microsoft Edge WebView2 Runtime `149.0.4022.69`
 - Existing Codex shells may not inherit the refreshed Cargo PATH. Run `. .\scripts\dev-env.ps1` before Rust/Tauri commands.
 
 ## Release State

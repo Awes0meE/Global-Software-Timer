@@ -136,3 +136,22 @@ Useful Codex skills/tools:
 - multi-agent tools for subagent-driven development
 
 The older `superpowers:*` skill files may not be installed locally. If they are unavailable, follow the repository workflow and review gates in this document and `AGENTS.md`.
+
+## 8. Dependency Audit Notes
+
+Use these commands for dependency security checks:
+
+```powershell
+npm.cmd audit --audit-level=moderate
+gh api repos/Awes0meE/Global-Software-Timer/dependabot/alerts --paginate
+```
+
+As of 2026-06-18, `npm.cmd audit --audit-level=moderate` reports zero vulnerabilities after the Vite/Vitest/jsdom toolchain update.
+
+GitHub Dependabot still reports a medium Rust alert for `glib` in `src-tauri/Cargo.lock`. This crate is not present in the Windows target dependency tree:
+
+```powershell
+cargo tree --manifest-path src-tauri\Cargo.toml --target x86_64-pc-windows-msvc -i glib
+```
+
+It appears only with `--target all` through Tauri's Linux GTK/WebKit/tray dependency stack. `cargo update --manifest-path src-tauri\Cargo.toml -p glib --dry-run` locks zero packages, so the alert is not fixable by a narrow lockfile refresh under the current upstream constraints. Track the upstream Tauri/wry/tao/tray-icon ecosystem for a real fix rather than adding a broad Cargo override.
