@@ -21,6 +21,6 @@ if (Test-Path $vswhere) {
 
 Write-Host "Development environment ready."
 Write-Host "Node: $(node --version)"
-Write-Host "npm: $(npm --version)"
+Write-Host "npm: $(npm.cmd --version)"
 Write-Host "Rust: $(rustc --version)"
 Write-Host "Cargo: $(cargo --version)"

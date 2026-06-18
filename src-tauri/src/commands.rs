@@ -540,8 +540,8 @@ fn runtime_status_rank(status: AppRuntimeStatus) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::{
-        app_settings_from_store, dashboard_summary_from_store, software_list_command_error,
-        save_duration_format_preference, CloseBehavior, DurationFormat,
+        app_settings_from_store, dashboard_summary_from_store, save_duration_format_preference,
+        software_list_command_error, CloseBehavior, DurationFormat,
     };
     use crate::domain::AppRuntimeStatus;
     use crate::storage::{Store, StoreError};
