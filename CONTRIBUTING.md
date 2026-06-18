@@ -28,13 +28,11 @@ Maintainers may ask for changes before merging. Pull requests to `main` must pas
 ## Local Checks
 
 ```powershell
-npm test
-npm run build
-
 . .\scripts\dev-env.ps1
-cd src-tauri
-cargo test
+npm.cmd run check
 ```
+
+See [docs/DEVELOPMENT_WORKFLOW.md](./docs/DEVELOPMENT_WORKFLOW.md) for the full worktree, review, and release workflow.
 
 ## Pull Request Guidelines
 

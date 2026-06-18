@@ -183,20 +183,18 @@ npm run tauri:dev
 运行检查：
 
 ```powershell
-npm test
-npm run build
-
 . .\scripts\dev-env.ps1
-cd src-tauri
-cargo test
+npm.cmd run check
 ```
 
 打包 Windows 安装包：
 
 ```powershell
 . .\scripts\dev-env.ps1
-npm run tauri:build
+npm.cmd run release:build
 ```
+
+完整的分支、检查、评审和发布流程见 [docs/DEVELOPMENT_WORKFLOW.md](./docs/DEVELOPMENT_WORKFLOW.md)。
 
 ### 项目结构
 

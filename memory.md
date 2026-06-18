@@ -75,6 +75,8 @@ Last updated: 2026-06-12
 - For future development/release checkpoints, update the app's bottom-left sidebar version display as a default final step after feature work and verification.
 - Karpathy Guidelines skill is already installed at `C:\Users\123\.codex\skills\karpathy-guidelines`.
 - Requested execution mode: Superpowers subagent-driven development.
+- Local workflow entrypoint: `npm.cmd run check` loads frontend tests, frontend production build, Rust formatting check, Rust tests, and npm audit. `npm.cmd run release:build` runs that gate, builds Tauri bundles, stages installer assets, and prints SHA256 hashes.
+- The older `superpowers:*` skill files were not found in the local skills directory on 2026-06-18; use the repository workflow in `docs/DEVELOPMENT_WORKFLOW.md`, `AGENTS.md`, Karpathy Guidelines, and available multi-agent tools as the practical replacement.
 - Local toolchain prepared on 2026-05-28:
   - Node `v24.15.0`
   - npm `11.12.1`
