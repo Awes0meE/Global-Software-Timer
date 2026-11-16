@@ -158,6 +158,8 @@ gh api repos/Awes0meE/Global-Software-Timer/dependabot/alerts --paginate
 
 As of 2026-06-18, `npm.cmd audit --audit-level=moderate` reports zero vulnerabilities after the Vite/Vitest/jsdom toolchain update.
 
+On 2026-11-17, [Windows CI #45](https://github.com/Awes0meE/Global-Software-Timer/actions/runs/43929074730) passed tests/builds but its `npm ci` output reported 7 vulnerabilities (2 moderate, 5 high). CI currently does not run a separate blocking npm audit step. Local audit could not reach the registry. Treat the dependencies as unresolved until full advisories and affected dependency paths are reviewed, fixes are verified, and the CI audit gate is added; a green CI run alone is not a clean dependency audit.
+
 The 2026-06-18 audit also recorded a medium Rust Dependabot alert for `glib` in `src-tauri/Cargo.lock`. These are historical results, not a current clean bill of health. In that check, the crate was absent from the Windows target dependency tree:
 
 ```powershell

@@ -14,7 +14,7 @@
 - Added a Settings switch for global Chinese duration display: default decimal hours or concrete hours/minutes.
 - Improved default noise filtering for ASUS Armoury Crate helper processes and NVIDIA container background processes while keeping the main Armoury Crate app visible.
 - Added a strict local development workflow with reusable check and release-build scripts.
-- Upgraded the Vite/Vitest/jsdom frontend toolchain, clearing the npm audit findings checked on 2026-06-18. The 2026-11-17 audit could not reach the registry; this is not a fresh clean audit result.
+- Upgraded the Vite/Vitest/jsdom frontend toolchain, clearing the npm audit findings checked on 2026-06-18. On 2026-11-17, local audit could not reach the registry and Windows CI's dependency installation reported 7 vulnerabilities (2 moderate, 5 high); these remain unresolved and require a full advisory review.
 - Documented the non-Windows `glib` Dependabot alert and upstream Tauri dependency constraint observed on 2026-06-18; current advisory status needs an online recheck.
 
 ## v0.1.3 - 2026-06-05
