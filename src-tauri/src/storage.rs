@@ -4,14 +4,17 @@ use crate::domain::{
     SoftwareIdentity, SoftwarePageRow, SoftwarePageRows, UsageSession,
 };
 use chrono::{DateTime, Local, NaiveDate, Utc};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("database schema version {found} is newer than supported version {supported}")]
+    UnsupportedSchemaVersion { found: i64, supported: i64 },
     #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
     #[error("datetime parse error: {0}")]
@@ -42,8 +45,39 @@ struct SoftwareLegacyRuntimeSeconds {
     today_seconds: i64,
 }
 
+const SCHEMA_VERSION: i64 = 1;
+static NEXT_SAVEPOINT_ID: AtomicU64 = AtomicU64::new(0);
+
 pub struct Store {
     conn: Connection,
+}
+
+/// A nested-safe transaction boundary that rolls back unless explicitly committed.
+#[must_use]
+pub struct StoreSavepoint<'a> {
+    conn: &'a Connection,
+    name: String,
+    committed: bool,
+}
+
+impl StoreSavepoint<'_> {
+    pub fn commit(mut self) -> StoreResult<()> {
+        self.conn
+            .execute_batch(&format!("RELEASE SAVEPOINT {}", self.name))?;
+        self.committed = true;
+        Ok(())
+    }
+}
+
+impl Drop for StoreSavepoint<'_> {
+    fn drop(&mut self) {
+        if !self.committed {
+            let _ = self.conn.execute_batch(&format!(
+                "ROLLBACK TO SAVEPOINT {0}; RELEASE SAVEPOINT {0}",
+                self.name
+            ));
+        }
+    }
 }
 
 impl Store {
@@ -53,8 +87,48 @@ impl Store {
         Ok(Self { conn })
     }
 
+    pub fn open_read_only(path: impl AsRef<Path>) -> StoreResult<Self> {
+        let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        Ok(Self { conn })
+    }
+
+    pub fn savepoint(&self) -> StoreResult<StoreSavepoint<'_>> {
+        let name = format!(
+            "gst_{}",
+            NEXT_SAVEPOINT_ID.fetch_add(1, AtomicOrdering::Relaxed)
+        );
+        self.conn.execute_batch(&format!("SAVEPOINT {name}"))?;
+        Ok(StoreSavepoint {
+            conn: &self.conn,
+            name,
+            committed: false,
+        })
+    }
+
     pub fn migrate(&self) -> StoreResult<()> {
+        let version: i64 = self
+            .conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        if version > SCHEMA_VERSION {
+            return Err(StoreError::UnsupportedSchemaVersion {
+                found: version,
+                supported: SCHEMA_VERSION,
+            });
+        }
+        // WAL must be selected outside a transaction; schema and data changes below are atomic.
         self.conn.pragma_update(None, "journal_mode", "WAL")?;
+        let transaction = self.savepoint()?;
+        if version == 0 {
+            self.create_baseline_schema()?;
+            self.conn
+                .pragma_update(None, "user_version", SCHEMA_VERSION)?;
+        }
+        self.maintain_software_identities()?;
+        transaction.commit()
+    }
+
+    fn create_baseline_schema(&self) -> StoreResult<()> {
         self.conn.execute_batch(
             r#"
             CREATE TABLE IF NOT EXISTS apps (
@@ -165,7 +239,36 @@ impl Store {
             "#,
         )?;
         self.ensure_daily_software_runtime_usage_columns()?;
+        self.conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS usage_sessions_app_id_idx ON usage_sessions(app_id, id);
+             CREATE INDEX IF NOT EXISTS usage_sessions_open_idx ON usage_sessions(id) WHERE ended_at IS NULL;
+             CREATE INDEX IF NOT EXISTS software_identity_members_app_id_idx ON software_identity_members(app_id);"
+        )?;
         Ok(())
+    }
+
+    /// Refresh derived identity metadata at startup, outside summary read paths.
+    pub fn maintain_software_identities(&self) -> StoreResult<()> {
+        let transaction = self.savepoint()?;
+        let app_ids = {
+            let mut stmt = self
+                .conn
+                .prepare("SELECT id FROM apps WHERE is_hidden = 0 ORDER BY id")?;
+            let rows = stmt.query_map([], |row| row.get::<_, i64>(0))?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        for app_id in app_ids {
+            let app = self
+                .find_app_by_id(app_id)?
+                .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+            if matches!(
+                classify_process(&app.process_name, &app.executable_path),
+                Classification::Tracked { .. }
+            ) {
+                self.upsert_software_identity_for_app(app_id)?;
+            }
+        }
+        transaction.commit()
     }
 
     fn ensure_daily_software_runtime_usage_columns(&self) -> StoreResult<()> {
@@ -239,6 +342,7 @@ impl Store {
         executable_path: &str,
         display_name: &str,
     ) -> StoreResult<AppIdentity> {
+        let transaction = self.savepoint()?;
         let normalized_key = normalize_identity_key(executable_path, process_name);
         let existing = self.find_app_by_key(&normalized_key)?;
 
@@ -255,8 +359,19 @@ impl Store {
             )?;
         }
 
-        self.find_app_by_key(&normalize_identity_key(executable_path, process_name))?
-            .ok_or(rusqlite::Error::QueryReturnedNoRows.into())
+        let app = self
+            .find_app_by_key(&normalized_key)?
+            .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+        if !app.is_hidden
+            && matches!(
+                classify_process(&app.process_name, &app.executable_path),
+                Classification::Tracked { .. }
+            )
+        {
+            self.upsert_software_identity_for_app(app.id)?;
+        }
+        transaction.commit()?;
+        Ok(app)
     }
 
     pub fn find_app_by_key(&self, normalized_key: &str) -> StoreResult<Option<AppIdentity>> {
@@ -328,6 +443,7 @@ impl Store {
         app_id: i64,
         started_at: Option<DateTime<Utc>>,
     ) -> StoreResult<SoftwareIdentity> {
+        let transaction = self.savepoint()?;
         let app = self
             .find_app_by_id(app_id)?
             .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
@@ -387,8 +503,11 @@ impl Store {
             params![parts.identity_key, app_id],
         )?;
 
-        self.find_software_identity(&parts.identity_key)?
-            .ok_or(rusqlite::Error::QueryReturnedNoRows.into())
+        let identity = self
+            .find_software_identity(&parts.identity_key)?
+            .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+        transaction.commit()?;
+        Ok(identity)
     }
 
     fn find_software_identity(&self, identity_key: &str) -> StoreResult<Option<SoftwareIdentity>> {
@@ -517,8 +636,8 @@ impl Store {
         conflict_table: &'static str,
         conflicting_list: &'static str,
     ) -> StoreResult<()> {
-        self.conn.execute_batch("BEGIN IMMEDIATE")?;
-        let result = (|| {
+        let transaction = self.savepoint()?;
+        let result: StoreResult<_> = (|| {
             for identity_key in identity_keys {
                 if self.identity_exists_in_list(conflict_table, identity_key)? {
                     return Err(StoreError::SoftwareIdentityListConflict {
@@ -535,16 +654,9 @@ impl Store {
             Ok(())
         })();
 
-        match result {
-            Ok(()) => {
-                self.conn.execute_batch("COMMIT")?;
-                Ok(())
-            }
-            Err(error) => {
-                let _ = self.conn.execute_batch("ROLLBACK");
-                Err(error)
-            }
-        }
+        let value = result?;
+        transaction.commit()?;
+        Ok(value)
     }
 
     fn identity_exists_in_list(
@@ -574,23 +686,16 @@ impl Store {
     }
 
     pub fn start_session(&self, app_id: i64, now: DateTime<Utc>) -> StoreResult<i64> {
-        self.conn.execute_batch("BEGIN IMMEDIATE")?;
-        let result = (|| {
+        let transaction = self.savepoint()?;
+        let result: StoreResult<_> = (|| {
             let session_id = self.insert_session_row(app_id, now)?;
             self.upsert_software_identity_for_app_started_at(app_id, now)?;
             Ok(session_id)
         })();
 
-        match result {
-            Ok(session_id) => {
-                self.conn.execute_batch("COMMIT")?;
-                Ok(session_id)
-            }
-            Err(error) => {
-                let _ = self.conn.execute_batch("ROLLBACK");
-                Err(error)
-            }
-        }
+        let value = result?;
+        transaction.commit()?;
+        Ok(value)
     }
 
     fn insert_session_row(&self, app_id: i64, now: DateTime<Utc>) -> StoreResult<i64> {
@@ -608,24 +713,17 @@ impl Store {
         now: DateTime<Utc>,
         payload_json: Option<&str>,
     ) -> StoreResult<i64> {
-        self.conn.execute_batch("BEGIN IMMEDIATE")?;
-        let result = (|| {
+        let transaction = self.savepoint()?;
+        let result: StoreResult<_> = (|| {
             let session_id = self.insert_session_row(app_id, now)?;
             self.upsert_software_identity_for_app_started_at(app_id, now)?;
             self.insert_run_event(Some(app_id), RunEventKind::AppSeenStarted, payload_json)?;
             Ok(session_id)
         })();
 
-        match result {
-            Ok(session_id) => {
-                self.conn.execute_batch("COMMIT")?;
-                Ok(session_id)
-            }
-            Err(error) => {
-                let _ = self.conn.execute_batch("ROLLBACK");
-                Err(error)
-            }
-        }
+        let value = result?;
+        transaction.commit()?;
+        Ok(value)
     }
 
     pub fn heartbeat_session(&self, session_id: i64, now: DateTime<Utc>) -> StoreResult<()> {
@@ -700,23 +798,16 @@ impl Store {
         close_reason: &str,
         recovered: bool,
     ) -> StoreResult<()> {
-        self.conn.execute_batch("BEGIN IMMEDIATE")?;
-        let result = (|| {
+        let transaction = self.savepoint()?;
+        let result: StoreResult<_> = (|| {
             self.close_session(session_id, ended_at, close_reason, recovered)?;
             self.insert_run_event(Some(app_id), RunEventKind::AppSeenStopped, None)?;
             Ok(())
         })();
 
-        match result {
-            Ok(()) => {
-                self.conn.execute_batch("COMMIT")?;
-                Ok(())
-            }
-            Err(error) => {
-                let _ = self.conn.execute_batch("ROLLBACK");
-                Err(error)
-            }
-        }
+        let value = result?;
+        transaction.commit()?;
+        Ok(value)
     }
 
     pub fn all_sessions(&self) -> StoreResult<Vec<UsageSession>> {
@@ -850,8 +941,9 @@ impl Store {
             {
                 identity_key.clone()
             } else {
-                let identity = self.upsert_software_identity_for_app(row.app_id)?;
-                let identity_key = identity.identity_key;
+                let identity_key = self
+                    .software_identity_key_for_app(row.app_id)?
+                    .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
                 identity_keys_by_app_id.insert(row.app_id, identity_key.clone());
                 identity_key
             };
@@ -1012,8 +1104,8 @@ impl Store {
                 continue;
             }
 
-            let identity = self.upsert_software_identity_for_app(app.id)?;
-            identity_key_by_app_id.insert(app.id, identity.identity_key);
+            let identity_key = software_identity_parts_for_app(&app).identity_key;
+            identity_key_by_app_id.insert(app.id, identity_key);
         }
 
         let mut app_ids_by_identity: HashMap<String, Vec<i64>> = HashMap::new();
@@ -1559,8 +1651,8 @@ impl Store {
             return Ok(0);
         }
 
-        self.conn.execute_batch("BEGIN IMMEDIATE")?;
-        let result = (|| {
+        let transaction = self.savepoint()?;
+        let result: StoreResult<_> = (|| {
             for (session_id, app_id, started_at, last_heartbeat_at) in &open_sessions {
                 self.conn.execute(
                     r#"
@@ -1582,16 +1674,9 @@ impl Store {
             Ok(open_sessions.len())
         })();
 
-        match result {
-            Ok(count) => {
-                self.conn.execute_batch("COMMIT")?;
-                Ok(count)
-            }
-            Err(error) => {
-                let _ = self.conn.execute_batch("ROLLBACK");
-                Err(error)
-            }
-        }
+        let value = result?;
+        transaction.commit()?;
+        Ok(value)
     }
 
     pub fn count_run_events(&self, event_kind: &str) -> StoreResult<i64> {

@@ -66,8 +66,21 @@ pub fn run() {
             commands::set_duration_format_preference,
             commands::apply_window_close_choice
         ])
-        .run(tauri::generate_context!())
-        .expect("failed to run Global Software Timer");
+        .build(tauri::generate_context!())
+        .expect("failed to build Global Software Timer")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                let state = app.state::<AppState>();
+                match state.tracker.lock() {
+                    Ok(mut tracker) => {
+                        if let Err(error) = tracker.shutdown() {
+                            eprintln!("tracker shutdown failed: {error}");
+                        }
+                    }
+                    Err(_) => eprintln!("tracker shutdown failed: tracker mutex poisoned"),
+                };
+            }
+        });
 }
 
 fn start_background_scan_loop(tracker: SharedTracker) {
@@ -86,7 +99,7 @@ fn start_background_scan_loop(tracker: SharedTracker) {
                         &mut tracker,
                         &activity_source,
                         &foreground_source,
-                        Local::now().date_naive(),
+                        Local::now(),
                         tick_duration,
                         ACTIVE_IDLE_THRESHOLD,
                     ) {
