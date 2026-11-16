@@ -25,4 +25,18 @@ Copy-Item -LiteralPath $setupSource -Destination $setupTarget -Force
 Copy-Item -LiteralPath $msiSource -Destination $msiTarget -Force
 
 Get-ChildItem -LiteralPath $staging | Select-Object Name, Length, LastWriteTime | Format-Table -AutoSize
-Get-FileHash -Algorithm SHA256 -LiteralPath $setupTarget, $msiTarget | Format-Table -AutoSize
+$hashes = foreach ($installerPath in @($setupTarget, $msiTarget)) {
+    $stream = [System.IO.File]::OpenRead($installerPath)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        [PSCustomObject]@{
+            Algorithm = "SHA256"
+            Hash = [System.BitConverter]::ToString($sha256.ComputeHash($stream)).Replace("-", "")
+            Path = $installerPath
+        }
+    } finally {
+        $sha256.Dispose()
+        $stream.Dispose()
+    }
+}
+$hashes | Format-Table -AutoSize
