@@ -9,6 +9,7 @@ pub type SharedTracker = Arc<Mutex<Tracker<SysinfoProcessSource>>>;
 pub struct AppState {
     pub db_path: PathBuf,
     pub tracker: SharedTracker,
+    pub summary_store: Mutex<Store>,
 }
 
 impl AppState {
@@ -16,10 +17,12 @@ impl AppState {
         let store = Store::open(&db_path)?;
         store.migrate()?;
         store.recover_open_sessions()?;
+        let summary_store = Mutex::new(Store::open_read_only(&db_path)?);
         let tracker = Tracker::new(store, SysinfoProcessSource::new());
         Ok(Self {
             db_path,
             tracker: Arc::new(Mutex::new(tracker)),
+            summary_store,
         })
     }
 }

@@ -123,36 +123,45 @@ pub struct AppSettings {
 
 #[tauri::command]
 pub fn get_dashboard_summary(state: State<'_, AppState>) -> Result<DashboardSummary, String> {
-    let tracker = state
+    let statuses = state
         .tracker
         .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?;
+        .map_err(|_| "tracker mutex poisoned".to_string())?
+        .runtime_status_by_app_id()
+        .clone();
+    let store = state
+        .summary_store
+        .lock()
+        .map_err(|_| "summary mutex poisoned".to_string())?;
+    let transaction = store.savepoint().map_err(|error| error.to_string())?;
     let now_utc = Utc::now();
-    dashboard_summary_from_store(
-        tracker.store(),
-        local_day_start_utc(),
-        now_utc,
-        tracker.runtime_status_by_app_id(),
-    )
-    .map_err(|error| error.to_string())
+    let summary = dashboard_summary_from_store(&store, local_day_start_utc(), now_utc, &statuses)
+        .map_err(|error| error.to_string())?;
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(summary)
 }
 
 #[tauri::command]
 pub fn get_software_page_summary(
     state: State<'_, AppState>,
 ) -> Result<SoftwarePageSummary, String> {
-    let tracker = state
+    let statuses = state
         .tracker
         .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?;
+        .map_err(|_| "tracker mutex poisoned".to_string())?
+        .runtime_status_by_app_id()
+        .clone();
+    let store = state
+        .summary_store
+        .lock()
+        .map_err(|_| "summary mutex poisoned".to_string())?;
+    let transaction = store.savepoint().map_err(|error| error.to_string())?;
     let now_utc = Utc::now();
-    software_page_summary_from_store(
-        tracker.store(),
-        local_day_start_utc(),
-        now_utc,
-        tracker.runtime_status_by_app_id(),
-    )
-    .map_err(|error| error.to_string())
+    let summary =
+        software_page_summary_from_store(&store, local_day_start_utc(), now_utc, &statuses)
+            .map_err(|error| error.to_string())?;
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(summary)
 }
 
 #[tauri::command]
