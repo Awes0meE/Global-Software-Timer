@@ -339,7 +339,7 @@ Build release bundles:
 npm.cmd run release:build
 ```
 
-See [Development Workflow](./docs/DEVELOPMENT_WORKFLOW.md) for review gates and the known release-script exit-code limitation.
+See [Development Workflow](./docs/DEVELOPMENT_WORKFLOW.md) for review gates and release-script failure checks, and [Current State](./docs/CURRENT_STATE.md) for the unreleased reliability fixes and remaining work.
 
 ### Roadmap
 

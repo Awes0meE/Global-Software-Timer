@@ -61,6 +61,7 @@ npm.cmd run check
 
 This runs:
 
+- release-script failure regressions
 - frontend tests
 - frontend production build
 - Rust formatting check
@@ -114,7 +115,7 @@ npm.cmd run release:build
 
 The script runs the full local gate, builds Tauri bundles, copies installer assets to `release-staging/`, and prints SHA256 hashes.
 
-Known limitation at `d8bfc6c`: `release-build.ps1` does not check `$LASTEXITCODE` after its two npm calls. A staging directory or printed hash alone is not evidence that checks/builds succeeded. Verify both command outcomes and artifact freshness before publishing; correcting the script is a separate pending code change.
+The release wrapper checks both npm exit codes and stops before staging on failure. `scripts/test-release-build.ps1` verifies both failure paths and runs through the local check gate and CI. A source push is not an installer release; verify artifacts before publishing.
 
 Release notes must include:
 
