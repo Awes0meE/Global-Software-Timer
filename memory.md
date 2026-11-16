@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-06-18
+Last updated: 2026-11-17
 
 ## Product Decisions
 
@@ -8,11 +8,11 @@ Last updated: 2026-06-18
 - `GST` is an accepted shorthand for Global Software Timer in project discussions and docs.
 - Chinese UI name: 全局软件计时器.
 - v0.1 platform: Windows 10/11 first.
-- Later platform direction: macOS with a more polished native-feeling UI, then mobile companion apps.
+- Later platform direction: a native SwiftUI/AppKit macOS app, then mobile companion apps. The 2026-06-15 native capture PoC is archived under `MACOS/native-capture-poc/`; it is reference material, not production macOS support. Physical keyboard/mouse idle-reset validation remains open.
 - v0.1 shape: system tray app, background tracking, dashboard on demand.
 - UI direction: dark Steam-like software library, not a marketing landing page.
 - Default Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`. The 2026-06-06 duration-format setting adds an unreleased optional concrete-minute display such as `8小时35分钟`.
-- Latest release: `v0.1.3`, published on GitHub on 2026-06-05.
+- Latest release recorded in repository documentation: `v0.1.3`, published on 2026-06-05. The 2026-11-17 check verified the remote `main` commit, not the live Releases listing.
 - v0.1.2 adds a Settings page with startup-at-login and close-window behavior controls.
 - Startup at login defaults to enabled in v0.1.2, uses the current-user autostart mechanism, and does not require administrator permission.
 - First window close still asks whether to exit or minimize to tray; the choice is saved automatically and can be changed later in Settings.
@@ -28,13 +28,13 @@ Last updated: 2026-06-18
 - Stack: Tauri v2, Rust, React, TypeScript, SQLite.
 - v0.1.3 software-page design should use a robust software identity layer keyed by merged user-visible software identity, not raw single executable app IDs. WPS-style components should behave as one software identity.
 - Storage strategy: event log plus summary tables from v0.1.
-- Runtime tracking: v0.1 tracks application process runtime.
-- Runtime sessions require a user-visible top-level window; Browser/Electron child helpers are filtered with transient command-line flag checks. Dashboard status is tri-state: foreground window plus process is `前台运行`, background process without foreground window is `后台运行`, no detected process is `未运行`. Window titles and command lines are not stored in SQLite or shown in the UI.
+- Runtime sessions track classified non-helper processes with a visible top-level window; this is not all process uptime. Browser/Electron child helpers are identified with transient command-line flag checks.
+- Dashboard status is tri-state: an eligible visible-window process is `前台运行`; a known executable seen only without a visible window or as a helper is `后台运行`; no detected matching process is `未运行`. Here foreground means window visibility, not keyboard focus. Software-page focused active time separately uses the Windows foreground PID. Window titles and command lines are not stored in SQLite or shown in the UI.
 - Default classifier noise filtering uses conservative process-name rules for hardware vendor background helpers. ASUS Armoury Crate helper processes and `nvcontainer.exe` are hidden by default, while the main `armourycrate.exe` app remains visible as `Armoury Crate`; avoid broad vendor path substring filters that could hide user-launched apps.
 - WPS suite components are grouped as `WPS Office` for usage summaries, including `wps.exe`, `et.exe`, `wpp.exe`, and `wpspdf.exe`; live status for merged rows is taken from the highest-priority status across all grouped app ids. WPS grouped rows use the main `wps.exe` sibling path for icon lookup, even when the visible component is `wpspdf.exe`, `et.exe`, or `wpp.exe`.
 - Active time: v0.1 tracks daily machine-level active time using keyboard/mouse idle state.
 - App settings are stored locally in the existing SQLite `app_settings` table, including `window.close_behavior`, `startup.autostart_enabled`, and the unreleased `ui.duration_format` display preference.
-- Long-term direction: record both runtime and active usage, with foreground/window-level features only as explicit opt-in.
+- Current software-page focus attribution is part of v0.1.3. Future additional privacy-sensitive window/workspace features must be explicit and opt-in; do not describe existing foreground-PID attribution as an unimplemented future feature.
 - Permissions: v0.1.3 runs as a normal user-space app and does not request administrator permission by default, including for startup at login.
 
 ## Privacy Decisions
@@ -60,6 +60,10 @@ Last updated: 2026-06-18
 
 ## Current Repository State
 
+- Verified baseline on 2026-11-17: local `main`, local `codex/current-dev`, cached `origin/main`, and GitHub API `main` all point to `d8bfc6cb986d7f72113c84bdade6cc06cc261ab6`. CLI fetch/ls-remote failed to connect; the API comparison did not refresh local refs. Remote branch enumeration returned only `main`.
+- Documentation reconciliation used an isolated development worktree on `docs/neat-review-20261117`; implementation must stay off `main`.
+- A redacted reviewer report is retained at `docs/2026-11-17-improvement-suggestions.md`; the complete original is archived locally outside Git. Use `docs/CURRENT_STATE.md` for verified findings and current behavior.
+- `backup/pre-remote-main-sync-20260618-204117` is an ancestor of `main` (93 commits behind, no unique commits). It is retained as a historical recovery reference.
 - Design spec committed.
 - Implementation plan committed.
 - Settings/autostart spec and implementation plan committed:
@@ -73,11 +77,11 @@ Last updated: 2026-06-18
   - `docs/superpowers/plans/2026-06-12-duration-format-setting.md`
 - v0.1.3 software-page implementation was merged into `main` through PR #10 on 2026-06-05.
 - For future development/release checkpoints, update the app's bottom-left sidebar version display as a default final step after feature work and verification.
-- Karpathy Guidelines skill is already installed at `C:\Users\123\.codex\skills\karpathy-guidelines`.
-- Requested execution mode: Superpowers subagent-driven development.
-- Local workflow entrypoint: `npm.cmd run check` loads frontend tests, frontend production build, Rust formatting check, Rust tests, and npm audit. `npm.cmd run release:build` runs that gate, builds Tauri bundles, stages installer assets, and prints SHA256 hashes.
+- Discover the Karpathy Guidelines skill in the active environment; do not assume a machine-specific installation path.
+- The original v0.1 implementation plan requires Superpowers subagent-driven development. Documentation-only reconciliation does not execute that plan.
+- Local workflow entrypoint: `npm.cmd run check` loads frontend tests, frontend production build, Rust formatting check, Rust tests, and npm audit. `npm.cmd run release:build` invokes that gate, builds Tauri bundles, stages installer assets, and prints SHA256 hashes. At `d8bfc6c`, the release wrapper does not check native npm exit codes; verify command success and artifact freshness before release.
 - Dependency audit status on 2026-06-18: npm audit is clear at moderate severity or higher. GitHub Dependabot still reports a medium Rust `glib` alert from `src-tauri/Cargo.lock`, but `glib` is absent from the Windows target dependency tree and appears only under `cargo tree --target all` through Tauri's Linux GTK/WebKit/tray stack. `cargo update -p glib --dry-run` cannot move it under current upstream constraints.
-- The older `superpowers:*` skill files were not found in the local skills directory on 2026-06-18; use the repository workflow in `docs/DEVELOPMENT_WORKFLOW.md`, `AGENTS.md`, Karpathy Guidelines, and available multi-agent tools as the practical replacement.
+- Superpowers workflow files were found on 2026-11-17 in the active environment's plugin cache. Discover skills per environment rather than retaining the June missing-installation assumption. The portable fallback remains `docs/DEVELOPMENT_WORKFLOW.md` and `AGENTS.md`.
 - Local toolchain verified on 2026-06-18:
   - Node `v22.18.0`
   - npm `10.9.3`
@@ -93,7 +97,15 @@ Last updated: 2026-06-18
 - `v0.1.1` is the first stability patch release, published on GitHub on 2026-05-31.
 - `v0.1.2` adds Settings, default-on current-user startup at login, and close-window behavior controls; it was published on GitHub on 2026-06-04.
 - `v0.1.3` adds the `软件` page, focused/hidden/discovered software lists, local pinyin-capable search, hidden-software default summary filtering, and software-page focused active time; it was published on GitHub on 2026-06-05.
-- Release bundles are built with `npm run tauri:build`.
+- The release workflow entrypoint is `npm.cmd run release:build`; `npm.cmd run tauri:build` is the underlying bundling command. See the release-wrapper limitation above.
+
+## Open Reliability Findings
+
+- No runtime fixes were made during the 2026-11-17 documentation review. The tick cap and regression test introduced by `f00093a` are absent from the reviewed baseline; session continuity also lacks long-gap handling. The exact commit that removed the protection was not identified.
+- Heartbeat updates and `AppHeartbeat` events remain separate per-snapshot writes; a whole tick is not atomic. Start, stop, recovery, and batch list additions already have local transactions.
+- Summary commands hold the tracker mutex, scan session history, and upsert identity caches. Separate read connections require moving those writes first; filtering the current query to one date would break lifetime totals.
+- Versioned migrations, safe backup/restore, and historical-heartbeat cleanup are proposals, not available features. The reviewer's local database measurements were not rechecked and are omitted from the published report. Do not delete local history based only on this report.
+- Overview active time uses a five-minute keyboard/mouse idle threshold; software-page active time uses focus without idle gating. The existing metric distinction is intentional. Future terminology or accounting changes require an explicit design and regression coverage.
 
 ## Historical Implementation Plan
 

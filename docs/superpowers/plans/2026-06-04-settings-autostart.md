@@ -25,7 +25,7 @@
 - [x] Add typed API wrappers for autostart and app settings.
 - [x] Add the Settings content view and animated switch controls.
 - [x] Sync startup at login to the default-on local preference without requesting administrator permission.
-- [x] Replace the old first-close choice dialog with stored/default close behavior.
+- [x] Keep the first-close choice dialog, save the choice automatically, and apply stored behavior on later closes.
 - [x] Run `npm test` and verify all frontend tests pass.
 
 ### Task 2: Rust Settings DTO

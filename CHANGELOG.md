@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reconciled documentation and project memory with the reviewed code baseline, documented metric semantics and outstanding reliability issues, and aligned development commands and branch naming. No runtime fixes are included in this documentation checkpoint.
 - Added a Settings switch for global Chinese duration display: default decimal hours or concrete hours/minutes.
 - Improved default noise filtering for ASUS Armoury Crate helper processes and NVIDIA container background processes while keeping the main Armoury Crate app visible.
 - Added a strict local development workflow with reusable check and release-build scripts.

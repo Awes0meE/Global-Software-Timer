@@ -159,6 +159,8 @@ v0.1.3 只记录本地软件使用统计和本机偏好所需的数据。
 
 ### 本地开发
 
+开发接手前先看 [当前实现与已知问题](./docs/CURRENT_STATE.md)。`main` 已包含尚未发布的“显示分钟数”等改动；下载安装章节的链接对应已发布的 v0.1.3。
+
 需要：
 
 - Windows 10/11
@@ -308,6 +310,8 @@ Global Software Timer uses:
 
 ### Development
 
+Read [current implementation and known issues](./docs/CURRENT_STATE.md) before starting work. `main` includes unreleased changes, including the duration-format preference; the download links above target the published v0.1.3 release.
+
 Install dependencies:
 
 ```powershell
@@ -324,20 +328,18 @@ npm run tauri:dev
 Run checks:
 
 ```powershell
-npm test
-npm run build
-
 . .\scripts\dev-env.ps1
-cd src-tauri
-cargo test
+npm.cmd run check
 ```
 
 Build release bundles:
 
 ```powershell
 . .\scripts\dev-env.ps1
-npm run tauri:build
+npm.cmd run release:build
 ```
+
+See [Development Workflow](./docs/DEVELOPMENT_WORKFLOW.md) for review gates and the known release-script exit-code limitation.
 
 ### Roadmap
 

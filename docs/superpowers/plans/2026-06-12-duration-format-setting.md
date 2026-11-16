@@ -1,5 +1,7 @@
 # Duration Format Setting Implementation Plan
 
+Status: Implemented on `main`, unreleased as of the 2026-11-17 review (`d8bfc6c`). Original checkboxes are historical planning notes, not unfinished implementation tasks.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a Settings switch that persists a global Chinese duration display preference and applies it to every duration value in the app.

@@ -1,5 +1,7 @@
 # Global Software Timer v0.1 Implementation Plan
 
+Status: Historical implementation plan for the shipped v0.1.0 release. Original task checkboxes are retained as planning history, not a current backlog; see `CHANGELOG.md` and `docs/CURRENT_STATE.md` for release state and open issues.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a Windows-first Tauri v2 tray application that records local application runtime, stores robust SQLite event/session data, and displays a Steam-like Chinese/English dashboard.
