@@ -7,7 +7,9 @@ Set-Location $repoRoot
 . "$PSScriptRoot\dev-env.ps1"
 
 npm.cmd run check
+if ($LASTEXITCODE -ne 0) { throw "npm.cmd run check failed with exit code $LASTEXITCODE" }
 npm.cmd run tauri:build
+if ($LASTEXITCODE -ne 0) { throw "npm.cmd run tauri:build failed with exit code $LASTEXITCODE" }
 
 $package = Get-Content -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "package.json") | ConvertFrom-Json
 $version = $package.version

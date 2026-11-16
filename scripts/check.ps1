@@ -6,6 +6,8 @@ Set-Location $repoRoot
 
 . "$PSScriptRoot\dev-env.ps1"
 
+& "$PSScriptRoot\test-release-build.ps1"
+
 function Invoke-CheckedCommand {
     param(
         [Parameter(Mandatory = $true)]
