@@ -92,7 +92,7 @@ v0.1.3 additionally includes:
 - Hidden software filtering from default dashboard summaries while keeping raw local history.
 - App sidebar version display updated to `V0.1.3`.
 
-Unreleased v0.1.4 additionally includes:
+v0.1.4 additionally includes:
 
 - Gap-aware atomic tracker accounting and normal-exit session closure.
 - Versioned schema baseline and independent read-only summary queries.
