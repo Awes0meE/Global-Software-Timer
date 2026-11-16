@@ -69,7 +69,7 @@ jobs:
             gh api --method DELETE "repos/$env:GH_REPO/git/refs/heads/fix/tracker-reliability"
             if ($LASTEXITCODE -ne 0) { throw "Repair branch cleanup failed" }
           }
-          git merge-base --is-ancestor origin/build/release-014 HEAD
-          if ($LASTEXITCODE -ne 0) { throw "Release branch has unmerged work" }
+          git diff --quiet origin/build/release-014 HEAD
+          if ($LASTEXITCODE -ne 0) { throw "Release branch differs from the published tree" }
           gh api --method DELETE "repos/$env:GH_REPO/git/refs/heads/build/release-014"
           if ($LASTEXITCODE -ne 0) { throw "Release branch cleanup failed" }
