@@ -1,0 +1,49 @@
+name: Publish v0.1.4
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-014.yml]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: publish-v0.1.4
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_RUN: '43970276951'
+      SOURCE_SHA: 9b1dabfa0d26c261d472279f8f881f7461e15614
+    steps:
+      - name: Verify completed source build
+        shell: pwsh
+        run: |
+          $run = gh api "repos/$env:GH_REPO/actions/runs/$env:SOURCE_RUN" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "Cannot verify source build" }
+          if ($run.head_sha -ne $env:SOURCE_SHA -or $run.head_branch -ne 'main' -or $run.status -ne 'completed' -or $run.conclusion -ne 'success') {
+            throw "Source build must succeed on the expected main commit"
+          }
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ env.SOURCE_RUN }}
+          name: gst-0.1.4-windows
+          path: release-staging
+      - name: Verify and publish installers
+        shell: pwsh
+        run: |
+          $expected = @('Global.Software.Timer_0.1.4_x64-setup.exe', 'Global.Software.Timer_0.1.4_x64_en-US.msi')
+          $assets = @(Get-ChildItem release-staging -File | Where-Object { $_.Extension -in '.exe', '.msi' })
+          if ($assets.Count -ne 2 -or @(Compare-Object $expected @($assets.Name)).Count -ne 0) { throw "Unexpected installer set" }
+          $manifest = @(Get-Content release-staging/SHA256SUMS.txt)
+          if ($manifest.Count -ne 2) { throw "Unexpected checksum manifest" }
+          foreach ($asset in $assets) {
+            $hash = (Get-FileHash $asset.FullName -Algorithm SHA256).Hash.ToLower()
+            if ($manifest -cnotcontains "$hash  $($asset.Name)") { throw "Checksum mismatch: $($asset.Name)" }
+          }
+          $upload = @($assets.FullName) + @((Resolve-Path release-staging/SHA256SUMS.txt).Path)
+          gh release create v0.1.4 @upload --target $env:SOURCE_SHA --title 'Global Software Timer v0.1.4' --notes-file release-staging/RELEASE_NOTES.md
+          if ($LASTEXITCODE -ne 0) { throw "Release publication failed" }
