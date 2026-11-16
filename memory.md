@@ -60,36 +60,17 @@ Last updated: 2026-11-17
 
 ## Current Repository State
 
-- Verified baseline on 2026-11-17: local `main`, local `codex/current-dev`, cached `origin/main`, and GitHub API `main` all point to `d8bfc6cb986d7f72113c84bdade6cc06cc261ab6`. CLI fetch/ls-remote failed to connect; the API comparison did not refresh local refs. Remote branch enumeration returned only `main`.
-- Documentation reconciliation used an isolated development worktree on `docs/neat-review-20261117`; implementation must stay off `main`.
-- A redacted reviewer report is retained at `docs/2026-11-17-improvement-suggestions.md`; the complete original is archived locally outside Git. Use `docs/CURRENT_STATE.md` for verified findings and current behavior.
-- `backup/pre-remote-main-sync-20260618-204117` is an ancestor of `main` (93 commits behind, no unique commits). It is retained as a historical recovery reference.
-- Design spec committed.
-- Implementation plan committed.
-- Settings/autostart spec and implementation plan committed:
-  - `docs/superpowers/specs/2026-06-04-settings-autostart-design.md`
-  - `docs/superpowers/plans/2026-06-04-settings-autostart.md`
-- Software page v0.1.3 spec and implementation plan committed:
-  - `docs/superpowers/specs/2026-06-05-software-page-design.md`
-  - `docs/superpowers/plans/2026-06-05-software-page-v013.md`
-- Duration-format setting spec and implementation plan committed:
-  - `docs/superpowers/specs/2026-06-06-duration-format-setting-design.md`
-  - `docs/superpowers/plans/2026-06-12-duration-format-setting.md`
-- v0.1.3 software-page implementation was merged into `main` through PR #10 on 2026-06-05.
-- For future development/release checkpoints, update the app's bottom-left sidebar version display as a default final step after feature work and verification.
-- Discover the Karpathy Guidelines skill in the active environment; do not assume a machine-specific installation path.
-- The original v0.1 implementation plan requires Superpowers subagent-driven development. Documentation-only reconciliation does not execute that plan.
-- Local workflow entrypoint: `npm.cmd run check` loads frontend tests, frontend production build, Rust formatting check, Rust tests, and npm audit. `npm.cmd run release:build` invokes that gate, builds Tauri bundles, stages installer assets, and prints SHA256 hashes. At `d8bfc6c`, the release wrapper does not check native npm exit codes; verify command success and artifact freshness before release.
-- Dependency audit status on 2026-06-18: npm audit is clear at moderate severity or higher. GitHub Dependabot still reports a medium Rust `glib` alert from `src-tauri/Cargo.lock`, but `glib` is absent from the Windows target dependency tree and appears only under `cargo tree --target all` through Tauri's Linux GTK/WebKit/tray stack. `cargo update -p glib --dry-run` cannot move it under current upstream constraints.
-- Superpowers workflow files were found on 2026-11-17 in the active environment's plugin cache. Discover skills per environment rather than retaining the June missing-installation assumption. The portable fallback remains `docs/DEVELOPMENT_WORKFLOW.md` and `AGENTS.md`.
-- Local toolchain verified on 2026-06-18:
-  - Node `v22.18.0`
-  - npm `10.9.3`
-  - Rust `1.96.0`
-  - Cargo `1.96.0`
-  - Visual Studio 2022 Build Tools with C++ workload
-  - Microsoft Edge WebView2 Runtime `149.0.4022.69`
-- Existing Codex shells may not inherit the refreshed Cargo PATH. Run `. .\scripts\dev-env.ps1` before Rust/Tauri commands.
+- Development version: `0.1.4`, unreleased. The sidebar reads `package.json`; npm, Cargo and Tauri metadata agree. Published download documentation still targets `v0.1.3`.
+- Working branch: `fix/tracker-reliability`, using an isolated development worktree.
+- Repair baseline: local and GitHub API `main` were both `d8bfc6cb986d7f72113c84bdade6cc06cc261ab6` on 2026-11-17. Direct CLI GitHub access fails in this environment; verify remote Git objects through the connected GitHub service when publishing.
+- A redacted reviewer report is preserved in `docs/2026-11-17-improvement-suggestions.md`; the complete original is archived locally outside Git. Its current-state claims refer to the pre-fix baseline. Use `docs/CURRENT_STATE.md` for repaired behavior and remaining work.
+- Active repair plan: `docs/superpowers/plans/2026-11-17-reliability-fixes.md`.
+- Approved settings, software-page and duration-format specifications are under `docs/superpowers/specs/`. Historical plans under `docs/superpowers/plans/` are not a live backlog.
+- The 2026-06-06 duration-format preference is implemented on main but was not in the published v0.1.3 release.
+- Local gate: `npm.cmd run check` runs release-script failure tests, frontend tests/build, Rust fmt/tests, and npm audit. `npm.cmd run release:build` runs the gate and Tauri build, stops on failure, then stages installers and prints SHA256 hashes.
+- Load `. .\scripts\dev-env.ps1` before Rust commands. The 2026-06-18 toolchain/audit observations are historical; the 2026-11-17 online npm audit could not reach its endpoint. Do not claim a fresh clean dependency audit.
+- Superpowers workflows are available in the active environment's plugin cache; discover them per environment. Portable workflow fallback is `docs/DEVELOPMENT_WORKFLOW.md` and `AGENTS.md`.
+- The original v0.1 plan requires subagent-driven development. This repair used implementation plus independent spec and quality reviews.
 
 ## Release State
 
@@ -97,15 +78,18 @@ Last updated: 2026-11-17
 - `v0.1.1` is the first stability patch release, published on GitHub on 2026-05-31.
 - `v0.1.2` adds Settings, default-on current-user startup at login, and close-window behavior controls; it was published on GitHub on 2026-06-04.
 - `v0.1.3` adds the `软件` page, focused/hidden/discovered software lists, local pinyin-capable search, hidden-software default summary filtering, and software-page focused active time; it was published on GitHub on 2026-06-05.
-- The release workflow entrypoint is `npm.cmd run release:build`; `npm.cmd run tauri:build` is the underlying bundling command. See the release-wrapper limitation above.
+- The release workflow entrypoint is `npm.cmd run release:build`; `npm.cmd run tauri:build` is the underlying bundling command. A code push does not publish an installer release.
 
-## Open Reliability Findings
+## Reliability Checkpoint: 2026-11-17
 
-- No runtime fixes were made during the 2026-11-17 documentation review. The tick cap and regression test introduced by `f00093a` are absent from the reviewed baseline; session continuity also lacks long-gap handling. The exact commit that removed the protection was not identified.
-- Heartbeat updates and `AppHeartbeat` events remain separate per-snapshot writes; a whole tick is not atomic. Start, stop, recovery, and batch list additions already have local transactions.
-- Summary commands hold the tracker mutex, scan session history, and upsert identity caches. Separate read connections require moving those writes first; filtering the current query to one date would break lifetime totals.
-- Versioned migrations, safe backup/restore, and historical-heartbeat cleanup are proposals, not available features. The reviewer's local database measurements were not rechecked and are omitted from the published report. Do not delete local history based only on this report.
-- Overview active time uses a five-minute keyboard/mouse idle threshold; software-page active time uses focus without idle gating. The existing metric distinction is intentional. Future terminology or accounting changes require an explicit design and regression coverage.
+- Long scan gaps (>10 seconds) and backwards wall time end sessions at the last reliable heartbeat and receive no daily credit. A defensive 60-second tick cap remains. Credited seconds split at local midnight using injected timestamps, enabling deterministic tests.
+- New `AppHeartbeat` events are suppressed; each executable gets at most one heartbeat update per scan, while focus mapping retains all eligible PIDs. Existing heartbeat history remains intact.
+- Scan/tick writes use nested-safe savepoints; cloned tracker state becomes live only after database commit. Failures roll back session, identity, event and aggregate changes together. Normal Tauri exit closes sessions at their last heartbeat; forced exits still use startup recovery.
+- Schema version 1 upgrades legacy structures atomically, rejects future versions, retains settings/history and adds indexes. Identity cache maintenance runs at startup/write boundaries. Summary queries use a separate read-only connection with a read transaction and briefly clone runtime status under the tracker mutex.
+- UI polling pauses when document.hidden and resumes on visibility; software mutations and polling share response-generation protection. Release command failures now stop before staging.
+- Final local validation: 66 frontend tests, TypeScript/Vite build, 95 Rust tests, Rust formatting, and both release-script failure regressions passed. Independent spec/quality reviews passed. Full `npm.cmd run check` exits 1 at npm audit because its registry endpoint is unreachable; real sleep/hibernate and tray interaction were not manually tested.
+- These changes do not unify the accounting model, rebuild corrupted historical time, delete old events, compact databases, or implement backup/restore. No production database was opened or modified during this repair.
+- Still pending: Windows power/session hooks and real sleep/hibernate validation; materialized summary/performance benchmarks; safe historic cleanup with recoverable backup; identity/rule redesign; live tracker-health UI; persistent logs, CSP, signing, updates, and export/restore. See `docs/CURRENT_STATE.md`.
 
 ## Historical Implementation Plan
 
@@ -129,7 +113,7 @@ Plan tasks:
 
 - Work from an isolated worktree/branch, not directly on `main`.
 - Keep the open-source tracker core separable from future paid analytics.
-- Avoid speculative abstractions; implement the v0.1 plan only.
+- Avoid speculative abstractions; implement the current approved task and plan. Shipped-release plans remain historical context.
 - After each task, update this file if a decision changes or a blocker appears.
 - Commit history should follow Conventional Commits-style types. Use `feat` for new user-visible behavior, `fix` for bug fixes, `docs` for documentation-only changes, `test` for tests, `build`/`ci` for build and workflow changes, and reserve `chore` for auxiliary maintenance/tooling only.
 - Do not bundle a batch of new features or fixes into a final `chore(release)` commit. Release/version commits may be `chore(release): ...` only after the underlying feature/fix/doc/test commits have already been made separately.

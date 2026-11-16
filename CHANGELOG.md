@@ -1,13 +1,21 @@
 # Changelog
 
-## Unreleased
+## Unreleased (0.1.4)
 
-- Reconciled documentation and project memory with the reviewed code baseline, documented metric semantics and outstanding reliability issues, and aligned development commands and branch naming. No runtime fixes are included in this documentation checkpoint.
+- Prevented long scan gaps and clock rollback from inflating session and daily time; credited counters now split at local midnight.
+- Removed new heartbeat event rows, deduplicated per-executable heartbeats, and made scans/ticks atomic with in-memory rollback.
+- Added normal-exit session closure and versioned transactional schema migration with forward-version rejection.
+- Moved summary reads to an independent read-only connection and removed query-time identity writes while preserving historical totals.
+- Paused hidden-page polling, refreshed visible software totals, and prevented stale software responses from undoing list mutations.
+- Stopped release staging on failed checks/builds and added release-script regression checks to local and CI gates.
+- Set development metadata/sidebar to 0.1.4; no installer release has been published for this checkpoint.
+
+- Reconciled documentation and project memory with the code, documented metric semantics and remaining reliability work, and aligned development commands and branch naming.
 - Added a Settings switch for global Chinese duration display: default decimal hours or concrete hours/minutes.
 - Improved default noise filtering for ASUS Armoury Crate helper processes and NVIDIA container background processes while keeping the main Armoury Crate app visible.
 - Added a strict local development workflow with reusable check and release-build scripts.
-- Upgraded the Vite/Vitest/jsdom frontend toolchain to clear the current npm audit findings.
-- Documented the remaining non-Windows `glib` Dependabot alert and its current upstream Tauri dependency constraint.
+- Upgraded the Vite/Vitest/jsdom frontend toolchain, clearing the npm audit findings checked on 2026-06-18. The 2026-11-17 audit could not reach the registry; this is not a fresh clean audit result.
+- Documented the non-Windows `glib` Dependabot alert and upstream Tauri dependency constraint observed on 2026-06-18; current advisory status needs an online recheck.
 
 ## v0.1.3 - 2026-06-05
 
