@@ -1,7 +1,7 @@
 # Duration Format Setting Design
 
 Date: 2026-06-06
-Status: Draft
+Status: Implemented on `main`, unreleased as of the 2026-11-17 code review (`d8bfc6c`).
 
 ## Goal
 

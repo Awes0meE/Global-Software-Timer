@@ -1,7 +1,7 @@
 # macOS Native Capture PoC Design
 
 Date: 2026-06-15
-Status: Draft for review
+Status: Historical PoC design; implementation and validation material archived under `MACOS/native-capture-poc/`. See [handoff](../../../MACOS/native-capture-poc/README.md) and its feasibility report for proven behavior and remaining validation. This is not shipped macOS product support.
 
 ## Goal
 

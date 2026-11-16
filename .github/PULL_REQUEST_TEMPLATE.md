@@ -22,9 +22,8 @@ Describe any privacy impact:
 
 ## Test Plan
 
-- [ ] `npm test`
-- [ ] `npm run build`
-- [ ] `. .\scripts\dev-env.ps1; cd src-tauri; cargo test`
+- [ ] `npm.cmd run check` (frontend tests/build, Rust formatting/tests, npm audit)
+- [ ] For documentation-only changes, checked links, commands, and `git diff --check`; explain any skipped runtime checks.
 - [ ] Manual Windows/Tauri check, if UI or tray behavior changed
 
 ## Screenshots

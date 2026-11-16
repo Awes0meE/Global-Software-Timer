@@ -10,6 +10,9 @@ Read these files before implementation work:
 - `docs/superpowers/plans/2026-05-28-global-software-timer-v01.md`
 - `docs/superpowers/specs/2026-06-04-settings-autostart-design.md`
 - `memory.md`
+- `docs/CURRENT_STATE.md`
+
+`docs/CURRENT_STATE.md` records verified implementation behavior and review follow-up. The external improvement report is review input, not authorization to implement every proposal. Historical plan checkboxes do not represent current unfinished work.
 
 ## Required Working Style
 
@@ -22,6 +25,7 @@ Read these files before implementation work:
   - Define verifiable success criteria and loop until checked.
 - Use TDD for implementation tasks when the plan asks for tests.
 - Do not start implementation on `main`; use an isolated worktree/branch.
+- Use semantic branch names such as `docs/review-follow-up` or `fix/tracker-gap-accounting`; do not introduce agent-name prefixes.
 - Commit after each completed task or coherent checkpoint.
 
 ## Git Commit Discipline
