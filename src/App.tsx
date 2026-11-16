@@ -32,6 +32,7 @@ import { SoftwarePage } from "./components/SoftwarePage";
 import { SummaryCards } from "./components/SummaryCards";
 import { TodayMix } from "./components/TodayMix";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
+import { startVisiblePolling } from "./visiblePolling";
 
 const fallbackSummary: DashboardSummary = {
   product_title: "全局软件计时器",
@@ -96,12 +97,11 @@ export default function App() {
   useEffect(() => {
     dashboardMountedRef.current = true;
 
-    void loadDashboard();
-    const refreshId = window.setInterval(() => void loadDashboard(), dashboardRefreshIntervalMs);
+    const stopPolling = startVisiblePolling(loadDashboard, dashboardRefreshIntervalMs);
 
     return () => {
       dashboardMountedRef.current = false;
-      window.clearInterval(refreshId);
+      stopPolling();
     };
   }, [loadDashboard]);
 

@@ -9,6 +9,7 @@ import {
   type SoftwarePageSummary,
 } from "../api";
 import { AddSoftwareDialog, type AddTarget } from "./AddSoftwareDialog";
+import { startVisiblePolling } from "../visiblePolling";
 import {
   DiscoveredSoftwarePanel,
   FocusedSoftwarePanel,
@@ -36,41 +37,34 @@ export function SoftwarePage({
   const [focusedEditing, setFocusedEditing] = useState(false);
   const [hiddenEditing, setHiddenEditing] = useState(false);
   const [addTarget, setAddTarget] = useState<AddTarget | null>(null);
+  const mountedRef = useRef(false);
+  const requestRef = useRef(0);
   const addOpenerRef = useRef<HTMLButtonElement | null>(null);
 
   const refreshSummary = useCallback(async (): Promise<boolean> => {
+    const request = ++requestRef.current;
     try {
       const nextSummary = await getSoftwarePageSummary();
+      if (!mountedRef.current || request !== requestRef.current) return false;
       setSummary(nextSummary);
       setFetchError(false);
       return true;
     } catch {
+      if (!mountedRef.current || request !== requestRef.current) return false;
       setFetchError(true);
       return false;
     }
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    getSoftwarePageSummary()
-      .then((nextSummary) => {
-        if (!cancelled) {
-          setSummary(nextSummary);
-          setFetchError(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setFetchError(true);
-        }
-      });
-
+    mountedRef.current = true;
+    const stopPolling = startVisiblePolling(refreshSummary, 5000);
     return () => {
-      cancelled = true;
+      mountedRef.current = false;
+      requestRef.current += 1;
+      stopPolling();
     };
-  }, []);
-
+  }, [refreshSummary]);
   const handleFocusedRemove = async (identityKey: string) => {
     setRemoveError(false);
 
