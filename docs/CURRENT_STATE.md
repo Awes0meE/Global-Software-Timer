@@ -57,10 +57,15 @@
 | 在线依赖审计 | npm registry 审计接口不可达，导致完整 check 退出码为 1；未得出依赖安全结论。 |
 | 文档检查 | 本轮 Markdown 相对链接和 `git diff --check` 通过。 |
 
+2026-11-17 接手核验：[PR #12](https://github.com/Awes0meE/Global-Software-Timer/pull/12) 的修复提交 `f3488a6` 与本地一致；[Windows CI #45](https://github.com/Awes0meE/Global-Software-Timer/actions/runs/43929074730) 在其与 `main` 的测试合并提交上通过发布脚本回归、Rust 格式检查、66 项前端测试、前端构建和 95 项 Rust 测试。
+
+**依赖问题尚未解决**：该 CI 的 `npm ci` 日志报告 7 个漏洞（2 个 moderate、5 个 high）。当前 CI 没有独立的 `npm audit --audit-level=moderate` 失败关卡，CI 成功不能代表依赖审计通过。本地重试 audit 仍无法连接审计接口；现有日志没有具体 advisory 或依赖链，不能判断哪些影响生产运行。后续需取得完整审计结果、修复对应依赖并补齐 CI 审计关卡。
+
 本轮没有构建/发布安装包，也没有运行真实睡眠、休眠或托盘交互验收；对应手工验证仍待完成。
 
 - 实现与修复使用独立工作树，避免直接在 main 上开发。
-- 开始修复时，GitHub API 与本地 `main` 均为 `d8bfc6c`。CLI 无法连接 GitHub；发布修复分支时应通过可用连接核验提交树，不能把缓存远端引用当成实时结果。
+- 外层项目目录是容器，实际主工作区为 `.worktrees/v01-implementation`，开发工作区为 `.worktrees/current-dev`；在实际工作区运行 Git 命令。
+- 开始修复时，GitHub API 与本地 `main` 均为 `d8bfc6c`。修复分支已推送并建立 PR #12，尚未合并或发布。CLI 无法连接 GitHub；发布时通过可用连接核验提交，不能把缓存远端引用当成实时结果。
 - `README.md` 下载链接仍对应已发布的 v0.1.3；`0.1.4` 只是开发版本，没有发布安装包。`MACOS/` 仍是历史 PoC，物理输入重置验证未完成。
 - 旧计划复选框是历史记录；后续依据代码、批准规格、CHANGELOG 和本文件工作。
-- 2026-06-18 的依赖审计与工具链版本是历史记录；本轮在线 npm audit 无法连接服务，不能报告安全审计通过。
+- 2026-06-18 的依赖审计与工具链版本是历史记录；以本节的 CI 漏洞提示和本地审计限制作为本轮已知状态，不能报告安全审计通过。

@@ -61,7 +61,7 @@ Last updated: 2026-11-17
 ## Current Repository State
 
 - Development version: `0.1.4`, unreleased. The sidebar reads `package.json`; npm, Cargo and Tauri metadata agree. Published download documentation still targets `v0.1.3`.
-- Working branch: `fix/tracker-reliability`, using an isolated development worktree.
+- Working branch: `fix/tracker-reliability`, using `.worktrees/current-dev`. The main Git worktree is `.worktrees/v01-implementation`; the enclosing project folder is only a container. PR #12 is open, not merged or released.
 - Repair baseline: local and GitHub API `main` were both `d8bfc6cb986d7f72113c84bdade6cc06cc261ab6` on 2026-11-17. Direct CLI GitHub access fails in this environment; verify remote Git objects through the connected GitHub service when publishing.
 - A redacted reviewer report is preserved in `docs/2026-11-17-improvement-suggestions.md`; the complete original is archived locally outside Git. Its current-state claims refer to the pre-fix baseline. Use `docs/CURRENT_STATE.md` for repaired behavior and remaining work.
 - Active repair plan: `docs/superpowers/plans/2026-11-17-reliability-fixes.md`.
@@ -88,6 +88,7 @@ Last updated: 2026-11-17
 - Schema version 1 upgrades legacy structures atomically, rejects future versions, retains settings/history and adds indexes. Identity cache maintenance runs at startup/write boundaries. Summary queries use a separate read-only connection with a read transaction and briefly clone runtime status under the tracker mutex.
 - UI polling pauses when document.hidden and resumes on visibility; software mutations and polling share response-generation protection. Release command failures now stop before staging.
 - Final local validation: 66 frontend tests, TypeScript/Vite build, 95 Rust tests, Rust formatting, and both release-script failure regressions passed. Independent spec/quality reviews passed. Full `npm.cmd run check` exits 1 at npm audit because its registry endpoint is unreachable; real sleep/hibernate and tray interaction were not manually tested.
+- Delivery verification on 2026-11-17: PR #12 head `f3488a6` matched local HEAD. Windows CI run `43929074730` passed the same test/build/format checks on the PR's test merge. Its `npm ci` log reported 7 vulnerabilities (2 moderate, 5 high); CI does not enforce a separate npm audit gate. The local audit retry remained unreachable. Obtain full advisories/dependency paths, repair affected dependencies, and enforce CI audit before claiming a clean security gate; production exposure is not established by these counts.
 - These changes do not unify the accounting model, rebuild corrupted historical time, delete old events, compact databases, or implement backup/restore. No production database was opened or modified during this repair.
 - Still pending: Windows power/session hooks and real sleep/hibernate validation; materialized summary/performance benchmarks; safe historic cleanup with recoverable backup; identity/rule redesign; live tracker-health UI; persistent logs, CSP, signing, updates, and export/restore. See `docs/CURRENT_STATE.md`.
 
