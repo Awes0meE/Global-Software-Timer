@@ -11,8 +11,8 @@ Last updated: 2026-11-17
 - Later platform direction: a native SwiftUI/AppKit macOS app, then mobile companion apps. The 2026-06-15 native capture PoC is archived under `MACOS/native-capture-poc/`; it is reference material, not production macOS support. Physical keyboard/mouse idle-reset validation remains open.
 - v0.1 shape: system tray app, background tracking, dashboard on demand.
 - UI direction: dark Steam-like software library, not a marketing landing page.
-- Default Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`. The 2026-06-06 duration-format setting adds an unreleased optional concrete-minute display such as `8小时35分钟`.
-- Latest release recorded in repository documentation: `v0.1.3`, published on 2026-06-05. The 2026-11-17 check verified the remote `main` commit, not the live Releases listing.
+- Default Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`. The 2026-06-06 duration-format setting adds an optional concrete-minute display such as `8小时35分钟`.
+- Release version: `v0.1.4` (2026-11-17); publication is gated by complete Windows checks and installer builds.
 - v0.1.2 adds a Settings page with startup-at-login and close-window behavior controls.
 - Startup at login defaults to enabled in v0.1.2, uses the current-user autostart mechanism, and does not require administrator permission.
 - First window close still asks whether to exit or minimize to tray; the choice is saved automatically and can be changed later in Settings.
@@ -33,7 +33,7 @@ Last updated: 2026-11-17
 - Default classifier noise filtering uses conservative process-name rules for hardware vendor background helpers. ASUS Armoury Crate helper processes and `nvcontainer.exe` are hidden by default, while the main `armourycrate.exe` app remains visible as `Armoury Crate`; avoid broad vendor path substring filters that could hide user-launched apps.
 - WPS suite components are grouped as `WPS Office` for usage summaries, including `wps.exe`, `et.exe`, `wpp.exe`, and `wpspdf.exe`; live status for merged rows is taken from the highest-priority status across all grouped app ids. WPS grouped rows use the main `wps.exe` sibling path for icon lookup, even when the visible component is `wpspdf.exe`, `et.exe`, or `wpp.exe`.
 - Active time: v0.1 tracks daily machine-level active time using keyboard/mouse idle state.
-- App settings are stored locally in the existing SQLite `app_settings` table, including `window.close_behavior`, `startup.autostart_enabled`, and the unreleased `ui.duration_format` display preference.
+- App settings are stored locally in the existing SQLite `app_settings` table, including `window.close_behavior`, `startup.autostart_enabled`, and the `ui.duration_format` display preference.
 - Current software-page focus attribution is part of v0.1.3. Future additional privacy-sensitive window/workspace features must be explicit and opt-in; do not describe existing foreground-PID attribution as an unimplemented future feature.
 - Permissions: v0.1.3 runs as a normal user-space app and does not request administrator permission by default, including for startup at login.
 
@@ -60,11 +60,11 @@ Last updated: 2026-11-17
 
 ## Current Repository State
 
-- Development version: `0.1.4`, unreleased. The sidebar reads `package.json`; npm, Cargo and Tauri metadata agree. Published download documentation still targets `v0.1.3`.
-- Working branch: `fix/tracker-reliability`, using `.worktrees/current-dev`. The main Git worktree is `.worktrees/v01-implementation`; the enclosing project folder is only a container. PR #12 is open, not merged or released.
+- Version: `0.1.4`; npm, Cargo, Tauri and sidebar metadata agree.
+- PR #12 is merged. Main worktree: `.worktrees/v01-implementation`; development worktree: `.worktrees/current-dev`. The enclosing folder is a container.
 - Repair baseline: local and GitHub API `main` were both `d8bfc6cb986d7f72113c84bdade6cc06cc261ab6` on 2026-11-17. Direct CLI GitHub access fails in this environment; verify remote Git objects through the connected GitHub service when publishing.
 - A redacted reviewer report is preserved in `docs/2026-11-17-improvement-suggestions.md`; the complete original is archived locally outside Git. Its current-state claims refer to the pre-fix baseline. Use `docs/CURRENT_STATE.md` for repaired behavior and remaining work.
-- Active repair plan: `docs/superpowers/plans/2026-11-17-reliability-fixes.md`.
+- Completed repair plan: `docs/superpowers/plans/2026-11-17-reliability-fixes.md`.
 - Approved settings, software-page and duration-format specifications are under `docs/superpowers/specs/`. Historical plans under `docs/superpowers/plans/` are not a live backlog.
 - The 2026-06-06 duration-format preference is implemented on main but was not in the published v0.1.3 release.
 - Local gate: `npm.cmd run check` runs release-script failure tests, frontend tests/build, Rust fmt/tests, and npm audit. `npm.cmd run release:build` runs the gate and Tauri build, stops on failure, then stages installers and prints SHA256 hashes.
@@ -73,6 +73,8 @@ Last updated: 2026-11-17
 - The original v0.1 plan requires subagent-driven development. This repair used implementation plus independent spec and quality reviews.
 
 ## Release State
+
+- `v0.1.4` (2026-11-17) includes reliability repairs and dependency remediation; installer publication is gated by the Windows release workflow.
 
 - `v0.1.0` was the initial Windows-first GitHub release on 2026-05-30.
 - `v0.1.1` is the first stability patch release, published on GitHub on 2026-05-31.
@@ -88,7 +90,7 @@ Last updated: 2026-11-17
 - Schema version 1 upgrades legacy structures atomically, rejects future versions, retains settings/history and adds indexes. Identity cache maintenance runs at startup/write boundaries. Summary queries use a separate read-only connection with a read transaction and briefly clone runtime status under the tracker mutex.
 - UI polling pauses when document.hidden and resumes on visibility; software mutations and polling share response-generation protection. Release command failures now stop before staging.
 - Final local validation: 66 frontend tests, TypeScript/Vite build, 95 Rust tests, Rust formatting, and both release-script failure regressions passed. Independent spec/quality reviews passed. Full `npm.cmd run check` exits 1 at npm audit because its registry endpoint is unreachable; real sleep/hibernate and tray interaction were not manually tested.
-- Delivery verification on 2026-11-17: PR #12 head `f3488a6` matched local HEAD. Windows CI run `43929074730` passed the same test/build/format checks on the PR's test merge. Its `npm ci` log reported 7 vulnerabilities (2 moderate, 5 high); CI does not enforce a separate npm audit gate. The local audit retry remained unreachable. Obtain full advisories/dependency paths, repair affected dependencies, and enforce CI audit before claiming a clean security gate; production exposure is not established by these counts.
+- Release dependency remediation: compatible lockfile updates resolved seven npm findings; cloud npm audit reports zero vulnerabilities. CI now enforces audit. Windows release builds rerun the complete gate and produce EXE/MSI plus SHA256SUMS.txt.
 - These changes do not unify the accounting model, rebuild corrupted historical time, delete old events, compact databases, or implement backup/restore. No production database was opened or modified during this repair.
 - Still pending: Windows power/session hooks and real sleep/hibernate validation; materialized summary/performance benchmarks; safe historic cleanup with recoverable backup; identity/rule redesign; live tracker-health UI; persistent logs, CSP, signing, updates, and export/restore. See `docs/CURRENT_STATE.md`.
 
