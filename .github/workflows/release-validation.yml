@@ -35,7 +35,8 @@ jobs:
           if-no-files-found: error
   publish:
     needs: build
-    if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'chore(release): publish 0.1.4')
+    if: >-
+      github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'chore(release): publish 0.1.4')
     permissions:
       contents: write
     runs-on: windows-latest
