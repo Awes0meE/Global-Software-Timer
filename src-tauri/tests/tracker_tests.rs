@@ -934,3 +934,37 @@ fn split_boundary_preserves_genuine_legacy_sessions_from_the_same_day() {
     assert_eq!(rows.discovered[0].today_foreground_seconds, 47);
     assert_eq!(rows.discovered[0].total_foreground_seconds, 47);
 }
+
+#[test]
+fn fractional_tick_credit_is_carried_instead_of_dropped() {
+    let db_file = NamedTempFile::new().unwrap();
+    let store = Store::open(db_file.path()).unwrap();
+    store.migrate().unwrap();
+    let mut tracker = Tracker::new(store, FakeProcessSource::new(vec![vec![code_process()]; 5]));
+    let activity = FakeActivitySource {
+        idle_duration: Duration::ZERO,
+    };
+    let start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    tracker.scan_once_at(start).unwrap();
+    let mut now = start;
+    for _ in 0..4 {
+        now += chrono::Duration::milliseconds(5_500);
+        run_tracker_tick(
+            &mut tracker,
+            &activity,
+            now,
+            Duration::from_millis(5_500),
+            Duration::from_secs(300),
+        )
+        .unwrap();
+    }
+
+    let usage = tracker
+        .store()
+        .daily_system_usage(start.date_naive())
+        .unwrap()
+        .expect("system usage");
+    // 4 x 5.5s = 22s; truncating each tick would have recorded only 20s.
+    assert_eq!(usage.recorded_seconds, 22);
+    assert_eq!(usage.active_seconds, 22);
+}

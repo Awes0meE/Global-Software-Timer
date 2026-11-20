@@ -38,6 +38,9 @@ struct TrackingState {
     runtime_status_by_app_id: HashMap<i64, AppRuntimeStatus>,
     last_scan_at: Option<DateTime<Utc>>,
     last_tick_at: Option<DateTime<Utc>>,
+    /// Sub-second credit carried to the next tick so whole-second counters
+    /// do not lose the fraction of every tick.
+    credit_remainder: Duration,
     stopped: bool,
 }
 
@@ -300,6 +303,13 @@ where
                 .unwrap_or_default(),
         );
     }
+    let carried = if break_reason.is_some() {
+        Duration::ZERO
+    } else {
+        tracker.state.credit_remainder
+    };
+    let credited = (credited + carried).min(MAX_TICK_CREDIT);
+    let credit_remainder = credited - Duration::from_secs(credited.as_secs());
     let snapshots = tracker.source.snapshot();
     let mut next = tracker.state.clone();
     let store = &tracker.store;
@@ -336,6 +346,7 @@ where
         }
     }
     next.last_tick_at = Some(now_utc);
+    next.credit_remainder = credit_remainder;
     transaction.commit()?;
     tracker.state = next;
     Ok(())
