@@ -9,18 +9,12 @@ import { formatDurationZh } from "../i18n";
 import { startVisiblePolling } from "../visiblePolling";
 import { SoftwareIcon } from "./SoftwareIcon";
 
-const emptySummary: BackgroundPageSummary = {
-  logical_cores: 1,
-  running_count: 0,
-  rows: [],
-};
-
 interface BackgroundPageProps {
   durationFormat?: DurationFormat;
 }
 
 export function BackgroundPage({ durationFormat = "decimal_hours" }: BackgroundPageProps) {
-  const [summary, setSummary] = useState<BackgroundPageSummary>(emptySummary);
+  const [summary, setSummary] = useState<BackgroundPageSummary | null>(null);
   const [fetchError, setFetchError] = useState(false);
   const mountedRef = useRef(false);
 
@@ -44,13 +38,22 @@ export function BackgroundPage({ durationFormat = "decimal_hours" }: BackgroundP
     };
   }, [refresh]);
 
+  if (!summary) {
+    return (
+      <main className="background-page" id="background-content">
+        {fetchError ? <div className="warning" role="alert">无法读取后台进程</div>
+          : <p role="status" className="empty-state">正在读取后台进程…</p>}
+      </main>
+    );
+  }
+
   const running = summary.rows.filter((row) => row.is_running);
   const totalCpu = running.reduce((sum, row) => sum + (row.cpu_percent ?? 0), 0);
   const totalMemory = running.reduce((sum, row) => sum + row.memory_bytes, 0);
 
   return (
     <main className="background-page" id="background-content">
-      {fetchError ? <div className="warning">无法读取后台进程</div> : null}
+      {fetchError ? <div className="warning" role="alert">无法读取后台进程</div> : null}
 
       <section className="panel background-summary" aria-label="后台概况">
         <div>
@@ -74,9 +77,10 @@ export function BackgroundPage({ durationFormat = "decimal_hours" }: BackgroundP
       <section className="panel table-panel" aria-label="后台进程列表">
         <header className="panel-head">
           <h2>后台进程</h2>
+          <span id="background-memory-note" className="memory-note">内存显示当前占用，已退出的进程显示今日峰值。</span>
         </header>
-        <div className="usage-scroll" tabIndex={0} aria-label="后台进程明细">
-          <table className="background-table">
+        <div className="usage-scroll" role="region" tabIndex={0} aria-label="后台进程明细">
+          <table className="background-table" aria-describedby="background-memory-note">
             <thead>
               <tr>
                 <th scope="col">软件名称</th>
@@ -125,7 +129,7 @@ function BackgroundRowView({
       <td>{row.cpu_percent === null ? "—" : formatPercent(row.cpu_percent)}</td>
       <td title={row.is_running ? "当前占用" : "今日峰值"}>{formatBytes(row.memory_bytes)}</td>
       <td>{formatDurationZh(row.today_running_seconds, durationFormat)}</td>
-      <td>{formatCpuTime(row.today_cpu_seconds)}</td>
+      <td>{formatDurationZh(row.today_cpu_seconds, durationFormat)}</td>
       <td>
         <span className={`status-badge ${row.is_running ? "background" : "closed"}`}>
           <i className="lamp" aria-hidden="true" />
@@ -146,13 +150,4 @@ export function formatBytes(bytes: number): string {
   const megabytes = Math.max(0, bytes) / (1024 * 1024);
   if (megabytes >= 1024) return `${(megabytes / 1024).toFixed(1)} GB`;
   return `${Math.round(megabytes)} MB`;
-}
-
-/** CPU time is core-seconds: one fully busy core for one second. */
-export function formatCpuTime(coreSeconds: number): string {
-  const seconds = Number.isFinite(coreSeconds) ? Math.max(0, coreSeconds) : 0;
-  if (seconds < 1) return seconds > 0 ? "<1秒" : "0秒";
-  if (seconds < 60) return `${Math.round(seconds)}秒`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)}分钟`;
-  return `${(seconds / 3600).toFixed(1)}小时`;
 }

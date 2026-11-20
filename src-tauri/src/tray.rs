@@ -10,7 +10,7 @@ pub fn setup_tray(app: &App) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&show, &quit])?;
 
     TrayIconBuilder::new()
-        .icon(tauri::include_image!("./icons/32x32.png"))
+        .icon(tauri::include_image!("./icons/tray.png"))
         .tooltip("全局软件计时器")
         .menu(&menu)
         .show_menu_on_left_click(false)

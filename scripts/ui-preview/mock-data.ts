@@ -65,6 +65,7 @@ export function dashboardSummary(hidden: Set<string>): DashboardSummary {
     .sort((left, right) => right.total_seconds - left.total_seconds);
 
   return {
+    last_scan_succeeded: true,
     product_title: "全局软件计时器",
     locale: "zh-CN",
     most_used: apps[0] ?? null,

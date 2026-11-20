@@ -11,7 +11,7 @@ export function SoftwareIcon({ app, size = "md" }: Props) {
   return (
     <span className={`software-icon software-icon-${size}`} role="img" aria-label={label}>
       {app.icon_data_url ? (
-        <img src={app.icon_data_url} alt="" aria-hidden="true" />
+        <img src={app.icon_data_url} decoding="async" alt="" aria-hidden="true" />
       ) : (
         <span className="default-mark" aria-hidden="true">
           {getInitial(app.display_name)}

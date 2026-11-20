@@ -4,7 +4,6 @@ import type { BackgroundPageSummary } from "../api";
 import {
   BackgroundPage,
   formatBytes,
-  formatCpuTime,
   formatPercent,
 } from "../components/BackgroundPage";
 
@@ -61,7 +60,7 @@ describe("BackgroundPage", () => {
     expect(cells.getByText("3.3%")).toBeInTheDocument();
     expect(cells.getByText("64 MB")).toBeInTheDocument();
     expect(cells.getByText("2.0小时")).toBeInTheDocument();
-    expect(cells.getByText("3分钟")).toBeInTheDocument();
+    expect(cells.getByText("0.0小时")).toBeInTheDocument();
     expect(cells.getByText("运行中")).toBeInTheDocument();
 
     const exited = within(list).getByText("Updater").closest(".background-row");
@@ -73,23 +72,31 @@ describe("BackgroundPage", () => {
     expect(invoke).toHaveBeenCalledWith("get_background_page_summary");
   });
 
-  it("shows an error and an empty state when nothing can be read", async () => {
+  it("shows only the error if the initial request fails", async () => {
     invoke.mockRejectedValue(new Error("locked"));
     await act(async () => {
       render(<BackgroundPage />);
     });
 
     expect(screen.getByText("无法读取后台进程")).toBeInTheDocument();
-    expect(screen.getByText("今天还没有记录到后台进程。")).toBeInTheDocument();
+    expect(screen.queryByText("今天还没有记录到后台进程。")).not.toBeInTheDocument();
+  });
+
+  it("waits for the first result and honors duration preferences near an hour", async () => {
+    const rows = [{ ...summary.rows[0], today_cpu_seconds: 3599 }];
+    invoke.mockResolvedValue({ ...summary, rows });
+    const view = render(<BackgroundPage durationFormat="hours_minutes" />);
+    expect(screen.getByRole("status")).toHaveTextContent("正在读取");
+    expect(screen.queryByText("今天还没有记录到后台进程。")).not.toBeInTheDocument();
+    expect(await screen.findByText("59分钟")).toBeInTheDocument();
+    view.rerender(<BackgroundPage durationFormat="decimal_hours" />);
+    expect(screen.getByText("1.0小时")).toBeInTheDocument();
+    expect(screen.getByRole("table")).toHaveAccessibleDescription(/已退出的进程显示今日峰值/);
   });
 
   it("formats small and large values readably", () => {
     expect(formatPercent(0)).toBe("0%");
     expect(formatPercent(0.04)).toBe("<0.1%");
     expect(formatBytes(512 * 1024 * 1024)).toBe("512 MB");
-    expect(formatCpuTime(0)).toBe("0秒");
-    expect(formatCpuTime(0.5)).toBe("<1秒");
-    expect(formatCpuTime(42)).toBe("42秒");
-    expect(formatCpuTime(5400)).toBe("1.5小时");
   });
 });

@@ -67,7 +67,8 @@ export function LcdDial({ recordedSeconds, activeSeconds, now }: Props) {
       <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE} aria-hidden="true">
         <Ring className="lcd-ring lcd-ring-recorded" lit={litSegments(recordedSeconds)} outer={78} inner={66} />
         <Ring className="lcd-ring lcd-ring-active" lit={litSegments(activeSeconds)} outer={61} inner={53} />
-        {[0, 6, 12, 18].map((hour) => {
+        <rect className="lcd-midnight-mark" x={CENTER - 1} y="45" width="2" height="8" />
+        {[6, 12, 18].map((hour) => {
           const [x, y] = point(41, hour * 15);
           return (
             <text key={hour} className="lcd-dial-hour" x={x} y={y + 4} textAnchor="middle">

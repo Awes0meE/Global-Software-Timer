@@ -44,3 +44,6 @@ jobs:
       - name: Rust tests
         working-directory: src-tauri
         run: cargo test
+
+      - name: Verify native software first paint and taskbar icon
+        run: cargo run --locked --manifest-path src-tauri/Cargo.toml --features tauri/custom-protocol --example gst_backlog_qa

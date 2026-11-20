@@ -81,7 +81,7 @@ export function DiscoveredSoftwarePanel({
           description={loading ? loadingDescription : "打开软件并保持 GST 运行一会儿后，这里会自动出现。"}
         />
       ) : (
-        <div className="discovered-scroll" tabIndex={0}>
+        <div className="discovered-scroll" role="region" aria-label="已发现软件明细" tabIndex={0}>
           {rankedRows.map((row) => (
             <DiscoveredSoftwareRow key={row.identity_key} row={row} query={query} />
           ))}
@@ -166,7 +166,7 @@ function FocusedSoftwareTable({
   onRemove: (identityKey: string) => void;
 }) {
   return (
-    <div className="software-table-scroll" tabIndex={0}>
+    <div className="software-table-scroll" role="region" aria-label="特别关注明细" tabIndex={0}>
       <div className="focused-table">
         <div className="focused-table-row focused-table-head">
           <span aria-hidden="true" />
@@ -216,7 +216,7 @@ function HiddenSoftwareList({
   onRemove: (identityKey: string) => void;
 }) {
   return (
-    <div className="hidden-software-scroll" tabIndex={0}>
+    <div className="hidden-software-scroll" role="region" aria-label="隐藏软件明细" tabIndex={0}>
       <div className="hidden-software-list">
         {rows.map((row) => (
           <div className="hidden-software-row software-managed-row" key={row.identity_key}>

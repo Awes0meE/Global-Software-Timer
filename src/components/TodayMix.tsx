@@ -42,7 +42,7 @@ export function TodayMix({ apps, durationFormat = "decimal_hours" }: Props) {
             />
           ))}
         </div>
-        <div className="mix-scroll" aria-label="今日分布列表" tabIndex={0}>
+        <div className="mix-scroll" role="region" aria-label="今日分布列表" tabIndex={0}>
           {rows.length === 0 ? <div className="empty-state compact">今天还没有活跃记录。</div> : null}
           {rows.map((app, index) => (
             <div className="mix-row" key={app.app_id}>

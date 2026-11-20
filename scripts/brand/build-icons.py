@@ -5,7 +5,7 @@ Usage (Windows, from the repository root):
     python scripts/brand/build-icons.py
 
 Renders each SVG once at 512 px with headless Microsoft Edge on a transparent
-background, then downsamples with Pillow. 16-32 px sizes use the simplified mark.
+background, then downsamples with Pillow. Only the notification-area icon uses the simplified mark.
 """
 
 from __future__ import annotations
@@ -61,26 +61,29 @@ def render(svg: Path, work: Path) -> Image.Image:
         return image.convert("RGBA").crop((0, 0, RENDER, RENDER))
 
 
-def main() -> None:
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-        work = Path(tmp)
-        detailed = render(ASSETS / "gst-clock.svg", work)
-        small = render(ASSETS / "gst-clock-small.svg", work)
-
-    def sized(size: int) -> Image.Image:
-        source = small if size <= 32 else detailed
-        return source.resize((size, size), Image.LANCZOS)
-
-    sized(32).save(ICONS / "32x32.png")
-    sized(128).save(ICONS / "128x128.png")
-    sized(256).save(ICONS / "128x128@2x.png")
-    frames = [sized(size) for size in (16, 24, 32, 48, 64, 128, 256)]
+def build_window_icons(detailed: Image.Image) -> None:
+    # Explorer and the running window use the detailed clock at every DPI.
+    # The notification area keeps its bolder hands at small sizes.
+    sizes = (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)
+    frames = [detailed.resize((size, size), Image.LANCZOS) for size in sizes]
+    for size, filename in ((32, "32x32.png"), (128, "128x128.png"), (256, "128x128@2x.png")):
+        frames[sizes.index(size)].save(ICONS / filename)
     frames[-1].save(
         ICONS / "icon.ico",
         format="ICO",
         sizes=[frame.size for frame in frames],
         append_images=frames[:-1],
     )
+
+
+def main() -> None:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        work = Path(tmp)
+        detailed = render(ASSETS / "gst-clock.svg", work)
+        small = render(ASSETS / "gst-clock-small.svg", work)
+
+    small.resize((32, 32), Image.LANCZOS).save(ICONS / "tray.png")
+    build_window_icons(detailed.resize((256, 256), Image.LANCZOS))
     print("wrote icons to", ICONS)
 
 

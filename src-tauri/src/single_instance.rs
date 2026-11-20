@@ -57,84 +57,74 @@ mod platform {
 }
 
 /// Shows and focuses the main window of an already running instance.
-/// Only a window owned by a process running this same executable qualifies.
 #[cfg(target_os = "windows")]
 pub fn show_existing_window(title: &str) {
-    use std::os::windows::ffi::{OsStrExt, OsStringExt};
-    use std::path::PathBuf;
-    use windows_sys::Win32::Foundation::{CloseHandle, BOOL, HWND, LPARAM};
-    use windows_sys::Win32::System::Threading::{
-        OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
-    };
+    use windows_sys::Win32::Foundation::HWND;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic,
-        SetForegroundWindow, ShowWindow, SW_RESTORE, SW_SHOW,
+        FindWindowW, IsIconic, SetForegroundWindow, ShowWindowAsync, SW_RESTORE, SW_SHOW,
     };
-
-    struct Search {
-        title: Vec<u16>,
-        exe: Option<PathBuf>,
-        found: Option<HWND>,
-    }
-
-    fn process_image(pid: u32) -> Option<PathBuf> {
-        let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
-        if handle.is_null() {
-            return None;
+    let class: Vec<u16> = "GlobalSoftwareTimer.MainWindow"
+        .encode_utf16()
+        .chain(Some(0))
+        .collect();
+    let title: Vec<u16> = title.encode_utf16().chain(Some(0)).collect();
+    // The first process may still be constructing its WebView when the second starts.
+    for _ in 0..40 {
+        let mut hwnd = unsafe { FindWindowW(class.as_ptr(), std::ptr::null()) };
+        if hwnd.is_null() {
+            // Earlier builds used the default window class. Verify the process
+            // behind an exact product-title match before activating a legacy window.
+            hwnd = unsafe { FindWindowW(std::ptr::null(), title.as_ptr()) };
+            if !hwnd.is_null() && !is_legacy_timer_window(hwnd) {
+                hwnd = std::ptr::null_mut();
+            }
         }
-        let mut buffer = [0u16; 1024];
-        let mut length = buffer.len() as u32;
-        let ok = unsafe { QueryFullProcessImageNameW(handle, 0, buffer.as_mut_ptr(), &mut length) };
-        unsafe { CloseHandle(handle) };
-        (ok != 0).then(|| std::ffi::OsString::from_wide(&buffer[..length as usize]).into())
+        if !hwnd.is_null() {
+            unsafe {
+                ShowWindowAsync(
+                    hwnd,
+                    if IsIconic(hwnd) != 0 {
+                        SW_RESTORE
+                    } else {
+                        SW_SHOW
+                    },
+                );
+                SetForegroundWindow(hwnd);
+            }
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(75));
     }
 
-    // The executable is checked first, so only this app's own window titles
-    // are ever read; other applications' titles are never touched.
-    unsafe extern "system" fn visit(hwnd: HWND, lparam: LPARAM) -> BOOL {
-        let search = unsafe { &mut *(lparam as *mut Search) };
+    fn is_legacy_timer_window(hwnd: HWND) -> bool {
+        use std::os::windows::ffi::OsStringExt;
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::Threading::{
+            OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
+        };
+        use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId;
         let mut pid = 0;
         unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
-        let same_exe = match (&search.exe, process_image(pid)) {
-            (Some(ours), Some(theirs)) => ours
-                .to_string_lossy()
-                .eq_ignore_ascii_case(&theirs.to_string_lossy()),
-            _ => false,
-        };
-        if !same_exe {
-            return 1;
+        let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+        if process.is_null() {
+            return false;
         }
-        let length = unsafe { GetWindowTextLengthW(hwnd) };
-        if length < 0 || length as usize != search.title.len() {
-            return 1;
+        let mut buffer = vec![0u16; 32768];
+        let mut len = buffer.len() as u32;
+        let ok = unsafe { QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut len) };
+        unsafe { CloseHandle(process) };
+        if ok == 0 {
+            return false;
         }
-        let mut text = vec![0u16; search.title.len() + 1];
-        let copied = unsafe { GetWindowTextW(hwnd, text.as_mut_ptr(), text.len() as i32) };
-        if text[..copied.max(0) as usize] == search.title[..] {
-            search.found = Some(hwnd);
-            return 0;
-        }
-        1
-    }
-
-    let mut search = Search {
-        title: std::ffi::OsStr::new(title).encode_wide().collect(),
-        exe: std::env::current_exe().ok(),
-        found: None,
-    };
-    unsafe { EnumWindows(Some(visit), &mut search as *mut Search as LPARAM) };
-    if let Some(hwnd) = search.found {
-        unsafe {
-            ShowWindow(
-                hwnd,
-                if IsIconic(hwnd) != 0 {
-                    SW_RESTORE
-                } else {
-                    SW_SHOW
-                },
-            );
-            SetForegroundWindow(hwnd);
-        }
+        let path = std::path::PathBuf::from(std::ffi::OsString::from_wide(&buffer[..len as usize]));
+        let ours = std::env::current_exe().ok();
+        path.file_name().is_some_and(|name| {
+            name.eq_ignore_ascii_case("global-software-timer.exe")
+                || ours
+                    .as_ref()
+                    .and_then(|p| p.file_name())
+                    .is_some_and(|own| name.eq_ignore_ascii_case(own))
+        })
     }
 }
 
