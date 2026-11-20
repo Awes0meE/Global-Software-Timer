@@ -5,7 +5,7 @@ import type { DurationFormat } from "./i18n";
 export type { DurationFormat } from "./i18n";
 
 export type CloseBehavior = "exit" | "minimize_to_tray";
-export type AppRuntimeStatus = "foreground" | "background" | "closed";
+export type AppRuntimeStatus = "foreground" | "tray" | "background" | "closed";
 export type SoftwareMark = "none" | "focused" | "hidden";
 
 export interface AppUsageRow {
@@ -68,6 +68,32 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
 
 export async function getSoftwarePageSummary(): Promise<SoftwarePageSummary> {
   return invoke<SoftwarePageSummary>("get_software_page_summary");
+}
+
+export interface BackgroundRow {
+  family_key: string;
+  display_name: string;
+  process_name: string;
+  icon_data_url: string | null;
+  is_running: boolean;
+  process_count: number;
+  /** Share of the whole machine's CPU right now (0-100); null when not running. */
+  cpu_percent: number | null;
+  /** Current memory when running, otherwise today's peak. */
+  memory_bytes: number;
+  today_running_seconds: number;
+  /** CPU core-seconds used today. */
+  today_cpu_seconds: number;
+}
+
+export interface BackgroundPageSummary {
+  logical_cores: number;
+  running_count: number;
+  rows: BackgroundRow[];
+}
+
+export async function getBackgroundPageSummary(): Promise<BackgroundPageSummary> {
+  return invoke<BackgroundPageSummary>("get_background_page_summary");
 }
 
 export async function addFocusedSoftwareIdentities(identityKeys: string[]): Promise<void> {

@@ -9,21 +9,23 @@ interface Props {
 }
 
 export function RecentActivity({ apps, durationFormat = "decimal_hours" }: Props) {
-  const runningApps = apps.filter((app) => app.status === "foreground");
+  const runningApps = apps.filter(
+    (app) => app.status === "foreground" || app.status === "tray",
+  );
 
   return (
-    <aside className="panel recent-panel" aria-label="当前前台运行">
+    <aside className="panel recent-panel" aria-label="正在运行">
       <div className="panel-heading">
-        <h2>当前前台运行</h2>
+        <h2>正在运行</h2>
         <UnavailableTooltip>
-          <button className="ghost-link" type="button" aria-label="查看更多当前前台运行">
+          <button className="ghost-link" type="button" aria-label="查看更多正在运行">
             更多
             <span aria-hidden="true">›</span>
           </button>
         </UnavailableTooltip>
       </div>
 
-      <div className="recent-scroll" aria-label="当前前台运行列表" tabIndex={0}>
+      <div className="recent-scroll" aria-label="正在运行列表" tabIndex={0}>
         {runningApps.length === 0 ? (
           <div className="empty-state">暂无前台运行的软件。</div>
         ) : (

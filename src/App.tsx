@@ -6,6 +6,7 @@ import {
   CalendarDays,
   ChevronDown,
   Clock3,
+  Cpu,
   Download,
   Home,
   Menu,
@@ -27,6 +28,7 @@ import {
   type DurationFormat,
 } from "./api";
 import { AppUsageTable } from "./components/AppUsageTable";
+import { BackgroundPage } from "./components/BackgroundPage";
 import { RecentActivity } from "./components/RecentActivity";
 import { SoftwarePage } from "./components/SoftwarePage";
 import { SummaryCards } from "./components/SummaryCards";
@@ -48,11 +50,12 @@ const dashboardRefreshIntervalMs = 5000;
 const defaultCloseBehavior: CloseBehavior = "minimize_to_tray";
 const defaultDurationFormat: DurationFormat = "decimal_hours";
 
-type PageId = "overview" | "settings" | "software";
+type PageId = "overview" | "settings" | "software" | "background";
 
 const navItems = [
   { id: "overview", label: "概览", icon: Home, available: true },
   { id: "software", label: "软件", icon: Monitor, available: true },
+  { id: "background", label: "后台", icon: Cpu, available: true },
   { id: "statistics", label: "统计", icon: BarChart3, available: false },
   { id: "timeline", label: "时间轴", icon: Clock3, available: false },
   { id: "daily", label: "日报", icon: CalendarDays, available: false },
@@ -325,7 +328,9 @@ export default function App() {
       ? "settings-content"
       : activePage === "software"
         ? "software-content"
-        : "overview-content";
+        : activePage === "background"
+          ? "background-content"
+          : "overview-content";
 
   return (
     <div className="desktop-root">
@@ -418,6 +423,8 @@ export default function App() {
               durationFormat={durationFormat}
               onDefaultSummariesChanged={loadDashboard}
             />
+          ) : activePage === "background" ? (
+            <BackgroundPage durationFormat={durationFormat} />
           ) : (
             <main className="overview-page" id="overview-content">
               {error ? <div className="warning">{error}</div> : null}
