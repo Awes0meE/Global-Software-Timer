@@ -12,7 +12,7 @@ vi.mock("@tauri-apps/plugin-autostart", () => ({
   isEnabled: vi.fn(),
 }));
 
-import { getAppSettings, setDurationFormatPreference } from "../api";
+import { getAppSettings, setDurationFormatPreference, setThemePreference } from "../api";
 
 describe("api settings", () => {
   afterEach(() => {
@@ -51,5 +51,24 @@ describe("api settings", () => {
     expect(mockInvoke).toHaveBeenCalledWith("set_duration_format_preference", {
       durationFormat: "hours_minutes",
     });
+  });
+
+  it("normalizes the stored theme and defaults unknown values to system", async () => {
+    mockInvoke.mockResolvedValue({ theme: "dark", theme_configured: true });
+    await expect(getAppSettings()).resolves.toMatchObject({ theme: "dark", theme_configured: true });
+
+    mockInvoke.mockResolvedValue({ theme: "sepia", theme_configured: true });
+    await expect(getAppSettings()).resolves.toMatchObject({
+      theme: "system",
+      theme_configured: false,
+    });
+  });
+
+  it("saves the theme preference through the Tauri command", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+
+    await setThemePreference("light");
+
+    expect(mockInvoke).toHaveBeenCalledWith("set_theme_preference", { theme: "light" });
   });
 });

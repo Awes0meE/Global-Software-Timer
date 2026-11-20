@@ -10,9 +10,11 @@ use tauri::{AppHandle, Manager, State};
 const CLOSE_BEHAVIOR_SETTING_KEY: &str = "window.close_behavior";
 const AUTOSTART_SETTING_KEY: &str = "startup.autostart_enabled";
 const DURATION_FORMAT_SETTING_KEY: &str = "ui.duration_format";
+const THEME_SETTING_KEY: &str = "ui.theme";
 const DEFAULT_CLOSE_BEHAVIOR: CloseBehavior = CloseBehavior::MinimizeToTray;
 const DEFAULT_AUTOSTART_ENABLED: bool = true;
 const DEFAULT_DURATION_FORMAT: DurationFormat = DurationFormat::DecimalHours;
+const DEFAULT_THEME: ThemePreference = ThemePreference::System;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DashboardSummary {
@@ -111,6 +113,33 @@ impl DurationFormat {
     }
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ThemePreference {
+    System,
+    Light,
+    Dark,
+}
+
+impl ThemePreference {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+
+    fn from_setting(value: &str) -> Option<Self> {
+        match value {
+            "system" => Some(Self::System),
+            "light" => Some(Self::Light),
+            "dark" => Some(Self::Dark),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AppSettings {
     pub close_behavior: CloseBehavior,
@@ -119,6 +148,8 @@ pub struct AppSettings {
     pub autostart_configured: bool,
     pub duration_format: DurationFormat,
     pub duration_format_configured: bool,
+    pub theme: ThemePreference,
+    pub theme_configured: bool,
 }
 
 #[tauri::command]
@@ -306,6 +337,18 @@ pub fn set_duration_format_preference(
 }
 
 #[tauri::command]
+pub fn set_theme_preference(
+    state: State<'_, AppState>,
+    theme: ThemePreference,
+) -> Result<(), String> {
+    let tracker = state
+        .tracker
+        .lock()
+        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    save_theme_preference(tracker.store(), theme).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn apply_window_close_choice(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -348,6 +391,10 @@ fn app_settings_from_store(store: &Store) -> Result<AppSettings, StoreError> {
         .as_deref()
         .and_then(DurationFormat::from_setting);
     let duration_format = stored_duration_format.unwrap_or(DEFAULT_DURATION_FORMAT);
+    let stored_theme = store
+        .setting_value(THEME_SETTING_KEY)?
+        .as_deref()
+        .and_then(ThemePreference::from_setting);
 
     Ok(AppSettings {
         close_behavior,
@@ -356,7 +403,13 @@ fn app_settings_from_store(store: &Store) -> Result<AppSettings, StoreError> {
         autostart_configured,
         duration_format,
         duration_format_configured: stored_duration_format.is_some(),
+        theme: stored_theme.unwrap_or(DEFAULT_THEME),
+        theme_configured: stored_theme.is_some(),
     })
+}
+
+fn save_theme_preference(store: &Store, theme: ThemePreference) -> Result<(), StoreError> {
+    store.set_setting_value(THEME_SETTING_KEY, theme.as_str())
 }
 
 fn save_duration_format_preference(
@@ -550,7 +603,8 @@ fn runtime_status_rank(status: AppRuntimeStatus) -> u8 {
 mod tests {
     use super::{
         app_settings_from_store, dashboard_summary_from_store, save_duration_format_preference,
-        software_list_command_error, CloseBehavior, DurationFormat,
+        save_theme_preference, software_list_command_error, CloseBehavior, DurationFormat,
+        ThemePreference,
     };
     use crate::domain::AppRuntimeStatus;
     use crate::storage::{Store, StoreError};
@@ -796,6 +850,48 @@ mod tests {
                 .expect("read setting")
                 .as_deref(),
             Some("hours_minutes")
+        );
+    }
+
+    #[test]
+    fn app_settings_defaults_theme_to_system() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.theme, ThemePreference::System);
+        assert!(!settings.theme_configured);
+
+        store
+            .set_setting_value("ui.theme", "dark")
+            .expect("set setting");
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.theme, ThemePreference::Dark);
+        assert!(settings.theme_configured);
+
+        store
+            .set_setting_value("ui.theme", "sepia")
+            .expect("set invalid setting");
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.theme, ThemePreference::System);
+        assert!(!settings.theme_configured);
+    }
+
+    #[test]
+    fn save_theme_preference_writes_setting_key() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+
+        save_theme_preference(&store, ThemePreference::Light).expect("save");
+
+        assert_eq!(
+            store
+                .setting_value("ui.theme")
+                .expect("read setting")
+                .as_deref(),
+            Some("light")
         );
     }
 

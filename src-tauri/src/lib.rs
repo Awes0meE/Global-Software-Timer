@@ -64,6 +64,7 @@ pub fn run() {
             commands::set_autostart_preference,
             commands::set_close_behavior_preference,
             commands::set_duration_format_preference,
+            commands::set_theme_preference,
             commands::apply_window_close_choice
         ])
         .build(tauri::generate_context!())
