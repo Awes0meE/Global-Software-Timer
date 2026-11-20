@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-11-17
+Last updated: 2026-11-20
 
 ## Product Decisions
 
@@ -63,7 +63,7 @@ Last updated: 2026-11-17
 
 ## Current Repository State
 
-- Version: `0.1.4`; npm, Cargo, Tauri and sidebar metadata agree.
+- Process-grouping branch version is `0.1.5` across npm, Cargo, Tauri and the sidebar. The UI redesign is planned for `0.2.x`.
 - PR #12 is merged. Main worktree: `.worktrees/v01-implementation`; development worktree: `.worktrees/current-dev`. The enclosing folder is a container.
 - Repair baseline: local and GitHub API `main` were both `d8bfc6cb986d7f72113c84bdade6cc06cc261ab6` on 2026-11-17. Direct CLI GitHub access fails in this environment; verify remote Git objects through the connected GitHub service when publishing.
 - A redacted reviewer report is preserved in `docs/2026-11-17-improvement-suggestions.md`; the complete original is archived locally outside Git. Its current-state claims refer to the pre-fix baseline. Use `docs/CURRENT_STATE.md` for repaired behavior and remaining work.
