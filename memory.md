@@ -12,7 +12,7 @@ Last updated: 2026-11-20
 - v0.1 shape: system tray app, background tracking, dashboard on demand.
 - UI direction: dark Steam-like software library, not a marketing landing page.
 - Default Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`. The 2026-06-06 duration-format setting adds an optional concrete-minute display such as `8小时35分钟`.
-- Release version: `v0.1.4` (2026-11-17); publication is gated by complete Windows checks and installer builds.
+- Release version: `v0.1.5` (2026-11-20); publication is gated by complete Windows checks and installer builds.
 - v0.1.2 adds a Settings page with startup-at-login and close-window behavior controls.
 - Startup at login defaults to enabled in v0.1.2, uses the current-user autostart mechanism, and does not require administrator permission.
 - First window close still asks whether to exit or minimize to tray; the choice is saved automatically and can be changed later in Settings.
@@ -63,7 +63,7 @@ Last updated: 2026-11-20
 
 ## Current Repository State
 
-- Process-grouping branch version is `0.1.5` across npm, Cargo, Tauri and the sidebar. The UI redesign is planned for `0.2.x`.
+- The process-grouping release version is `0.1.5` across npm, Cargo, Tauri and the sidebar. The UI redesign is planned for `0.2.x`.
 - PR #12 is merged. Main worktree: `.worktrees/v01-implementation`; development worktree: `.worktrees/current-dev`. The enclosing folder is a container.
 - Repair baseline: local and GitHub API `main` were both `d8bfc6cb986d7f72113c84bdade6cc06cc261ab6` on 2026-11-17. Direct CLI GitHub access fails in this environment; verify remote Git objects through the connected GitHub service when publishing.
 - A redacted reviewer report is preserved in `docs/2026-11-17-improvement-suggestions.md`; the complete original is archived locally outside Git. Its current-state claims refer to the pre-fix baseline. Use `docs/CURRENT_STATE.md` for repaired behavior and remaining work.
