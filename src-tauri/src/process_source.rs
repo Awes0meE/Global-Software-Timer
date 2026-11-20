@@ -102,16 +102,19 @@ impl ProcessSource for SysinfoProcessSource {
                     })
                     && is_in_current_session(pid.as_u32());
 
+                let app_window = visible_window_pids
+                    .as_ref()
+                    .map(|pids| pids.contains(&pid.as_u32()));
+
                 ProcessSnapshot {
                     pid: pid.as_u32(),
                     parent_pid: process.parent().map(|parent| parent.as_u32()),
                     is_background_helper: is_background_helper_process(
                         &process_name,
                         process.cmd(),
+                        app_window,
                     ),
-                    has_visible_window: visible_window_pids
-                        .as_ref()
-                        .is_none_or(|pids| pids.contains(&pid.as_u32())),
+                    has_visible_window: app_window.unwrap_or(true),
                     has_tray_icon,
                     cpu_percent: process.cpu_usage(),
                     memory_bytes: process.memory(),
@@ -142,7 +145,11 @@ fn is_in_current_session(_pid: u32) -> bool {
     true
 }
 
-fn is_background_helper_process(process_name: &str, command_line: &[OsString]) -> bool {
+fn is_background_helper_process(
+    process_name: &str,
+    command_line: &[OsString],
+    has_app_window: Option<bool>,
+) -> bool {
     let name = process_name.trim().to_lowercase();
     let is_chromium_family = is_chromium_family_name(&name);
 
@@ -154,7 +161,9 @@ fn is_background_helper_process(process_name: &str, command_line: &[OsString]) -
             || (is_chromium_family
                 && (argument == "--embedded-browser-edgeview=1"
                     || argument.starts_with("--edge-webview-host-pid")
-                    || argument == "--no-startup-window"))
+                    // Startup boost starts the browser root windowless; windows the
+                    // user opens later belong to this same process.
+                    || (argument == "--no-startup-window" && has_app_window != Some(true))))
     })
 }
 
@@ -177,7 +186,11 @@ mod tests {
             OsString::from("--type=renderer"),
         ];
 
-        assert!(is_background_helper_process("msedge.exe", &command_line));
+        assert!(is_background_helper_process(
+            "msedge.exe",
+            &command_line,
+            Some(false)
+        ));
     }
 
     #[test]
@@ -186,7 +199,65 @@ mod tests {
             r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
         )];
 
-        assert!(!is_background_helper_process("msedge.exe", &command_line));
+        assert!(!is_background_helper_process(
+            "msedge.exe",
+            &command_line,
+            Some(true)
+        ));
+    }
+
+    #[test]
+    fn startup_boost_browser_root_counts_once_it_shows_a_window() {
+        // Edge startup boost launches the browser root with --no-startup-window;
+        // windows the user opens later belong to that same process.
+        let command_line = vec![
+            OsString::from(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+            OsString::from("--no-startup-window"),
+            OsString::from("--win-session-start"),
+        ];
+
+        assert!(is_background_helper_process(
+            "msedge.exe",
+            &command_line,
+            Some(false)
+        ));
+        assert!(!is_background_helper_process(
+            "msedge.exe",
+            &command_line,
+            Some(true)
+        ));
+    }
+
+    #[test]
+    fn startup_boost_requires_positive_window_evidence() {
+        let args = [
+            OsString::from("msedge.exe"),
+            OsString::from("--no-startup-window"),
+        ];
+        assert!(is_background_helper_process("msedge.exe", &args, None));
+    }
+
+    #[test]
+    fn child_and_embedded_processes_stay_helpers_even_with_a_window() {
+        let renderer = vec![
+            OsString::from(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+            OsString::from("--type=renderer"),
+        ];
+        assert!(is_background_helper_process(
+            "msedge.exe",
+            &renderer,
+            Some(true)
+        ));
+
+        let embedded = vec![
+            OsString::from(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+            OsString::from("--embedded-browser-edgeview=1"),
+        ];
+        assert!(is_background_helper_process(
+            "msedge.exe",
+            &embedded,
+            Some(true)
+        ));
     }
 
     #[test]
@@ -198,18 +269,30 @@ mod tests {
             OsString::from("--type=gpu-process"),
         ];
 
-        assert!(is_background_helper_process("ChatGPT.exe", &command_line));
+        assert!(is_background_helper_process(
+            "ChatGPT.exe",
+            &command_line,
+            Some(false)
+        ));
     }
 
     #[test]
     fn ignores_flag_text_in_the_executable_path_and_unrelated_apps() {
         let command_line = vec![OsString::from(r"C:\Tools\--type=odd\tool.exe")];
-        assert!(!is_background_helper_process("tool.exe", &command_line));
+        assert!(!is_background_helper_process(
+            "tool.exe",
+            &command_line,
+            Some(false)
+        ));
 
         let command_line = vec![
             OsString::from(r"C:\Tools\player.exe"),
             OsString::from("--no-startup-window"),
         ];
-        assert!(!is_background_helper_process("player.exe", &command_line));
+        assert!(!is_background_helper_process(
+            "player.exe",
+            &command_line,
+            Some(false)
+        ));
     }
 }

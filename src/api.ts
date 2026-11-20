@@ -7,6 +7,7 @@ export type { DurationFormat } from "./i18n";
 export type CloseBehavior = "exit" | "minimize_to_tray";
 export type AppRuntimeStatus = "foreground" | "tray" | "background" | "closed";
 export type SoftwareMark = "none" | "focused" | "hidden";
+export type ThemePreference = "system" | "light" | "dark";
 
 export interface AppUsageRow {
   app_id: number;
@@ -60,6 +61,8 @@ export interface AppSettings {
   autostart_configured: boolean;
   duration_format: DurationFormat;
   duration_format_configured: boolean;
+  theme: ThemePreference;
+  theme_configured: boolean;
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
@@ -115,6 +118,7 @@ export async function removeHiddenSoftwareIdentity(identityKey: string): Promise
 export async function getAppSettings(): Promise<AppSettings> {
   const settings = (await invoke<Partial<AppSettings> | null>("get_app_settings")) ?? {};
   const durationFormat = normalizeDurationFormat(settings.duration_format);
+  const theme = normalizeThemePreference(settings.theme);
 
   return {
     close_behavior: normalizeCloseBehavior(settings.close_behavior),
@@ -124,6 +128,8 @@ export async function getAppSettings(): Promise<AppSettings> {
     duration_format: durationFormat,
     duration_format_configured:
       settings.duration_format_configured === true && settings.duration_format === durationFormat,
+    theme,
+    theme_configured: settings.theme_configured === true && settings.theme === theme,
   };
 }
 
@@ -143,6 +149,10 @@ export async function setAutostartPreference(enabled: boolean): Promise<void> {
 
 export async function setDurationFormatPreference(durationFormat: DurationFormat): Promise<void> {
   return invoke("set_duration_format_preference", { durationFormat });
+}
+
+export async function setThemePreference(theme: ThemePreference): Promise<void> {
+  return invoke("set_theme_preference", { theme });
 }
 
 export async function applyWindowCloseChoice(
@@ -170,4 +180,8 @@ function normalizeCloseBehavior(value: unknown): CloseBehavior {
 
 function normalizeDurationFormat(value: unknown): DurationFormat {
   return value === "hours_minutes" ? value : "decimal_hours";
+}
+
+export function normalizeThemePreference(value: unknown): ThemePreference {
+  return value === "light" || value === "dark" ? value : "system";
 }

@@ -200,7 +200,7 @@ export function AddSoftwareDialog({ rows, target, onClose, onSubmit }: Props) {
           )}
           <div className="add-software-actions">
             <button
-              className="dialog-secondary"
+              className="button button-secondary"
               type="button"
               disabled={submitting}
               onClick={onClose}
@@ -208,7 +208,7 @@ export function AddSoftwareDialog({ rows, target, onClose, onSubmit }: Props) {
               取消
             </button>
             <button
-              className="dialog-primary"
+              className="button button-primary"
               type="button"
               disabled={selectedKeys.length === 0 || submitting}
               onClick={() => void handleSubmit()}
@@ -291,9 +291,11 @@ function getFocusableElements(dialog: HTMLElement | null): HTMLElement[] {
     "[tabindex]:not([tabindex='-1'])",
   ].join(",");
 
-  return Array.from(dialog.querySelectorAll<HTMLElement>(selector)).filter(
-    (element) => element.getAttribute("aria-hidden") !== "true",
-  );
+  return Array.from(dialog.querySelectorAll<HTMLElement>(selector))
+    .filter((element) => element.getAttribute("aria-hidden") !== "true")
+    .sort((left, right) =>
+      left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+    );
 }
 
 function getConflictMessage(row: SoftwarePageRow): string | null {

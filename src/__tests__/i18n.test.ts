@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDurationZh } from "../i18n";
+import { formatDurationPartsZh, formatDurationZh } from "../i18n";
 
 describe("formatDurationZh", () => {
   it("formats durations as decimal hours with one fractional digit", () => {
@@ -26,5 +26,25 @@ describe("formatDurationZh", () => {
   it("normalizes invalid minutes-display durations to zero", () => {
     expect(formatDurationZh(Number.NaN, "hours_minutes")).toBe("0分钟");
     expect(formatDurationZh(-60, "hours_minutes")).toBe("0分钟");
+  });
+});
+
+describe("formatDurationPartsZh", () => {
+  it("splits values from units and joins back to the plain format", () => {
+    expect(formatDurationPartsZh(8 * 3600 + 16 * 60)).toEqual([{ value: "8.3", unit: "小时" }]);
+    expect(formatDurationPartsZh(8 * 3600 + 35 * 60, "hours_minutes")).toEqual([
+      { value: "8", unit: "小时" },
+      { value: "35", unit: "分钟" },
+    ]);
+    expect(formatDurationPartsZh(42 * 60, "hours_minutes")).toEqual([{ value: "42", unit: "分钟" }]);
+
+    for (const seconds of [0, 59, 42 * 60, 8 * 3600, 8 * 3600 + 35 * 60]) {
+      for (const format of ["decimal_hours", "hours_minutes"] as const) {
+        const joined = formatDurationPartsZh(seconds, format)
+          .map((part) => `${part.value}${part.unit}`)
+          .join("");
+        expect(joined).toBe(formatDurationZh(seconds, format));
+      }
+    }
   });
 });

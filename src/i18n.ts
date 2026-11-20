@@ -1,9 +1,15 @@
 export type DurationFormat = "decimal_hours" | "hours_minutes";
 
-export function formatDurationZh(
+export interface DurationPart {
+  value: string;
+  unit: "小时" | "分钟";
+}
+
+/** Duration split into number/unit pairs so displays can size digits and units separately. */
+export function formatDurationPartsZh(
   totalSeconds: number,
   durationFormat: DurationFormat = "decimal_hours",
-): string {
+): DurationPart[] {
   const normalizedSeconds = Number.isFinite(totalSeconds)
     ? Math.max(0, Math.floor(totalSeconds))
     : 0;
@@ -14,17 +20,27 @@ export function formatDurationZh(
     const minutes = totalMinutes % 60;
 
     if (hours <= 0) {
-      return `${minutes}分钟`;
+      return [{ value: String(minutes), unit: "分钟" }];
     }
 
     if (minutes <= 0) {
-      return `${hours}小时`;
+      return [{ value: String(hours), unit: "小时" }];
     }
 
-    return `${hours}小时${minutes}分钟`;
+    return [
+      { value: String(hours), unit: "小时" },
+      { value: String(minutes), unit: "分钟" },
+    ];
   }
 
-  const hours = normalizedSeconds / 3600;
+  return [{ value: (normalizedSeconds / 3600).toFixed(1), unit: "小时" }];
+}
 
-  return `${hours.toFixed(1)}小时`;
+export function formatDurationZh(
+  totalSeconds: number,
+  durationFormat: DurationFormat = "decimal_hours",
+): string {
+  return formatDurationPartsZh(totalSeconds, durationFormat)
+    .map((part) => `${part.value}${part.unit}`)
+    .join("");
 }

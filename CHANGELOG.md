@@ -1,6 +1,20 @@
 # Changelog
 
-## Unreleased
+## v0.2.1 - 2026-11-21
+
+- Count Microsoft Edge runtime when a taskbar window opens on a process launched by startup boost. A preloaded browser without a confirmed window, Chromium child processes, and embedded WebViews remain background helpers.
+
+## v0.2.0 — UI 分支版本，随 v0.2.1 首次公开发布
+
+- Redesigned the desktop UI as a desk instrument: aluminium/graphite panels, keycap navigation, indicator lamps and an aligned software ledger.
+- Added a dot-matrix LCD readout for today's recorded time, active time and most-used software, set in the bundled Ark Pixel 12px font (SIL OFL 1.1), with a segmented 24-hour dial.
+- Added light and dark themes; Settings offers 跟随系统 / 浅色 / 深色 (default follows Windows), saved locally as `ui.theme`, and the native title bar follows the theme.
+- Redrew the app mark as a skeuomorphic clock and regenerated the app, installer and tray icons from it.
+- Moved the unavailable 日期 and 导出 controls from the bottom bar into the page header.
+- Fixed the add-software dialog focus trap to follow document order.
+- Added a browser-only UI preview with synthetic data (`npm run preview:ui`).
+- Load native icons in the background on the dashboard, software and background pages. Keep the v0.1.5 tracking and database schema.
+- Fixed rapid theme changes, header tooltip clipping, narrow-window duration wrapping and light icon contrast; revised navigation spacing, settings layout and the small tray mark.
 
 ## v0.1.5 - 2026-11-20
 

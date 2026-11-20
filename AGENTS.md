@@ -99,6 +99,12 @@ v0.1.4 additionally includes:
 - Visibility-aware UI polling and release failure gates.
 - No destructive historical cleanup or automatic database replacement; see `docs/CURRENT_STATE.md`.
 
+The v0.2 desktop UI additionally includes:
+
+- The desk-instrument visual system in `DESIGN.md`, replacing the Steam-like dark dashboard look.
+- Light and dark themes with a 跟随系统 / 浅色 / 深色 Settings choice stored as `ui.theme`.
+- A pixel-font LCD readout (bundled Ark Pixel 12px, SIL OFL 1.1) and the skeuomorphic clock app mark.
+
 v0.1 excludes:
 
 - macOS implementation.

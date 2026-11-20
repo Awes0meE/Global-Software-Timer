@@ -1,12 +1,13 @@
 {
   "name": "global-software-timer",
-  "version": "0.1.5",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "preview:ui": "vite --config scripts/ui-preview/vite.config.ts",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1",

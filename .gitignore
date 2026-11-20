@@ -16,3 +16,10 @@ src-tauri/gen/
 
 .DS_Store
 Thumbs.db
+
+# Impeccable working state (design decisions live in DESIGN.md and PRODUCT.md)
+.impeccable/build/
+.impeccable/questions/
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/config.local.json

@@ -72,25 +72,30 @@ export function BackgroundPage({ durationFormat = "decimal_hours" }: BackgroundP
       </section>
 
       <section className="panel table-panel" aria-label="后台进程列表">
-        <div className="panel-heading table-heading">
+        <header className="panel-head">
           <h2>后台进程</h2>
-        </div>
-        <div className="background-row usage-head">
-          <span>软件名称</span>
-          <span>进程数</span>
-          <span>当前 CPU</span>
-          <span>内存</span>
-          <span>今日后台时长</span>
-          <span>今日 CPU 时间</span>
-          <span>状态</span>
-        </div>
-        <div className="usage-scroll">
-          {summary.rows.length === 0 ? (
+        </header>
+        <div className="usage-scroll" tabIndex={0} aria-label="后台进程明细">
+          <table className="background-table">
+            <thead>
+              <tr>
+                <th scope="col">软件名称</th>
+                <th scope="col">进程数</th>
+                <th scope="col">当前 CPU</th>
+                <th scope="col">内存</th>
+                <th scope="col">今日后台时长</th>
+                <th scope="col">今日 CPU 时间</th>
+                <th scope="col">状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.rows.map((row) => (
+                <BackgroundRowView key={row.family_key} row={row} durationFormat={durationFormat} />
+              ))}
+            </tbody>
+          </table>
+          {summary.rows.length === 0 && (
             <div className="empty-state">今天还没有记录到后台进程。</div>
-          ) : (
-            summary.rows.map((row) => (
-              <BackgroundRowView key={row.family_key} row={row} durationFormat={durationFormat} />
-            ))
           )}
         </div>
       </section>
@@ -106,24 +111,28 @@ function BackgroundRowView({
   durationFormat: DurationFormat;
 }) {
   return (
-    <div className="background-row">
-      <div className="software-cell">
-        <SoftwareIcon app={row} />
-        <span>
-          <strong>{row.display_name}</strong>
-          <small>{row.process_name}</small>
+    <tr className="background-row">
+      <td>
+        <div className="software-cell">
+          <SoftwareIcon app={row} />
+          <span>
+            <strong>{row.display_name}</strong>
+            <small>{row.process_name}</small>
+          </span>
+        </div>
+      </td>
+      <td>{row.is_running ? row.process_count : "—"}</td>
+      <td>{row.cpu_percent === null ? "—" : formatPercent(row.cpu_percent)}</td>
+      <td title={row.is_running ? "当前占用" : "今日峰值"}>{formatBytes(row.memory_bytes)}</td>
+      <td>{formatDurationZh(row.today_running_seconds, durationFormat)}</td>
+      <td>{formatCpuTime(row.today_cpu_seconds)}</td>
+      <td>
+        <span className={`status-badge ${row.is_running ? "background" : "closed"}`}>
+          <i className="lamp" aria-hidden="true" />
+          {row.is_running ? "运行中" : "已退出"}
         </span>
-      </div>
-      <span>{row.is_running ? row.process_count : "—"}</span>
-      <span>{row.cpu_percent === null ? "—" : formatPercent(row.cpu_percent)}</span>
-      <span title={row.is_running ? "当前占用" : "今日峰值"}>{formatBytes(row.memory_bytes)}</span>
-      <span>{formatDurationZh(row.today_running_seconds, durationFormat)}</span>
-      <span>{formatCpuTime(row.today_cpu_seconds)}</span>
-      <span className={`status-badge ${row.is_running ? "background" : "closed"}`}>
-        <i aria-hidden="true" />
-        {row.is_running ? "运行中" : "已退出"}
-      </span>
-    </div>
+      </td>
+    </tr>
   );
 }
 

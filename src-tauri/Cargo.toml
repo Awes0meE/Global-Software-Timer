@@ -1,6 +1,6 @@
 [package]
 name = "global-software-timer"
-version = "0.1.5"
+version = "0.2.1"
 description = "A local-first software runtime tracker."
 authors = ["Global Software Timer Contributors"]
 edition = "2021"

@@ -9,7 +9,8 @@ pub fn setup_tray(app: &App) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &quit])?;
 
-    let mut tray_builder = TrayIconBuilder::new()
+    TrayIconBuilder::new()
+        .icon(tauri::include_image!("./icons/32x32.png"))
         .tooltip("全局软件计时器")
         .menu(&menu)
         .show_menu_on_left_click(false)
@@ -27,13 +28,8 @@ pub fn setup_tray(app: &App) -> tauri::Result<()> {
             {
                 show_main_window(tray.app_handle());
             }
-        });
-
-    if let Some(icon) = app.default_window_icon().cloned() {
-        tray_builder = tray_builder.icon(icon);
-    }
-
-    tray_builder.build(app)?;
+        })
+        .build(app)?;
 
     Ok(())
 }

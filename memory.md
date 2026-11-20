@@ -10,9 +10,11 @@ Last updated: 2026-11-20
 - v0.1 platform: Windows 10/11 first.
 - Later platform direction: a native SwiftUI/AppKit macOS app, then mobile companion apps. The 2026-06-15 native capture PoC is archived under `MACOS/native-capture-poc/`; it is reference material, not production macOS support. Physical keyboard/mouse idle-reset validation remains open.
 - v0.1 shape: system tray app, background tracking, dashboard on demand.
-- UI direction: dark Steam-like software library, not a marketing landing page.
+- UI direction (2026-11-20 redesign included in v0.2.1): a desk precision instrument. Aluminium (light) and graphite (dark) panels, a recessed dot-matrix LCD readout whose text and numbers use the bundled Ark Pixel 12px font (OFL, `src/assets/fonts/`), a 24-hour segmented LCD dial (outer ring 今日记录, inner ring 今日活跃, pointer at the current time), keycap navigation, indicator lamps, and signal orange reserved for live state and primary actions. Distribution colours appear only inside the 今日分布 plate. `DESIGN.md` records the system; `PRODUCT.md` records product truth for design work. The released v0.1.4 UI is the older dark Steam-like library.
+- App mark: a skeuomorphic wall clock (steel bezel, ivory dial, 10:10 hands, orange second hand). `scripts/brand/build-clock-mark.py` writes `src/assets/gst-clock.svg` and `gst-clock-small.svg`; `scripts/brand/build-icons.py` rasterises them into `src-tauri/icons/` (also the tray icon) with headless Edge and Pillow.
+- Theme: 跟随系统 / 浅色 / 深色, default follows Windows. Stored as `ui.theme` in SQLite `app_settings`; the native title bar follows through the window `setTheme` permission; `localStorage` key `gst.theme` only caches the last choice to avoid a first-frame flash.
 - Default Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`. The 2026-06-06 duration-format setting adds an optional concrete-minute display such as `8小时35分钟`.
-- Release version: `v0.1.5` (2026-11-20); publication is gated by complete Windows checks and installer builds.
+- Release version: `v0.2.1` (2026-11-21); publication is gated by complete Windows checks and installer builds.
 - v0.1.2 adds a Settings page with startup-at-login and close-window behavior controls.
 - Startup at login defaults to enabled in v0.1.2, uses the current-user autostart mechanism, and does not require administrator permission.
 - First window close still asks whether to exit or minimize to tray; the choice is saved automatically and can be changed later in Settings.
@@ -36,7 +38,7 @@ Last updated: 2026-11-20
 - Default classifier noise filtering uses conservative process-name rules for hardware vendor background helpers. ASUS Armoury Crate helper processes and `nvcontainer.exe` are hidden by default, while the main `armourycrate.exe` app remains visible as `Armoury Crate`; avoid broad vendor path substring filters that could hide user-launched apps.
 - WPS suite components are grouped as `WPS Office` for usage summaries, including `wps.exe`, `et.exe`, `wpp.exe`, and `wpspdf.exe`; live status for merged rows is taken from the highest-priority status across all grouped app ids. WPS grouped rows use the main `wps.exe` sibling path for icon lookup, even when the visible component is `wpspdf.exe`, `et.exe`, or `wpp.exe`.
 - Active time: v0.1 tracks daily machine-level active time using keyboard/mouse idle state.
-- App settings are stored locally in the existing SQLite `app_settings` table, including `window.close_behavior`, `startup.autostart_enabled`, and the `ui.duration_format` display preference.
+- App settings are stored locally in the existing SQLite `app_settings` table, including `window.close_behavior`, `startup.autostart_enabled`, the `ui.duration_format` display preference, and the `ui.theme` preference.
 - Current software-page focus attribution is part of v0.1.3. Future additional privacy-sensitive window/workspace features must be explicit and opt-in; do not describe existing foreground-PID attribution as an unimplemented future feature.
 - Permissions: v0.1.3 runs as a normal user-space app and does not request administrator permission by default, including for startup at login.
 
@@ -63,7 +65,7 @@ Last updated: 2026-11-20
 
 ## Current Repository State
 
-- The process-grouping release version is `0.1.5` across npm, Cargo, Tauri and the sidebar. The UI redesign is planned for `0.2.x`.
+- Version `0.2.1` includes the v0.2.0 UI, the Edge startup boost fix, and the published `v0.1.5` process-grouping implementation and schema 2.
 - PR #12 is merged. Main worktree: `.worktrees/v01-implementation`; development worktree: `.worktrees/current-dev`. The enclosing folder is a container.
 - Repair baseline: local and GitHub API `main` were both `d8bfc6cb986d7f72113c84bdade6cc06cc261ab6` on 2026-11-17. Direct CLI GitHub access fails in this environment; verify remote Git objects through the connected GitHub service when publishing.
 - A redacted reviewer report is preserved in `docs/2026-11-17-improvement-suggestions.md`; the complete original is archived locally outside Git. Its current-state claims refer to the pre-fix baseline. Use `docs/CURRENT_STATE.md` for repaired behavior and remaining work.
@@ -71,6 +73,8 @@ Last updated: 2026-11-20
 - Approved settings, software-page and duration-format specifications are under `docs/superpowers/specs/`. Historical plans under `docs/superpowers/plans/` are not a live backlog.
 - The 2026-06-06 duration-format preference is implemented on main but was not in the published v0.1.3 release.
 - Local gate: `npm.cmd run check` runs release-script failure tests, frontend tests/build, Rust fmt/tests, and npm audit. `npm.cmd run release:build` runs the gate and Tauri build, stops on failure, then stages installers and prints SHA256 hashes.
+- Redesign changes, benchmark results and outstanding environment checks for the UI redesign are recorded in `docs/ui-redesign-backlog.md`.
+- Browser UI preview with synthetic data: `npm.cmd run preview:ui` (port 1421) aliases the Tauri APIs to `scripts/ui-preview/`; query options `?theme=light|dark`, `?format=hm`, `?empty`, `?page=software|settings`, `?dialog=add`. It never touches the real database.
 - Load `. .\scripts\dev-env.ps1` before Rust commands. The 2026-06-18 toolchain/audit observations are historical; the 2026-11-17 online npm audit could not reach its endpoint. Do not claim a fresh clean dependency audit.
 - Superpowers workflows are available in the active environment's plugin cache; discover them per environment. Portable workflow fallback is `docs/DEVELOPMENT_WORKFLOW.md` and `AGENTS.md`.
 - The original v0.1 plan requires subagent-driven development. This repair used implementation plus independent spec and quality reviews.

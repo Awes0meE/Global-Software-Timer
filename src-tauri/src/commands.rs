@@ -1,7 +1,7 @@
 use crate::app_state::AppState;
 use crate::background::BackgroundProcessGroup;
 use crate::domain::{AppRuntimeStatus, AppUsageSummary, SoftwarePageRow};
-use crate::native_icon::native_icon_data_url_for_path;
+use crate::native_icon::cached_native_icon;
 use crate::storage::{BackgroundUsage, Store, StoreError};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
@@ -11,9 +11,11 @@ use tauri::{AppHandle, Manager, State};
 const CLOSE_BEHAVIOR_SETTING_KEY: &str = "window.close_behavior";
 const AUTOSTART_SETTING_KEY: &str = "startup.autostart_enabled";
 const DURATION_FORMAT_SETTING_KEY: &str = "ui.duration_format";
+const THEME_SETTING_KEY: &str = "ui.theme";
 const DEFAULT_CLOSE_BEHAVIOR: CloseBehavior = CloseBehavior::MinimizeToTray;
 const DEFAULT_AUTOSTART_ENABLED: bool = true;
 const DEFAULT_DURATION_FORMAT: DurationFormat = DurationFormat::DecimalHours;
+const DEFAULT_THEME: ThemePreference = ThemePreference::System;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DashboardSummary {
@@ -137,6 +139,33 @@ impl DurationFormat {
     }
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ThemePreference {
+    System,
+    Light,
+    Dark,
+}
+
+impl ThemePreference {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+
+    fn from_setting(value: &str) -> Option<Self> {
+        match value {
+            "system" => Some(Self::System),
+            "light" => Some(Self::Light),
+            "dark" => Some(Self::Dark),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AppSettings {
     pub close_behavior: CloseBehavior,
@@ -145,6 +174,8 @@ pub struct AppSettings {
     pub autostart_configured: bool,
     pub duration_format: DurationFormat,
     pub duration_format_configured: bool,
+    pub theme: ThemePreference,
+    pub theme_configured: bool,
 }
 
 // Runs off the UI thread: summaries scan history and lock the tracker.
@@ -200,7 +231,7 @@ pub fn get_background_page_summary(
         rows: rows
             .into_iter()
             .map(|(row, path)| BackgroundRowDto {
-                icon_data_url: native_icon_data_url_for_path(&path),
+                icon_data_url: cached_native_icon(&path),
                 ..row
             })
             .collect(),
@@ -386,6 +417,15 @@ pub fn set_duration_format_preference(
 }
 
 #[tauri::command(async)]
+pub fn set_theme_preference(
+    state: State<'_, AppState>,
+    theme: ThemePreference,
+) -> Result<(), String> {
+    let tracker = crate::app_state::lock_tracker(&state.tracker);
+    save_theme_preference(tracker.store(), theme).map_err(|error| error.to_string())
+}
+
+#[tauri::command(async)]
 pub fn apply_window_close_choice(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -425,6 +465,10 @@ fn app_settings_from_store(store: &Store) -> Result<AppSettings, StoreError> {
         .as_deref()
         .and_then(DurationFormat::from_setting);
     let duration_format = stored_duration_format.unwrap_or(DEFAULT_DURATION_FORMAT);
+    let stored_theme = store
+        .setting_value(THEME_SETTING_KEY)?
+        .as_deref()
+        .and_then(ThemePreference::from_setting);
 
     Ok(AppSettings {
         close_behavior,
@@ -433,7 +477,13 @@ fn app_settings_from_store(store: &Store) -> Result<AppSettings, StoreError> {
         autostart_configured,
         duration_format,
         duration_format_configured: stored_duration_format.is_some(),
+        theme: stored_theme.unwrap_or(DEFAULT_THEME),
+        theme_configured: stored_theme.is_some(),
     })
+}
+
+fn save_theme_preference(store: &Store, theme: ThemePreference) -> Result<(), StoreError> {
+    store.set_setting_value(THEME_SETTING_KEY, theme.as_str())
 }
 
 fn save_duration_format_preference(
@@ -552,7 +602,7 @@ impl AppUsageRow {
             app_id: summary.app_id,
             display_name: summary.display_name,
             process_name: summary.process_name,
-            icon_data_url: native_icon_data_url_for_path(&summary.executable_path),
+            icon_data_url: cached_native_icon(&summary.executable_path),
             total_seconds: summary.total_seconds,
             today_seconds: summary.today_seconds,
             active_today_seconds: summary.active_today_seconds,
@@ -573,7 +623,7 @@ impl SoftwarePageRowDto {
             identity_key: row.identity_key,
             display_name: row.display_name,
             process_name: row.process_name,
-            icon_data_url: native_icon_data_url_for_path(&row.executable_path),
+            icon_data_url: cached_native_icon(&row.executable_path),
             today_runtime_seconds: row.today_runtime_seconds,
             today_focused_seconds: row.today_focused_seconds,
             total_runtime_seconds: row.total_runtime_seconds,
@@ -662,13 +712,39 @@ mod background_row_tests {
 mod tests {
     use super::{
         app_settings_from_store, dashboard_summary_from_store, save_duration_format_preference,
-        software_list_command_error, CloseBehavior, DurationFormat,
+        save_theme_preference, software_list_command_error, CloseBehavior, DurationFormat,
+        ThemePreference,
     };
     use crate::domain::AppRuntimeStatus;
     use crate::storage::{Store, StoreError};
     use chrono::{TimeZone, Utc};
     use std::collections::HashMap;
     use tempfile::NamedTempFile;
+
+    /// Run in a fresh process to include cold icon-cache behavior.
+    #[test]
+    #[ignore = "requires GST_BENCH_DB pointing to a disposable database snapshot"]
+    fn benchmark_software_first_response() {
+        let path = std::env::var("GST_BENCH_DB").expect("set GST_BENCH_DB");
+        let store = Store::open_read_only(path).unwrap();
+        let started = std::time::Instant::now();
+        let transaction = store.savepoint().unwrap();
+        let summary = super::software_page_summary_from_store(
+            &store,
+            super::local_day_start_utc(),
+            Utc::now(),
+            &HashMap::new(),
+        )
+        .unwrap();
+        let payload = serde_json::to_vec(&summary).unwrap();
+        transaction.commit().unwrap();
+        println!(
+            "{} discovered, {} bytes, {:?} first response",
+            summary.discovered.len(),
+            payload.len(),
+            started.elapsed()
+        );
+    }
 
     #[test]
     fn dashboard_summary_reads_sessions_and_daily_system_usage() {
@@ -883,6 +959,48 @@ mod tests {
                 .expect("read setting")
                 .as_deref(),
             Some("hours_minutes")
+        );
+    }
+
+    #[test]
+    fn app_settings_defaults_theme_to_system() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.theme, ThemePreference::System);
+        assert!(!settings.theme_configured);
+
+        store
+            .set_setting_value("ui.theme", "dark")
+            .expect("set setting");
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.theme, ThemePreference::Dark);
+        assert!(settings.theme_configured);
+
+        store
+            .set_setting_value("ui.theme", "sepia")
+            .expect("set invalid setting");
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.theme, ThemePreference::System);
+        assert!(!settings.theme_configured);
+    }
+
+    #[test]
+    fn save_theme_preference_writes_setting_key() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+
+        save_theme_preference(&store, ThemePreference::Light).expect("save");
+
+        assert_eq!(
+            store
+                .setting_value("ui.theme")
+                .expect("read setting")
+                .as_deref(),
+            Some("light")
         );
     }
 

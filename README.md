@@ -9,8 +9,8 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
 一个 Windows 优先、本地优先的桌面状态栏软件，用来记录每个软件的运行时长。
 
 <p>
-  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.5">
-    <img alt="Release v0.1.5" src="https://img.shields.io/badge/Release-v0.1.5-2f81f7?style=for-the-badge" />
+  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.2.1">
+    <img alt="Release v0.2.1" src="https://img.shields.io/badge/Release-v0.2.1-2f81f7?style=for-the-badge" />
   </a>
   <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=for-the-badge&logo=windows&logoColor=white" />
   <img alt="Local First" src="https://img.shields.io/badge/Local--First-Privacy-2ea043?style=for-the-badge" />
@@ -32,7 +32,7 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
   ·
   <a href="#english">English</a>
   ·
-  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.5">Download</a>
+  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.2.1">Download</a>
   ·
   <a href="./PRIVACY.md">Privacy</a>
 </p>
@@ -45,11 +45,13 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
 
 ## 中文
 
-Global Software Timer（全局软件计时器）是一款本地优先的 Windows 桌面状态栏应用。它会在后台记录桌面软件的运行时长，并在仪表盘中以类似 Steam 游戏时长库的方式展示你的软件使用数据。
+Global Software Timer（全局软件计时器）是一款本地优先的 Windows 桌面状态栏应用。它会在后台记录桌面软件的运行时长，并在一个像桌面计时仪器的仪表盘里展示你的软件使用数据。
 
-它适合想知道自己在 VS Code、浏览器、Office、设计工具、工程软件等桌面应用上投入了多少时间的人。v0.1.5 合并软件更新前后的使用时长，识别 Windows 11 托盘软件，并在「后台」页显示进程的 CPU 和内存占用。
+v0.2.1 在 v0.1.5 的软件识别与统计之上引入明暗两套仪器风格界面。概览显示常用软件和使用时长，「后台」页显示第三方后台进程的 CPU、内存和今日运行时间。
 
-![Dashboard preview](./UI_Reference.png)
+![概览页（浅色，示例数据）](./docs/assets/ui-overview-light.png)
+
+![概览页（深色，示例数据）](./docs/assets/ui-overview-dark.png)
 
 ### 目录
 
@@ -78,12 +80,13 @@ Global Software Timer（全局软件计时器）是一款本地优先的 Windows
 - 本地 SQLite 存储，不需要账号，不上传数据。
 - 自动识别常见用户软件，并默认过滤系统进程、驱动进程、更新助手、同步助手等噪声。
 - 展示累计软件时长、今日记录时长、今日活跃时长、最常用软件和今日分布。
-- 深色 Steam-like 软件库风格仪表盘。
+- 桌面仪器风格界面：像素点阵液晶读数窗显示今日记录、今日活跃和最常用软件，配 24 小时分段表盘。
+- 浅色 / 深色主题，默认跟随 Windows，可在设置中改为固定浅色或深色。
 - `软件` 页面支持 `特别关注`、`隐藏软件列表` 和只读 `已发现软件`。
 - `特别关注` 显示今日/共计前台运行、后台运行、活跃时长和上次打开时间。
 - `隐藏软件列表` 会继续本地记录软件，但从默认概览、排行和分布中隐藏。
 - `已发现软件` 支持英文、中文、拼音全拼和拼音首字母的本地离线搜索。
-- 设置页支持开机自启动和关闭窗口行为偏好。
+- 设置页支持开机自启动、关闭窗口行为、分钟数显示和主题偏好。
 - 开机自启动默认开启，使用当前用户级自启动机制，不需要管理员权限。
 - 首次关闭窗口时会询问“直接退出”或“最小化到状态栏”，后续可在设置中更改。
 - 中文 UI 标题：`全局软件计时器`。
@@ -92,18 +95,18 @@ Global Software Timer（全局软件计时器）是一款本地优先的 Windows
 
 ### 下载安装
 
-前往 [v0.1.5 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.5) 下载 Windows x64 安装包。
+前往 [v0.2.1 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.2.1) 下载 Windows x64 安装包。
 
 推荐下载：
 
-- `Global.Software.Timer_0.1.5_x64-setup.exe`
-- `Global.Software.Timer_0.1.5_x64_en-US.msi`
+- `Global.Software.Timer_0.2.1_x64-setup.exe`
+- `Global.Software.Timer_0.2.1_x64_en-US.msi`
 
 > 当前安装包未签名，Windows 首次安装时可能会显示 SmartScreen 提示。
 
 ### 隐私边界
 
-v0.1.5 只记录本地软件使用统计和本机偏好所需的数据。
+v0.2.1 只记录本地软件使用统计和本机偏好所需的数据。
 
 会记录：
 
@@ -135,7 +138,7 @@ v0.1.5 只记录本地软件使用统计和本机偏好所需的数据。
 ```text
 ┌──────────────────────────┐
 │ React + TypeScript UI    │
-│ Steam-like dashboard     │
+│ Instrument dashboard     │
 └─────────────┬────────────┘
               │ Tauri commands
 ┌─────────────▼────────────┐
@@ -216,7 +219,7 @@ npm.cmd run release:build
 
 ### 路线图
 
-v0.1.5 已聚焦于 Windows、本地记录、基础仪表盘、设置页、`软件` 页面、系统状态栏和隐私边界。
+v0.2.1 已聚焦于 Windows、本地记录、基础仪表盘、设置页、`软件` 页面、系统状态栏和隐私边界。
 
 后续可能加入：
 
@@ -227,7 +230,7 @@ v0.1.5 已聚焦于 Windows、本地记录、基础仪表盘、设置页、`软�
 - Notion、Obsidian 等工具的导出或插件工作流。
 - 可选的增强检测能力，但必须明确说明隐私影响并由用户主动开启。
 
-明确不属于 v0.1.5 的内容：
+明确不属于 v0.2.1 的内容：
 
 - 云同步。
 - 用户账号。
@@ -241,9 +244,9 @@ v0.1.5 已聚焦于 Windows、本地记录、基础仪表盘、设置页、`软�
 
 ## English
 
-Global Software Timer is a Windows-first, local-first desktop tray app that tracks how long you run desktop software. It is inspired by Steam's playtime display, but focuses on productivity, engineering, design, office, and creative tools.
+Global Software Timer is a Windows-first, local-first desktop tray app that tracks how long you run desktop software. It focuses on productivity, engineering, design, office, and creative tools.
 
-The app runs quietly in the background, stores data locally, and opens a dark software-library dashboard when you need to inspect your time.
+The app runs quietly in the background, stores data locally, and opens an instrument-style dashboard, in light or dark, when you need to inspect your time.
 
 ### Features
 
@@ -252,9 +255,10 @@ The app runs quietly in the background, stores data locally, and opens a dark so
 - A background page with CPU, memory and daily runtime for grouped processes.
 - SQLite storage with event/session data and daily summaries.
 - Smart default filtering for noisy system and background processes.
-- Dashboard cards for Most Used, Today Recorded, and Today Active.
+- A dot-matrix LCD readout for Today Recorded, Today Active, and Most Used, with a segmented 24-hour dial.
+- Light and dark themes that follow Windows by default and can be fixed in Settings.
 - Per-application usage table and today's usage mix.
-- Settings page for startup at login and close-window behavior.
+- Settings page for startup at login, close-window behavior, minutes display, and theme.
 - Startup at login is enabled by default through the current-user autostart mechanism and does not require administrator permission.
 - The first close asks whether to exit or minimize to tray; the saved choice can be changed later in Settings.
 - Software page with focused software, hidden software, discovered software, local search, and per-software focused active time.
@@ -264,18 +268,18 @@ The app runs quietly in the background, stores data locally, and opens a dark so
 
 ### Installation
 
-Download the Windows x64 installer from [v0.1.5 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.5).
+Download the Windows x64 installer from [v0.2.1 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.2.1).
 
 Available bundles:
 
-- `Global.Software.Timer_0.1.5_x64-setup.exe`
-- `Global.Software.Timer_0.1.5_x64_en-US.msi`
+- `Global.Software.Timer_0.2.1_x64-setup.exe`
+- `Global.Software.Timer_0.2.1_x64_en-US.msi`
 
 > The current Windows installers are unsigned, so Windows may show a SmartScreen warning on first install.
 
 ### Privacy Model
 
-Global Software Timer v0.1.5 records only app-level local usage data and local app preferences.
+Global Software Timer v0.2.1 records only app-level local usage data and local app preferences.
 
 It records:
 
@@ -364,3 +368,7 @@ Planned directions include richer analytics, weekly/monthly/yearly views, export
 ## 许可证
 
 本项目使用 [MIT License](./LICENSE)。
+
+液晶读数窗使用的 [方舟像素字体 Ark Pixel Font](https://github.com/TakWolf/ark-pixel-font)（作者 TakWolf）以 SIL Open Font License 1.1 授权，随应用打包在 `src/assets/fonts/`，许可文本见 [ark-pixel-OFL.txt](./src/assets/fonts/ark-pixel-OFL.txt)。
+
+The LCD readout bundles [Ark Pixel Font](https://github.com/TakWolf/ark-pixel-font) by TakWolf under the SIL Open Font License 1.1; see [ark-pixel-OFL.txt](./src/assets/fonts/ark-pixel-OFL.txt).

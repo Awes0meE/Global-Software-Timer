@@ -87,6 +87,10 @@ describe("App", () => {
         return Promise.resolve(undefined);
       }
 
+      if (command === "get_background_page_summary") {
+        return Promise.resolve({ logical_cores: 4, running_count: 0, rows: [] });
+      }
+
       return Promise.resolve({
         product_title: "全局软件计时器",
         locale: "zh-CN",
@@ -109,6 +113,16 @@ describe("App", () => {
     render(<App />);
 
     expect(await screen.findByText(`V${packageJson.version}`)).toBeInTheDocument();
+  });
+
+  it("opens the background page from the sidebar and loads its summary", async () => {
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "后台" }));
+
+    expect(screen.getByRole("heading", { level: 2, name: "后台" })).toBeInTheDocument();
+    expect(await screen.findByText("今天还没有记录到后台进程。")).toBeInTheDocument();
+    expect(mockInvoke).toHaveBeenCalledWith("get_background_page_summary");
   });
 
   it("shows a friendly warning instead of raw Tauri runtime errors", async () => {
@@ -271,9 +285,15 @@ describe("App", () => {
     expect(within(recentPanel).getByText("0.8小时")).toBeInTheDocument();
     expect(within(recentPanel).queryByText("前台运行")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();
-    expect(container.querySelector(".trophy-visual svg")).toHaveAttribute("fill", "currentColor");
-    expect(container.querySelector(".trophy-visual .trophy-base")).toHaveAttribute("fill", "currentColor");
-    expect(container.querySelector(".trophy-visual span")).not.toBeInTheDocument();
+    const readout = screen.getByRole("region", { name: "今日总览" });
+    expect(within(readout).getByText("今日记录")).toBeInTheDocument();
+    expect(within(readout).getByText("今日活跃")).toBeInTheDocument();
+    expect(within(readout).getByText("8.8")).toBeInTheDocument();
+    expect(within(readout).getByText("0.5")).toBeInTheDocument();
+    expect(within(readout).getByText("累计 482.6小时")).toBeInTheDocument();
+    expect(screen.getByRole("figure", { name: /^满圈 24 小时，今日已过 \d{2}:\d{2}$/ })).toBeInTheDocument();
+    expect(container.querySelectorAll(".lcd-ring-recorded path.is-lit")).toHaveLength(17);
+    expect(container.querySelectorAll(".lcd-ring-active path.is-lit")).toHaveLength(0);
   });
 
   it("uses the selected duration format across overview duration displays", async () => {
@@ -416,7 +436,9 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "特别关注" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "隐藏软件列表" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "已发现软件" })).toBeInTheDocument();
-    expect(screen.getByText("还没有特别关注的软件")).toBeInTheDocument();
+    expect(screen.getAllByText("正在读取软件列表")).toHaveLength(3);
+    expect(await screen.findByText("还没有特别关注的软件")).toBeInTheDocument();
+    expect(screen.queryByText("正在读取软件列表")).not.toBeInTheDocument();
     expect(screen.getByText("还没有隐藏的软件")).toBeInTheDocument();
     expect(screen.getByText("还没有发现软件")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "编辑" })).not.toBeInTheDocument();
@@ -1290,6 +1312,9 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
 
     expect(screen.getByRole("heading", { name: "设置" })).toBeInTheDocument();
+    const status = within(screen.getByRole("region", { name: "本机状态" }));
+    expect(status.getByText(`V${packageJson.version}`)).toBeVisible();
+    expect(status.getByText("仅本机")).toBeVisible();
     expect(screen.getByRole("button", { name: "概览" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "软件" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "统计" })).toBeInTheDocument();
@@ -1397,6 +1422,105 @@ describe("App", () => {
     );
     expect(durationSwitch).toHaveAttribute("aria-checked", "true");
     expect(screen.getAllByText("已开启").length).toBeGreaterThan(0);
+  });
+
+  it("follows the system theme by default and saves a chosen theme", async () => {
+    const emptyDashboard = {
+      product_title: "全局软件计时器",
+      locale: "zh-CN",
+      most_used: null,
+      recorded_today_seconds: 0,
+      active_today_seconds: 0,
+      apps: [],
+    };
+    const setTheme = vi.fn().mockResolvedValue(undefined);
+    getCurrentWindowMock.mockReturnValue({
+      onCloseRequested: vi.fn().mockResolvedValue(vi.fn()),
+      setTheme,
+    });
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_app_settings") {
+        return Promise.resolve({ theme: "system", theme_configured: false });
+      }
+
+      return Promise.resolve(command === "get_dashboard_summary" ? emptyDashboard : undefined);
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const themeGroup = screen.getByRole("radiogroup", { name: "主题" });
+    const darkOption = within(themeGroup).getByRole("radio", { name: "深色" });
+    await waitFor(() => expect(darkOption).not.toBeDisabled());
+    expect(within(themeGroup).getByRole("radio", { name: "跟随系统" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+
+    fireEvent.click(darkOption);
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("set_theme_preference", { theme: "dark" }),
+    );
+    expect(darkOption).toHaveAttribute("aria-checked", "true");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(setTheme).toHaveBeenLastCalledWith("dark");
+  });
+
+  it("keeps the latest theme when an older save fails", async () => {
+    const pending = createDeferred<void>();
+    const invokeDefault = mockInvoke.getMockImplementation()!;
+    mockInvoke.mockImplementation((command, args) => {
+      if (command === "set_theme_preference" && args.theme === "light") return pending.promise;
+      if (command === "set_theme_preference") return Promise.resolve();
+      return invokeDefault(command, args);
+    });
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const light = screen.getByRole("radio", { name: "浅色" });
+    await waitFor(() => expect(light).toBeEnabled());
+    fireEvent.click(light);
+    const dark = screen.getByRole("radio", { name: "深色" });
+    fireEvent.click(dark);
+    expect(dark).toHaveAttribute("aria-checked", "true");
+    await act(async () => pending.reject(new Error("write failed")));
+    expect(mockInvoke).toHaveBeenCalledWith("set_theme_preference", { theme: "dark" });
+    expect(dark).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText("主题设置保存失败")).toBeNull();
+  });
+
+  it("rolls back the theme when saving fails", async () => {
+    const emptyDashboard = {
+      product_title: "全局软件计时器",
+      locale: "zh-CN",
+      most_used: null,
+      recorded_today_seconds: 0,
+      active_today_seconds: 0,
+      apps: [],
+    };
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_app_settings") {
+        return Promise.resolve({ theme: "light", theme_configured: true });
+      }
+
+      if (command === "set_theme_preference") {
+        return Promise.reject(new Error("database is temporarily locked"));
+      }
+
+      return Promise.resolve(command === "get_dashboard_summary" ? emptyDashboard : undefined);
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const lightOption = screen.getByRole("radio", { name: "浅色" });
+    await waitFor(() => expect(lightOption).toHaveAttribute("aria-checked", "true"));
+
+    fireEvent.click(screen.getByRole("radio", { name: "深色" }));
+
+    expect(await screen.findByText("主题设置保存失败")).toBeInTheDocument();
+    expect(lightOption).toHaveAttribute("aria-checked", "true");
+    expect(document.documentElement.dataset.theme).toBe("light");
   });
 
   it("prevents concurrent duration display saves", async () => {

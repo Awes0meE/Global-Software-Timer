@@ -1,6 +1,5 @@
 import type { AppRuntimeStatus, AppUsageRow, DurationFormat } from "../api";
 import { formatDurationZh } from "../i18n";
-import { ArrowDown, ArrowUpDown } from "lucide-react";
 import { SoftwareIcon } from "./SoftwareIcon";
 
 interface Props {
@@ -10,25 +9,23 @@ interface Props {
 
 export function AppUsageTable({ apps, durationFormat = "decimal_hours" }: Props) {
   return (
-    <section className="panel table-panel" aria-label="应用时长列表">
-      <div className="panel-heading table-heading">
+    <section className="panel usage-panel" aria-label="应用时长列表">
+      <header className="panel-head">
         <h2>软件使用情况</h2>
-      </div>
-      <div className="usage-row usage-head">
-        <span>软件名称</span>
-        <span>
-          累计
-          <ArrowDown size={14} aria-hidden="true" />
-        </span>
-        <span>
-          今天
-          <ArrowUpDown size={14} aria-hidden="true" />
-        </span>
+        <span className="panel-count">{apps.length} 个软件</span>
+      </header>
+      <div className="usage-row usage-head" aria-hidden="true">
+        <span>软件</span>
+        <span>累计</span>
+        <span>今天</span>
         <span>状态</span>
       </div>
       <div className="usage-scroll">
         {apps.length === 0 ? (
-          <div className="empty-state">暂时没有可展示的软件时长。</div>
+          <div className="empty-state">
+            <strong>还没有记录到软件</strong>
+            <span>保持 GST 在托盘运行，打开的软件会自动出现在这里。</span>
+          </div>
         ) : (
           apps.map((app) => (
             <div className="usage-row" key={app.app_id}>
@@ -39,17 +36,23 @@ export function AppUsageTable({ apps, durationFormat = "decimal_hours" }: Props)
                   <small>{app.process_name}</small>
                 </span>
               </div>
-              <span>{formatDurationZh(app.total_seconds, durationFormat)}</span>
-              <span>{formatDurationZh(app.today_seconds, durationFormat)}</span>
-              <span className={`status-badge ${statusClassName(app.status)}`}>
-                <i aria-hidden="true" />
-                {statusLabel(app.status)}
-              </span>
+              <span className="num">{formatDurationZh(app.total_seconds, durationFormat)}</span>
+              <span className="num">{formatDurationZh(app.today_seconds, durationFormat)}</span>
+              <StatusBadge status={app.status} />
             </div>
           ))
         )}
       </div>
     </section>
+  );
+}
+
+export function StatusBadge({ status }: { status: AppRuntimeStatus }) {
+  return (
+    <span className={`status-badge ${statusClassName(status)}`}>
+      <i className="lamp" aria-hidden="true" />
+      {statusLabel(status)}
+    </span>
   );
 }
 

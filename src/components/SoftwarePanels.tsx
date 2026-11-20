@@ -1,12 +1,17 @@
 import { useMemo, useState } from "react";
+import { Plus } from "lucide-react";
 import type { DurationFormat, SoftwarePageRow } from "../api";
 import { formatDurationZh } from "../i18n";
 import { formatLastOpenedAt, highlightDisplayName, rankSoftwareRows } from "../softwareSearch";
 import { ActiveTimeHelpPopover } from "./ActiveTimeHelpPopover";
 import { SoftwareIcon } from "./SoftwareIcon";
 
+const loadingTitle = "正在读取软件列表";
+const loadingDescription = "本地记录较多时，第一次打开需要几秒。";
+
 interface ManagedPanelProps {
   rows: SoftwarePageRow[];
+  loading?: boolean;
   durationFormat?: DurationFormat;
   editing: boolean;
   onAdd: (opener: HTMLButtonElement) => void;
@@ -45,7 +50,13 @@ export function HiddenSoftwarePanel(props: ManagedPanelProps) {
   );
 }
 
-export function DiscoveredSoftwarePanel({ rows }: { rows: SoftwarePageRow[] }) {
+export function DiscoveredSoftwarePanel({
+  rows,
+  loading = false,
+}: {
+  rows: SoftwarePageRow[];
+  loading?: boolean;
+}) {
   const [query, setQuery] = useState("");
   const rankedRows = useMemo(() => rankSoftwareRows(rows, query), [rows, query]);
 
@@ -66,8 +77,8 @@ export function DiscoveredSoftwarePanel({ rows }: { rows: SoftwarePageRow[] }) {
       </div>
       {rows.length === 0 ? (
         <SoftwareEmptyState
-          title="还没有发现软件"
-          description="打开软件并保持 GST 运行一会儿后，这里会自动出现。"
+          title={loading ? loadingTitle : "还没有发现软件"}
+          description={loading ? loadingDescription : "打开软件并保持 GST 运行一会儿后，这里会自动出现。"}
         />
       ) : (
         <div className="discovered-scroll" tabIndex={0}>
@@ -82,6 +93,7 @@ export function DiscoveredSoftwarePanel({ rows }: { rows: SoftwarePageRow[] }) {
 
 function ManagedSoftwarePanel({
   rows,
+  loading = false,
   editing,
   durationFormat,
   kind,
@@ -118,12 +130,16 @@ function ManagedSoftwarePanel({
             aria-label={addLabel}
             onClick={(event) => onAdd(event.currentTarget)}
           >
+            <Plus size={15} strokeWidth={2.2} aria-hidden="true" />
             添加
           </button>
         </div>
       </div>
       {rows.length === 0 ? (
-        <SoftwareEmptyState title={emptyTitle} description={emptyDescription} />
+        <SoftwareEmptyState
+          title={loading ? loadingTitle : emptyTitle}
+          description={loading ? loadingDescription : emptyDescription}
+        />
       ) : kind === "focused" ? (
         <FocusedSoftwareTable
           rows={rows}
