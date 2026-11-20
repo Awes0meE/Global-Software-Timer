@@ -13,6 +13,9 @@ Global Software Timer v0.1.3 is local-first.
 - Software-page foreground/background runtime aggregates
 - Software-page focused active time based on the Windows foreground focused software identity
 - Local app preferences, including startup at login and close-window behavior
+- (unreleased) Background processes without a window or tray icon: executable name and path, daily running time, CPU time, peak memory and process count, for the `后台` page
+
+To tell windowed, tray and background apps apart, GST reads window styles and class names, process command lines (checked in memory for helper flags such as `--type=`, never stored), and the executable paths Windows lists under `HKCU\Control Panel\NotifyIconSettings`. It does not read window titles or tray icon tooltips.
 
 ## What v0.1.3 does not record
 
