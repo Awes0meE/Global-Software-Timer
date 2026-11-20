@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Recorded tray apps: an app showing a notification-area icon now counts as running (`托盘运行`) like a windowed app. Detection uses the Windows 11 tray registry and the user's session; Windows 10 keeps the previous behavior.
+- Added the `后台` page: third-party processes with neither a window nor a tray icon, grouped by software, with live CPU/memory and today's background time and CPU time. Child processes of apps the user can see stay with that app. Data is stored in the new `daily_background_usage` table (schema version 2).
+
 - Counted only taskbar-style app windows as `前台运行`; overlays, docks, tool and hidden host windows (for example NVIDIA Overlay, Razer, BitDock) are no longer credited as foreground runtime. UWP frame windows and the UWP foreground window are attributed to the hosted app.
 - Fixed Chromium/Electron helper detection, which never ran because process command lines were not loaded; any `--type=` child (ChatGPT, Discord and similar) is now a background helper. Command lines are only checked in memory.
 - Kept one software identity across updates: packaged apps group by package family, and version or hash install directories are ignored. Existing per-version identities, aggregates and focused/hidden marks are folded together at startup.
