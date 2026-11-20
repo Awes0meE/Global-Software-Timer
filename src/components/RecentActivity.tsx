@@ -13,34 +13,28 @@ export function RecentActivity({ apps, durationFormat = "decimal_hours" }: Props
 
   return (
     <aside className="panel recent-panel" aria-label="当前前台运行">
-      <div className="panel-heading">
+      <header className="panel-head">
         <h2>当前前台运行</h2>
+        <span className="panel-count">{runningApps.length}</span>
         <UnavailableTooltip>
-          <button className="ghost-link" type="button" aria-label="查看更多当前前台运行">
+          <button className="panel-link" type="button" aria-label="查看更多当前前台运行">
             更多
-            <span aria-hidden="true">›</span>
           </button>
         </UnavailableTooltip>
-      </div>
+      </header>
 
       <div className="recent-scroll" aria-label="当前前台运行列表" tabIndex={0}>
         {runningApps.length === 0 ? (
-          <div className="empty-state">暂无前台运行的软件。</div>
+          <div className="empty-state compact">现在没有打开窗口的软件。</div>
         ) : (
-          <div className="recent-list">
-            {runningApps.map((app) => (
-              <div className="recent-item" key={app.app_id}>
-                <SoftwareIcon app={app} size="sm" />
-                <div className="recent-copy">
-                  <strong>{app.display_name}</strong>
-                  <span>{app.process_name}</span>
-                </div>
-                <span className="recent-duration">
-                  {formatDurationZh(app.today_seconds, durationFormat)}
-                </span>
-              </div>
-            ))}
-          </div>
+          runningApps.map((app) => (
+            <div className="recent-item" key={app.app_id}>
+              <i className="lamp is-lit" aria-hidden="true" />
+              <SoftwareIcon app={app} size="sm" />
+              <strong>{app.display_name}</strong>
+              <span className="num">{formatDurationZh(app.today_seconds, durationFormat)}</span>
+            </div>
+          ))
         )}
       </div>
     </aside>

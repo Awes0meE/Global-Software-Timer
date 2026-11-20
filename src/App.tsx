@@ -7,11 +7,13 @@ import {
   ChevronDown,
   Clock3,
   Download,
-  Home,
+  History,
+  LayoutDashboard,
   Menu,
-  Monitor,
+  MonitorCog,
   Power,
   Settings,
+  SquareStack,
 } from "lucide-react";
 import {
   applyWindowCloseChoice,
@@ -22,16 +24,20 @@ import {
   setAutostartEnabled,
   setCloseBehaviorPreference,
   setDurationFormatPreference,
+  setThemePreference,
   type CloseBehavior,
   type DashboardSummary,
   type DurationFormat,
+  type ThemePreference,
 } from "./api";
+import clockMark from "./assets/gst-clock.svg";
 import { AppUsageTable } from "./components/AppUsageTable";
 import { RecentActivity } from "./components/RecentActivity";
 import { SoftwarePage } from "./components/SoftwarePage";
-import { SummaryCards } from "./components/SummaryCards";
 import { TodayMix } from "./components/TodayMix";
+import { TodayReadout } from "./components/TodayReadout";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
+import { applyThemePreference, readCachedThemePreference } from "./theme";
 import { startVisiblePolling } from "./visiblePolling";
 
 const fallbackSummary: DashboardSummary = {
@@ -51,13 +57,25 @@ const defaultDurationFormat: DurationFormat = "decimal_hours";
 type PageId = "overview" | "settings" | "software";
 
 const navItems = [
-  { id: "overview", label: "概览", icon: Home, available: true },
-  { id: "software", label: "软件", icon: Monitor, available: true },
+  { id: "overview", label: "概览", icon: LayoutDashboard, available: true },
+  { id: "software", label: "软件", icon: SquareStack, available: true },
   { id: "statistics", label: "统计", icon: BarChart3, available: false },
-  { id: "timeline", label: "时间轴", icon: Clock3, available: false },
+  { id: "timeline", label: "时间轴", icon: History, available: false },
   { id: "daily", label: "日报", icon: CalendarDays, available: false },
   { id: "settings", label: "设置", icon: Settings, available: true },
 ] as const;
+
+const pageTitles: Record<PageId, string> = {
+  overview: "概览",
+  software: "软件",
+  settings: "设置",
+};
+
+const themeOptions: { value: ThemePreference; label: string }[] = [
+  { value: "system", label: "跟随系统" },
+  { value: "light", label: "浅色" },
+  { value: "dark", label: "深色" },
+];
 
 export default function App() {
   const [summary, setSummary] = useState<DashboardSummary>(fallbackSummary);
@@ -74,6 +92,10 @@ export default function App() {
   const [closeBehavior, setCloseBehavior] = useState<CloseBehavior>(defaultCloseBehavior);
   const [durationFormat, setDurationFormat] = useState<DurationFormat>(defaultDurationFormat);
   const [durationFormatBusy, setDurationFormatBusy] = useState(false);
+  const [theme, setTheme] = useState<ThemePreference>(readCachedThemePreference);
+  const confirmedTheme = useRef(theme);
+  const themeRequest = useRef(0);
+  const themeWrites = useRef(Promise.resolve());
   const dashboardMountedRef = useRef(false);
   const closePreferenceRef = useRef<CloseBehavior>(defaultCloseBehavior);
   const closeBehaviorConfiguredRef = useRef(false);
@@ -118,6 +140,8 @@ export default function App() {
         if (!cancelled) {
           setCloseBehavior(settings.close_behavior);
           setDurationFormat(settings.duration_format);
+          confirmedTheme.current = settings.theme;
+          setTheme(settings.theme);
           closePreferenceRef.current = settings.close_behavior;
           closeBehaviorConfiguredRef.current = settings.close_behavior_configured;
         }
@@ -166,6 +190,8 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => applyThemePreference(theme), [theme]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -286,6 +312,29 @@ export default function App() {
       });
   };
 
+  const handleThemeChange = (next: ThemePreference) => {
+    if (!settingsLoaded || next === theme) {
+      return;
+    }
+
+    const request = ++themeRequest.current;
+    setTheme(next);
+    setSettingsError(null);
+
+    // Serialize persistence, while applying the latest selection immediately.
+    themeWrites.current = themeWrites.current.then(async () => {
+      try {
+        await setThemePreference(next);
+        confirmedTheme.current = next;
+      } catch {
+        if (request === themeRequest.current) {
+          setTheme(confirmedTheme.current);
+          setSettingsError("主题设置保存失败");
+        }
+      }
+    });
+  };
+
   const handleCloseChoice = async (choice: CloseBehavior) => {
     if (closeChoiceBusy) {
       return;
@@ -325,72 +374,83 @@ export default function App() {
       <a className="skip-link" href={`#${contentId}`}>
         跳到内容
       </a>
-      <div className="app-window">
-        <header className="app-header">
-          <div className="brand-cluster">
-            <div className="brand-mark" aria-hidden="true">
-              <Clock3 size={24} strokeWidth={2.4} />
-            </div>
-            <h1>{summary.product_title}</h1>
-            <div className="live-status" aria-label="正在记录">
-              <span aria-hidden="true" />
-              正在记录
+      <div className="app-shell">
+        <aside className="sidebar">
+          <div className="brand">
+            <img className="brand-mark" src={clockMark} alt="" width={44} height={44} />
+            <div className="brand-copy">
+              <h1>{summary.product_title}</h1>
+              <small>本地软件时长记录</small>
             </div>
           </div>
 
-          <div className="window-actions">
+          <nav className="side-nav" aria-label="主导航">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = item.id === activePage;
+
+              const navButton = (
+                <button
+                  className={`nav-key${isActive ? " is-active" : ""}`}
+                  type="button"
+                  aria-current={isActive ? "page" : undefined}
+                  aria-disabled={!item.available}
+                  onClick={() => handleNavClick(item)}
+                >
+                  <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
+                  <span>{item.label}</span>
+                  {item.available ? null : <em aria-hidden="true">未开放</em>}
+                </button>
+              );
+
+              return item.available ? (
+                <span className="nav-key-slot" key={item.label}>
+                  {navButton}
+                </span>
+              ) : (
+                <UnavailableTooltip key={item.label}>{navButton}</UnavailableTooltip>
+              );
+            })}
+          </nav>
+
+          <div className="sidebar-footer" aria-label="数据状态">
+            <span className="live-status">
+              <i className="lamp is-lit is-breathing" aria-hidden="true" />
+              正在记录
+            </span>
+            <span>
+              <i className="lamp" aria-hidden="true" />
+              数据只保存在本机
+            </span>
+            <small className="num">V{packageJson.version}</small>
+          </div>
+        </aside>
+
+        <div className="workspace">
+          <header className="page-header">
+            <h2>{pageTitles[activePage]}</h2>
             <UnavailableTooltip>
-              <button className="header-action" type="button">
-                <Menu size={18} aria-hidden="true" />
-                更多
+              <button className="header-button date-control" type="button">
+                <CalendarDays size={16} aria-hidden="true" />
+                <span className="num">{formatTodayDate()}</span>
                 <ChevronDown size={14} aria-hidden="true" />
               </button>
             </UnavailableTooltip>
-          </div>
-        </header>
-
-        <div className="workspace-layout">
-          <aside className="sidebar">
-            <nav className="side-nav" aria-label="主导航">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = item.id === activePage;
-
-                const navButton = (
-                  <button
-                    className={`nav-item${isActive ? " is-active" : ""}`}
-                    type="button"
-                    aria-current={isActive ? "page" : undefined}
-                    aria-disabled={!item.available}
-                    onClick={() => handleNavClick(item)}
-                  >
-                    <Icon size={26} aria-hidden="true" />
-                    <span>{item.label}</span>
-                  </button>
-                );
-
-                return item.available ? (
-                  <span className="nav-item-slot" key={item.label}>
-                    {navButton}
-                  </span>
-                ) : (
-                  <UnavailableTooltip key={item.label}>{navButton}</UnavailableTooltip>
-                );
-              })}
-            </nav>
-
-            <div className="sidebar-footer" aria-label="数据状态">
-              <span>
-                <i className="status-dot status-dot-ok" aria-hidden="true" />
-                本地数据
-              </span>
-              <span>
-                <i className="status-dot status-dot-muted" aria-hidden="true" />
-                离线模式
-              </span>
-              <small>V{packageJson.version}</small>
+            <div className="window-actions">
+              <UnavailableTooltip>
+                <button className="header-button" type="button">
+                  <Download size={16} aria-hidden="true" />
+                  导出
+                </button>
+              </UnavailableTooltip>
+              <UnavailableTooltip>
+                <button className="header-button" type="button">
+                  <Menu size={16} aria-hidden="true" />
+                  更多
+                </button>
+              </UnavailableTooltip>
             </div>
-          </aside>
+          </header>
 
           {activePage === "settings" ? (
             <SettingsPage
@@ -402,9 +462,12 @@ export default function App() {
               durationFormat={durationFormat}
               durationFormatDisabled={!settingsLoaded || durationFormatBusy}
               error={settingsError}
+              theme={theme}
+              themeDisabled={!settingsLoaded}
               onAutostartToggle={handleAutostartToggle}
               onCloseBehaviorToggle={handleCloseBehaviorToggle}
               onDurationFormatToggle={handleDurationFormatToggle}
+              onThemeChange={handleThemeChange}
             />
           ) : activePage === "software" ? (
             <SoftwarePage
@@ -414,7 +477,7 @@ export default function App() {
           ) : (
             <main className="overview-page" id="overview-content">
               {error ? <div className="warning">{error}</div> : null}
-              <SummaryCards summary={summary} durationFormat={durationFormat} />
+              <TodayReadout summary={summary} durationFormat={durationFormat} />
 
               <div className="overview-grid">
                 <AppUsageTable apps={summary.apps} durationFormat={durationFormat} />
@@ -426,41 +489,25 @@ export default function App() {
             </main>
           )}
         </div>
-
-        <footer className="bottom-bar">
-          <UnavailableTooltip>
-            <button className="date-control" type="button">
-              <CalendarDays size={18} aria-hidden="true" />
-              {formatTodayDate()}
-              <ChevronDown size={16} aria-hidden="true" />
-            </button>
-          </UnavailableTooltip>
-          <UnavailableTooltip>
-            <button className="export-button" type="button">
-              <Download size={18} aria-hidden="true" />
-              导出
-              <ChevronDown size={16} aria-hidden="true" />
-            </button>
-          </UnavailableTooltip>
-        </footer>
       </div>
 
       {closeDialogOpen ? (
         <div className="modal-backdrop">
           <section
-            className="close-dialog"
+            className="dialog close-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="close-dialog-title"
           >
+            <img className="dialog-mark" src={clockMark} alt="" width={40} height={40} />
             <h2 id="close-dialog-title">关闭全局软件计时器</h2>
             <p>请选择退出软件，或最小化后继续在右下角状态栏运行。</p>
             <p className="dialog-hint">后续可在设置中更改。</p>
             {closeDialogError ? <p className="dialog-error">{closeDialogError}</p> : null}
-            <div className="close-dialog-actions">
+            <div className="dialog-actions">
               <button
                 type="button"
-                className="dialog-secondary"
+                className="button button-secondary"
                 disabled={closeChoiceBusy}
                 onClick={() => void handleCloseChoice("exit")}
               >
@@ -468,7 +515,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                className="dialog-primary"
+                className="button button-primary"
                 disabled={closeChoiceBusy}
                 onClick={() => void handleCloseChoice("minimize_to_tray")}
               >
@@ -491,9 +538,12 @@ interface SettingsPageProps {
   durationFormat: DurationFormat;
   durationFormatDisabled: boolean;
   error: string | null;
+  theme: ThemePreference;
+  themeDisabled: boolean;
   onAutostartToggle: () => void;
   onCloseBehaviorToggle: () => void;
   onDurationFormatToggle: () => void;
+  onThemeChange: (theme: ThemePreference) => void;
 }
 
 function SettingsPage({
@@ -505,25 +555,42 @@ function SettingsPage({
   durationFormat,
   durationFormatDisabled,
   error,
+  theme,
+  themeDisabled,
   onAutostartToggle,
   onCloseBehaviorToggle,
   onDurationFormatToggle,
+  onThemeChange,
 }: SettingsPageProps) {
   return (
     <main className="settings-page" id="settings-content">
-      <section className="settings-heading">
-        <p className="settings-eyebrow">本机偏好</p>
-        <h2>设置</h2>
-      </section>
-
       {error ? <div className="warning">{error}</div> : null}
 
-      <section className="settings-panel" aria-label="设置选项">
+      <section className="readout settings-readout" aria-labelledby="settings-status-title">
+        <div className="lcd settings-lcd">
+          <img src={clockMark} width="48" height="48" alt="" />
+          <div className="lcd-cell">
+            <h3 className="lcd-label" id="settings-status-title">本机状态</h3>
+            <p>全局软件计时器</p>
+          </div>
+          <div className="lcd-cell">
+            <span className="lcd-label">当前版本</span>
+            <p>V{packageJson.version}</p>
+          </div>
+          <div className="lcd-cell">
+            <span className="lcd-label">数据存储</span>
+            <p>仅本机</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel settings-group" aria-labelledby="settings-run-title">
+        <h3 id="settings-run-title">运行</h3>
         <SettingSwitchRow
           checked={autostartEnabled}
           description="电脑开机后自动启动并在后台记录软件时长"
           disabled={autostartDisabled}
-          icon={<Power size={21} aria-hidden="true" />}
+          icon={<Power size={18} aria-hidden="true" />}
           statusText={autostartBusy ? "保存中" : autostartEnabled ? "已开启" : "已关闭"}
           title="开机自启动"
           onToggle={onAutostartToggle}
@@ -531,23 +598,69 @@ function SettingsPage({
         <SettingSwitchRow
           checked={closeBehavior === "minimize_to_tray"}
           description="关闭主窗口后继续在右下角状态栏运行"
-          icon={<Settings size={21} aria-hidden="true" />}
+          icon={<MonitorCog size={18} aria-hidden="true" />}
           statusText={closeBehavior === "minimize_to_tray" ? "最小化到后台" : "直接退出"}
           title="关闭窗口时最小化到后台"
           disabled={closeBehaviorDisabled}
           onToggle={onCloseBehaviorToggle}
         />
+      </section>
+
+      <section className="panel settings-group" aria-labelledby="settings-display-title">
+        <h3 id="settings-display-title">显示</h3>
         <SettingSwitchRow
           checked={durationFormat === "hours_minutes"}
           description="开启后将会显示具体分钟数，如“8小时35分钟”"
           disabled={durationFormatDisabled}
-          icon={<Clock3 size={21} aria-hidden="true" />}
+          icon={<Clock3 size={18} aria-hidden="true" />}
           statusText={durationFormat === "hours_minutes" ? "已开启" : "已关闭"}
           title="显示分钟数"
           onToggle={onDurationFormatToggle}
         />
+        <div className="settings-row">
+          <div className="settings-row-icon" aria-hidden="true">
+            <ThemeGlyph />
+          </div>
+          <div className="settings-row-copy">
+            <strong id="theme-setting-title">主题</strong>
+            <span>默认跟随 Windows 的浅色或深色模式</span>
+          </div>
+          <div className="settings-row-control">
+            <div className="segmented" role="radiogroup" aria-labelledby="theme-setting-title">
+              {themeOptions.map((option) => (
+                <button
+                  key={option.value}
+                  className={`segmented-option${theme === option.value ? " is-selected" : ""}`}
+                  type="button"
+                  role="radio"
+                  aria-checked={theme === option.value}
+                  disabled={themeDisabled}
+                  onClick={() => onThemeChange(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel settings-group settings-privacy" aria-labelledby="settings-privacy-title">
+        <h3 id="settings-privacy-title">隐私</h3>
+        <p>
+          软件使用记录保存在这台电脑上。GST 不上传记录，也不采集窗口标题、文档名、网页标题或键盘输入内容。
+        </p>
       </section>
     </main>
+  );
+}
+
+function ThemeGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" />
+    </svg>
   );
 }
 
@@ -572,7 +685,9 @@ function SettingSwitchRow({
 }: SettingSwitchRowProps) {
   return (
     <div className="settings-row">
-      <div className="settings-row-icon">{icon}</div>
+      <div className="settings-row-icon" aria-hidden="true">
+        {icon}
+      </div>
       <div className="settings-row-copy">
         <strong>{title}</strong>
         <span>{description}</span>
@@ -580,7 +695,7 @@ function SettingSwitchRow({
       <div className="settings-row-control">
         <span className={`settings-status${checked ? " is-on" : ""}`}>{statusText}</span>
         <button
-          className={`setting-switch${checked ? " is-on" : ""}`}
+          className={`toggle${checked ? " is-on" : ""}`}
           type="button"
           role="switch"
           aria-checked={checked}
@@ -588,7 +703,7 @@ function SettingSwitchRow({
           disabled={disabled}
           onClick={onToggle}
         >
-          <span className="switch-thumb" aria-hidden="true" />
+          <span className="toggle-knob" aria-hidden="true" />
         </button>
       </div>
     </div>

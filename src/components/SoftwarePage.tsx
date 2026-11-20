@@ -33,6 +33,7 @@ export function SoftwarePage({
 }: SoftwarePageProps) {
   const [summary, setSummary] = useState<SoftwarePageSummary>(emptySoftwareSummary);
   const [fetchError, setFetchError] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [removeError, setRemoveError] = useState(false);
   const [focusedEditing, setFocusedEditing] = useState(false);
   const [hiddenEditing, setHiddenEditing] = useState(false);
@@ -48,10 +49,12 @@ export function SoftwarePage({
       if (!mountedRef.current || request !== requestRef.current) return false;
       setSummary(nextSummary);
       setFetchError(false);
+      setLoaded(true);
       return true;
     } catch {
       if (!mountedRef.current || request !== requestRef.current) return false;
       setFetchError(true);
+      setLoaded(true);
       return false;
     }
   }, []);
@@ -141,6 +144,7 @@ export function SoftwarePage({
         <div className="software-managed-column">
           <FocusedSoftwarePanel
             rows={summary.focused}
+            loading={!loaded}
             durationFormat={durationFormat}
             editing={focusedEditing}
             onAdd={handleFocusedAdd}
@@ -149,6 +153,7 @@ export function SoftwarePage({
           />
           <HiddenSoftwarePanel
             rows={summary.hidden}
+            loading={!loaded}
             durationFormat={durationFormat}
             editing={hiddenEditing}
             onAdd={handleHiddenAdd}
@@ -156,7 +161,7 @@ export function SoftwarePage({
             onRemove={(identityKey) => void handleHiddenRemove(identityKey)}
           />
         </div>
-        <DiscoveredSoftwarePanel rows={summary.discovered} />
+        <DiscoveredSoftwarePanel rows={summary.discovered} loading={!loaded} />
       </div>
 
       {addTarget ? (

@@ -200,7 +200,7 @@ export function AddSoftwareDialog({ rows, target, onClose, onSubmit }: Props) {
           )}
           <div className="add-software-actions">
             <button
-              className="dialog-secondary"
+              className="button button-secondary"
               type="button"
               disabled={submitting}
               onClick={onClose}
@@ -208,7 +208,7 @@ export function AddSoftwareDialog({ rows, target, onClose, onSubmit }: Props) {
               取消
             </button>
             <button
-              className="dialog-primary"
+              className="button button-primary"
               type="button"
               disabled={selectedKeys.length === 0 || submitting}
               onClick={() => void handleSubmit()}
