@@ -46,6 +46,8 @@ struct SoftwareLegacyRuntimeSeconds {
 }
 
 const SCHEMA_VERSION: i64 = 1;
+/// WAL readers and the writer can briefly contend during checkpoints.
+const BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 static NEXT_SAVEPOINT_ID: AtomicU64 = AtomicU64::new(0);
 
 pub struct Store {
@@ -83,12 +85,14 @@ impl Drop for StoreSavepoint<'_> {
 impl Store {
     pub fn open(path: impl AsRef<Path>) -> StoreResult<Self> {
         let conn = Connection::open(path)?;
+        conn.busy_timeout(BUSY_TIMEOUT)?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         Ok(Self { conn })
     }
 
     pub fn open_read_only(path: impl AsRef<Path>) -> StoreResult<Self> {
         let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        conn.busy_timeout(BUSY_TIMEOUT)?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         Ok(Self { conn })
     }
@@ -2051,6 +2055,10 @@ fn should_prefer_executable_path(
     }
     if current_path.trim().is_empty() {
         return true;
+    }
+    // Summaries call this per session row; scoring touches the filesystem.
+    if current_path == candidate_path {
+        return false;
     }
 
     executable_path_score(candidate_path, display_name, process_name)

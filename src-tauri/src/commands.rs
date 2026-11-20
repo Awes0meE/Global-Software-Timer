@@ -121,18 +121,13 @@ pub struct AppSettings {
     pub duration_format_configured: bool,
 }
 
-#[tauri::command]
+// Runs off the UI thread: summaries scan history and lock the tracker.
+#[tauri::command(async)]
 pub fn get_dashboard_summary(state: State<'_, AppState>) -> Result<DashboardSummary, String> {
-    let statuses = state
-        .tracker
-        .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?
+    let statuses = crate::app_state::lock_tracker(&state.tracker)
         .runtime_status_by_app_id()
         .clone();
-    let store = state
-        .summary_store
-        .lock()
-        .map_err(|_| "summary mutex poisoned".to_string())?;
+    let store = crate::app_state::lock_recovering(&state.summary_store);
     let transaction = store.savepoint().map_err(|error| error.to_string())?;
     let now_utc = Utc::now();
     let summary = dashboard_summary_from_store(&store, local_day_start_utc(), now_utc, &statuses)
@@ -141,20 +136,14 @@ pub fn get_dashboard_summary(state: State<'_, AppState>) -> Result<DashboardSumm
     Ok(summary)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_software_page_summary(
     state: State<'_, AppState>,
 ) -> Result<SoftwarePageSummary, String> {
-    let statuses = state
-        .tracker
-        .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?
+    let statuses = crate::app_state::lock_tracker(&state.tracker)
         .runtime_status_by_app_id()
         .clone();
-    let store = state
-        .summary_store
-        .lock()
-        .map_err(|_| "summary mutex poisoned".to_string())?;
+    let store = crate::app_state::lock_recovering(&state.summary_store);
     let transaction = store.savepoint().map_err(|error| error.to_string())?;
     let now_utc = Utc::now();
     let summary =
@@ -164,93 +153,72 @@ pub fn get_software_page_summary(
     Ok(summary)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn run_tracker_scan_once(state: State<'_, AppState>) -> Result<(), String> {
-    let mut tracker = state
-        .tracker
-        .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    let mut tracker = crate::app_state::lock_tracker(&state.tracker);
     tracker
         .scan_once()
         .map(|_| ())
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn add_focused_software_identities(
     state: State<'_, AppState>,
     identity_keys: Vec<String>,
 ) -> Result<(), String> {
-    let tracker = state
-        .tracker
-        .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    let tracker = crate::app_state::lock_tracker(&state.tracker);
     tracker
         .store()
         .add_focused_software_identities(&identity_keys)
         .map_err(software_list_command_error)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn remove_focused_software_identity(
     state: State<'_, AppState>,
     identity_key: String,
 ) -> Result<(), String> {
-    let tracker = state
-        .tracker
-        .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    let tracker = crate::app_state::lock_tracker(&state.tracker);
     tracker
         .store()
         .remove_focused_software_identity(&identity_key)
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn add_hidden_software_identities(
     state: State<'_, AppState>,
     identity_keys: Vec<String>,
 ) -> Result<(), String> {
-    let tracker = state
-        .tracker
-        .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    let tracker = crate::app_state::lock_tracker(&state.tracker);
     tracker
         .store()
         .add_hidden_software_identities(&identity_keys)
         .map_err(software_list_command_error)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn remove_hidden_software_identity(
     state: State<'_, AppState>,
     identity_key: String,
 ) -> Result<(), String> {
-    let tracker = state
-        .tracker
-        .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    let tracker = crate::app_state::lock_tracker(&state.tracker);
     tracker
         .store()
         .remove_hidden_software_identity(&identity_key)
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_app_settings(state: State<'_, AppState>) -> Result<AppSettings, String> {
-    let tracker = state
-        .tracker
-        .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    let tracker = crate::app_state::lock_tracker(&state.tracker);
     app_settings_from_store(tracker.store()).map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_close_behavior_preference(state: State<'_, AppState>) -> Result<Option<String>, String> {
-    let tracker = state
-        .tracker
-        .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    let tracker = crate::app_state::lock_tracker(&state.tracker);
     let preference = tracker
         .store()
         .setting_value(CLOSE_BEHAVIOR_SETTING_KEY)
@@ -262,27 +230,21 @@ pub fn get_close_behavior_preference(state: State<'_, AppState>) -> Result<Optio
         .map(|behavior| behavior.as_str().to_string()))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_close_behavior_preference(
     state: State<'_, AppState>,
     choice: CloseBehavior,
 ) -> Result<(), String> {
-    let tracker = state
-        .tracker
-        .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    let tracker = crate::app_state::lock_tracker(&state.tracker);
     tracker
         .store()
         .set_setting_value(CLOSE_BEHAVIOR_SETTING_KEY, choice.as_str())
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_autostart_preference(state: State<'_, AppState>, enabled: bool) -> Result<(), String> {
-    let tracker = state
-        .tracker
-        .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    let tracker = crate::app_state::lock_tracker(&state.tracker);
     tracker
         .store()
         .set_setting_value(
@@ -292,20 +254,17 @@ pub fn set_autostart_preference(state: State<'_, AppState>, enabled: bool) -> Re
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_duration_format_preference(
     state: State<'_, AppState>,
     duration_format: DurationFormat,
 ) -> Result<(), String> {
-    let tracker = state
-        .tracker
-        .lock()
-        .map_err(|_| "tracker mutex poisoned".to_string())?;
+    let tracker = crate::app_state::lock_tracker(&state.tracker);
     save_duration_format_preference(tracker.store(), duration_format)
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn apply_window_close_choice(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -313,10 +272,7 @@ pub fn apply_window_close_choice(
     remember: bool,
 ) -> Result<(), String> {
     if remember {
-        let tracker = state
-            .tracker
-            .lock()
-            .map_err(|_| "tracker mutex poisoned".to_string())?;
+        let tracker = crate::app_state::lock_tracker(&state.tracker);
         tracker
             .store()
             .set_setting_value(CLOSE_BEHAVIOR_SETTING_KEY, choice.as_str())
