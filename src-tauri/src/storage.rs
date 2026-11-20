@@ -268,7 +268,136 @@ impl Store {
                 self.upsert_software_identity_for_app(app_id)?;
             }
         }
+        self.consolidate_software_identities()?;
         transaction.commit()
+    }
+
+    /// Folds identities whose grouping rule changed (for example per-version
+    /// install paths) into the identity their member apps now resolve to.
+    /// Idempotent; runs inside the startup maintenance savepoint.
+    fn consolidate_software_identities(&self) -> StoreResult<()> {
+        let memberships = {
+            let mut stmt = self.conn.prepare(
+                "SELECT identity_key, app_id FROM software_identity_members ORDER BY identity_key, app_id",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        let mut targets_by_key: HashMap<String, HashSet<Option<String>>> = HashMap::new();
+        for (identity_key, app_id) in memberships {
+            let expected = self
+                .find_app_by_id(app_id)?
+                .map(|app| software_identity_parts_for_app(&app).identity_key);
+            if expected.as_deref() == Some(identity_key.as_str()) {
+                targets_by_key.entry(identity_key).or_default().insert(None);
+                continue;
+            }
+            self.conn.execute(
+                "DELETE FROM software_identity_members WHERE identity_key = ?1 AND app_id = ?2",
+                params![identity_key, app_id],
+            )?;
+            targets_by_key
+                .entry(identity_key)
+                .or_default()
+                .insert(expected);
+        }
+
+        for (old_key, targets) in targets_by_key {
+            // Merge only when every member moved to the same, existing identity.
+            let targets = targets.into_iter().collect::<Vec<_>>();
+            let [Some(new_key)] = targets.as_slice() else {
+                continue;
+            };
+            let Some(new_identity) = self.find_software_identity(new_key)? else {
+                continue;
+            };
+            self.merge_software_identity(&old_key, &new_identity)?;
+        }
+        Ok(())
+    }
+
+    fn merge_software_identity(
+        &self,
+        old_key: &str,
+        new_identity: &SoftwareIdentity,
+    ) -> StoreResult<()> {
+        let new_key = &new_identity.identity_key;
+        // Old per-version identities may overlap when two versions ran at once;
+        // per-day totals are capped at one day so a merge never exceeds 24 hours.
+        self.conn.execute(
+            r#"
+            INSERT INTO daily_software_runtime_usage (
+                usage_date, identity_key, foreground_seconds, background_seconds,
+                first_recorded_at, last_recorded_at
+            )
+            SELECT usage_date, ?2, foreground_seconds, background_seconds,
+                   first_recorded_at, last_recorded_at
+            FROM daily_software_runtime_usage
+            WHERE identity_key = ?1
+            ON CONFLICT(usage_date, identity_key) DO UPDATE SET
+                foreground_seconds = MIN(86400, foreground_seconds + excluded.foreground_seconds),
+                background_seconds = MIN(
+                    MAX(0, 86400 - MIN(86400, foreground_seconds + excluded.foreground_seconds)),
+                    background_seconds + excluded.background_seconds
+                ),
+                first_recorded_at = MIN(first_recorded_at, excluded.first_recorded_at),
+                last_recorded_at = MAX(last_recorded_at, excluded.last_recorded_at)
+            "#,
+            params![old_key, new_key],
+        )?;
+        self.conn.execute(
+            r#"
+            INSERT INTO daily_software_focus_usage (usage_date, identity_key, focused_seconds)
+            SELECT usage_date, ?2, focused_seconds
+            FROM daily_software_focus_usage
+            WHERE identity_key = ?1
+            ON CONFLICT(usage_date, identity_key) DO UPDATE SET
+                focused_seconds = MIN(86400, focused_seconds + excluded.focused_seconds)
+            "#,
+            params![old_key, new_key],
+        )?;
+        for table in ["focused_software_identities", "hidden_software_identities"] {
+            self.conn.execute(
+                &format!(
+                    "INSERT OR IGNORE INTO {table} (identity_key, created_at)
+                     SELECT ?2, created_at FROM {table} WHERE identity_key = ?1"
+                ),
+                params![old_key, new_key],
+            )?;
+        }
+        // Hidden wins when merged versions carried conflicting marks.
+        self.conn.execute(
+            "DELETE FROM focused_software_identities
+             WHERE identity_key = ?1
+               AND EXISTS (SELECT 1 FROM hidden_software_identities WHERE identity_key = ?1)",
+            params![new_key],
+        )?;
+        self.conn.execute(
+            r#"
+            UPDATE software_identities
+            SET last_opened_at = (
+                SELECT MAX(last_opened_at) FROM software_identities WHERE identity_key IN (?1, ?2)
+            )
+            WHERE identity_key = ?2
+            "#,
+            params![old_key, new_key],
+        )?;
+        for table in [
+            "daily_software_runtime_usage",
+            "daily_software_focus_usage",
+            "focused_software_identities",
+            "hidden_software_identities",
+            "software_identity_members",
+            "software_identities",
+        ] {
+            self.conn.execute(
+                &format!("DELETE FROM {table} WHERE identity_key = ?1"),
+                params![old_key],
+            )?;
+        }
+        Ok(())
     }
 
     fn ensure_daily_software_runtime_usage_columns(&self) -> StoreResult<()> {
@@ -934,7 +1063,7 @@ impl Store {
                 }
                 Classification::Tracked {
                     display_name: classified_display_name,
-                } => classified_display_name,
+                } => keep_original_case(classified_display_name, row.stored_display_name),
             };
 
             let identity_key = if let Some(identity_key) = identity_keys_by_app_id.get(&row.app_id)
@@ -1777,7 +1906,7 @@ fn software_identity_parts_for_app(app: &AppIdentity) -> SoftwareIdentityParts {
     let identity_key = if is_wps_suite_component(&app.process_name) {
         "known:wps-office".to_string()
     } else {
-        format!("app:{}", app.normalized_key)
+        format!("app:{}", software_family_key(&app.normalized_key))
     };
     let representative_executable_path =
         representative_executable_path(&display_name, &app.executable_path);
@@ -1790,13 +1919,25 @@ fn software_identity_parts_for_app(app: &AppIdentity) -> SoftwareIdentityParts {
     }
 }
 
+/// `apps.process_name` is stored lowercase, so names derived from it lose the
+/// executable's casing (`chatgpt`); the stored first-seen name keeps it (`ChatGPT`).
+fn keep_original_case(classified: String, stored: String) -> String {
+    if classified != stored && classified.eq_ignore_ascii_case(&stored) {
+        stored
+    } else {
+        classified
+    }
+}
+
 fn display_name_for_app(app: &AppIdentity) -> String {
     match classify_process(&app.process_name, &app.executable_path) {
         Classification::Hidden => app.display_name.clone(),
         Classification::Tracked { display_name: _ } if app.is_user_renamed => {
             app.display_name.clone()
         }
-        Classification::Tracked { display_name } => display_name,
+        Classification::Tracked { display_name } => {
+            keep_original_case(display_name, app.display_name.clone())
+        }
     }
 }
 
@@ -1827,6 +1968,76 @@ pub fn normalize_identity_key(executable_path: &str, process_name: &str) -> Stri
     } else {
         path
     }
+}
+
+/// Version-insensitive form of a normalized executable key, so one software
+/// keeps one identity across updates.
+///
+/// - Packaged apps (`windowsapps\Name_1.2.3.0_x64__publisher\...`) collapse to
+///   the package family: every executable in one package is one software.
+/// - Directory segments that are versions (`12.1.0.26375`, `v1.0.0.23`,
+///   `app-2.9.0`) or content hashes (`958d608b5e0546a5`) become `*`.
+///
+/// Unversioned keys are returned unchanged, so their identity keys stay stable.
+pub fn software_family_key(normalized_key: &str) -> String {
+    let segments = normalized_key.split('\\').collect::<Vec<_>>();
+    if let Some(index) = segments
+        .iter()
+        .position(|segment| *segment == "windowsapps")
+    {
+        if let Some(family) = segments
+            .get(index + 1)
+            .and_then(|package| package_family_name(package))
+        {
+            return format!("{}\\{family}", segments[..=index].join("\\"));
+        }
+    }
+
+    let last = segments.len().saturating_sub(1);
+    segments
+        .iter()
+        .enumerate()
+        .map(|(index, segment)| {
+            if index < last && is_volatile_directory_segment(segment) {
+                "*"
+            } else {
+                segment
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\\")
+}
+
+/// `Name_Version_Arch_ResourceId_PublisherId` -> `Name_PublisherId`.
+fn package_family_name(package_full_name: &str) -> Option<String> {
+    let parts = package_full_name.split('_').collect::<Vec<_>>();
+    match parts.as_slice() {
+        [name, version, _arch, _resource, publisher]
+            if !name.is_empty() && !publisher.is_empty() && is_dotted_version(version) =>
+        {
+            Some(format!("{name}_{publisher}"))
+        }
+        _ => None,
+    }
+}
+
+fn is_volatile_directory_segment(segment: &str) -> bool {
+    let version = segment
+        .strip_prefix("app-")
+        .or_else(|| segment.strip_prefix('v'))
+        .unwrap_or(segment);
+    is_dotted_version(version)
+        || (segment.len() >= 12
+            && segment
+                .chars()
+                .all(|character| character.is_ascii_hexdigit()))
+}
+
+fn is_dotted_version(value: &str) -> bool {
+    value.contains('.')
+        && value.split('.').all(|part| {
+            !part.is_empty() && part.chars().all(|character| character.is_ascii_digit())
+        })
 }
 
 fn should_prefer_executable_path(
