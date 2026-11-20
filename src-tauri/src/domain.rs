@@ -87,9 +87,29 @@ pub struct DailySystemUsage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AppRuntimeStatus {
+    /// Owns a taskbar app window.
     Foreground,
+    /// No window, but its notification-area icon is showing.
+    Tray,
+    /// Still running with neither a window nor a tray icon.
     Background,
     Closed,
+}
+
+impl AppRuntimeStatus {
+    /// Higher wins when several processes or apps share one row.
+    pub fn rank(self) -> u8 {
+        match self {
+            Self::Closed => 0,
+            Self::Background => 1,
+            Self::Tray => 2,
+            Self::Foreground => 3,
+        }
+    }
+
+    pub fn is_user_facing(self) -> bool {
+        matches!(self, Self::Foreground | Self::Tray)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

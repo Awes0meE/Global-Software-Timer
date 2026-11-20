@@ -87,6 +87,10 @@ describe("App", () => {
         return Promise.resolve(undefined);
       }
 
+      if (command === "get_background_page_summary") {
+        return Promise.resolve({ logical_cores: 4, running_count: 0, rows: [] });
+      }
+
       return Promise.resolve({
         product_title: "全局软件计时器",
         locale: "zh-CN",
@@ -109,6 +113,16 @@ describe("App", () => {
     render(<App />);
 
     expect(await screen.findByText(`V${packageJson.version}`)).toBeInTheDocument();
+  });
+
+  it("opens the background page from the sidebar and loads its summary", async () => {
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "后台" }));
+
+    expect(screen.getByRole("heading", { level: 2, name: "后台" })).toBeInTheDocument();
+    expect(await screen.findByText("今天还没有记录到后台进程。")).toBeInTheDocument();
+    expect(mockInvoke).toHaveBeenCalledWith("get_background_page_summary");
   });
 
   it("shows a friendly warning instead of raw Tauri runtime errors", async () => {
@@ -265,8 +279,8 @@ describe("App", () => {
     expect(container.querySelector(".recent-scroll")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /查看全部/ })).not.toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "今日分布" })).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: "当前前台运行" })).toBeInTheDocument();
-    const recentPanel = screen.getByRole("complementary", { name: "当前前台运行" });
+    expect(screen.getByRole("complementary", { name: "正在运行" })).toBeInTheDocument();
+    const recentPanel = screen.getByRole("complementary", { name: "正在运行" });
     expect(await within(recentPanel).findByText("3.3小时")).toBeInTheDocument();
     expect(within(recentPanel).getByText("0.8小时")).toBeInTheDocument();
     expect(within(recentPanel).queryByText("前台运行")).not.toBeInTheDocument();
@@ -360,7 +374,7 @@ describe("App", () => {
       screen.getByRole("button", { name: "日报" }),
       screen.getByRole("button", { name: "更多" }),
       screen.getByRole("button", { name: /查看更多今日分布/ }),
-      screen.getByRole("button", { name: /查看更多当前前台运行/ }),
+      screen.getByRole("button", { name: /查看更多正在运行/ }),
       screen.getByRole("button", { name: /\d{4}-\d{2}-\d{2}/ }),
       screen.getByRole("button", { name: "导出" }),
     ];
@@ -1325,6 +1339,25 @@ describe("App", () => {
     expect(startupSwitch).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByRole("dialog", { name: /管理员权限/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/本软件不会使用管理员权限/)).not.toBeInTheDocument();
+  });
+
+  it("does not re-enable startup at login when saved settings cannot be read", async () => {
+    autostartMocks.isEnabled.mockResolvedValue(false);
+    const defaultImplementation = mockInvoke.getMockImplementation();
+    mockInvoke.mockImplementation((command, args) => {
+      if (command === "get_app_settings") {
+        return Promise.reject(new Error("database is locked"));
+      }
+      return defaultImplementation?.(command, args);
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const startupSwitch = screen.getByRole("switch", { name: "开机自启动" });
+    await waitFor(() => expect(startupSwitch).not.toBeDisabled());
+    expect(startupSwitch).toHaveAttribute("aria-checked", "false");
+    expect(autostartMocks.enable).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalledWith("set_autostart_preference", expect.anything());
   });
 
   it("disables startup at login directly when the startup switch is turned off", async () => {

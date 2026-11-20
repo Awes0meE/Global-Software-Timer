@@ -9,8 +9,8 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
 一个 Windows 优先、本地优先的桌面状态栏软件，用来记录每个软件的运行时长。
 
 <p>
-  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.4">
-    <img alt="Release v0.1.4" src="https://img.shields.io/badge/Release-v0.1.4-2f81f7?style=for-the-badge" />
+  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.5">
+    <img alt="Release v0.1.5" src="https://img.shields.io/badge/Release-v0.1.5-2f81f7?style=for-the-badge" />
   </a>
   <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=for-the-badge&logo=windows&logoColor=white" />
   <img alt="Local First" src="https://img.shields.io/badge/Local--First-Privacy-2ea043?style=for-the-badge" />
@@ -32,7 +32,7 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
   ·
   <a href="#english">English</a>
   ·
-  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.4">Download</a>
+  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.5">Download</a>
   ·
   <a href="./PRIVACY.md">Privacy</a>
 </p>
@@ -47,7 +47,7 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
 
 Global Software Timer（全局软件计时器）是一款本地优先的 Windows 桌面状态栏应用。它会在后台记录桌面软件的运行时长，并在一个像桌面计时仪器的仪表盘里展示你的软件使用数据。
 
-它适合想知道自己在 VS Code、浏览器、Office、设计工具、工程软件等桌面应用上投入了多少时间的人。当前 0.1.5 开发版的重点是可靠、本地、隐私边界清晰、浅色和深色两套仪器风格界面、可直接修改的本机设置，以及可管理软件关注/隐藏状态的 `软件` 页面。
+v0.2.0 开发版在 v0.1.5 的软件识别与统计之上引入明暗两套仪器风格界面。概览显示常用软件和使用时长，「后台」页显示第三方后台进程的 CPU、内存和今日运行时间。
 
 ![概览页（浅色，示例数据）](./docs/assets/ui-overview-light.png)
 
@@ -95,18 +95,18 @@ Global Software Timer（全局软件计时器）是一款本地优先的 Windows
 
 ### 下载安装
 
-前往 [v0.1.4 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.4) 下载 Windows x64 安装包。
+前往 [v0.1.5 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.5) 下载 Windows x64 安装包。
 
 推荐下载：
 
-- `Global.Software.Timer_0.1.4_x64-setup.exe`
-- `Global.Software.Timer_0.1.4_x64_en-US.msi`
+- `Global.Software.Timer_0.1.5_x64-setup.exe`
+- `Global.Software.Timer_0.1.5_x64_en-US.msi`
 
 > 当前安装包未签名，Windows 首次安装时可能会显示 SmartScreen 提示。
 
 ### 隐私边界
 
-v0.1.4 只记录本地软件使用统计和本机偏好所需的数据。
+v0.1.5 只记录本地软件使用统计和本机偏好所需的数据。
 
 会记录：
 
@@ -117,6 +117,7 @@ v0.1.4 只记录本地软件使用统计和本机偏好所需的数据。
 - 基于键盘/鼠标空闲状态的今日活跃时长。
 - `软件` 页面标记，例如特别关注或隐藏。
 - `软件` 页面前台/后台运行汇总和前台聚焦活跃时长。
+- 后台软件的可执行文件路径、每日后台时长、CPU 时间、内存与进程数峰值。
 - 本机设置偏好，例如开机自启动和关闭窗口行为。
 
 不会记录：
@@ -162,7 +163,7 @@ v0.1.4 只记录本地软件使用统计和本机偏好所需的数据。
 
 ### 本地开发
 
-开发接手前先看 [当前实现与已知问题](./docs/CURRENT_STATE.md)。0.1.4 包含“显示分钟数”和可靠性修复；下载链接指向该版本。
+开发接手前先看 [当前实现与已知问题](./docs/CURRENT_STATE.md)。有关软件分组、后台统计和数据库升级的变化，请参阅 [v0.1.5 发布说明](./docs/releases/v0.1.5.md)。
 
 需要：
 
@@ -218,7 +219,7 @@ npm.cmd run release:build
 
 ### 路线图
 
-v0.1.4 已聚焦于 Windows、本地记录、基础仪表盘、设置页、`软件` 页面、系统状态栏和隐私边界。
+v0.1.5 已聚焦于 Windows、本地记录、基础仪表盘、设置页、`软件` 页面、系统状态栏和隐私边界。
 
 后续可能加入：
 
@@ -229,7 +230,7 @@ v0.1.4 已聚焦于 Windows、本地记录、基础仪表盘、设置页、`软�
 - Notion、Obsidian 等工具的导出或插件工作流。
 - 可选的增强检测能力，但必须明确说明隐私影响并由用户主动开启。
 
-明确不属于 v0.1.4 的内容：
+明确不属于 v0.1.5 的内容：
 
 - 云同步。
 - 用户账号。
@@ -250,7 +251,8 @@ The app runs quietly in the background, stores data locally, and opens an instru
 ### Features
 
 - Windows 10/11 desktop tray app.
-- Local runtime tracking for desktop applications.
+- Runtime tracking across software updates and for Windows 11 tray apps.
+- A background page with CPU, memory and daily runtime for grouped processes.
 - SQLite storage with event/session data and daily summaries.
 - Smart default filtering for noisy system and background processes.
 - A dot-matrix LCD readout for Today Recorded, Today Active, and Most Used, with a segmented 24-hour dial.
@@ -266,18 +268,18 @@ The app runs quietly in the background, stores data locally, and opens an instru
 
 ### Installation
 
-Download the Windows x64 installer from [v0.1.4 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.4).
+Download the Windows x64 installer from [v0.1.5 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.5).
 
 Available bundles:
 
-- `Global.Software.Timer_0.1.4_x64-setup.exe`
-- `Global.Software.Timer_0.1.4_x64_en-US.msi`
+- `Global.Software.Timer_0.1.5_x64-setup.exe`
+- `Global.Software.Timer_0.1.5_x64_en-US.msi`
 
 > The current Windows installers are unsigned, so Windows may show a SmartScreen warning on first install.
 
 ### Privacy Model
 
-Global Software Timer v0.1.4 records only app-level local usage data and local app preferences.
+Global Software Timer v0.1.5 records only app-level local usage data and local app preferences.
 
 It records:
 
@@ -288,6 +290,7 @@ It records:
 - Daily active computer time based on keyboard/mouse idle state.
 - Software-page marks such as focused or hidden.
 - Software-page foreground/background runtime aggregates and focused active time.
+- Background executable paths, daily runtime, CPU time, peak memory and peak process count.
 - Local app preferences such as startup at login and close-window behavior.
 
 It does not record:
@@ -314,7 +317,7 @@ Global Software Timer uses:
 
 ### Development
 
-Read [current implementation and known issues](./docs/CURRENT_STATE.md) before starting work. Version 0.1.4 includes the duration-format preference and reliability fixes; download links target that release.
+Read [current implementation and known issues](./docs/CURRENT_STATE.md) before starting work. See the [v0.1.5 release notes](./docs/releases/v0.1.5.md) for tracking changes and database upgrade information.
 
 Install dependencies:
 

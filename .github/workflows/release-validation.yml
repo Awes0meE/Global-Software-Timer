@@ -1,16 +1,18 @@
 name: Windows release
 on:
   push:
-    branches: [main, build/release-014]
+    branches: [main]
     paths:
       - .github/workflows/release-validation.yml
       - package-lock.json
-      - docs/releases/v0.1.4.md
+      - 'docs/releases/*.md'
 permissions:
   contents: read
 jobs:
   build:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.evidence.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,54 +24,62 @@ jobs:
       - name: Validate and build installers
         run: npm run release:build
       - name: Prepare release evidence
+        id: evidence
         shell: pwsh
         run: |
-          $assets = Get-ChildItem release-staging -File | Where-Object { $_.Extension -in '.exe', '.msi' }
-          if ($assets.Count -ne 2) { throw "Expected two installers" }
-          $assets | ForEach-Object { "$( (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower() )  $($_.Name)" } | Set-Content -Encoding utf8 release-staging/SHA256SUMS.txt
-          Copy-Item docs/releases/v0.1.4.md release-staging/RELEASE_NOTES.md
+          $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid release version" }
+          $names = @("Global.Software.Timer_${version}_x64-setup.exe", "Global.Software.Timer_${version}_x64_en-US.msi")
+          $assets = @(Get-ChildItem release-staging -File)
+          if (Compare-Object $names @($assets.Name)) { throw "Unexpected installer set" }
+          $hashes = foreach ($name in $names) {
+            $hash = (Get-FileHash "release-staging/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name"
+          }
+          $hashes | Set-Content release-staging/SHA256SUMS.txt -Encoding utf8NoBOM
+          Copy-Item "docs/releases/v$version.md" release-staging/RELEASE_NOTES.md
+          @("", "Source commit $env:GITHUB_SHA", "", "## SHA-256", "", '~~~text') + $hashes + @('~~~') |
+            Add-Content release-staging/RELEASE_NOTES.md -Encoding utf8
+          "version=$version" >> $env:GITHUB_OUTPUT
       - uses: actions/upload-artifact@v4
         with:
-          name: gst-0.1.4-windows
+          name: gst-${{ steps.evidence.outputs.version }}-windows
           path: release-staging/
           if-no-files-found: error
   publish:
     needs: build
     if: >-
-      github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'chore(release): publish 0.1.4')
+      github.ref == 'refs/heads/main' &&
+      startsWith(github.event.head_commit.message, format('chore(release): publish {0}', needs.build.outputs.version))
     permissions:
       contents: write
     runs-on: windows-latest
+    env:
+      RELEASE_VERSION: ${{ needs.build.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
-          name: gst-0.1.4-windows
+          name: gst-${{ needs.build.outputs.version }}-windows
           path: release-staging
       - name: Publish verified installers
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: pwsh
-        run: |
-          $version = (Get-Content package.json | ConvertFrom-Json).version
-          if ($version -ne '0.1.4') { throw "Unexpected version" }
-          $assets = @(Get-ChildItem release-staging -File | Where-Object { $_.Extension -in '.exe', '.msi' -or $_.Name -eq 'SHA256SUMS.txt' } | ForEach-Object FullName)
-          gh release create v0.1.4 @assets --target $env:GITHUB_SHA --title 'Global Software Timer v0.1.4' --notes-file release-staging/RELEASE_NOTES.md
-          if ($LASTEXITCODE -ne 0) { throw "Release publication failed" }
-      - name: Remove completed remote branches
-        env:
-          GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          MERGE_MESSAGE: ${{ github.event.head_commit.message }}
         shell: pwsh
         run: |
-          $repair = gh api "repos/$env:GH_REPO/git/ref/heads/fix/tracker-reliability" --jq '.object.sha' 2>$null
-          if ($LASTEXITCODE -eq 0 -and $repair -eq '8414ac4c5bec83d18170d86f59279ef817c05e4c') {
-            gh api --method DELETE "repos/$env:GH_REPO/git/refs/heads/fix/tracker-reliability"
-            if ($LASTEXITCODE -ne 0) { throw "Repair branch cleanup failed" }
+          $version = $env:RELEASE_VERSION
+          $subject = ($env:MERGE_MESSAGE -split '\r?\n', 2)[0]
+          if ($subject -cne "chore(release): publish $version") { throw "Release title and version differ" }
+          $files = @("Global.Software.Timer_${version}_x64-setup.exe", "Global.Software.Timer_${version}_x64_en-US.msi")
+          $sums = @(Get-Content release-staging/SHA256SUMS.txt)
+          if ($sums.Count -ne $files.Count) { throw "Unexpected checksum manifest" }
+          $upload = foreach ($file in $files) {
+            $path = "release-staging/$file"
+            $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($sums -cnotcontains "$hash  $file") { throw "Checksum mismatch for $file" }
+            $path
           }
-          git diff --quiet origin/build/release-014 HEAD
-          if ($LASTEXITCODE -ne 0) { throw "Release branch differs from the published tree" }
-          gh api --method DELETE "repos/$env:GH_REPO/git/refs/heads/build/release-014"
-          if ($LASTEXITCODE -ne 0) { throw "Release branch cleanup failed" }
+          $upload += 'release-staging/SHA256SUMS.txt'
+          gh release create "v$version" @upload --target $env:GITHUB_SHA --title "Global Software Timer v$version" --notes-file release-staging/RELEASE_NOTES.md
+          if ($LASTEXITCODE -ne 0) { throw "Release publication failed" }

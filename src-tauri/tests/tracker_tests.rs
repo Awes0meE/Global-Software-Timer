@@ -61,6 +61,7 @@ fn code_process() -> ProcessSnapshot {
             .to_string(),
         is_background_helper: false,
         has_visible_window: true,
+        ..Default::default()
     }
 }
 
@@ -72,6 +73,7 @@ fn edge_process(pid: u32, is_background_helper: bool, has_visible_window: bool) 
             .to_string(),
         is_background_helper,
         has_visible_window,
+        ..Default::default()
     }
 }
 
@@ -933,6 +935,110 @@ fn split_boundary_preserves_genuine_legacy_sessions_from_the_same_day() {
         .unwrap();
     assert_eq!(rows.discovered[0].today_foreground_seconds, 47);
     assert_eq!(rows.discovered[0].total_foreground_seconds, 47);
+}
+
+#[test]
+fn fractional_tick_credit_is_carried_instead_of_dropped() {
+    let db_file = NamedTempFile::new().unwrap();
+    let store = Store::open(db_file.path()).unwrap();
+    store.migrate().unwrap();
+    let mut tracker = Tracker::new(store, FakeProcessSource::new(vec![vec![code_process()]; 5]));
+    let activity = FakeActivitySource {
+        idle_duration: Duration::ZERO,
+    };
+    let start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    tracker.scan_once_at(start).unwrap();
+    let mut now = start;
+    for _ in 0..4 {
+        now += chrono::Duration::milliseconds(5_500);
+        run_tracker_tick(
+            &mut tracker,
+            &activity,
+            now,
+            Duration::from_millis(5_500),
+            Duration::from_secs(300),
+        )
+        .unwrap();
+    }
+
+    let usage = tracker
+        .store()
+        .daily_system_usage(start.date_naive())
+        .unwrap()
+        .expect("system usage");
+    // 4 x 5.5s = 22s; truncating each tick would have recorded only 20s.
+    assert_eq!(usage.recorded_seconds, 22);
+    assert_eq!(usage.active_seconds, 22);
+}
+
+fn tray_weixin() -> ProcessSnapshot {
+    ProcessSnapshot {
+        pid: 70,
+        process_name: "Weixin.exe".to_string(),
+        executable_path: r"D:\Software\Weixin\Weixin.exe".to_string(),
+        has_tray_icon: true,
+        ..Default::default()
+    }
+}
+
+fn background_service() -> ProcessSnapshot {
+    ProcessSnapshot {
+        pid: 80,
+        process_name: "RazerCentralService.exe".to_string(),
+        executable_path:
+            r"C:\Program Files (x86)\Razer\Razer Services\Razer Central\RazerCentralService.exe"
+                .to_string(),
+        cpu_percent: 50.0,
+        memory_bytes: 64 * 1024 * 1024,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn tray_apps_are_recorded_as_running_and_background_processes_are_logged_separately() {
+    let db_file = NamedTempFile::new().unwrap();
+    let store = Store::open(db_file.path()).unwrap();
+    store.migrate().unwrap();
+    let mut tracker = Tracker::new(
+        store,
+        FakeProcessSource::new(vec![vec![tray_weixin(), background_service()]; 3]),
+    );
+    let activity = FakeActivitySource {
+        idle_duration: Duration::ZERO,
+    };
+    let start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    tracker.scan_once_at(start).unwrap();
+    let now = start + chrono::Duration::seconds(5);
+    run_tracker_tick(
+        &mut tracker,
+        &activity,
+        now,
+        Duration::from_secs(5),
+        Duration::from_secs(300),
+    )
+    .unwrap();
+
+    let sessions = tracker.store().all_sessions().unwrap();
+    assert_eq!(
+        sessions.len(),
+        1,
+        "only the tray app gets a runtime session"
+    );
+    assert!(tracker
+        .runtime_status_by_app_id()
+        .values()
+        .any(|status| *status == AppRuntimeStatus::Tray));
+
+    let background = tracker
+        .store()
+        .background_usage_for_date(start.date_naive())
+        .unwrap();
+    assert_eq!(background.len(), 1);
+    assert_eq!(background[0].display_name, "RazerCentralService");
+    assert_eq!(background[0].running_seconds, 5);
+    assert!((background[0].cpu_core_seconds - 2.5).abs() < 1e-9);
+    assert_eq!(background[0].peak_memory_bytes, 64 * 1024 * 1024);
+    assert_eq!(tracker.background_live().len(), 1);
 }
 
 #[test]

@@ -1,15 +1,25 @@
 use serde::Serialize;
 use std::collections::HashSet;
 use std::ffi::OsString;
+use std::time::{Duration, Instant};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// The tray registry changes rarely; re-read it at most this often.
+const TRAY_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct ProcessSnapshot {
     pub pid: u32,
+    pub parent_pid: Option<u32>,
     pub process_name: String,
     pub executable_path: String,
     pub is_background_helper: bool,
     pub has_visible_window: bool,
+    /// The executable has a notification-area icon registered (see `tray_icons`).
+    pub has_tray_icon: bool,
+    /// CPU usage since the previous snapshot; 100.0 is one fully busy core.
+    pub cpu_percent: f32,
+    pub memory_bytes: u64,
 }
 
 pub trait ProcessSource: Send {
@@ -18,13 +28,34 @@ pub trait ProcessSource: Send {
 
 pub struct SysinfoProcessSource {
     system: System,
+    tray_keys: Option<HashSet<String>>,
+    tray_read_at: Option<Instant>,
 }
 
 impl SysinfoProcessSource {
     pub fn new() -> Self {
         Self {
-            system: System::new(),
+            system: {
+                // Process CPU usage is scaled by the CPU count; without the CPU
+                // list sysinfo reports 0% for every process.
+                let mut system = System::new();
+                system.refresh_cpu_list(sysinfo::CpuRefreshKind::new());
+                system
+            },
+            tray_keys: None,
+            tray_read_at: None,
         }
+    }
+
+    fn tray_keys(&mut self) -> Option<&HashSet<String>> {
+        if self
+            .tray_read_at
+            .is_none_or(|read_at| read_at.elapsed() >= TRAY_REFRESH_INTERVAL)
+        {
+            self.tray_keys = crate::tray_icons::tray_family_keys();
+            self.tray_read_at = Some(Instant::now());
+        }
+        self.tray_keys.as_ref()
     }
 }
 
@@ -39,17 +70,41 @@ impl ProcessSource for SysinfoProcessSource {
         self.system.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true,
-            ProcessRefreshKind::new().with_exe(UpdateKind::OnlyIfNotSet),
+            // Command lines are read once per process for transient helper-flag checks
+            // and are never stored or shown.
+            ProcessRefreshKind::new()
+                .with_exe(UpdateKind::OnlyIfNotSet)
+                .with_cmd(UpdateKind::OnlyIfNotSet)
+                .with_cpu()
+                .with_memory(),
         );
-        let visible_window_pids = visible_window_pids();
+        let visible_window_pids = crate::window_info::app_window_pids();
+        let tray_keys = self.tray_keys().cloned();
         self.system
             .processes()
             .iter()
             .map(|(pid, process)| {
                 let process_name = process.name().to_string_lossy().into_owned();
+                let executable_path = process
+                    .exe()
+                    .map(|path| path.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                // Services (session 0) cannot show tray icons even when the
+                // registry remembers one from an earlier user-session run.
+                let has_tray_icon = !executable_path.is_empty()
+                    && tray_keys.as_ref().is_some_and(|keys| {
+                        keys.contains(&crate::storage::executable_version_key(
+                            &crate::storage::normalize_identity_key(
+                                &executable_path,
+                                &process_name,
+                            ),
+                        ))
+                    })
+                    && is_in_current_session(pid.as_u32());
 
                 ProcessSnapshot {
                     pid: pid.as_u32(),
+                    parent_pid: process.parent().map(|parent| parent.as_u32()),
                     is_background_helper: is_background_helper_process(
                         &process_name,
                         process.cmd(),
@@ -57,11 +112,11 @@ impl ProcessSource for SysinfoProcessSource {
                     has_visible_window: visible_window_pids
                         .as_ref()
                         .is_none_or(|pids| pids.contains(&pid.as_u32())),
+                    has_tray_icon,
+                    cpu_percent: process.cpu_usage(),
+                    memory_bytes: process.memory(),
                     process_name,
-                    executable_path: process
-                        .exe()
-                        .map(|path| path.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
+                    executable_path,
                 }
             })
             .collect()
@@ -69,57 +124,37 @@ impl ProcessSource for SysinfoProcessSource {
 }
 
 #[cfg(target_os = "windows")]
-fn visible_window_pids() -> Option<HashSet<u32>> {
-    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowThreadProcessId, IsWindowVisible,
-    };
+fn is_in_current_session(pid: u32) -> bool {
+    use windows_sys::Win32::System::RemoteDesktop::ProcessIdToSessionId;
+    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
 
-    unsafe extern "system" fn collect_visible_window_pid(hwnd: HWND, lparam: LPARAM) -> BOOL {
-        if unsafe { IsWindowVisible(hwnd) } == 0 {
-            return 1;
-        }
-
-        let mut process_id = 0;
-        unsafe {
-            GetWindowThreadProcessId(hwnd, &mut process_id);
-        }
-        if process_id > 0 {
-            let pids = unsafe { &mut *(lparam as *mut HashSet<u32>) };
-            pids.insert(process_id);
-        }
-
-        1
+    let mut current = 0;
+    let mut session = 0;
+    unsafe {
+        ProcessIdToSessionId(GetCurrentProcessId(), &mut current) != 0
+            && ProcessIdToSessionId(pid, &mut session) != 0
+            && session == current
     }
-
-    let mut pids = HashSet::new();
-    let succeeded = unsafe {
-        EnumWindows(
-            Some(collect_visible_window_pid),
-            &mut pids as *mut HashSet<u32> as LPARAM,
-        )
-    };
-
-    (succeeded != 0).then_some(pids)
 }
 
 #[cfg(not(target_os = "windows"))]
-fn visible_window_pids() -> Option<HashSet<u32>> {
-    None
+fn is_in_current_session(_pid: u32) -> bool {
+    true
 }
 
 fn is_background_helper_process(process_name: &str, command_line: &[OsString]) -> bool {
     let name = process_name.trim().to_lowercase();
-    if !is_chromium_family_name(&name) {
-        return false;
-    }
+    let is_chromium_family = is_chromium_family_name(&name);
 
-    command_line.iter().any(|argument| {
+    command_line.iter().skip(1).any(|argument| {
         let argument = argument.to_string_lossy().to_lowercase();
+        // Chromium, Electron and CEF child processes (renderer, GPU, utility,
+        // crashpad) all carry `--type=`; this covers ChatGPT, Discord, etc.
         argument.starts_with("--type=")
-            || argument == "--embedded-browser-edgeview=1"
-            || argument.starts_with("--edge-webview-host-pid")
-            || argument == "--no-startup-window"
+            || (is_chromium_family
+                && (argument == "--embedded-browser-edgeview=1"
+                    || argument.starts_with("--edge-webview-host-pid")
+                    || argument == "--no-startup-window"))
     })
 }
 
@@ -152,5 +187,29 @@ mod tests {
         )];
 
         assert!(!is_background_helper_process("msedge.exe", &command_line));
+    }
+
+    #[test]
+    fn detects_electron_child_processes_for_any_executable_name() {
+        let command_line = vec![
+            OsString::from(
+                r"C:\Program Files\WindowsApps\OpenAI.Codex_26.1111.2228.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe",
+            ),
+            OsString::from("--type=gpu-process"),
+        ];
+
+        assert!(is_background_helper_process("ChatGPT.exe", &command_line));
+    }
+
+    #[test]
+    fn ignores_flag_text_in_the_executable_path_and_unrelated_apps() {
+        let command_line = vec![OsString::from(r"C:\Tools\--type=odd\tool.exe")];
+        assert!(!is_background_helper_process("tool.exe", &command_line));
+
+        let command_line = vec![
+            OsString::from(r"C:\Tools\player.exe"),
+            OsString::from("--no-startup-window"),
+        ];
+        assert!(!is_background_helper_process("player.exe", &command_line));
     }
 }

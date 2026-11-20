@@ -45,7 +45,10 @@ struct SoftwareLegacyRuntimeSeconds {
     today_seconds: i64,
 }
 
-const SCHEMA_VERSION: i64 = 1;
+/// 2 adds `daily_background_usage`.
+const SCHEMA_VERSION: i64 = 2;
+/// WAL readers and the writer can briefly contend during checkpoints.
+const BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 static NEXT_SAVEPOINT_ID: AtomicU64 = AtomicU64::new(0);
 
 pub struct Store {
@@ -83,12 +86,14 @@ impl Drop for StoreSavepoint<'_> {
 impl Store {
     pub fn open(path: impl AsRef<Path>) -> StoreResult<Self> {
         let conn = Connection::open(path)?;
+        conn.busy_timeout(BUSY_TIMEOUT)?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         Ok(Self { conn })
     }
 
     pub fn open_read_only(path: impl AsRef<Path>) -> StoreResult<Self> {
         let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        conn.busy_timeout(BUSY_TIMEOUT)?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         Ok(Self { conn })
     }
@@ -121,6 +126,11 @@ impl Store {
         let transaction = self.savepoint()?;
         if version == 0 {
             self.create_baseline_schema()?;
+        }
+        if version < 2 {
+            self.create_background_usage_table()?;
+        }
+        if version < SCHEMA_VERSION {
             self.conn
                 .pragma_update(None, "user_version", SCHEMA_VERSION)?;
         }
@@ -247,6 +257,100 @@ impl Store {
         Ok(())
     }
 
+    fn create_background_usage_table(&self) -> StoreResult<()> {
+        self.conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS daily_background_usage (
+                usage_date TEXT NOT NULL,
+                family_key TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                process_name TEXT NOT NULL,
+                executable_path TEXT NOT NULL,
+                running_seconds INTEGER NOT NULL DEFAULT 0,
+                cpu_core_seconds REAL NOT NULL DEFAULT 0,
+                peak_memory_bytes INTEGER NOT NULL DEFAULT 0,
+                peak_process_count INTEGER NOT NULL DEFAULT 0,
+                last_seen_at TEXT NOT NULL,
+                PRIMARY KEY (usage_date, family_key)
+            );
+            "#,
+        )?;
+        Ok(())
+    }
+
+    /// Adds one credited slice for a background process group. CPU is stored
+    /// as core-seconds: one fully busy core for one second is 1.0.
+    pub fn increment_daily_background_usage(
+        &self,
+        date: NaiveDate,
+        group: &crate::background::BackgroundProcessGroup,
+        seconds: i64,
+        recorded_at: DateTime<Utc>,
+    ) -> StoreResult<()> {
+        let seconds = seconds.max(0);
+        let cpu_core_seconds = f64::from(group.cpu_percent.max(0.0)) / 100.0 * seconds as f64;
+        self.conn.execute(
+            r#"
+            INSERT INTO daily_background_usage (
+                usage_date, family_key, display_name, process_name, executable_path,
+                running_seconds, cpu_core_seconds, peak_memory_bytes, peak_process_count,
+                last_seen_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            ON CONFLICT(usage_date, family_key) DO UPDATE SET
+                display_name = excluded.display_name,
+                process_name = excluded.process_name,
+                executable_path = excluded.executable_path,
+                running_seconds = running_seconds + excluded.running_seconds,
+                cpu_core_seconds = cpu_core_seconds + excluded.cpu_core_seconds,
+                peak_memory_bytes = MAX(peak_memory_bytes, excluded.peak_memory_bytes),
+                peak_process_count = MAX(peak_process_count, excluded.peak_process_count),
+                last_seen_at = excluded.last_seen_at
+            "#,
+            params![
+                date.to_string(),
+                group.family_key,
+                group.display_name,
+                group.process_name,
+                group.executable_path,
+                seconds,
+                cpu_core_seconds,
+                i64::try_from(group.memory_bytes).unwrap_or(i64::MAX),
+                i64::from(group.process_count),
+                recorded_at.to_rfc3339(),
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn background_usage_for_date(&self, date: NaiveDate) -> StoreResult<Vec<BackgroundUsage>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT family_key, display_name, process_name, executable_path,
+                   running_seconds, cpu_core_seconds, peak_memory_bytes,
+                   peak_process_count, last_seen_at
+            FROM daily_background_usage
+            WHERE usage_date = ?1
+            ORDER BY cpu_core_seconds DESC, running_seconds DESC, family_key
+            "#,
+        )?;
+        let rows = stmt.query_map(params![date.to_string()], |row| {
+            Ok(BackgroundUsage {
+                family_key: row.get(0)?,
+                display_name: row.get(1)?,
+                process_name: row.get(2)?,
+                executable_path: row.get(3)?,
+                running_seconds: row.get(4)?,
+                cpu_core_seconds: row.get(5)?,
+                peak_memory_bytes: row.get(6)?,
+                peak_process_count: row.get(7)?,
+                last_seen_at: row.get(8)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StoreError::from)
+    }
+
     /// Refresh derived identity metadata at startup, outside summary read paths.
     pub fn maintain_software_identities(&self) -> StoreResult<()> {
         let transaction = self.savepoint()?;
@@ -268,7 +372,136 @@ impl Store {
                 self.upsert_software_identity_for_app(app_id)?;
             }
         }
+        self.consolidate_software_identities()?;
         transaction.commit()
+    }
+
+    /// Folds identities whose grouping rule changed (for example per-version
+    /// install paths) into the identity their member apps now resolve to.
+    /// Idempotent; runs inside the startup maintenance savepoint.
+    fn consolidate_software_identities(&self) -> StoreResult<()> {
+        let memberships = {
+            let mut stmt = self.conn.prepare(
+                "SELECT identity_key, app_id FROM software_identity_members ORDER BY identity_key, app_id",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        let mut targets_by_key: HashMap<String, HashSet<Option<String>>> = HashMap::new();
+        for (identity_key, app_id) in memberships {
+            let expected = self
+                .find_app_by_id(app_id)?
+                .map(|app| software_identity_parts_for_app(&app).identity_key);
+            if expected.as_deref() == Some(identity_key.as_str()) {
+                targets_by_key.entry(identity_key).or_default().insert(None);
+                continue;
+            }
+            self.conn.execute(
+                "DELETE FROM software_identity_members WHERE identity_key = ?1 AND app_id = ?2",
+                params![identity_key, app_id],
+            )?;
+            targets_by_key
+                .entry(identity_key)
+                .or_default()
+                .insert(expected);
+        }
+
+        for (old_key, targets) in targets_by_key {
+            // Merge only when every member moved to the same, existing identity.
+            let targets = targets.into_iter().collect::<Vec<_>>();
+            let [Some(new_key)] = targets.as_slice() else {
+                continue;
+            };
+            let Some(new_identity) = self.find_software_identity(new_key)? else {
+                continue;
+            };
+            self.merge_software_identity(&old_key, &new_identity)?;
+        }
+        Ok(())
+    }
+
+    fn merge_software_identity(
+        &self,
+        old_key: &str,
+        new_identity: &SoftwareIdentity,
+    ) -> StoreResult<()> {
+        let new_key = &new_identity.identity_key;
+        // Old per-version identities may overlap when two versions ran at once;
+        // per-day totals are capped at one day so a merge never exceeds 24 hours.
+        self.conn.execute(
+            r#"
+            INSERT INTO daily_software_runtime_usage (
+                usage_date, identity_key, foreground_seconds, background_seconds,
+                first_recorded_at, last_recorded_at
+            )
+            SELECT usage_date, ?2, foreground_seconds, background_seconds,
+                   first_recorded_at, last_recorded_at
+            FROM daily_software_runtime_usage
+            WHERE identity_key = ?1
+            ON CONFLICT(usage_date, identity_key) DO UPDATE SET
+                foreground_seconds = MIN(86400, foreground_seconds + excluded.foreground_seconds),
+                background_seconds = MIN(
+                    MAX(0, 86400 - MIN(86400, foreground_seconds + excluded.foreground_seconds)),
+                    background_seconds + excluded.background_seconds
+                ),
+                first_recorded_at = MIN(first_recorded_at, excluded.first_recorded_at),
+                last_recorded_at = MAX(last_recorded_at, excluded.last_recorded_at)
+            "#,
+            params![old_key, new_key],
+        )?;
+        self.conn.execute(
+            r#"
+            INSERT INTO daily_software_focus_usage (usage_date, identity_key, focused_seconds)
+            SELECT usage_date, ?2, focused_seconds
+            FROM daily_software_focus_usage
+            WHERE identity_key = ?1
+            ON CONFLICT(usage_date, identity_key) DO UPDATE SET
+                focused_seconds = MIN(86400, focused_seconds + excluded.focused_seconds)
+            "#,
+            params![old_key, new_key],
+        )?;
+        for table in ["focused_software_identities", "hidden_software_identities"] {
+            self.conn.execute(
+                &format!(
+                    "INSERT OR IGNORE INTO {table} (identity_key, created_at)
+                     SELECT ?2, created_at FROM {table} WHERE identity_key = ?1"
+                ),
+                params![old_key, new_key],
+            )?;
+        }
+        // Hidden wins when merged versions carried conflicting marks.
+        self.conn.execute(
+            "DELETE FROM focused_software_identities
+             WHERE identity_key = ?1
+               AND EXISTS (SELECT 1 FROM hidden_software_identities WHERE identity_key = ?1)",
+            params![new_key],
+        )?;
+        self.conn.execute(
+            r#"
+            UPDATE software_identities
+            SET last_opened_at = (
+                SELECT MAX(last_opened_at) FROM software_identities WHERE identity_key IN (?1, ?2)
+            )
+            WHERE identity_key = ?2
+            "#,
+            params![old_key, new_key],
+        )?;
+        for table in [
+            "daily_software_runtime_usage",
+            "daily_software_focus_usage",
+            "focused_software_identities",
+            "hidden_software_identities",
+            "software_identity_members",
+            "software_identities",
+        ] {
+            self.conn.execute(
+                &format!("DELETE FROM {table} WHERE identity_key = ?1"),
+                params![old_key],
+            )?;
+        }
+        Ok(())
     }
 
     fn ensure_daily_software_runtime_usage_columns(&self) -> StoreResult<()> {
@@ -605,7 +838,11 @@ impl Store {
     }
 
     pub fn remove_focused_software_identity(&self, identity_key: &str) -> StoreResult<()> {
-        self.remove_group_from_list("focused_software_identities", identity_key)
+        self.conn.execute(
+            "DELETE FROM focused_software_identities WHERE identity_key = ?1",
+            params![identity_key],
+        )?;
+        Ok(())
     }
 
     pub fn add_hidden_software_identities(&self, identity_keys: &[String]) -> StoreResult<()> {
@@ -618,7 +855,11 @@ impl Store {
     }
 
     pub fn remove_hidden_software_identity(&self, identity_key: &str) -> StoreResult<()> {
-        self.remove_group_from_list("hidden_software_identities", identity_key)
+        self.conn.execute(
+            "DELETE FROM hidden_software_identities WHERE identity_key = ?1",
+            params![identity_key],
+        )?;
+        Ok(())
     }
 
     fn add_software_identities_to_list(
@@ -641,9 +882,7 @@ impl Store {
 
             let sql = format!("INSERT OR IGNORE INTO {target_table} (identity_key) VALUES (?1)");
             for identity_key in identity_keys {
-                if !self.identity_exists_in_list(target_table, identity_key)? {
-                    self.conn.execute(&sql, params![identity_key])?;
-                }
+                self.conn.execute(&sql, params![identity_key])?;
             }
             Ok(())
         })();
@@ -653,26 +892,17 @@ impl Store {
         Ok(value)
     }
 
-    fn remove_group_from_list(&self, table: &'static str, key: &str) -> StoreResult<()> {
-        let transaction = self.savepoint()?;
-        let group = package_group(key);
-        for member in self.software_identity_keys_from_list(table)? {
-            if package_group(&member) == group {
-                self.conn.execute(
-                    &format!("DELETE FROM {table} WHERE identity_key = ?1"),
-                    [member],
-                )?;
-            }
-        }
-        transaction.commit()
-    }
-
-    fn identity_exists_in_list(&self, table: &'static str, key: &str) -> StoreResult<bool> {
-        let group = package_group(key);
-        Ok(self
-            .software_identity_keys_from_list(table)?
-            .iter()
-            .any(|member| package_group(member) == group))
+    fn identity_exists_in_list(
+        &self,
+        table_name: &'static str,
+        identity_key: &str,
+    ) -> StoreResult<bool> {
+        let sql = format!("SELECT 1 FROM {table_name} WHERE identity_key = ?1 LIMIT 1");
+        self.conn
+            .query_row(&sql, params![identity_key], |_| Ok(()))
+            .optional()
+            .map(|row| row.is_some())
+            .map_err(StoreError::from)
     }
 
     pub fn insert_run_event(
@@ -890,7 +1120,6 @@ impl Store {
         let hidden_identity_keys = self
             .hidden_software_identity_keys()?
             .into_iter()
-            .map(|key| package_group(&key).into_owned())
             .collect::<HashSet<_>>();
         let mut stmt = self.conn.prepare(
             r#"
@@ -938,7 +1167,7 @@ impl Store {
                 }
                 Classification::Tracked {
                     display_name: classified_display_name,
-                } => classified_display_name,
+                } => keep_original_case(classified_display_name, row.stored_display_name),
             };
 
             let identity_key = if let Some(identity_key) = identity_keys_by_app_id.get(&row.app_id)
@@ -951,7 +1180,7 @@ impl Store {
                 identity_keys_by_app_id.insert(row.app_id, identity_key.clone());
                 identity_key
             };
-            if hidden_identity_keys.contains(package_group(&identity_key).as_ref()) {
+            if hidden_identity_keys.contains(&identity_key) {
                 continue;
             }
 
@@ -1168,10 +1397,9 @@ impl Store {
             let Some(app_ids) = app_ids_by_identity.get(&identity_key) else {
                 continue;
             };
-            let group = package_group(&identity_key);
-            let mark = if hidden_orders.contains_key(group.as_ref()) {
+            let mark = if hidden_orders.contains_key(&identity_key) {
                 "hidden"
-            } else if focused_orders.contains_key(group.as_ref()) {
+            } else if focused_orders.contains_key(&identity_key) {
                 "focused"
             } else {
                 "none"
@@ -1271,42 +1499,9 @@ impl Store {
             }
         }
 
-        // Combine versions after each raw identity's legacy/split boundary was applied.
-        let mut groups: HashMap<String, SoftwarePageTotals> = HashMap::new();
-        for totals in totals_by_identity.into_values() {
-            let group = package_group(&totals.identity_key).into_owned();
-            if let Some(combined) = groups.get_mut(&group) {
-                if (&totals.last_opened_at, &totals.identity_key)
-                    > (&combined.last_opened_at, &combined.identity_key)
-                {
-                    combined.identity_key = totals.identity_key;
-                    combined.display_name = totals.display_name;
-                    combined.process_name = totals.process_name;
-                    combined.executable_path = totals.executable_path;
-                    combined.last_opened_at = totals.last_opened_at;
-                }
-                combined.app_ids.extend(totals.app_ids);
-                combined
-                    .legacy_total_intervals
-                    .extend(totals.legacy_total_intervals);
-                combined
-                    .legacy_today_intervals
-                    .extend(totals.legacy_today_intervals);
-                combined.today_foreground_seconds += totals.today_foreground_seconds;
-                combined.total_foreground_seconds += totals.total_foreground_seconds;
-                combined.today_background_seconds += totals.today_background_seconds;
-                combined.total_background_seconds += totals.total_background_seconds;
-                combined.today_focused_seconds += totals.today_focused_seconds;
-                combined.total_focused_seconds += totals.total_focused_seconds;
-            } else {
-                groups.insert(group, totals);
-            }
-        }
-
-        let mut discovered = groups
+        let mut discovered = totals_by_identity
             .into_values()
             .map(|mut totals| {
-                totals.app_ids.sort_unstable();
                 let legacy_runtime = SoftwareLegacyRuntimeSeconds {
                     total_seconds: merged_interval_seconds(&mut totals.legacy_total_intervals),
                     today_seconds: merged_interval_seconds(&mut totals.legacy_today_intervals),
@@ -1589,16 +1784,14 @@ impl Store {
         &self,
         table_name: &'static str,
     ) -> StoreResult<HashMap<String, SoftwareIdentityListOrder>> {
-        let sql = format!(
-            "SELECT identity_key, created_at, rowid FROM {table_name} ORDER BY created_at, rowid"
-        );
+        let sql = format!("SELECT identity_key, created_at, rowid FROM {table_name}");
         let mut stmt = self.conn.prepare(&sql)?;
         let mut rows = stmt.query([])?;
         let mut orders = HashMap::new();
 
         while let Some(row) = rows.next()? {
             orders.insert(
-                package_group(&row.get::<_, String>(0)?).into_owned(),
+                row.get::<_, String>(0)?,
                 SoftwareIdentityListOrder {
                     created_at: row.get(1)?,
                     rowid: row.get(2)?,
@@ -1763,6 +1956,19 @@ impl Store {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct BackgroundUsage {
+    pub family_key: String,
+    pub display_name: String,
+    pub process_name: String,
+    pub executable_path: String,
+    pub running_seconds: i64,
+    pub cpu_core_seconds: f64,
+    pub peak_memory_bytes: i64,
+    pub peak_process_count: i64,
+    pub last_seen_at: String,
+}
+
 #[derive(Debug, Clone)]
 struct SoftwareIdentityListOrder {
     created_at: String,
@@ -1774,41 +1980,6 @@ struct SoftwareIdentityParts {
     display_name: String,
     process_name: String,
     representative_executable_path: String,
-}
-
-/// PackageFullName is name_version_arch_resource_publisher. Preserve the publisher
-/// and relative executable path so different apps/helpers are never folded by display name.
-pub(crate) fn package_group(identity: &str) -> std::borrow::Cow<'_, str> {
-    let parse = || {
-        let path = identity.strip_prefix("app:")?;
-        let (_, rest) = path.split_once(r"\windowsapps\")?;
-        let (package, executable) = rest.split_once('\\')?;
-        let mut fields = package.split('_');
-        let (name, version, arch, resource, publisher) = (
-            fields.next()?,
-            fields.next()?,
-            fields.next()?,
-            fields.next()?,
-            fields.next()?,
-        );
-        if fields.next().is_some()
-            || name.is_empty()
-            || publisher.is_empty()
-            || executable.is_empty()
-            || !matches!(arch, "x86" | "x64" | "arm" | "arm64" | "neutral")
-            || version.split('.').count() != 4
-            || !version.split('.').all(|n| {
-                !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) && n.parse::<u16>().is_ok()
-            })
-        {
-            return None;
-        }
-        Some(format!("msix:{name}_{publisher}/{resource}/{executable}"))
-    };
-    match parse() {
-        Some(group) => group.into(),
-        None => identity.into(),
-    }
 }
 
 fn compare_last_opened_desc(left: &SoftwarePageRow, right: &SoftwarePageRow) -> Ordering {
@@ -1830,8 +2001,8 @@ fn compare_list_order_desc(
     right: &SoftwarePageRow,
 ) -> Ordering {
     let order = match (
-        orders.get(package_group(&left.identity_key).as_ref()),
-        orders.get(package_group(&right.identity_key).as_ref()),
+        orders.get(&left.identity_key),
+        orders.get(&right.identity_key),
     ) {
         (Some(left_order), Some(right_order)) => right_order
             .created_at
@@ -1852,7 +2023,7 @@ fn software_identity_parts_for_app(app: &AppIdentity) -> SoftwareIdentityParts {
     let identity_key = if is_wps_suite_component(&app.process_name) {
         "known:wps-office".to_string()
     } else {
-        format!("app:{}", app.normalized_key)
+        format!("app:{}", software_family_key(&app.normalized_key))
     };
     let representative_executable_path =
         representative_executable_path(&display_name, &app.executable_path);
@@ -1865,13 +2036,25 @@ fn software_identity_parts_for_app(app: &AppIdentity) -> SoftwareIdentityParts {
     }
 }
 
+/// `apps.process_name` is stored lowercase, so names derived from it lose the
+/// executable's casing (`chatgpt`); the stored first-seen name keeps it (`ChatGPT`).
+fn keep_original_case(classified: String, stored: String) -> String {
+    if classified != stored && classified.eq_ignore_ascii_case(&stored) {
+        stored
+    } else {
+        classified
+    }
+}
+
 fn display_name_for_app(app: &AppIdentity) -> String {
     match classify_process(&app.process_name, &app.executable_path) {
         Classification::Hidden => app.display_name.clone(),
         Classification::Tracked { display_name: _ } if app.is_user_renamed => {
             app.display_name.clone()
         }
-        Classification::Tracked { display_name } => display_name,
+        Classification::Tracked { display_name } => {
+            keep_original_case(display_name, app.display_name.clone())
+        }
     }
 }
 
@@ -1904,6 +2087,90 @@ pub fn normalize_identity_key(executable_path: &str, process_name: &str) -> Stri
     }
 }
 
+/// Version-insensitive form of a normalized executable key, so one software
+/// keeps one identity across updates.
+///
+/// - Packaged apps (`windowsapps\Name_1.2.3.0_x64__publisher\...`) collapse to
+///   the package family: every executable in one package is one software.
+/// - Directory segments that are versions (`12.1.0.26375`, `v1.0.0.23`,
+///   `app-2.9.0`) or content hashes (`958d608b5e0546a5`) become `*`.
+///
+/// Unversioned keys are returned unchanged, so their identity keys stay stable.
+pub fn software_family_key(normalized_key: &str) -> String {
+    version_insensitive_key(normalized_key, true)
+}
+
+/// Like [`software_family_key`] but keeps the executable inside a package, so
+/// `sample.exe` and a helper shipped in the same package stay distinct.
+pub fn executable_version_key(normalized_key: &str) -> String {
+    version_insensitive_key(normalized_key, false)
+}
+
+fn version_insensitive_key(normalized_key: &str, collapse_packages: bool) -> String {
+    let mut segments = normalized_key
+        .split('\\')
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    if let Some(index) = segments.iter().position(|segment| segment == "windowsapps") {
+        if let Some(family) = segments
+            .get(index + 1)
+            .and_then(|package| package_family_name(package))
+        {
+            if collapse_packages {
+                return format!("{}\\{family}", segments[..=index].join("\\"));
+            }
+            segments[index + 1] = family;
+        }
+    }
+    let segments = segments.iter().map(String::as_str).collect::<Vec<_>>();
+
+    let last = segments.len().saturating_sub(1);
+    segments
+        .iter()
+        .enumerate()
+        .map(|(index, segment)| {
+            if index < last && is_volatile_directory_segment(segment) {
+                "*"
+            } else {
+                segment
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\\")
+}
+
+/// `Name_Version_Arch_ResourceId_PublisherId` -> `Name_PublisherId`.
+fn package_family_name(package_full_name: &str) -> Option<String> {
+    let parts = package_full_name.split('_').collect::<Vec<_>>();
+    match parts.as_slice() {
+        [name, version, _arch, _resource, publisher]
+            if !name.is_empty() && !publisher.is_empty() && is_dotted_version(version) =>
+        {
+            Some(format!("{name}_{publisher}"))
+        }
+        _ => None,
+    }
+}
+
+fn is_volatile_directory_segment(segment: &str) -> bool {
+    let version = segment
+        .strip_prefix("app-")
+        .or_else(|| segment.strip_prefix('v'))
+        .unwrap_or(segment);
+    is_dotted_version(version)
+        || (segment.len() >= 12
+            && segment
+                .chars()
+                .all(|character| character.is_ascii_hexdigit()))
+}
+
+fn is_dotted_version(value: &str) -> bool {
+    value.contains('.')
+        && value.split('.').all(|part| {
+            !part.is_empty() && part.chars().all(|character| character.is_ascii_digit())
+        })
+}
+
 fn should_prefer_executable_path(
     current_path: &str,
     candidate_path: &str,
@@ -1915,6 +2182,10 @@ fn should_prefer_executable_path(
     }
     if current_path.trim().is_empty() {
         return true;
+    }
+    // Summaries call this per session row; scoring touches the filesystem.
+    if current_path == candidate_path {
+        return false;
     }
 
     executable_path_score(candidate_path, display_name, process_name)

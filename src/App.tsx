@@ -6,6 +6,7 @@ import {
   CalendarDays,
   ChevronDown,
   Clock3,
+  Cpu,
   Download,
   History,
   LayoutDashboard,
@@ -32,6 +33,7 @@ import {
 } from "./api";
 import clockMark from "./assets/gst-clock.svg";
 import { AppUsageTable } from "./components/AppUsageTable";
+import { BackgroundPage } from "./components/BackgroundPage";
 import { RecentActivity } from "./components/RecentActivity";
 import { SoftwarePage } from "./components/SoftwarePage";
 import { TodayMix } from "./components/TodayMix";
@@ -54,11 +56,12 @@ const dashboardRefreshIntervalMs = 5000;
 const defaultCloseBehavior: CloseBehavior = "minimize_to_tray";
 const defaultDurationFormat: DurationFormat = "decimal_hours";
 
-type PageId = "overview" | "settings" | "software";
+type PageId = "overview" | "settings" | "software" | "background";
 
 const navItems = [
   { id: "overview", label: "概览", icon: LayoutDashboard, available: true },
   { id: "software", label: "软件", icon: SquareStack, available: true },
+  { id: "background", label: "后台", icon: Cpu, available: true },
   { id: "statistics", label: "统计", icon: BarChart3, available: false },
   { id: "timeline", label: "时间轴", icon: History, available: false },
   { id: "daily", label: "日报", icon: CalendarDays, available: false },
@@ -68,6 +71,7 @@ const navItems = [
 const pageTitles: Record<PageId, string> = {
   overview: "概览",
   software: "软件",
+  background: "后台",
   settings: "设置",
 };
 
@@ -131,7 +135,7 @@ export default function App() {
     let cancelled = false;
 
     const loadSettings = async () => {
-      let preferredAutostart = true;
+      let preferredAutostart: boolean | null = null;
 
       try {
         const settings = await getAppSettings();
@@ -165,16 +169,18 @@ export default function App() {
           return;
         }
 
-        if (preferredAutostart !== actualAutostart) {
+        // Without the saved preference, show the system state instead of
+        // overwriting a user's earlier choice with the default.
+        if (preferredAutostart !== null && preferredAutostart !== actualAutostart) {
           await setAutostartEnabled(preferredAutostart);
         }
 
         if (!cancelled) {
-          setAutostartEnabledState(preferredAutostart);
+          setAutostartEnabledState(preferredAutostart ?? actualAutostart);
         }
       } catch {
         if (!cancelled) {
-          setAutostartEnabledState(preferredAutostart);
+          setAutostartEnabledState(preferredAutostart ?? false);
           setSettingsError("开机自启动设置失败");
         }
       } finally {
@@ -211,7 +217,12 @@ export default function App() {
             return;
           }
 
-          await applyWindowCloseChoice(closePreferenceRef.current, false);
+          try {
+            await applyWindowCloseChoice(closePreferenceRef.current, false);
+          } catch {
+            setCloseDialogError("关闭操作失败，请重试。");
+            setCloseDialogOpen(true);
+          }
         })
         .then((nextUnlisten) => {
           if (disposed) {
@@ -367,7 +378,9 @@ export default function App() {
       ? "settings-content"
       : activePage === "software"
         ? "software-content"
-        : "overview-content";
+        : activePage === "background"
+          ? "background-content"
+          : "overview-content";
 
   return (
     <div className="desktop-root">
@@ -474,6 +487,8 @@ export default function App() {
               durationFormat={durationFormat}
               onDefaultSummariesChanged={loadDashboard}
             />
+          ) : activePage === "background" ? (
+            <BackgroundPage durationFormat={durationFormat} />
           ) : (
             <main className="overview-page" id="overview-content">
               {error ? <div className="warning">{error}</div> : null}

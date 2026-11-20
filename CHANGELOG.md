@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.1.5 — 待发布
+## v0.2.0 — 待发布
 
 - Redesigned the desktop UI as a desk instrument: aluminium/graphite panels, keycap navigation, indicator lamps and an aligned software ledger.
 - Added a dot-matrix LCD readout for today's recorded time, active time and most-used software, set in the bundled Ark Pixel 12px font (SIL OFL 1.1), with a segmented 24-hour dial.
@@ -9,8 +9,23 @@
 - Moved the unavailable 日期 and 导出 controls from the bottom bar into the page header.
 - Fixed the add-software dialog focus trap to follow document order.
 - Added a browser-only UI preview with synthetic data (`npm run preview:ui`).
-- Returned usage data before native icon extraction and grouped versioned Windows package executables across updates in software lists.
+- Load native icons in the background on the dashboard, software and background pages. Keep the v0.1.5 tracking and database schema.
 - Fixed rapid theme changes, header tooltip clipping, narrow-window duration wrapping and light icon contrast; revised navigation spacing, settings layout and the small tray mark.
+
+## v0.1.5 - 2026-11-20
+
+- Recorded tray apps: an app showing a notification-area icon now counts as running (`托盘运行`) like a windowed app. Detection uses the Windows 11 tray registry and the user's session; Windows 10 keeps the previous behavior.
+- Added the `后台` page: third-party processes with neither a window nor a tray icon, grouped by software, with live CPU/memory and today's background time and CPU time. Child processes of apps the user can see stay with that app. Data is stored in the new `daily_background_usage` table (schema version 2).
+
+- Counted only taskbar-style app windows as `前台运行`; overlays, docks, tool and hidden host windows (for example NVIDIA Overlay, Razer, BitDock) are no longer credited as foreground runtime. UWP frame windows and the UWP foreground window are attributed to the hosted app.
+- Fixed Chromium/Electron helper detection, which never ran because process command lines were not loaded; any `--type=` child (ChatGPT, Discord and similar) is now a background helper. Command lines are only checked in memory.
+- Kept one software identity across updates: packaged apps group by package family, and version or hash install directories are ignored. Existing per-version identities, aggregates and focused/hidden marks are folded together at startup.
+- Kept original executable casing in display names (`ChatGPT`, not `chatgpt`).
+- Stopped dropping the sub-second part of every tracker tick, which undercounted daily totals by 1-6%.
+- Moved commands off the UI thread, removed per-session filesystem checks from summaries, added a SQLite busy timeout, and recovered poisoned locks.
+- Read only the PE header for icon checks and made alpha-less legacy icons visible.
+- Replaced startup panics with an error dialog, and made a second launch show the running window.
+- Stopped re-enabling startup at login when saved settings cannot be read.
 
 ## v0.1.4 - 2026-11-17
 

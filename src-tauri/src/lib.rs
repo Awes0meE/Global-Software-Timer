@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod app_state;
+pub mod background;
 pub mod classifier;
 pub mod commands;
 pub mod domain;
@@ -10,6 +11,8 @@ pub mod single_instance;
 pub mod storage;
 pub mod tracker;
 pub mod tray;
+pub mod tray_icons;
+pub mod window_info;
 
 use app_state::AppState;
 use app_state::SharedTracker;
@@ -20,16 +23,19 @@ use tauri::Manager;
 
 const TRACKER_SCAN_INTERVAL: Duration = Duration::from_secs(5);
 const ACTIVE_IDLE_THRESHOLD: Duration = Duration::from_secs(5 * 60);
+const APP_WINDOW_TITLE: &str = "全局软件计时器";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _single_instance_guard = match single_instance::acquire_app_lock() {
         Ok(SingleInstance::Acquired(guard)) => guard,
         Ok(SingleInstance::AlreadyRunning) => {
-            eprintln!("Global Software Timer is already running");
+            // Launching again (e.g. from the Start menu while hidden in the
+            // tray) should bring the running dashboard back, not do nothing.
+            single_instance::show_existing_window(APP_WINDOW_TITLE);
             return;
         }
-        Err(error) => panic!("failed to acquire single-instance lock: {error}"),
+        Err(error) => fatal_startup_error(&format!("无法检查是否已有实例在运行：{error}")),
     };
 
     tauri::Builder::default()
@@ -41,10 +47,17 @@ pub fn run() {
             let app_data_dir = app
                 .path()
                 .app_data_dir()
-                .expect("failed to resolve app data dir");
-            std::fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
+                .unwrap_or_else(|error| fatal_startup_error(&format!("无法定位数据目录：{error}")));
+            if let Err(error) = std::fs::create_dir_all(&app_data_dir) {
+                fatal_startup_error(&format!(
+                    "无法创建数据目录 {}：{error}",
+                    app_data_dir.display()
+                ));
+            }
             let db_path = app_data_dir.join("global-software-timer.sqlite3");
-            let state = AppState::new(db_path).expect("failed to initialize app state");
+            let state = AppState::new(db_path.clone()).unwrap_or_else(|error| {
+                fatal_startup_error(&startup_store_error_message(&db_path, &error))
+            });
             let tracker = state.tracker.clone();
             app.manage(state);
             start_background_scan_loop(tracker);
@@ -54,6 +67,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_dashboard_summary,
             commands::get_software_page_summary,
+            commands::get_background_page_summary,
             commands::run_tracker_scan_once,
             commands::add_focused_software_identities,
             commands::remove_focused_software_identity,
@@ -72,14 +86,10 @@ pub fn run() {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 let state = app.state::<AppState>();
-                match state.tracker.lock() {
-                    Ok(mut tracker) => {
-                        if let Err(error) = tracker.shutdown() {
-                            eprintln!("tracker shutdown failed: {error}");
-                        }
-                    }
-                    Err(_) => eprintln!("tracker shutdown failed: tracker mutex poisoned"),
-                };
+                let mut tracker = app_state::lock_tracker(&state.tracker);
+                if let Err(error) = tracker.shutdown() {
+                    eprintln!("tracker shutdown failed: {error}");
+                }
             }
         });
 }
@@ -93,22 +103,52 @@ fn start_background_scan_loop(tracker: SharedTracker) {
             let tick_duration = last_tick.elapsed();
             last_tick = Instant::now();
 
-            match tracker.lock() {
-                Ok(mut tracker) => {
-                    let foreground_source = foreground::WindowsForegroundWindowSource;
-                    if let Err(error) = tracker::run_tracker_tick_with_foreground(
-                        &mut tracker,
-                        &activity_source,
-                        &foreground_source,
-                        Local::now(),
-                        tick_duration,
-                        ACTIVE_IDLE_THRESHOLD,
-                    ) {
-                        eprintln!("tracker scan failed: {error}");
-                    }
-                }
-                Err(_) => eprintln!("tracker scan failed: tracker mutex poisoned"),
+            let mut tracker = app_state::lock_tracker(&tracker);
+            let foreground_source = foreground::WindowsForegroundWindowSource;
+            if let Err(error) = tracker::run_tracker_tick_with_foreground(
+                &mut tracker,
+                &activity_source,
+                &foreground_source,
+                Local::now(),
+                tick_duration,
+                ACTIVE_IDLE_THRESHOLD,
+            ) {
+                eprintln!("tracker scan failed: {error}");
             }
         }
     });
+}
+
+fn startup_store_error_message(db_path: &std::path::Path, error: &storage::StoreError) -> String {
+    let hint = match error {
+        storage::StoreError::UnsupportedSchemaVersion { .. } => {
+            "这个数据库由更新版本的全局软件计时器创建。请安装最新版本后再打开。"
+        }
+        _ => "数据库可能被其他程序占用或已损坏。请关闭占用它的程序（如杀毒或备份工具）后重试。",
+    };
+    format!(
+        "无法打开本地数据：{error}\n\n{hint}\n\n数据文件：{}",
+        db_path.display()
+    )
+}
+
+/// Release builds have no console, so a panic at login would fail silently.
+fn fatal_startup_error(message: &str) -> ! {
+    eprintln!("{message}");
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
+        let wide = |text: &str| text.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+        let text = wide(message);
+        let caption = wide(APP_WINDOW_TITLE);
+        unsafe {
+            MessageBoxW(
+                std::ptr::null_mut(),
+                text.as_ptr(),
+                caption.as_ptr(),
+                MB_OK | MB_ICONERROR,
+            );
+        }
+    }
+    std::process::exit(1)
 }

@@ -1,9 +1,10 @@
 use crate::activity::ActivitySource;
+use crate::background::{background_groups, BackgroundProcessGroup};
 use crate::classifier::{classify_process, Classification};
 use crate::domain::AppRuntimeStatus;
 use crate::foreground::{ForegroundWindowSource, NoForegroundWindowSource};
 use crate::process_source::{ProcessSnapshot, ProcessSource};
-use crate::storage::{package_group, Store, StoreError, StoreResult};
+use crate::storage::{Store, StoreError, StoreResult};
 use chrono::{DateTime, Local, NaiveDate, TimeZone, Utc};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
@@ -38,6 +39,11 @@ struct TrackingState {
     runtime_status_by_app_id: HashMap<i64, AppRuntimeStatus>,
     last_scan_at: Option<DateTime<Utc>>,
     last_tick_at: Option<DateTime<Utc>>,
+    /// Sub-second credit carried to the next tick so whole-second counters
+    /// do not lose the fraction of every tick.
+    credit_remainder: Duration,
+    /// Background processes seen by the latest tick, for the live page view.
+    background_live: Vec<BackgroundProcessGroup>,
     stopped: bool,
 }
 
@@ -64,6 +70,10 @@ impl<S: ProcessSource> Tracker<S> {
         &self.state.runtime_status_by_app_id
     }
 
+    pub fn background_live(&self) -> &[BackgroundProcessGroup] {
+        &self.state.background_live
+    }
+
     pub fn scan_once(&mut self) -> TrackerResult<ScanOutcome> {
         self.scan_once_at(Local::now())
     }
@@ -80,7 +90,7 @@ impl<S: ProcessSource> Tracker<S> {
         let reason = discontinuity(next.last_scan_at, now_utc);
         let outcome = apply_scan(
             &self.store,
-            snapshots,
+            &snapshots,
             &mut next,
             now_utc,
             now.date_naive(),
@@ -101,6 +111,7 @@ impl<S: ProcessSource> Tracker<S> {
         transaction.commit()?;
         self.state.running_by_key.clear();
         self.state.runtime_status_by_app_id.clear();
+        self.state.background_live.clear();
         self.state.stopped = true;
         Ok(())
     }
@@ -132,7 +143,7 @@ fn close_running_sessions(store: &Store, state: &TrackingState, reason: &str) ->
 
 fn apply_scan(
     store: &Store,
-    snapshots: Vec<ProcessSnapshot>,
+    snapshots: &[ProcessSnapshot],
     state: &mut TrackingState,
     now: DateTime<Utc>,
     usage_date: NaiveDate,
@@ -156,7 +167,18 @@ fn apply_scan(
             &snapshot.executable_path,
             &snapshot.process_name,
         );
-        if snapshot.is_background_helper || !snapshot.has_visible_window {
+        // Users see an app through a taskbar window or a tray icon; anything
+        // else is a background process and gets no runtime session.
+        let status = if snapshot.is_background_helper {
+            AppRuntimeStatus::Background
+        } else if snapshot.has_visible_window {
+            AppRuntimeStatus::Foreground
+        } else if snapshot.has_tray_icon {
+            AppRuntimeStatus::Tray
+        } else {
+            AppRuntimeStatus::Background
+        };
+        if !status.is_user_facing() {
             background_keys.insert(key);
             continue;
         }
@@ -167,7 +189,7 @@ fn apply_scan(
                 store.heartbeat_session(running.session_id, now)?;
                 running.last_heartbeat_at = now;
             }
-            record_runtime_status(&mut statuses, running.app_id, AppRuntimeStatus::Foreground);
+            record_runtime_status(&mut statuses, running.app_id, status);
             app_ids_by_pid.insert(snapshot.pid, running.app_id);
         } else {
             let app = store.upsert_app(
@@ -184,7 +206,7 @@ fn apply_scan(
             // earns no whole seconds. Otherwise a later fractional tick can make
             // this new session look legacy and count its runtime a second time.
             store.increment_daily_software_runtime_usage(usage_date, &identity_key, 0, 0, now)?;
-            record_runtime_status(&mut statuses, app.id, AppRuntimeStatus::Foreground);
+            record_runtime_status(&mut statuses, app.id, status);
             app_ids_by_pid.insert(snapshot.pid, app.id);
             state.running_by_key.insert(
                 key,
@@ -234,16 +256,8 @@ fn record_runtime_status(
     status: AppRuntimeStatus,
 ) {
     let entry = statuses.entry(app_id).or_insert(AppRuntimeStatus::Closed);
-    if runtime_status_rank(status) > runtime_status_rank(*entry) {
+    if status.rank() > entry.rank() {
         *entry = status;
-    }
-}
-
-fn runtime_status_rank(status: AppRuntimeStatus) -> u8 {
-    match status {
-        AppRuntimeStatus::Closed => 0,
-        AppRuntimeStatus::Background => 1,
-        AppRuntimeStatus::Foreground => 2,
     }
 }
 
@@ -300,13 +314,20 @@ where
                 .unwrap_or_default(),
         );
     }
+    let carried = if break_reason.is_some() {
+        Duration::ZERO
+    } else {
+        tracker.state.credit_remainder
+    };
+    let credited = (credited + carried).min(MAX_TICK_CREDIT);
+    let credit_remainder = credited - Duration::from_secs(credited.as_secs());
     let snapshots = tracker.source.snapshot();
     let mut next = tracker.state.clone();
     let store = &tracker.store;
     let transaction = store.savepoint()?;
     let outcome = apply_scan(
         store,
-        snapshots,
+        &snapshots,
         &mut next,
         now_utc,
         now.date_naive(),
@@ -316,7 +337,11 @@ where
     let foreground_app_id = foreground_source
         .foreground_pid()
         .and_then(|pid| outcome.app_ids_by_pid.get(&pid).copied());
+    let background = background_groups(&snapshots);
     for (date, seconds, recorded_at) in credited_days(&now, credited.as_secs() as i64) {
+        for group in &background {
+            store.increment_daily_background_usage(date, group, seconds, recorded_at)?;
+        }
         let active_seconds = if is_active { seconds } else { 0 };
         store.increment_daily_system_usage(date, seconds, active_seconds, seconds)?;
         record_daily_software_runtime_usage(
@@ -336,6 +361,8 @@ where
         }
     }
     next.last_tick_at = Some(now_utc);
+    next.credit_remainder = credit_remainder;
+    next.background_live = background;
     transaction.commit()?;
     tracker.state = next;
     Ok(())
@@ -368,26 +395,24 @@ fn record_daily_software_runtime_usage(
     seconds: i64,
     recorded_at: DateTime<Utc>,
 ) -> StoreResult<()> {
-    // During a package upgrade both executables may briefly exist. Attribute a tick
-    // once to the highest-ranking version; keep the underlying per-version records.
-    let mut status_by_group: HashMap<String, (AppRuntimeStatus, i64, String)> = HashMap::new();
-    for (&app_id, &status) in statuses {
-        if status == AppRuntimeStatus::Closed {
+    let mut status_by_identity: HashMap<String, AppRuntimeStatus> = HashMap::new();
+    for (app_id, status) in statuses {
+        if *status == AppRuntimeStatus::Closed {
             continue;
         }
-        let identity = store.upsert_software_identity_for_app(app_id)?;
-        let group = package_group(&identity.identity_key).into_owned();
-        let entry = status_by_group
-            .entry(group)
-            .or_insert_with(|| (status, app_id, identity.identity_key.clone()));
-        if (runtime_status_rank(status), app_id) > (runtime_status_rank(entry.0), entry.1) {
-            *entry = (status, app_id, identity.identity_key);
+        let identity = store.upsert_software_identity_for_app(*app_id)?;
+        let entry = status_by_identity
+            .entry(identity.identity_key)
+            .or_insert(AppRuntimeStatus::Closed);
+        if status.rank() > entry.rank() {
+            *entry = *status;
         }
     }
-    for (status, _, identity_key) in status_by_group.into_values() {
+    for (identity_key, status) in status_by_identity {
         let (foreground_seconds, background_seconds) = match status {
             AppRuntimeStatus::Foreground => (seconds, 0),
-            AppRuntimeStatus::Background => (0, seconds),
+            // The software page splits window time from out-of-window time.
+            AppRuntimeStatus::Tray | AppRuntimeStatus::Background => (0, seconds),
             AppRuntimeStatus::Closed => (0, 0),
         };
         store.increment_daily_software_runtime_usage(

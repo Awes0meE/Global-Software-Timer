@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-11-17
+Last updated: 2026-11-20
 
 ## Product Decisions
 
@@ -14,7 +14,7 @@ Last updated: 2026-11-17
 - App mark: a skeuomorphic wall clock (steel bezel, ivory dial, 10:10 hands, orange second hand). `scripts/brand/build-clock-mark.py` writes `src/assets/gst-clock.svg` and `gst-clock-small.svg`; `scripts/brand/build-icons.py` rasterises them into `src-tauri/icons/` (also the tray icon) with headless Edge and Pillow.
 - Theme: 跟随系统 / 浅色 / 深色, default follows Windows. Stored as `ui.theme` in SQLite `app_settings`; the native title bar follows through the window `setTheme` permission; `localStorage` key `gst.theme` only caches the last choice to avoid a first-frame flash.
 - Default Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`. The 2026-06-06 duration-format setting adds an optional concrete-minute display such as `8小时35分钟`.
-- Release version: `v0.1.4` (2026-11-17); publication is gated by complete Windows checks and installer builds.
+- Release version: `v0.1.5` (2026-11-20); publication is gated by complete Windows checks and installer builds.
 - v0.1.2 adds a Settings page with startup-at-login and close-window behavior controls.
 - Startup at login defaults to enabled in v0.1.2, uses the current-user autostart mechanism, and does not require administrator permission.
 - First window close still asks whether to exit or minimize to tray; the choice is saved automatically and can be changed later in Settings.
@@ -30,7 +30,10 @@ Last updated: 2026-11-17
 - Stack: Tauri v2, Rust, React, TypeScript, SQLite.
 - v0.1.3 software-page design should use a robust software identity layer keyed by merged user-visible software identity, not raw single executable app IDs. WPS-style components should behave as one software identity.
 - Storage strategy: event log plus summary tables from v0.1.
-- Runtime sessions track classified non-helper processes with a visible top-level window; this is not all process uptime. Browser/Electron child helpers are identified with transient command-line flag checks.
+- Runtime sessions track classified non-helper processes that own a taskbar-style app window (`src-tauri/src/window_info.rs`); this is not all process uptime. Any Chromium/Electron/CEF `--type=` child is a helper, identified with transient in-memory command-line checks.
+- User-facing = taskbar window or tray icon. Tray detection (`tray_icons.rs`) matches `HKCU\Control Panel\NotifyIconSettings` executable paths version-insensitively per executable, only for processes in the user's session; Windows 10 has no such data. Tray-only apps get runtime sessions with status `tray` (`托盘运行`).
+- The `后台` page (`background.rs`) groups non-system processes with neither window nor tray icon by software family; descendants of user-facing processes belong to that app. Daily totals live in `daily_background_usage` (schema version 2).
+- Software identity keys are version-insensitive (`storage::software_family_key`): packaged apps group by package family; version and hash directories are ignored. Startup maintenance folds legacy per-version identities together.
 - Dashboard status is tri-state: an eligible visible-window process is `前台运行`; a known executable seen only without a visible window or as a helper is `后台运行`; no detected matching process is `未运行`. Here foreground means window visibility, not keyboard focus. Software-page focused active time separately uses the Windows foreground PID. Window titles and command lines are not stored in SQLite or shown in the UI.
 - Default classifier noise filtering uses conservative process-name rules for hardware vendor background helpers. ASUS Armoury Crate helper processes and `nvcontainer.exe` are hidden by default, while the main `armourycrate.exe` app remains visible as `Armoury Crate`; avoid broad vendor path substring filters that could hide user-launched apps.
 - WPS suite components are grouped as `WPS Office` for usage summaries, including `wps.exe`, `et.exe`, `wpp.exe`, and `wpspdf.exe`; live status for merged rows is taken from the highest-priority status across all grouped app ids. WPS grouped rows use the main `wps.exe` sibling path for icon lookup, even when the visible component is `wpspdf.exe`, `et.exe`, or `wpp.exe`.
@@ -62,7 +65,7 @@ Last updated: 2026-11-17
 
 ## Current Repository State
 
-- Version: `0.1.4`; npm, Cargo, Tauri and sidebar metadata agree.
+- The UI branch is version `0.2.0` and includes the published `v0.1.5` process-grouping implementation and schema 2.
 - PR #12 is merged. Main worktree: `.worktrees/v01-implementation`; development worktree: `.worktrees/current-dev`. The enclosing folder is a container.
 - Repair baseline: local and GitHub API `main` were both `d8bfc6cb986d7f72113c84bdade6cc06cc261ab6` on 2026-11-17. Direct CLI GitHub access fails in this environment; verify remote Git objects through the connected GitHub service when publishing.
 - A redacted reviewer report is preserved in `docs/2026-11-17-improvement-suggestions.md`; the complete original is archived locally outside Git. Its current-state claims refer to the pre-fix baseline. Use `docs/CURRENT_STATE.md` for repaired behavior and remaining work.
@@ -70,7 +73,7 @@ Last updated: 2026-11-17
 - Approved settings, software-page and duration-format specifications are under `docs/superpowers/specs/`. Historical plans under `docs/superpowers/plans/` are not a live backlog.
 - The 2026-06-06 duration-format preference is implemented on main but was not in the published v0.1.3 release.
 - Local gate: `npm.cmd run check` runs release-script failure tests, frontend tests/build, Rust fmt/tests, and npm audit. `npm.cmd run release:build` runs the gate and Tauri build, stops on failure, then stages installers and prints SHA256 hashes.
-- Redesign changes, benchmark results and outstanding environment checks for the 0.1.5 candidate are recorded in `docs/ui-redesign-backlog.md`.
+- Redesign changes, benchmark results and outstanding environment checks for the UI redesign are recorded in `docs/ui-redesign-backlog.md`.
 - Browser UI preview with synthetic data: `npm.cmd run preview:ui` (port 1421) aliases the Tauri APIs to `scripts/ui-preview/`; query options `?theme=light|dark`, `?format=hm`, `?empty`, `?page=software|settings`, `?dialog=add`. It never touches the real database.
 - Load `. .\scripts\dev-env.ps1` before Rust commands. The 2026-06-18 toolchain/audit observations are historical; the 2026-11-17 online npm audit could not reach its endpoint. Do not claim a fresh clean dependency audit.
 - Superpowers workflows are available in the active environment's plugin cache; discover them per environment. Portable workflow fallback is `docs/DEVELOPMENT_WORKFLOW.md` and `AGENTS.md`.

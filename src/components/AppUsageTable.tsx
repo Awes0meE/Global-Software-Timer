@@ -61,6 +61,10 @@ function statusLabel(status: AppRuntimeStatus): string {
     return "前台运行";
   }
 
+  if (status === "tray") {
+    return "托盘运行";
+  }
+
   if (status === "background") {
     return "后台运行";
   }
@@ -71,6 +75,10 @@ function statusLabel(status: AppRuntimeStatus): string {
 function statusClassName(status: AppRuntimeStatus): string {
   if (status === "foreground") {
     return "running";
+  }
+
+  if (status === "tray") {
+    return "tray";
   }
 
   if (status === "background") {

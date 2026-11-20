@@ -1,5 +1,5 @@
 // Synthetic demo data for the browser-only UI preview. Not real usage records.
-import type { AppUsageRow, DashboardSummary, SoftwarePageRow, SoftwarePageSummary } from "../../src/api";
+import type { AppUsageRow, BackgroundPageSummary, DashboardSummary, SoftwarePageRow, SoftwarePageSummary } from "../../src/api";
 
 function tile(letter: string, background: string, foreground = "#ffffff"): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${background}"/><text x="32" y="43" font-family="Segoe UI, Arial" font-size="30" font-weight="700" text-anchor="middle" fill="${foreground}">${letter}</text></svg>`;
@@ -35,7 +35,7 @@ interface Seed {
 const seeds: Seed[] = [
   { key: "code", name: "Visual Studio Code", process: "Code.exe", icon: tile("VS", "#1f6fb2"), total: 412.6 * hour, today: 5.4 * hour, active: 2.4 * hour, status: "foreground", lastOpened: hoursAgo(0.3) },
   { key: "chrome", name: "Google Chrome", process: "chrome.exe", icon: tile("G", "#e8eaed", "#1a73e8"), total: 388.2 * hour, today: 4.1 * hour, active: 1.5 * hour, status: "foreground", lastOpened: hoursAgo(0.6) },
-  { key: "wechat", name: "微信", process: "WeChat.exe", icon: tile("微", "#07c160"), total: 201.4 * hour, today: 6.2 * hour, active: 0.4 * hour, status: "background", lastOpened: hoursAgo(1.4) },
+  { key: "wechat", name: "微信", process: "WeChat.exe", icon: tile("微", "#07c160"), total: 201.4 * hour, today: 6.2 * hour, active: 0.4 * hour, status: "tray", lastOpened: hoursAgo(1.4) },
   { key: "wps", name: "WPS Office", process: "wps.exe", icon: tile("W", "#d63b2f"), total: 96.3 * hour, today: 1.8 * hour, active: 0.7 * hour, status: "foreground", lastOpened: hoursAgo(0.1) },
   { key: "zotero", name: "Zotero", process: "zotero.exe", icon: tile("Z", "#b5262e"), total: 74.9 * hour, today: 0.9 * hour, active: 0.2 * hour, status: "closed", lastOpened: hoursAgo(15) },
   { key: "steam", name: "Steam", process: "steam.exe", icon: tile("S", "#1b2838"), total: 61.5 * hour, today: 0.4 * hour, active: 0.03 * hour, status: "background", lastOpened: hoursAgo(40) },
@@ -102,3 +102,20 @@ export function softwareSummary(focused: Set<string>, hidden: Set<string>): Soft
     ),
   };
 }
+
+export const backgroundSummary: BackgroundPageSummary = {
+  logical_cores: 8,
+  running_count: 1,
+  rows: [{
+    family_key: "sync-helper",
+    display_name: "Sync Helper",
+    process_name: "sync-helper.exe",
+    icon_data_url: null,
+    is_running: true,
+    process_count: 2,
+    cpu_percent: 0.8,
+    memory_bytes: 48 * 1024 * 1024,
+    today_running_seconds: 5400,
+    today_cpu_seconds: 90,
+  }],
+};

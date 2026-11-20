@@ -1,5 +1,5 @@
 // Browser-only stand-in for @tauri-apps/api/core used by `npm run preview:ui`.
-import { dashboardSummary, softwareSummary } from "./mock-data";
+import { backgroundSummary, dashboardSummary, softwareSummary } from "./mock-data";
 
 const params = new URLSearchParams(window.location.search);
 const empty = params.has("empty");
@@ -24,6 +24,8 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
   switch (command) {
     case "get_dashboard_summary":
       return (empty ? { ...dashboardSummary(hidden), apps: [], most_used: null, recorded_today_seconds: 0, active_today_seconds: 0 } : dashboardSummary(hidden)) as T;
+    case "get_background_page_summary":
+      return (empty ? { ...backgroundSummary, running_count: 0, rows: [] } : backgroundSummary) as T;
     case "get_software_page_summary":
       return (empty ? { focused: [], hidden: [], discovered: [] } : softwareSummary(focused, hidden)) as T;
     case "add_focused_software_identities":
@@ -62,8 +64,8 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
   }
 }
 
-// ?page=software|settings opens that page after the first render; ?dialog=add|close opens a dialog.
-const pageLabels: Record<string, string> = { software: "软件", settings: "设置" };
+// ?page=software|background|settings opens that page after the first render; ?dialog=add|close opens a dialog.
+const pageLabels: Record<string, string> = { software: "软件", background: "后台", settings: "设置" };
 const targetPage = pageLabels[params.get("page") ?? ""];
 const targetDialog = params.get("dialog");
 
