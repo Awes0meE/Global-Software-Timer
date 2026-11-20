@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{mpsc, Mutex, OnceLock};
 
 static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
 
@@ -13,21 +13,40 @@ enum IconLookupStep {
     PackageFile(PathBuf),
 }
 
-pub fn native_icon_data_url_for_path(executable_path: &str) -> Option<String> {
+/// Shell icon lookup can block for seconds. Summaries return cached icons on the
+/// next visible refresh; a missing or queued icon uses the software's initial.
+pub fn cached_native_icon(executable_path: &str) -> Option<String> {
+    static QUEUE: OnceLock<mpsc::Sender<String>> = OnceLock::new();
     let key = executable_path.trim();
     if key.is_empty() {
         return None;
     }
-
-    let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Ok(icons) = cache.lock() {
-        if let Some(icon) = icons.get(key) {
-            return icon.clone();
-        }
+    let cache = ICON_CACHE.get_or_init(Default::default);
+    let mut icons = cache.lock().ok()?;
+    if let Some(icon) = icons.get(key) {
+        return icon.clone();
     }
+    let queue = QUEUE.get_or_init(|| {
+        let (sender, receiver) = mpsc::channel::<String>();
+        std::thread::spawn(move || {
+            for path in receiver {
+                let icon = native_icon_data_url_for_path(&path);
+                if let Ok(mut icons) = cache.lock() {
+                    icons.insert(path, icon);
+                }
+            }
+        });
+        sender
+    });
+    if queue.send(key.to_owned()).is_ok() {
+        icons.insert(key.to_owned(), None);
+    }
+    None
+}
 
+fn native_icon_data_url_for_path(key: &str) -> Option<String> {
     let path = Path::new(key);
-    let icon = icon_lookup_steps_for_path(path)
+    icon_lookup_steps_for_path(path)
         .into_iter()
         .find_map(|step| match step {
             IconLookupStep::DirectImageFile(candidate)
@@ -35,11 +54,7 @@ pub fn native_icon_data_url_for_path(executable_path: &str) -> Option<String> {
             | IconLookupStep::DiscoveredLocalFile(candidate)
             | IconLookupStep::PackageFile(candidate) => image_file_data_url(&candidate),
             IconLookupStep::NativeExecutable => extract_native_icon_data_url(key),
-        });
-    if let Ok(mut icons) = cache.lock() {
-        icons.insert(key.to_string(), icon.clone());
-    }
-    icon
+        })
 }
 
 fn icon_lookup_steps_for_path(path: &Path) -> Vec<IconLookupStep> {

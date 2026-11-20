@@ -1,6 +1,6 @@
 use crate::app_state::AppState;
 use crate::domain::{AppRuntimeStatus, AppUsageSummary, SoftwarePageRow};
-use crate::native_icon::native_icon_data_url_for_path;
+use crate::native_icon::cached_native_icon;
 use crate::storage::{Store, StoreError};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
@@ -475,7 +475,7 @@ impl AppUsageRow {
             app_id: summary.app_id,
             display_name: summary.display_name,
             process_name: summary.process_name,
-            icon_data_url: native_icon_data_url_for_path(&summary.executable_path),
+            icon_data_url: cached_native_icon(&summary.executable_path),
             total_seconds: summary.total_seconds,
             today_seconds: summary.today_seconds,
             active_today_seconds: summary.active_today_seconds,
@@ -496,7 +496,7 @@ impl SoftwarePageRowDto {
             identity_key: row.identity_key,
             display_name: row.display_name,
             process_name: row.process_name,
-            icon_data_url: native_icon_data_url_for_path(&row.executable_path),
+            icon_data_url: cached_native_icon(&row.executable_path),
             today_runtime_seconds: row.today_runtime_seconds,
             today_focused_seconds: row.today_focused_seconds,
             total_runtime_seconds: row.total_runtime_seconds,
@@ -557,6 +557,31 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use std::collections::HashMap;
     use tempfile::NamedTempFile;
+
+    /// Run in a fresh process to include cold icon-cache behavior.
+    #[test]
+    #[ignore = "requires GST_BENCH_DB pointing to a disposable database snapshot"]
+    fn benchmark_software_first_response() {
+        let path = std::env::var("GST_BENCH_DB").expect("set GST_BENCH_DB");
+        let store = Store::open_read_only(path).unwrap();
+        let started = std::time::Instant::now();
+        let transaction = store.savepoint().unwrap();
+        let summary = super::software_page_summary_from_store(
+            &store,
+            super::local_day_start_utc(),
+            Utc::now(),
+            &HashMap::new(),
+        )
+        .unwrap();
+        let payload = serde_json::to_vec(&summary).unwrap();
+        transaction.commit().unwrap();
+        println!(
+            "{} discovered, {} bytes, {:?} first response",
+            summary.discovered.len(),
+            payload.len(),
+            started.elapsed()
+        );
+    }
 
     #[test]
     fn dashboard_summary_reads_sessions_and_daily_system_usage() {
