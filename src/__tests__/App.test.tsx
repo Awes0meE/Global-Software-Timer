@@ -265,8 +265,8 @@ describe("App", () => {
     expect(container.querySelector(".recent-scroll")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /查看全部/ })).not.toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "今日分布" })).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: "当前前台运行" })).toBeInTheDocument();
-    const recentPanel = screen.getByRole("complementary", { name: "当前前台运行" });
+    expect(screen.getByRole("complementary", { name: "正在运行" })).toBeInTheDocument();
+    const recentPanel = screen.getByRole("complementary", { name: "正在运行" });
     expect(await within(recentPanel).findByText("3.3小时")).toBeInTheDocument();
     expect(within(recentPanel).getByText("0.8小时")).toBeInTheDocument();
     expect(within(recentPanel).queryByText("前台运行")).not.toBeInTheDocument();
@@ -354,7 +354,7 @@ describe("App", () => {
       screen.getByRole("button", { name: "日报" }),
       screen.getByRole("button", { name: "更多" }),
       screen.getByRole("button", { name: /查看更多今日分布/ }),
-      screen.getByRole("button", { name: /查看更多当前前台运行/ }),
+      screen.getByRole("button", { name: /查看更多正在运行/ }),
       screen.getByRole("button", { name: /\d{4}-\d{2}-\d{2}/ }),
       screen.getByRole("button", { name: "导出" }),
     ];
