@@ -1,6 +1,10 @@
 # Changelog
 
-## v0.2.0 — 待发布
+## v0.2.1 - 2026-11-21
+
+- Count Microsoft Edge runtime when a taskbar window opens on a process launched by startup boost. A preloaded browser without a confirmed window, Chromium child processes, and embedded WebViews remain background helpers.
+
+## v0.2.0 — UI 分支版本，随 v0.2.1 首次公开发布
 
 - Redesigned the desktop UI as a desk instrument: aluminium/graphite panels, keycap navigation, indicator lamps and an aligned software ledger.
 - Added a dot-matrix LCD readout for today's recorded time, active time and most-used software, set in the bundled Ark Pixel 12px font (SIL OFL 1.1), with a segmented 24-hour dial.

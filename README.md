@@ -9,8 +9,8 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
 一个 Windows 优先、本地优先的桌面状态栏软件，用来记录每个软件的运行时长。
 
 <p>
-  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.5">
-    <img alt="Release v0.1.5" src="https://img.shields.io/badge/Release-v0.1.5-2f81f7?style=for-the-badge" />
+  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.2.1">
+    <img alt="Release v0.2.1" src="https://img.shields.io/badge/Release-v0.2.1-2f81f7?style=for-the-badge" />
   </a>
   <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=for-the-badge&logo=windows&logoColor=white" />
   <img alt="Local First" src="https://img.shields.io/badge/Local--First-Privacy-2ea043?style=for-the-badge" />
@@ -32,7 +32,7 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
   ·
   <a href="#english">English</a>
   ·
-  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.5">Download</a>
+  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.2.1">Download</a>
   ·
   <a href="./PRIVACY.md">Privacy</a>
 </p>
@@ -47,7 +47,7 @@ A Windows-first, local-first desktop tray app for tracking how long you use soft
 
 Global Software Timer（全局软件计时器）是一款本地优先的 Windows 桌面状态栏应用。它会在后台记录桌面软件的运行时长，并在一个像桌面计时仪器的仪表盘里展示你的软件使用数据。
 
-v0.2.0 开发版在 v0.1.5 的软件识别与统计之上引入明暗两套仪器风格界面。概览显示常用软件和使用时长，「后台」页显示第三方后台进程的 CPU、内存和今日运行时间。
+v0.2.1 在 v0.1.5 的软件识别与统计之上引入明暗两套仪器风格界面。概览显示常用软件和使用时长，「后台」页显示第三方后台进程的 CPU、内存和今日运行时间。
 
 ![概览页（浅色，示例数据）](./docs/assets/ui-overview-light.png)
 
@@ -95,18 +95,18 @@ v0.2.0 开发版在 v0.1.5 的软件识别与统计之上引入明暗两套仪�
 
 ### 下载安装
 
-前往 [v0.1.5 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.5) 下载 Windows x64 安装包。
+前往 [v0.2.1 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.2.1) 下载 Windows x64 安装包。
 
 推荐下载：
 
-- `Global.Software.Timer_0.1.5_x64-setup.exe`
-- `Global.Software.Timer_0.1.5_x64_en-US.msi`
+- `Global.Software.Timer_0.2.1_x64-setup.exe`
+- `Global.Software.Timer_0.2.1_x64_en-US.msi`
 
 > 当前安装包未签名，Windows 首次安装时可能会显示 SmartScreen 提示。
 
 ### 隐私边界
 
-v0.1.5 只记录本地软件使用统计和本机偏好所需的数据。
+v0.2.1 只记录本地软件使用统计和本机偏好所需的数据。
 
 会记录：
 
@@ -219,7 +219,7 @@ npm.cmd run release:build
 
 ### 路线图
 
-v0.1.5 已聚焦于 Windows、本地记录、基础仪表盘、设置页、`软件` 页面、系统状态栏和隐私边界。
+v0.2.1 已聚焦于 Windows、本地记录、基础仪表盘、设置页、`软件` 页面、系统状态栏和隐私边界。
 
 后续可能加入：
 
@@ -230,7 +230,7 @@ v0.1.5 已聚焦于 Windows、本地记录、基础仪表盘、设置页、`软�
 - Notion、Obsidian 等工具的导出或插件工作流。
 - 可选的增强检测能力，但必须明确说明隐私影响并由用户主动开启。
 
-明确不属于 v0.1.5 的内容：
+明确不属于 v0.2.1 的内容：
 
 - 云同步。
 - 用户账号。
@@ -268,18 +268,18 @@ The app runs quietly in the background, stores data locally, and opens an instru
 
 ### Installation
 
-Download the Windows x64 installer from [v0.1.5 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.1.5).
+Download the Windows x64 installer from [v0.2.1 Release](https://github.com/Awes0meE/Global-Software-Timer/releases/tag/v0.2.1).
 
 Available bundles:
 
-- `Global.Software.Timer_0.1.5_x64-setup.exe`
-- `Global.Software.Timer_0.1.5_x64_en-US.msi`
+- `Global.Software.Timer_0.2.1_x64-setup.exe`
+- `Global.Software.Timer_0.2.1_x64_en-US.msi`
 
 > The current Windows installers are unsigned, so Windows may show a SmartScreen warning on first install.
 
 ### Privacy Model
 
-Global Software Timer v0.1.5 records only app-level local usage data and local app preferences.
+Global Software Timer v0.2.1 records only app-level local usage data and local app preferences.
 
 It records:
 
