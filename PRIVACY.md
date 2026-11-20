@@ -1,8 +1,8 @@
 # Privacy
 
-Global Software Timer v0.1.3 is local-first.
+Global Software Timer v0.1.5 is local-first.
 
-## What v0.1.3 records
+## What v0.1.5 records
 
 - Application executable identity
 - User-facing application name
@@ -13,11 +13,11 @@ Global Software Timer v0.1.3 is local-first.
 - Software-page foreground/background runtime aggregates
 - Software-page focused active time based on the Windows foreground focused software identity
 - Local app preferences, including startup at login and close-window behavior
-- (unreleased) Background processes without a window or tray icon: executable name and path, daily running time, CPU time, peak memory and process count, for the `后台` page
+- Background processes without a window or tray icon: executable name and path, daily running time, CPU time, peak memory and process count, for the `后台` page
 
 To tell windowed, tray and background apps apart, GST reads window styles and class names, process command lines (checked in memory for helper flags such as `--type=`, never stored), and the executable paths Windows lists under `HKCU\Control Panel\NotifyIconSettings`. It does not read window titles or tray icon tooltips.
 
-## What v0.1.3 does not record
+## What v0.1.5 does not record
 
 - Window titles
 - Document names
@@ -30,10 +30,10 @@ To tell windowed, tray and background apps apart, GST reads window styles and cl
 
 ## Network
 
-v0.1.3 does not upload usage data or require an account.
+v0.1.5 does not upload usage data or require an account.
 
 ## Permissions
 
-v0.1.3 runs as a normal user-space app and does not request administrator permission by default.
+v0.1.5 runs as a normal user-space app and does not request administrator permission by default.
 
-Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.1.3, can be turned off in Settings, and does not require administrator permission.
+Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.1.5, can be turned off in Settings, and does not require administrator permission.
