@@ -1,5 +1,4 @@
 use serde::Serialize;
-use std::collections::HashSet;
 use std::ffi::OsString;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
@@ -39,9 +38,13 @@ impl ProcessSource for SysinfoProcessSource {
         self.system.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true,
-            ProcessRefreshKind::new().with_exe(UpdateKind::OnlyIfNotSet),
+            // Command lines are read once per process for transient helper-flag checks
+            // and are never stored or shown.
+            ProcessRefreshKind::new()
+                .with_exe(UpdateKind::OnlyIfNotSet)
+                .with_cmd(UpdateKind::OnlyIfNotSet),
         );
-        let visible_window_pids = visible_window_pids();
+        let visible_window_pids = crate::window_info::app_window_pids();
         self.system
             .processes()
             .iter()
@@ -68,58 +71,19 @@ impl ProcessSource for SysinfoProcessSource {
     }
 }
 
-#[cfg(target_os = "windows")]
-fn visible_window_pids() -> Option<HashSet<u32>> {
-    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowThreadProcessId, IsWindowVisible,
-    };
-
-    unsafe extern "system" fn collect_visible_window_pid(hwnd: HWND, lparam: LPARAM) -> BOOL {
-        if unsafe { IsWindowVisible(hwnd) } == 0 {
-            return 1;
-        }
-
-        let mut process_id = 0;
-        unsafe {
-            GetWindowThreadProcessId(hwnd, &mut process_id);
-        }
-        if process_id > 0 {
-            let pids = unsafe { &mut *(lparam as *mut HashSet<u32>) };
-            pids.insert(process_id);
-        }
-
-        1
-    }
-
-    let mut pids = HashSet::new();
-    let succeeded = unsafe {
-        EnumWindows(
-            Some(collect_visible_window_pid),
-            &mut pids as *mut HashSet<u32> as LPARAM,
-        )
-    };
-
-    (succeeded != 0).then_some(pids)
-}
-
-#[cfg(not(target_os = "windows"))]
-fn visible_window_pids() -> Option<HashSet<u32>> {
-    None
-}
-
 fn is_background_helper_process(process_name: &str, command_line: &[OsString]) -> bool {
     let name = process_name.trim().to_lowercase();
-    if !is_chromium_family_name(&name) {
-        return false;
-    }
+    let is_chromium_family = is_chromium_family_name(&name);
 
-    command_line.iter().any(|argument| {
+    command_line.iter().skip(1).any(|argument| {
         let argument = argument.to_string_lossy().to_lowercase();
+        // Chromium, Electron and CEF child processes (renderer, GPU, utility,
+        // crashpad) all carry `--type=`; this covers ChatGPT, Discord, etc.
         argument.starts_with("--type=")
-            || argument == "--embedded-browser-edgeview=1"
-            || argument.starts_with("--edge-webview-host-pid")
-            || argument == "--no-startup-window"
+            || (is_chromium_family
+                && (argument == "--embedded-browser-edgeview=1"
+                    || argument.starts_with("--edge-webview-host-pid")
+                    || argument == "--no-startup-window"))
     })
 }
 
@@ -152,5 +116,29 @@ mod tests {
         )];
 
         assert!(!is_background_helper_process("msedge.exe", &command_line));
+    }
+
+    #[test]
+    fn detects_electron_child_processes_for_any_executable_name() {
+        let command_line = vec![
+            OsString::from(
+                r"C:\Program Files\WindowsApps\OpenAI.Codex_26.1111.2228.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe",
+            ),
+            OsString::from("--type=gpu-process"),
+        ];
+
+        assert!(is_background_helper_process("ChatGPT.exe", &command_line));
+    }
+
+    #[test]
+    fn ignores_flag_text_in_the_executable_path_and_unrelated_apps() {
+        let command_line = vec![OsString::from(r"C:\Tools\--type=odd\tool.exe")];
+        assert!(!is_background_helper_process("tool.exe", &command_line));
+
+        let command_line = vec![
+            OsString::from(r"C:\Tools\player.exe"),
+            OsString::from("--no-startup-window"),
+        ];
+        assert!(!is_background_helper_process("player.exe", &command_line));
     }
 }
