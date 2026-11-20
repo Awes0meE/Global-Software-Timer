@@ -24,7 +24,7 @@
 
 **原生窗口验收**：后端基准复测用时 109 毫秒，返回 194 个已发现软件。另提供从点击「软件」到列表绘制的原生验收，随后检查 B 版设置页。先运行 `npm.cmd run build`，再将 `GST_BENCH_DB` 指向一次性数据库副本，运行 `cargo run --manifest-path src-tauri/Cargo.toml --release --features tauri/custom-protocol --example gst_backlog_qa`。原生验收会对副本执行正常启动恢复。当前环境中 WebView2 的 GPU 子进程因访问被拒绝而退出，尚无原生首屏耗时。
 
-**本机发布检查限制**：npm 审计端点在本机环境不可达，WiX ICE 校验无法访问 Windows Installer 服务。完整发布仍需在具备这些条件的 Windows 环境验证。
+**提交前复测**：`npm.cmd run check` 通过，包括 72 项前端测试、99 项 Rust 测试、生产构建和格式检查。npm 依赖审计恢复，报告 0 项已知漏洞。MSI 的 WiX ICE 校验仍待在能访问 Windows Installer 服务的环境验证。
 
 ## 原始问题与完成标准
 

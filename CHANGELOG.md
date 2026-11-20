@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.1.5 — 待发布
+
+- Redesigned the desktop UI as a desk instrument: aluminium/graphite panels, keycap navigation, indicator lamps and an aligned software ledger.
+- Added a dot-matrix LCD readout for today's recorded time, active time and most-used software, set in the bundled Ark Pixel 12px font (SIL OFL 1.1), with a segmented 24-hour dial.
+- Added light and dark themes; Settings offers 跟随系统 / 浅色 / 深色 (default follows Windows), saved locally as `ui.theme`, and the native title bar follows the theme.
+- Redrew the app mark as a skeuomorphic clock and regenerated the app, installer and tray icons from it.
+- Moved the unavailable 日期 and 导出 controls from the bottom bar into the page header.
+- Fixed the add-software dialog focus trap to follow document order.
+- Added a browser-only UI preview with synthetic data (`npm run preview:ui`).
+- Returned usage data before native icon extraction and grouped versioned Windows package executables across updates in software lists.
+- Fixed rapid theme changes, header tooltip clipping, narrow-window duration wrapping and light icon contrast; revised navigation spacing, settings layout and the small tray mark.
+
 ## v0.1.4 - 2026-11-17
 
 - Prevented long scan gaps and clock rollback from inflating session and daily time; credited counters now split at local midnight.
