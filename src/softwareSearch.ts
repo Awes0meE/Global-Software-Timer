@@ -75,10 +75,8 @@ export function rankSoftwareRows<T extends SearchableSoftwareRow>(rows: T[], que
 
   if (!normalizedQuery) {
     return rows
-      .map((row, index) => ({ row, index }))
-      .sort(
-        (left, right) => compareRowsByLastOpened(left.row, right.row) || left.index - right.index,
-      )
+      .map((row, index) => ({ row, index, lastOpened: lastOpenedTimestamp(row.last_opened_at) }))
+      .sort((left, right) => right.lastOpened - left.lastOpened || left.index - right.index)
       .map((item) => item.row);
   }
 
@@ -289,13 +287,6 @@ function uniqueSearchKeys(values: string[]): string[] {
 
 function stripExecutableExtension(value: string): string {
   return value.replace(/\.exe$/i, "");
-}
-
-function compareRowsByLastOpened(left: SearchableSoftwareRow, right: SearchableSoftwareRow): number {
-  const leftTimestamp = lastOpenedTimestamp(left.last_opened_at);
-  const rightTimestamp = lastOpenedTimestamp(right.last_opened_at);
-
-  return leftTimestamp === rightTimestamp ? 0 : rightTimestamp - leftTimestamp;
 }
 
 function normalizeSearchText(value: string): string {

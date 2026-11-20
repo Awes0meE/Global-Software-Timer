@@ -92,6 +92,7 @@ describe("App", () => {
       }
 
       return Promise.resolve({
+        last_scan_succeeded: true,
         product_title: "全局软件计时器",
         locale: "zh-CN",
         most_used: null,
@@ -106,7 +107,17 @@ describe("App", () => {
     render(<App />);
 
     expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
-    expect(screen.getByText("正在记录")).toBeInTheDocument();
+    expect(await screen.findByText("正在记录")).toBeInTheDocument();
+  });
+
+  it("reports a failed scan while the tracker retries", async () => {
+    mockInvoke.mockImplementation(async (command) => command === "get_dashboard_summary" ? {
+      last_scan_succeeded: false, product_title: "全局软件计时器",
+      most_used: null, recorded_today_seconds: 0, active_today_seconds: 0, apps: [],
+    } : {});
+    render(<App />);
+    expect(await screen.findByText("采样失败，正在重试")).toBeInTheDocument();
+    expect(screen.queryByText("正在记录")).not.toBeInTheDocument();
   });
 
   it("renders the app version from package metadata", async () => {
@@ -142,8 +153,10 @@ describe("App", () => {
     mockInvoke.mockRejectedValue(new Error("database is temporarily locked"));
 
     render(<App />);
-
-    expect(await screen.findByText("无法读取本地数据")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("正在读取概览");
+    expect(screen.queryByText("还没有记录到软件")).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法读取本地数据");
+    expect(screen.queryByText("还没有记录到软件")).not.toBeInTheDocument();
     expect(screen.queryByText("database is temporarily locked")).not.toBeInTheDocument();
   });
 
@@ -261,7 +274,7 @@ describe("App", () => {
           total_seconds: 115 * 3600 + 47 * 60,
           today_seconds: 45 * 60,
           active_today_seconds: 5 * 60,
-          status: "foreground",
+          status: "tray",
           is_running: true,
         },
       ],
@@ -283,7 +296,8 @@ describe("App", () => {
     const recentPanel = screen.getByRole("complementary", { name: "正在运行" });
     expect(await within(recentPanel).findByText("3.3小时")).toBeInTheDocument();
     expect(within(recentPanel).getByText("0.8小时")).toBeInTheDocument();
-    expect(within(recentPanel).queryByText("前台运行")).not.toBeInTheDocument();
+    expect(within(recentPanel).getByRole("img", { name: "前台运行" })).toHaveClass("running");
+    expect(within(recentPanel).getByRole("img", { name: "托盘运行" })).toHaveClass("tray");
     expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();
     const readout = screen.getByRole("region", { name: "今日总览" });
     expect(within(readout).getByText("今日记录")).toBeInTheDocument();
@@ -405,9 +419,10 @@ describe("App", () => {
   });
 
   it("opens the software page with three panels", async () => {
+    const pending = createDeferred<{ focused: never[]; hidden: never[]; discovered: never[] }>();
     mockInvoke.mockImplementation((command) => {
       if (command === "get_software_page_summary") {
-        return Promise.resolve({ focused: [], hidden: [], discovered: [] });
+        return pending.promise;
       }
 
       if (command === "get_app_settings") {
@@ -433,10 +448,11 @@ describe("App", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "软件" }));
 
-    expect(screen.getByRole("heading", { name: "特别关注" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "特别关注" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "隐藏软件列表" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "已发现软件" })).toBeInTheDocument();
     expect(screen.getAllByText("正在读取软件列表")).toHaveLength(3);
+    await act(async () => pending.resolve({ focused: [], hidden: [], discovered: [] }));
     expect(await screen.findByText("还没有特别关注的软件")).toBeInTheDocument();
     expect(screen.queryByText("正在读取软件列表")).not.toBeInTheDocument();
     expect(screen.getByText("还没有隐藏的软件")).toBeInTheDocument();

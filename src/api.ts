@@ -22,6 +22,7 @@ export interface AppUsageRow {
 }
 
 export interface DashboardSummary {
+  last_scan_succeeded: boolean | null;
   product_title: string;
   locale: string;
   most_used: AppUsageRow | null;

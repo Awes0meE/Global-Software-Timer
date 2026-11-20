@@ -51,6 +51,7 @@ pub struct Tracker<S: ProcessSource> {
     store: Store,
     source: S,
     state: TrackingState,
+    last_scan_succeeded: Option<bool>,
 }
 
 impl<S: ProcessSource> Tracker<S> {
@@ -59,6 +60,21 @@ impl<S: ProcessSource> Tracker<S> {
             store,
             source,
             state: TrackingState::default(),
+            last_scan_succeeded: None,
+        }
+    }
+
+    pub fn last_scan_succeeded(&self) -> Option<bool> {
+        self.last_scan_succeeded
+    }
+
+    pub fn run_automatic_scan(&mut self, tick: impl FnOnce(&mut Self) -> TrackerResult<()>) {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| tick(self)));
+        self.last_scan_succeeded = Some(matches!(result, Ok(Ok(()))));
+        match result {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => eprintln!("tracker scan failed: {error}"),
+            Err(_) => eprintln!("tracker scan panicked; retrying on the next tick"),
         }
     }
 

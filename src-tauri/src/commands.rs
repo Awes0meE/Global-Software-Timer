@@ -19,6 +19,7 @@ const DEFAULT_THEME: ThemePreference = ThemePreference::System;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DashboardSummary {
+    pub last_scan_succeeded: Option<bool>,
     pub product_title: String,
     pub locale: String,
     pub most_used: Option<AppUsageRow>,
@@ -178,17 +179,21 @@ pub struct AppSettings {
     pub theme_configured: bool,
 }
 
-// Runs off the UI thread: summaries scan history and lock the tracker.
+// Summaries use a read-only transaction and the last published process sample.
 #[tauri::command(async)]
 pub fn get_dashboard_summary(state: State<'_, AppState>) -> Result<DashboardSummary, String> {
-    let statuses = crate::app_state::lock_tracker(&state.tracker)
-        .runtime_status_by_app_id()
-        .clone();
+    let live = crate::app_state::lock_recovering(&state.live).clone();
     let store = crate::app_state::lock_recovering(&state.summary_store);
     let transaction = store.savepoint().map_err(|error| error.to_string())?;
     let now_utc = Utc::now();
-    let summary = dashboard_summary_from_store(&store, local_day_start_utc(), now_utc, &statuses)
-        .map_err(|error| error.to_string())?;
+    let summary = dashboard_summary_from_store(
+        &store,
+        local_day_start_utc(),
+        now_utc,
+        &live.statuses,
+        live.last_scan_succeeded,
+    )
+    .map_err(|error| error.to_string())?;
     transaction.commit().map_err(|error| error.to_string())?;
     Ok(summary)
 }
@@ -197,14 +202,12 @@ pub fn get_dashboard_summary(state: State<'_, AppState>) -> Result<DashboardSumm
 pub fn get_software_page_summary(
     state: State<'_, AppState>,
 ) -> Result<SoftwarePageSummary, String> {
-    let statuses = crate::app_state::lock_tracker(&state.tracker)
-        .runtime_status_by_app_id()
-        .clone();
+    let live = crate::app_state::lock_recovering(&state.live).clone();
     let store = crate::app_state::lock_recovering(&state.summary_store);
     let transaction = store.savepoint().map_err(|error| error.to_string())?;
     let now_utc = Utc::now();
     let summary =
-        software_page_summary_from_store(&store, local_day_start_utc(), now_utc, &statuses)
+        software_page_summary_from_store(&store, local_day_start_utc(), now_utc, &live.statuses)
             .map_err(|error| error.to_string())?;
     transaction.commit().map_err(|error| error.to_string())?;
     Ok(summary)
@@ -214,9 +217,7 @@ pub fn get_software_page_summary(
 pub fn get_background_page_summary(
     state: State<'_, AppState>,
 ) -> Result<BackgroundPageSummary, String> {
-    let live = crate::app_state::lock_tracker(&state.tracker)
-        .background_live()
-        .to_vec();
+    let live = crate::app_state::lock_recovering(&state.live).clone();
     let store = crate::app_state::lock_recovering(&state.summary_store);
     let stored = store
         .background_usage_for_date(Local::now().date_naive())
@@ -224,7 +225,7 @@ pub fn get_background_page_summary(
     let cores = std::thread::available_parallelism()
         .map(|count| count.get() as u32)
         .unwrap_or(1);
-    let rows = background_rows(stored, live, cores);
+    let rows = background_rows(stored, live.background.clone(), cores);
     Ok(BackgroundPageSummary {
         logical_cores: cores,
         running_count: rows.iter().filter(|(row, _)| row.is_running).count(),
@@ -308,10 +309,9 @@ fn background_rows(
 #[tauri::command(async)]
 pub fn run_tracker_scan_once(state: State<'_, AppState>) -> Result<(), String> {
     let mut tracker = crate::app_state::lock_tracker(&state.tracker);
-    tracker
-        .scan_once()
-        .map(|_| ())
-        .map_err(|error| error.to_string())
+    tracker.scan_once().map_err(|error| error.to_string())?;
+    crate::app_state::LiveSample::publish(&tracker, &state.live);
+    Ok(())
 }
 
 #[tauri::command(async)]
@@ -528,6 +528,7 @@ fn dashboard_summary_from_store(
     day_start_utc: DateTime<Utc>,
     now_utc: DateTime<Utc>,
     runtime_status_by_app_id: &HashMap<i64, AppRuntimeStatus>,
+    last_scan_succeeded: Option<bool>,
 ) -> Result<DashboardSummary, StoreError> {
     let usage_date = day_start_utc.with_timezone(&Local).date_naive();
     let apps = store
@@ -538,6 +539,7 @@ fn dashboard_summary_from_store(
     let daily_usage = store.daily_system_usage(usage_date)?;
 
     Ok(DashboardSummary {
+        last_scan_succeeded,
         product_title: "全局软件计时器".to_string(),
         locale: "zh-CN".to_string(),
         most_used: apps.first().cloned(),
@@ -754,7 +756,7 @@ mod tests {
         let app = store
             .upsert_app(
                 "Code.exe",
-                r"C:\Users\dev\AppData\Local\Programs\Microsoft VS Code\Code.exe",
+                r"X:\Fixtures\Microsoft VS Code\Code.exe",
                 "Visual Studio Code",
             )
             .expect("app");
@@ -774,6 +776,7 @@ mod tests {
             Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
             Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
             &HashMap::new(),
+            Some(true),
         )
         .expect("summary");
 
@@ -816,6 +819,7 @@ mod tests {
             Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
             Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
             &statuses,
+            Some(true),
         )
         .expect("summary");
 
@@ -831,14 +835,14 @@ mod tests {
         let short_path_wps = store
             .upsert_app(
                 "wps.exe",
-                r"D:\Users\123\AppData\Local\Kingsoft\WPSOFF~1\1210~1.263\office6\wps.exe",
+                r"X:\Fixtures\Kingsoft\WPSOFF~1\1000~1.001\office6\wps.exe",
                 "WPS Office",
             )
             .expect("short path app");
         let wps_pdf = store
             .upsert_app(
                 "wpspdf.exe",
-                r"D:\Users\123\AppData\Local\Kingsoft\WPS Office\12.1.0.26375\office6\wpspdf.exe",
+                r"X:\Fixtures\Kingsoft\WPS Office\1.0.0.1\office6\wpspdf.exe",
                 "WPS Office",
             )
             .expect("pdf app");
@@ -859,6 +863,7 @@ mod tests {
             Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
             Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
             &statuses,
+            Some(true),
         )
         .expect("summary");
 

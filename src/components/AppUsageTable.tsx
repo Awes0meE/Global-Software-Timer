@@ -20,7 +20,7 @@ export function AppUsageTable({ apps, durationFormat = "decimal_hours" }: Props)
         <span>今天</span>
         <span>状态</span>
       </div>
-      <div className="usage-scroll">
+      <div className="usage-scroll" role="region" tabIndex={0} aria-label="软件使用明细">
         {apps.length === 0 ? (
           <div className="empty-state">
             <strong>还没有记录到软件</strong>
@@ -47,11 +47,19 @@ export function AppUsageTable({ apps, durationFormat = "decimal_hours" }: Props)
   );
 }
 
-export function StatusBadge({ status }: { status: AppRuntimeStatus }) {
+export function StatusBadge({ status, compact = false }: { status: AppRuntimeStatus; compact?: boolean }) {
+  const label = statusLabel(status);
+  if (compact) {
+    return (
+      <span className={`status-badge ${statusClassName(status)}`} role="img" aria-label={label} title={label}>
+        <i className="lamp" aria-hidden="true" />
+      </span>
+    );
+  }
   return (
     <span className={`status-badge ${statusClassName(status)}`}>
       <i className="lamp" aria-hidden="true" />
-      {statusLabel(status)}
+      {label}
     </span>
   );
 }

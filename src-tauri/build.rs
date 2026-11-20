@@ -1,4 +1,5 @@
 fn main() {
+    println!("cargo:rerun-if-changed=icons/icon.ico");
     tauri_build::build();
     // The native QA example needs the same Common Controls v6 manifest as the app.
     if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {

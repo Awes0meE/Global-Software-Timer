@@ -12,6 +12,8 @@ pub mod storage;
 pub mod tracker;
 pub mod tray;
 pub mod tray_icons;
+#[cfg(windows)]
+pub mod window_icon;
 pub mod window_info;
 
 use app_state::AppState;
@@ -44,6 +46,12 @@ pub fn run() {
             None,
         ))
         .setup(|app| {
+            #[cfg(windows)]
+            if let Some(window) = app.get_webview_window("main") {
+                if let Err(error) = window_icon::apply(&window) {
+                    eprintln!("could not set the taskbar icon: {error}");
+                }
+            }
             let app_data_dir = app
                 .path()
                 .app_data_dir()
@@ -59,8 +67,9 @@ pub fn run() {
                 fatal_startup_error(&startup_store_error_message(&db_path, &error))
             });
             let tracker = state.tracker.clone();
+            let live = state.live.clone();
             app.manage(state);
-            start_background_scan_loop(tracker);
+            start_background_scan_loop(tracker, live);
             tray::setup_tray(app)?;
             Ok(())
         })
@@ -94,7 +103,7 @@ pub fn run() {
         });
 }
 
-fn start_background_scan_loop(tracker: SharedTracker) {
+fn start_background_scan_loop(tracker: SharedTracker, live: app_state::SharedSample) {
     std::thread::spawn(move || {
         let activity_source = activity::WindowsActivitySource;
         let mut last_tick = Instant::now();
@@ -104,17 +113,17 @@ fn start_background_scan_loop(tracker: SharedTracker) {
             last_tick = Instant::now();
 
             let mut tracker = app_state::lock_tracker(&tracker);
-            let foreground_source = foreground::WindowsForegroundWindowSource;
-            if let Err(error) = tracker::run_tracker_tick_with_foreground(
-                &mut tracker,
-                &activity_source,
-                &foreground_source,
-                Local::now(),
-                tick_duration,
-                ACTIVE_IDLE_THRESHOLD,
-            ) {
-                eprintln!("tracker scan failed: {error}");
-            }
+            tracker.run_automatic_scan(|tracker| {
+                tracker::run_tracker_tick_with_foreground(
+                    tracker,
+                    &activity_source,
+                    &foreground::WindowsForegroundWindowSource,
+                    Local::now(),
+                    tick_duration,
+                    ACTIVE_IDLE_THRESHOLD,
+                )
+            });
+            app_state::LiveSample::publish(&tracker, &live);
         }
     });
 }

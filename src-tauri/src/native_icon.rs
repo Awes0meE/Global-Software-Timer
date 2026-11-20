@@ -2,7 +2,22 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Mutex, OnceLock};
 
-static ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+use std::time::{Duration, Instant};
+
+const RETRY_DELAY: Duration = Duration::from_secs(60);
+enum IconEntry {
+    Pending,
+    Ready(String),
+    Failed(Instant),
+}
+
+impl IconEntry {
+    fn retry_due(&self, now: Instant) -> bool {
+        matches!(self, Self::Failed(at) if now.duration_since(*at) >= RETRY_DELAY)
+    }
+}
+
+static ICON_CACHE: OnceLock<Mutex<HashMap<String, IconEntry>>> = OnceLock::new();
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum IconLookupStep {
@@ -23,14 +38,20 @@ pub fn cached_native_icon(executable_path: &str) -> Option<String> {
     }
     let cache = ICON_CACHE.get_or_init(Default::default);
     let mut icons = cache.lock().ok()?;
-    if let Some(icon) = icons.get(key) {
-        return icon.clone();
+    match icons.get(key) {
+        Some(IconEntry::Ready(icon)) => return Some(icon.clone()),
+        Some(entry) if !entry.retry_due(Instant::now()) => return None,
+        _ => {}
     }
     let queue = QUEUE.get_or_init(|| {
         let (sender, receiver) = mpsc::channel::<String>();
         std::thread::spawn(move || {
             for path in receiver {
-                let icon = native_icon_data_url_for_path(&path);
+                let icon = std::panic::catch_unwind(|| native_icon_data_url_for_path(&path))
+                    .ok()
+                    .flatten()
+                    .map(IconEntry::Ready)
+                    .unwrap_or_else(|| IconEntry::Failed(Instant::now()));
                 if let Ok(mut icons) = cache.lock() {
                     icons.insert(path, icon);
                 }
@@ -39,7 +60,7 @@ pub fn cached_native_icon(executable_path: &str) -> Option<String> {
         sender
     });
     if queue.send(key.to_owned()).is_ok() {
-        icons.insert(key.to_owned(), None);
+        icons.insert(key.to_owned(), IconEntry::Pending);
     }
     None
 }
@@ -692,7 +713,20 @@ mod alpha_tests {
 
 #[cfg(all(test, target_os = "windows"))]
 mod tests {
-    use super::native_icon_data_url_for_path;
+    use super::{native_icon_data_url_for_path, IconEntry, RETRY_DELAY};
+    use std::time::Instant;
+
+    #[test]
+    fn only_a_failed_lookup_can_be_queued_again_after_cooldown() {
+        let start = Instant::now();
+        let expired = start + RETRY_DELAY;
+        assert!(!IconEntry::Pending.retry_due(expired));
+        assert!(!IconEntry::Ready("icon".into()).retry_due(expired));
+        let miss = IconEntry::Failed(start);
+        assert!(!miss.retry_due(start));
+        assert!(miss.retry_due(expired));
+    }
+
     use std::path::Path;
 
     #[test]

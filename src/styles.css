@@ -8,7 +8,7 @@
 @font-face {
   font-family: "GST Pixel";
   src: url("./assets/fonts/ark-pixel-12px-zh_hans.woff2") format("woff2");
-  font-display: block;
+  font-display: swap;
 }
 
 :root,
@@ -56,6 +56,9 @@
   --font-pixel: "GST Pixel", "Microsoft YaHei UI", monospace;
   --type-small: 13px;
   --type-label: 12px;
+  --type-table-number: 15px;
+  --panel-gutter: 18px;
+  --panel-gap: 16px;
   --type-lcd-unit: 24px;
   --radius-tag: 4px;
   --radius-dialog: 12px;
@@ -821,7 +824,7 @@ p {
 
 .usage-row > .num {
   text-align: right;
-  font-size: 15px;
+  font-size: var(--type-table-number);
   white-space: nowrap;
 }
 
@@ -847,7 +850,8 @@ p {
   border-top: 0;
 }
 
-.usage-scroll .usage-row:hover {
+.usage-scroll .usage-row:hover,
+.background-row:hover {
   background: color-mix(in srgb, var(--panel-raised) 60%, transparent);
 }
 
@@ -1294,6 +1298,8 @@ p {
 }
 
 .discovered-row {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 48px;
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr) auto 84px;
   align-items: center;
@@ -1882,8 +1888,8 @@ mark {
   flex: none;
   grid-template-columns: repeat(3, max-content) minmax(12em, 1fr);
   align-items: center;
-  gap: 16px 28px;
-  padding: 18px 22px;
+  gap: var(--panel-gap) clamp(var(--panel-gap), 2vw, 2rem);
+  padding: var(--panel-gap) var(--panel-gutter);
 }
 
 .background-summary span,
@@ -1895,7 +1901,7 @@ mark {
 .background-summary strong {
   display: block;
   font-family: var(--font-num);
-  font-size: 24px;
+  font-size: var(--type-lcd-unit);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1912,6 +1918,7 @@ mark {
 }
 
 .background-table th {
+  letter-spacing: 0.08em;
   position: sticky;
   top: 0;
   z-index: 1;
@@ -1919,6 +1926,21 @@ mark {
   color: var(--muted);
   font-size: var(--type-label);
   font-weight: 600;
+}
+
+.background-table td:nth-child(n+2):nth-child(-n+6) {
+  font-family: var(--font-num);
+  font-size: var(--type-table-number);
+}
+
+.memory-note {
+  margin-inline-start: auto;
+  color: var(--muted);
+  font-size: var(--type-label);
+}
+
+.lcd-midnight-mark {
+  fill: var(--lcd-dim);
 }
 
 .background-table td {

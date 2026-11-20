@@ -1,12 +1,38 @@
+use crate::background::BackgroundProcessGroup;
+use crate::domain::AppRuntimeStatus;
 use crate::process_source::SysinfoProcessSource;
 use crate::storage::Store;
 use crate::tracker::Tracker;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub type SharedTracker = Arc<Mutex<Tracker<SysinfoProcessSource>>>;
 
+/// UI readers take a reference to the last completed sample without waiting for
+/// process enumeration, SQLite writes or icon discovery in the next scan.
+#[derive(Default)]
+pub struct LiveSample {
+    pub statuses: HashMap<i64, AppRuntimeStatus>,
+    pub last_scan_succeeded: Option<bool>,
+    pub background: Vec<BackgroundProcessGroup>,
+}
+
+pub type SharedSample = Arc<Mutex<Arc<LiveSample>>>;
+
+impl LiveSample {
+    pub fn publish(tracker: &Tracker<SysinfoProcessSource>, sample: &SharedSample) {
+        let next = Self {
+            statuses: tracker.runtime_status_by_app_id().clone(),
+            last_scan_succeeded: tracker.last_scan_succeeded(),
+            background: tracker.background_live().to_vec(),
+        };
+        *lock_recovering(sample) = Arc::new(next);
+    }
+}
+
 pub struct AppState {
+    pub live: SharedSample,
     pub db_path: PathBuf,
     pub tracker: SharedTracker,
     pub summary_store: Mutex<Store>,
@@ -21,6 +47,7 @@ impl AppState {
         let tracker = Tracker::new(store, SysinfoProcessSource::new());
         Ok(Self {
             db_path,
+            live: Default::default(),
             tracker: Arc::new(Mutex::new(tracker)),
             summary_store,
         })

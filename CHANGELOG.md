@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.2.2 - 2026-11-21
+
+- Split the initial frontend bundle and read the latest completed sample independently of ongoing scans. Software rows outside the viewport defer layout and painting.
+- Use the detailed desktop clock for Windows taskbar and launcher icons in ten resolutions. The notification area retains its small-size artwork.
+
+- Distinguish loading, read errors and empty results on the overview and background pages. The sidebar now reports the latest tracking scan and the running list identifies tray apps.
+- Keep package names and icons stable across scan order, retry failed icon reads, recover from a failed scan and recognize the main window across installation paths.
+- Align background metrics with the selected duration format, label peak memory for exited apps and improve keyboard access to scrollable lists.
+- Run native QA against a private SQLite snapshot, including committed WAL data.
+
 ## v0.2.1 - 2026-11-21
 
 - Count Microsoft Edge runtime when a taskbar window opens on a process launched by startup boost. A preloaded browser without a confirmed window, Chromium child processes, and embedded WebViews remain background helpers.

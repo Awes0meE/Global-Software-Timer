@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import packageJson from "../package.json";
 import {
@@ -35,21 +35,16 @@ import clockMark from "./assets/gst-clock.svg";
 import { AppUsageTable } from "./components/AppUsageTable";
 import { BackgroundPage } from "./components/BackgroundPage";
 import { RecentActivity } from "./components/RecentActivity";
-import { SoftwarePage } from "./components/SoftwarePage";
 import { TodayMix } from "./components/TodayMix";
 import { TodayReadout } from "./components/TodayReadout";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
 import { applyThemePreference, readCachedThemePreference } from "./theme";
 import { startVisiblePolling } from "./visiblePolling";
 
-const fallbackSummary: DashboardSummary = {
-  product_title: "全局软件计时器",
-  locale: "zh-CN",
-  most_used: null,
-  recorded_today_seconds: 0,
-  active_today_seconds: 0,
-  apps: [],
-};
+// Load the software search dictionary only when this route is needed.
+const loadSoftwarePage = () => import("./components/SoftwarePage");
+const SoftwarePage = lazy(() => loadSoftwarePage().then(({ SoftwarePage }) => ({ default: SoftwarePage })));
+const warmSoftwarePage = () => { void loadSoftwarePage().catch(() => {}); };
 
 const dashboardLoadError = "无法读取本地数据";
 const dashboardRefreshIntervalMs = 5000;
@@ -82,7 +77,7 @@ const themeOptions: { value: ThemePreference; label: string }[] = [
 ];
 
 export default function App() {
-  const [summary, setSummary] = useState<DashboardSummary>(fallbackSummary);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [activePage, setActivePage] = useState<PageId>("overview");
   const [error, setError] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
@@ -382,6 +377,11 @@ export default function App() {
           ? "background-content"
           : "overview-content";
 
+  const recording = !error && summary?.last_scan_succeeded === true;
+  const recordingLabel = error ? "记录状态未知"
+    : recording ? "正在记录"
+    : summary?.last_scan_succeeded === false ? "采样失败，正在重试" : "等待首次采样";
+
   return (
     <div className="desktop-root">
       <a className="skip-link" href={`#${contentId}`}>
@@ -392,7 +392,7 @@ export default function App() {
           <div className="brand">
             <img className="brand-mark" src={clockMark} alt="" width={44} height={44} />
             <div className="brand-copy">
-              <h1>{summary.product_title}</h1>
+              <h1>{summary?.product_title ?? "全局软件计时器"}</h1>
               <small>本地软件时长记录</small>
             </div>
           </div>
@@ -408,6 +408,8 @@ export default function App() {
                   type="button"
                   aria-current={isActive ? "page" : undefined}
                   aria-disabled={!item.available}
+                  onPointerEnter={item.id === "software" ? warmSoftwarePage : undefined}
+                  onFocus={item.id === "software" ? warmSoftwarePage : undefined}
                   onClick={() => handleNavClick(item)}
                 >
                   <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
@@ -428,8 +430,8 @@ export default function App() {
 
           <div className="sidebar-footer" aria-label="数据状态">
             <span className="live-status">
-              <i className="lamp is-lit is-breathing" aria-hidden="true" />
-              正在记录
+              <i className={recording ? "lamp is-lit is-breathing" : "lamp"} aria-hidden="true" />
+              {recordingLabel}
             </span>
             <span>
               <i className="lamp" aria-hidden="true" />
@@ -483,24 +485,30 @@ export default function App() {
               onThemeChange={handleThemeChange}
             />
           ) : activePage === "software" ? (
-            <SoftwarePage
-              durationFormat={durationFormat}
-              onDefaultSummariesChanged={loadDashboard}
-            />
+            <Suspense fallback={<main id="software-content"><p role="status">正在读取软件列表…</p></main>}>
+              <SoftwarePage
+                durationFormat={durationFormat}
+                onDefaultSummariesChanged={loadDashboard}
+              />
+            </Suspense>
           ) : activePage === "background" ? (
             <BackgroundPage durationFormat={durationFormat} />
           ) : (
             <main className="overview-page" id="overview-content">
-              {error ? <div className="warning">{error}</div> : null}
-              <TodayReadout summary={summary} durationFormat={durationFormat} />
+              {error ? <div className="warning" role="alert">{error}</div> : null}
+              {summary ? (
+                <>
+                  <TodayReadout summary={summary} durationFormat={durationFormat} />
 
-              <div className="overview-grid">
-                <AppUsageTable apps={summary.apps} durationFormat={durationFormat} />
-                <div className="right-rail">
-                  <TodayMix apps={summary.apps} durationFormat={durationFormat} />
-                  <RecentActivity apps={summary.apps} durationFormat={durationFormat} />
-                </div>
-              </div>
+                  <div className="overview-grid">
+                    <AppUsageTable apps={summary.apps} durationFormat={durationFormat} />
+                    <div className="right-rail">
+                      <TodayMix apps={summary.apps} durationFormat={durationFormat} />
+                      <RecentActivity apps={summary.apps} durationFormat={durationFormat} />
+                    </div>
+                  </div>
+                </>
+              ) : !error && <p role="status" className="empty-state">正在读取概览…</p>}
             </main>
           )}
         </div>

@@ -1,6 +1,6 @@
 [package]
 name = "global-software-timer"
-version = "0.2.1"
+version = "0.2.2"
 description = "A local-first software runtime tracker."
 authors = ["Global Software Timer Contributors"]
 edition = "2021"
@@ -30,7 +30,9 @@ windows-sys = { version = "0.59", features = [
   "Win32_Graphics_Gdi",
   "Win32_Security",
   "Win32_Storage_FileSystem",
+  "Win32_System_LibraryLoader",
   "Win32_System_Registry",
+  "Win32_UI_HiDpi",
   "Win32_System_RemoteDesktop",
   "Win32_System_SystemInformation",
   "Win32_System_Threading",
@@ -40,4 +42,5 @@ windows-sys = { version = "0.59", features = [
 ] }
 
 [dev-dependencies]
+rusqlite = { version = "0.32", features = ["backup"] }
 tempfile = "3"

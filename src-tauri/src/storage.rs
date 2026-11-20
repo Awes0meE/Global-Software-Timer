@@ -683,12 +683,8 @@ impl Store {
         let mut parts = software_identity_parts_for_app(&app);
 
         if let Some(existing) = self.find_software_identity(&parts.identity_key)? {
-            if !should_prefer_executable_path(
-                &existing.representative_executable_path,
-                &parts.representative_executable_path,
-                &parts.display_name,
-                &parts.process_name,
-            ) {
+            if !prefer_identity_member(&existing, &parts) {
+                parts.display_name = existing.display_name;
                 parts.process_name = existing.process_name;
                 parts.representative_executable_path = existing.representative_executable_path;
             }
@@ -2169,6 +2165,39 @@ fn is_dotted_version(value: &str) -> bool {
         && value.split('.').all(|part| {
             !part.is_empty() && part.chars().all(|character| character.is_ascii_digit())
         })
+}
+
+/// Select all presentation fields from the same member, independent of scan order.
+fn prefer_identity_member(current: &SoftwareIdentity, candidate: &SoftwareIdentityParts) -> bool {
+    let old = &current.representative_executable_path;
+    let new = &candidate.representative_executable_path;
+    if old == new && current.process_name == candidate.process_name {
+        return true; // Refresh the representative's own name, including a user rename.
+    }
+    fn rank(path: &str, process: &str) -> (i32, std::cmp::Reverse<String>, Vec<u64>, String) {
+        let normalized = normalize_identity_key(path, process);
+        let version = normalized
+            .split('\\')
+            .find_map(|part| {
+                let version = if package_family_name(part).is_some() {
+                    part.split('_').nth(1)?
+                } else {
+                    part.strip_prefix("app-")
+                        .or_else(|| part.strip_prefix('v'))
+                        .unwrap_or(part)
+                };
+                is_dotted_version(version)
+                    .then(|| version.split('.').filter_map(|n| n.parse().ok()).collect())
+            })
+            .unwrap_or_default();
+        (
+            executable_path_score(path, "", process),
+            std::cmp::Reverse(process.to_lowercase()),
+            version,
+            normalized,
+        )
+    }
+    rank(new, &candidate.process_name) > rank(old, &current.process_name)
 }
 
 fn should_prefer_executable_path(
