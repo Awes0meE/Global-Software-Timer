@@ -6,7 +6,7 @@
 cargo run --locked --manifest-path src-tauri/Cargo.toml --release --features tauri/custom-protocol --example gst_backlog_qa
 ```
 
-默认使用 200 个模拟软件与 3,200 段会话。本机已有数据库可通过 `GST_BENCH_DB` 指定；程序通过只读连接备份到临时目录，在快照上执行启动恢复。
+默认使用 200 个模拟软件、3,200 段会话和 1,090 万条历史事件。本机已有数据库可通过 `GST_BENCH_DB` 指定；程序通过只读连接备份到临时目录，在快照上执行启动恢复。
 
 ## v0.2.2 已修条目
 

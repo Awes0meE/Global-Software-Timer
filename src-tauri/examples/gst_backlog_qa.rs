@@ -1,6 +1,6 @@
 use global_software_timer_lib::{app_state::AppState, commands, storage::Store, tray};
 use rusqlite::{Connection, OpenFlags};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tauri::{Manager, WebviewWindowBuilder};
 
 const CHECK_RENDER: &str = r##"
@@ -49,6 +49,8 @@ const CHECK_RENDER: &str = r##"
 })();
 "##;
 
+struct RenderReceipt(PathBuf);
+
 #[tauri::command]
 fn qa_report(app: tauri::AppHandle, success: bool, message: String) {
     #[cfg(windows)]
@@ -61,6 +63,9 @@ fn qa_report(app: tauri::AppHandle, success: bool, message: String) {
         success && taskbar_icon
     };
     println!("NATIVE QA {message}");
+    if success {
+        std::fs::write(&app.state::<RenderReceipt>().0, &message).expect("record completed render");
+    }
     app.exit(if success { 0 } else { 1 });
 }
 
@@ -99,6 +104,23 @@ fn fixture_database(directory: &Path) -> Result<tempfile::TempPath, Box<dyn std:
         }
     }
     batch.commit()?;
+    drop(store);
+
+    // Historical events dominate long-running installations. Keep them on disk
+    // so a regression that scans the event log shows up in the render check.
+    let history = Connection::open(&db)?;
+    history.execute(
+        "WITH RECURSIVE sample(n) AS (
+            VALUES (1) UNION ALL SELECT n + 1 FROM sample WHERE n < 10900000
+         ) INSERT INTO run_events (app_id, event_kind, payload_json)
+           SELECT 1 + n % 200, 'sample_observed', json_object('sample', 1) FROM sample",
+        [],
+    )?;
+    drop(history);
+    println!(
+        "Synthetic history size: {} bytes",
+        std::fs::metadata(&db)?.len()
+    );
     Ok(db)
 }
 
@@ -116,51 +138,36 @@ fn main() -> Result<std::process::ExitCode, Box<dyn std::error::Error>> {
     let status = std::process::Command::new(std::env::current_exe()?)
         .arg(scratch.path())
         .status()?;
-    Ok(if status.success() {
-        std::process::ExitCode::SUCCESS
-    } else {
-        std::process::ExitCode::FAILURE
-    })
+    Ok(
+        if status.success() && scratch.path().join("render-passed.json").is_file() {
+            std::process::ExitCode::SUCCESS
+        } else {
+            std::process::ExitCode::FAILURE
+        },
+    )
 }
 
 fn run_window(db: &Path, scratch: &Path) {
     let db = db.to_owned();
     let profile = scratch.join("webview");
+    let receipt = RenderReceipt(scratch.join("render-passed.json"));
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(30));
+        eprintln!("WebView2 did not complete the native render check within 30 seconds");
+        std::process::exit(1);
+    });
     tauri::Builder::default()
+        .manage(receipt)
         .setup(move |app| {
             app.manage(AppState::new(db)?);
             tray::setup_tray(app)?;
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(30));
-                eprintln!("WebView2 did not complete the native render check within 30 seconds");
-                // A stalled WebView can block the event loop that handles app.exit().
-                std::process::exit(1);
-            });
-            // Let the event loop start before WebView2 creates its controller.
-            let handle = app.handle().clone();
-            std::thread::spawn(move || {
-                let result =
-                    WebviewWindowBuilder::from_config(&handle, &handle.config().app.windows[0])
-                        .and_then(|builder| {
-                            builder
-                                .data_directory(profile)
-                                .initialization_script(CHECK_RENDER)
-                                .build()
-                        });
-                match result {
-                    Ok(window) => {
-                        #[cfg(windows)]
-                        if let Err(error) = global_software_timer_lib::window_icon::apply(&window) {
-                            eprintln!("Native taskbar icon setup failed: {error}");
-                            handle.exit(1);
-                        }
-                    }
-                    Err(error) => {
-                        eprintln!("Native QA window creation failed: {error}");
-                        handle.exit(1);
-                    }
-                }
-            });
+            let window =
+                WebviewWindowBuilder::from_config(app.handle(), &app.config().app.windows[0])?
+                    .data_directory(profile)
+                    .initialization_script(CHECK_RENDER)
+                    .build()?;
+            #[cfg(windows)]
+            global_software_timer_lib::window_icon::apply(&window)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
