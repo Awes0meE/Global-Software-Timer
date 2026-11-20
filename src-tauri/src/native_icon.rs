@@ -616,29 +616,63 @@ fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
         return None;
     }
 
-    let mut rgba = Vec::with_capacity(byte_len);
-    for pixel in bgra.chunks_exact(4) {
-        rgba.push(pixel[2]);
-        rgba.push(pixel[1]);
-        rgba.push(pixel[0]);
-        rgba.push(pixel[3]);
-    }
-
+    let rgba = bgra_to_rgba_with_alpha_fallback(&bgra)?;
     encode_rgba_png_data_url(&rgba, ICON_SIZE as u32, ICON_SIZE as u32)
+}
+
+/// Legacy 24-bit/masked icons drawn into a zeroed 32bpp DIB leave alpha at 0,
+/// which would render as an invisible image. Treat drawn colour as opaque then.
+/// Returns `None` for a blank result so the UI falls back to its letter badge.
+fn bgra_to_rgba_with_alpha_fallback(bgra: &[u8]) -> Option<Vec<u8>> {
+    let has_alpha = bgra.chunks_exact(4).any(|pixel| pixel[3] != 0);
+    let mut rgba = Vec::with_capacity(bgra.len());
+    let mut any_visible = false;
+    for pixel in bgra.chunks_exact(4) {
+        let alpha = if has_alpha {
+            pixel[3]
+        } else if pixel[..3].iter().any(|channel| *channel != 0) {
+            255
+        } else {
+            0
+        };
+        any_visible |= alpha != 0;
+        rgba.extend_from_slice(&[pixel[2], pixel[1], pixel[0], alpha]);
+    }
+    any_visible.then_some(rgba)
 }
 
 #[cfg(target_os = "windows")]
 fn looks_like_windows_executable(path: &Path) -> bool {
-    let Ok(bytes) = std::fs::read(path) else {
-        return false;
-    };
+    use std::io::Read;
 
-    bytes.starts_with(b"MZ")
+    // Only the DOS header is needed; Electron executables can be 200 MB.
+    let mut header = [0u8; 2];
+    std::fs::File::open(path)
+        .and_then(|mut file| file.read_exact(&mut header))
+        .is_ok_and(|()| header == *b"MZ")
 }
 
 #[cfg(not(target_os = "windows"))]
 fn extract_native_icon_data_url(_executable_path: &str) -> Option<String> {
     None
+}
+
+#[cfg(test)]
+mod alpha_tests {
+    use super::bgra_to_rgba_with_alpha_fallback;
+
+    #[test]
+    fn keeps_real_alpha_and_makes_alpha_less_icons_visible() {
+        assert_eq!(
+            bgra_to_rgba_with_alpha_fallback(&[1, 2, 3, 128, 0, 0, 0, 0]),
+            Some(vec![3, 2, 1, 128, 0, 0, 0, 0])
+        );
+        assert_eq!(
+            bgra_to_rgba_with_alpha_fallback(&[10, 20, 30, 0, 0, 0, 0, 0]),
+            Some(vec![30, 20, 10, 255, 0, 0, 0, 0])
+        );
+        assert_eq!(bgra_to_rgba_with_alpha_fallback(&[0; 8]), None);
+    }
 }
 
 #[cfg(all(test, target_os = "windows"))]
