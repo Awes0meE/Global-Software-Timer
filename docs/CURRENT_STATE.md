@@ -1,6 +1,6 @@
 # 当前实现与后续工作
 
-更新日期：2026-11-17。版本：`0.1.4`；核心修复已通过 PR #12 合并到 main。
+更新日期：2026-11-20。本分支版本为 `0.1.5`，基于 `0.1.4`。进程检测与后台统计的变化见[改动总结](./2026-11-20-process-grouping-changes.md)。
 
 审查意见的发布副本保留在 [外部审查报告](./2026-11-17-improvement-suggestions.md)。其中“现状”描述的是修复前 `d8bfc6c`，不能作为修复后代码的现状。执行范围与步骤见 [修复计划](./superpowers/plans/2026-11-17-reliability-fixes.md)，日常工作见 [开发流程](./DEVELOPMENT_WORKFLOW.md)。
 

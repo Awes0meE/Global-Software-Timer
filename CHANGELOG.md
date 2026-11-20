@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.5 - 2026-11-20
+
 - Recorded tray apps: an app showing a notification-area icon now counts as running (`托盘运行`) like a windowed app. Detection uses the Windows 11 tray registry and the user's session; Windows 10 keeps the previous behavior.
 - Added the `后台` page: third-party processes with neither a window nor a tray icon, grouped by software, with live CPU/memory and today's background time and CPU time. Child processes of apps the user can see stay with that app. Data is stored in the new `daily_background_usage` table (schema version 2).
 
