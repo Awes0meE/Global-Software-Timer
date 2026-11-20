@@ -10,6 +10,7 @@ pub mod single_instance;
 pub mod storage;
 pub mod tracker;
 pub mod tray;
+pub mod window_info;
 
 use app_state::AppState;
 use app_state::SharedTracker;
