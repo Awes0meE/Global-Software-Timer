@@ -109,7 +109,7 @@ export default function App() {
     let cancelled = false;
 
     const loadSettings = async () => {
-      let preferredAutostart = true;
+      let preferredAutostart: boolean | null = null;
 
       try {
         const settings = await getAppSettings();
@@ -141,16 +141,18 @@ export default function App() {
           return;
         }
 
-        if (preferredAutostart !== actualAutostart) {
+        // Without the saved preference, show the system state instead of
+        // overwriting a user's earlier choice with the default.
+        if (preferredAutostart !== null && preferredAutostart !== actualAutostart) {
           await setAutostartEnabled(preferredAutostart);
         }
 
         if (!cancelled) {
-          setAutostartEnabledState(preferredAutostart);
+          setAutostartEnabledState(preferredAutostart ?? actualAutostart);
         }
       } catch {
         if (!cancelled) {
-          setAutostartEnabledState(preferredAutostart);
+          setAutostartEnabledState(preferredAutostart ?? false);
           setSettingsError("开机自启动设置失败");
         }
       } finally {
@@ -185,7 +187,12 @@ export default function App() {
             return;
           }
 
-          await applyWindowCloseChoice(closePreferenceRef.current, false);
+          try {
+            await applyWindowCloseChoice(closePreferenceRef.current, false);
+          } catch {
+            setCloseDialogError("关闭操作失败，请重试。");
+            setCloseDialogOpen(true);
+          }
         })
         .then((nextUnlisten) => {
           if (disposed) {

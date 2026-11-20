@@ -1316,6 +1316,25 @@ describe("App", () => {
     expect(screen.queryByText(/本软件不会使用管理员权限/)).not.toBeInTheDocument();
   });
 
+  it("does not re-enable startup at login when saved settings cannot be read", async () => {
+    autostartMocks.isEnabled.mockResolvedValue(false);
+    const defaultImplementation = mockInvoke.getMockImplementation();
+    mockInvoke.mockImplementation((command, args) => {
+      if (command === "get_app_settings") {
+        return Promise.reject(new Error("database is locked"));
+      }
+      return defaultImplementation?.(command, args);
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }));
+    const startupSwitch = screen.getByRole("switch", { name: "开机自启动" });
+    await waitFor(() => expect(startupSwitch).not.toBeDisabled());
+    expect(startupSwitch).toHaveAttribute("aria-checked", "false");
+    expect(autostartMocks.enable).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalledWith("set_autostart_preference", expect.anything());
+  });
+
   it("disables startup at login directly when the startup switch is turned off", async () => {
     autostartMocks.isEnabled.mockResolvedValue(true);
     render(<App />);
