@@ -291,9 +291,11 @@ function getFocusableElements(dialog: HTMLElement | null): HTMLElement[] {
     "[tabindex]:not([tabindex='-1'])",
   ].join(",");
 
-  return Array.from(dialog.querySelectorAll<HTMLElement>(selector)).filter(
-    (element) => element.getAttribute("aria-hidden") !== "true",
-  );
+  return Array.from(dialog.querySelectorAll<HTMLElement>(selector))
+    .filter((element) => element.getAttribute("aria-hidden") !== "true")
+    .sort((left, right) =>
+      left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+    );
 }
 
 function getConflictMessage(row: SoftwarePageRow): string | null {
