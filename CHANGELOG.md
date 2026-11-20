@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Counted only taskbar-style app windows as `前台运行`; overlays, docks, tool and hidden host windows (for example NVIDIA Overlay, Razer, BitDock) are no longer credited as foreground runtime. UWP frame windows and the UWP foreground window are attributed to the hosted app.
+- Fixed Chromium/Electron helper detection, which never ran because process command lines were not loaded; any `--type=` child (ChatGPT, Discord and similar) is now a background helper. Command lines are only checked in memory.
+- Kept one software identity across updates: packaged apps group by package family, and version or hash install directories are ignored. Existing per-version identities, aggregates and focused/hidden marks are folded together at startup.
+- Kept original executable casing in display names (`ChatGPT`, not `chatgpt`).
+- Stopped dropping the sub-second part of every tracker tick, which undercounted daily totals by 1-6%.
+- Moved commands off the UI thread, removed per-session filesystem checks from summaries, added a SQLite busy timeout, and recovered poisoned locks.
+- Read only the PE header for icon checks and made alpha-less legacy icons visible.
+- Replaced startup panics with an error dialog, and made a second launch show the running window.
+- Stopped re-enabling startup at login when saved settings cannot be read.
+
 ## v0.1.4 - 2026-11-17
 
 - Prevented long scan gaps and clock rollback from inflating session and daily time; credited counters now split at local midnight.
