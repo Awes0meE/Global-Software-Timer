@@ -605,11 +605,7 @@ impl Store {
     }
 
     pub fn remove_focused_software_identity(&self, identity_key: &str) -> StoreResult<()> {
-        self.conn.execute(
-            "DELETE FROM focused_software_identities WHERE identity_key = ?1",
-            params![identity_key],
-        )?;
-        Ok(())
+        self.remove_group_from_list("focused_software_identities", identity_key)
     }
 
     pub fn add_hidden_software_identities(&self, identity_keys: &[String]) -> StoreResult<()> {
@@ -622,11 +618,7 @@ impl Store {
     }
 
     pub fn remove_hidden_software_identity(&self, identity_key: &str) -> StoreResult<()> {
-        self.conn.execute(
-            "DELETE FROM hidden_software_identities WHERE identity_key = ?1",
-            params![identity_key],
-        )?;
-        Ok(())
+        self.remove_group_from_list("hidden_software_identities", identity_key)
     }
 
     fn add_software_identities_to_list(
@@ -649,7 +641,9 @@ impl Store {
 
             let sql = format!("INSERT OR IGNORE INTO {target_table} (identity_key) VALUES (?1)");
             for identity_key in identity_keys {
-                self.conn.execute(&sql, params![identity_key])?;
+                if !self.identity_exists_in_list(target_table, identity_key)? {
+                    self.conn.execute(&sql, params![identity_key])?;
+                }
             }
             Ok(())
         })();
@@ -659,17 +653,26 @@ impl Store {
         Ok(value)
     }
 
-    fn identity_exists_in_list(
-        &self,
-        table_name: &'static str,
-        identity_key: &str,
-    ) -> StoreResult<bool> {
-        let sql = format!("SELECT 1 FROM {table_name} WHERE identity_key = ?1 LIMIT 1");
-        self.conn
-            .query_row(&sql, params![identity_key], |_| Ok(()))
-            .optional()
-            .map(|row| row.is_some())
-            .map_err(StoreError::from)
+    fn remove_group_from_list(&self, table: &'static str, key: &str) -> StoreResult<()> {
+        let transaction = self.savepoint()?;
+        let group = package_group(key);
+        for member in self.software_identity_keys_from_list(table)? {
+            if package_group(&member) == group {
+                self.conn.execute(
+                    &format!("DELETE FROM {table} WHERE identity_key = ?1"),
+                    [member],
+                )?;
+            }
+        }
+        transaction.commit()
+    }
+
+    fn identity_exists_in_list(&self, table: &'static str, key: &str) -> StoreResult<bool> {
+        let group = package_group(key);
+        Ok(self
+            .software_identity_keys_from_list(table)?
+            .iter()
+            .any(|member| package_group(member) == group))
     }
 
     pub fn insert_run_event(
@@ -887,6 +890,7 @@ impl Store {
         let hidden_identity_keys = self
             .hidden_software_identity_keys()?
             .into_iter()
+            .map(|key| package_group(&key).into_owned())
             .collect::<HashSet<_>>();
         let mut stmt = self.conn.prepare(
             r#"
@@ -947,7 +951,7 @@ impl Store {
                 identity_keys_by_app_id.insert(row.app_id, identity_key.clone());
                 identity_key
             };
-            if hidden_identity_keys.contains(&identity_key) {
+            if hidden_identity_keys.contains(package_group(&identity_key).as_ref()) {
                 continue;
             }
 
@@ -1164,9 +1168,10 @@ impl Store {
             let Some(app_ids) = app_ids_by_identity.get(&identity_key) else {
                 continue;
             };
-            let mark = if hidden_orders.contains_key(&identity_key) {
+            let group = package_group(&identity_key);
+            let mark = if hidden_orders.contains_key(group.as_ref()) {
                 "hidden"
-            } else if focused_orders.contains_key(&identity_key) {
+            } else if focused_orders.contains_key(group.as_ref()) {
                 "focused"
             } else {
                 "none"
@@ -1266,9 +1271,42 @@ impl Store {
             }
         }
 
-        let mut discovered = totals_by_identity
+        // Combine versions after each raw identity's legacy/split boundary was applied.
+        let mut groups: HashMap<String, SoftwarePageTotals> = HashMap::new();
+        for totals in totals_by_identity.into_values() {
+            let group = package_group(&totals.identity_key).into_owned();
+            if let Some(combined) = groups.get_mut(&group) {
+                if (&totals.last_opened_at, &totals.identity_key)
+                    > (&combined.last_opened_at, &combined.identity_key)
+                {
+                    combined.identity_key = totals.identity_key;
+                    combined.display_name = totals.display_name;
+                    combined.process_name = totals.process_name;
+                    combined.executable_path = totals.executable_path;
+                    combined.last_opened_at = totals.last_opened_at;
+                }
+                combined.app_ids.extend(totals.app_ids);
+                combined
+                    .legacy_total_intervals
+                    .extend(totals.legacy_total_intervals);
+                combined
+                    .legacy_today_intervals
+                    .extend(totals.legacy_today_intervals);
+                combined.today_foreground_seconds += totals.today_foreground_seconds;
+                combined.total_foreground_seconds += totals.total_foreground_seconds;
+                combined.today_background_seconds += totals.today_background_seconds;
+                combined.total_background_seconds += totals.total_background_seconds;
+                combined.today_focused_seconds += totals.today_focused_seconds;
+                combined.total_focused_seconds += totals.total_focused_seconds;
+            } else {
+                groups.insert(group, totals);
+            }
+        }
+
+        let mut discovered = groups
             .into_values()
             .map(|mut totals| {
+                totals.app_ids.sort_unstable();
                 let legacy_runtime = SoftwareLegacyRuntimeSeconds {
                     total_seconds: merged_interval_seconds(&mut totals.legacy_total_intervals),
                     today_seconds: merged_interval_seconds(&mut totals.legacy_today_intervals),
@@ -1551,14 +1589,16 @@ impl Store {
         &self,
         table_name: &'static str,
     ) -> StoreResult<HashMap<String, SoftwareIdentityListOrder>> {
-        let sql = format!("SELECT identity_key, created_at, rowid FROM {table_name}");
+        let sql = format!(
+            "SELECT identity_key, created_at, rowid FROM {table_name} ORDER BY created_at, rowid"
+        );
         let mut stmt = self.conn.prepare(&sql)?;
         let mut rows = stmt.query([])?;
         let mut orders = HashMap::new();
 
         while let Some(row) = rows.next()? {
             orders.insert(
-                row.get::<_, String>(0)?,
+                package_group(&row.get::<_, String>(0)?).into_owned(),
                 SoftwareIdentityListOrder {
                     created_at: row.get(1)?,
                     rowid: row.get(2)?,
@@ -1736,6 +1776,41 @@ struct SoftwareIdentityParts {
     representative_executable_path: String,
 }
 
+/// PackageFullName is name_version_arch_resource_publisher. Preserve the publisher
+/// and relative executable path so different apps/helpers are never folded by display name.
+pub(crate) fn package_group(identity: &str) -> std::borrow::Cow<'_, str> {
+    let parse = || {
+        let path = identity.strip_prefix("app:")?;
+        let (_, rest) = path.split_once(r"\windowsapps\")?;
+        let (package, executable) = rest.split_once('\\')?;
+        let mut fields = package.split('_');
+        let (name, version, arch, resource, publisher) = (
+            fields.next()?,
+            fields.next()?,
+            fields.next()?,
+            fields.next()?,
+            fields.next()?,
+        );
+        if fields.next().is_some()
+            || name.is_empty()
+            || publisher.is_empty()
+            || executable.is_empty()
+            || !matches!(arch, "x86" | "x64" | "arm" | "arm64" | "neutral")
+            || version.split('.').count() != 4
+            || !version.split('.').all(|n| {
+                !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) && n.parse::<u16>().is_ok()
+            })
+        {
+            return None;
+        }
+        Some(format!("msix:{name}_{publisher}/{resource}/{executable}"))
+    };
+    match parse() {
+        Some(group) => group.into(),
+        None => identity.into(),
+    }
+}
+
 fn compare_last_opened_desc(left: &SoftwarePageRow, right: &SoftwarePageRow) -> Ordering {
     let order = match (&left.last_opened_at, &right.last_opened_at) {
         (Some(left_opened_at), Some(right_opened_at)) => right_opened_at.cmp(left_opened_at),
@@ -1755,8 +1830,8 @@ fn compare_list_order_desc(
     right: &SoftwarePageRow,
 ) -> Ordering {
     let order = match (
-        orders.get(&left.identity_key),
-        orders.get(&right.identity_key),
+        orders.get(package_group(&left.identity_key).as_ref()),
+        orders.get(package_group(&right.identity_key).as_ref()),
     ) {
         (Some(left_order), Some(right_order)) => right_order
             .created_at

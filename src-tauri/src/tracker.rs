@@ -3,7 +3,7 @@ use crate::classifier::{classify_process, Classification};
 use crate::domain::AppRuntimeStatus;
 use crate::foreground::{ForegroundWindowSource, NoForegroundWindowSource};
 use crate::process_source::{ProcessSnapshot, ProcessSource};
-use crate::storage::{Store, StoreError, StoreResult};
+use crate::storage::{package_group, Store, StoreError, StoreResult};
 use chrono::{DateTime, Local, NaiveDate, TimeZone, Utc};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
@@ -368,20 +368,23 @@ fn record_daily_software_runtime_usage(
     seconds: i64,
     recorded_at: DateTime<Utc>,
 ) -> StoreResult<()> {
-    let mut status_by_identity: HashMap<String, AppRuntimeStatus> = HashMap::new();
-    for (app_id, status) in statuses {
-        if *status == AppRuntimeStatus::Closed {
+    // During a package upgrade both executables may briefly exist. Attribute a tick
+    // once to the highest-ranking version; keep the underlying per-version records.
+    let mut status_by_group: HashMap<String, (AppRuntimeStatus, i64, String)> = HashMap::new();
+    for (&app_id, &status) in statuses {
+        if status == AppRuntimeStatus::Closed {
             continue;
         }
-        let identity = store.upsert_software_identity_for_app(*app_id)?;
-        let entry = status_by_identity
-            .entry(identity.identity_key)
-            .or_insert(AppRuntimeStatus::Closed);
-        if runtime_status_rank(*status) > runtime_status_rank(*entry) {
-            *entry = *status;
+        let identity = store.upsert_software_identity_for_app(app_id)?;
+        let group = package_group(&identity.identity_key).into_owned();
+        let entry = status_by_group
+            .entry(group)
+            .or_insert_with(|| (status, app_id, identity.identity_key.clone()));
+        if (runtime_status_rank(status), app_id) > (runtime_status_rank(entry.0), entry.1) {
+            *entry = (status, app_id, identity.identity_key);
         }
     }
-    for (identity_key, status) in status_by_identity {
+    for (status, _, identity_key) in status_by_group.into_values() {
         let (foreground_seconds, background_seconds) = match status {
             AppRuntimeStatus::Foreground => (seconds, 0),
             AppRuntimeStatus::Background => (0, seconds),

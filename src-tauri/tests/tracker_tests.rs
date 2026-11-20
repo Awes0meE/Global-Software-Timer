@@ -934,3 +934,40 @@ fn split_boundary_preserves_genuine_legacy_sessions_from_the_same_day() {
     assert_eq!(rows.discovered[0].today_foreground_seconds, 47);
     assert_eq!(rows.discovered[0].total_foreground_seconds, 47);
 }
+
+#[test]
+fn overlapping_package_versions_only_credit_one_tick() {
+    let file = NamedTempFile::new().unwrap();
+    let store = Store::open(file.path()).unwrap();
+    store.migrate().unwrap();
+    let snapshots = [("1.0.0.0", 41), ("2.0.0.0", 42)].map(|(version, pid)| ProcessSnapshot {
+        pid,
+        executable_path: format!(
+            r"C:\Program Files\WindowsApps\Test.App_{version}_x64__publisher\Code.exe"
+        ),
+        ..code_process()
+    });
+    let mut tracker = Tracker::new(store, FakeProcessSource::new(vec![snapshots.to_vec()]));
+    let now = Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap();
+    run_tracker_tick(
+        &mut tracker,
+        &FakeActivitySource {
+            idle_duration: Duration::ZERO,
+        },
+        now,
+        Duration::from_secs(5),
+        Duration::from_secs(300),
+    )
+    .unwrap();
+    let rows = tracker
+        .store()
+        .software_page_rows(
+            now,
+            now,
+            now.date_naive(),
+            tracker.runtime_status_by_app_id(),
+        )
+        .unwrap();
+    assert_eq!(rows.discovered.len(), 1);
+    assert_eq!(rows.discovered[0].today_foreground_seconds, 5);
+}

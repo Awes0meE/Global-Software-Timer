@@ -1364,3 +1364,63 @@ fn software_page_rows_merge_overlapping_runtime_across_wps_app_ids() {
     assert_eq!(rows.discovered[0].total_background_seconds, 0);
     assert_eq!(rows.discovered[0].today_background_seconds, 0);
 }
+
+#[test]
+fn packaged_software_keeps_lists_and_time_across_upgrades() {
+    let file = NamedTempFile::new().unwrap();
+    let store = Store::open(file.path()).unwrap();
+    store.migrate().unwrap();
+    let start = Local::now()
+        .date_naive()
+        .and_hms_opt(9, 0, 0)
+        .unwrap()
+        .and_local_timezone(Local)
+        .single()
+        .unwrap()
+        .with_timezone(&Utc);
+    let date = start.with_timezone(&Local).date_naive();
+    let add = |version: &str, publisher: &str, offset| {
+        let path = format!(
+            r"C:\Program Files\WindowsApps\OpenAI.Codex_{version}_x64__{publisher}\app\chatgpt.exe"
+        );
+        let app = store.upsert_app("chatgpt.exe", &path, "ChatGPT").unwrap();
+        let at = start + Duration::seconds(offset);
+        let session = store.start_session(app.id, at).unwrap();
+        store
+            .close_session(session, at + Duration::seconds(60), "exit", false)
+            .unwrap();
+        let identity = store
+            .upsert_software_identity_for_app_started_at(app.id, at)
+            .unwrap();
+        store
+            .increment_daily_software_runtime_usage(date, &identity.identity_key, 60, 0, at)
+            .unwrap();
+        identity.identity_key
+    };
+    let old = add("1.0.0.0", "publisher", 0);
+    store
+        .add_focused_software_identities(std::slice::from_ref(&old))
+        .unwrap();
+    let new = add("2.0.0.0", "publisher", 100);
+    add("2.0.0.0", "anotherpublisher", 200);
+    let end = start + Duration::minutes(10);
+    let rows = store
+        .software_page_rows(start, end, date, &Default::default())
+        .unwrap();
+    assert_eq!(rows.discovered.len(), 2);
+    assert_eq!(rows.focused.len(), 1);
+    assert_eq!(rows.focused[0].identity_key, new);
+    assert_eq!(rows.focused[0].today_foreground_seconds, 120);
+    assert_eq!(rows.focused[0].app_ids.len(), 2);
+    assert!(store
+        .add_hidden_software_identities(std::slice::from_ref(&new))
+        .is_err());
+    store.remove_focused_software_identity(&new).unwrap();
+    store
+        .add_hidden_software_identities(std::slice::from_ref(&old))
+        .unwrap();
+    let overview = store.app_usage_summary_for_date(start, end, date).unwrap();
+    assert_eq!(overview[0].today_seconds, 60);
+    store.remove_hidden_software_identity(&new).unwrap();
+    assert!(store.hidden_software_identity_keys().unwrap().is_empty());
+}
