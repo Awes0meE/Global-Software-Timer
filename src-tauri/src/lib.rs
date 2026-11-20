@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod app_state;
+pub mod background;
 pub mod classifier;
 pub mod commands;
 pub mod domain;
@@ -10,6 +11,7 @@ pub mod single_instance;
 pub mod storage;
 pub mod tracker;
 pub mod tray;
+pub mod tray_icons;
 pub mod window_info;
 
 use app_state::AppState;
@@ -65,6 +67,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_dashboard_summary,
             commands::get_software_page_summary,
+            commands::get_background_page_summary,
             commands::run_tracker_scan_once,
             commands::add_focused_software_identities,
             commands::remove_focused_software_identity,

@@ -1,5 +1,7 @@
 use chrono::{NaiveDate, TimeZone, Utc};
-use global_software_timer_lib::storage::{normalize_identity_key, software_family_key, Store};
+use global_software_timer_lib::storage::{
+    executable_version_key, normalize_identity_key, software_family_key, Store,
+};
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
 use tempfile::NamedTempFile;
@@ -30,6 +32,22 @@ fn packaged_app_versions_share_one_family() {
     assert_ne!(
         family(r"C:\Program Files\WindowsApps\Sample_2.1000.1.0_x64__123456789abcd\app\sample.exe"),
         family(CHATGPT_V2)
+    );
+}
+
+#[test]
+fn executable_keys_ignore_versions_but_keep_package_executables_apart() {
+    let key = |path: &str| executable_version_key(&normalize_identity_key(path, ""));
+    assert_eq!(key(CHATGPT_V1), key(CHATGPT_V2));
+    assert_eq!(
+        key(CHATGPT_V2),
+        r"c:\program files\windowsapps\openai.codex_2p2nqsd0c76g0\app\chatgpt.exe"
+    );
+    assert_ne!(
+        key(r"C:\Program Files\WindowsApps\Sample_2.1000.1.0_x64__123456789abcd\app\sample.exe"),
+        key(
+            r"C:\Program Files\WindowsApps\Sample_2.1000.1.0_x64__123456789abcd\app\resources\worker-svc.exe"
+        )
     );
 }
 
