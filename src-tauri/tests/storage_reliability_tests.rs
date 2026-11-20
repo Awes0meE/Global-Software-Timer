@@ -38,7 +38,7 @@ fn migration_versions_existing_data_and_is_repeatable() {
     assert_eq!(
         conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        1
+        2
     );
     assert_eq!(store.all_sessions().unwrap()[0].duration_seconds, 42);
     assert_eq!(

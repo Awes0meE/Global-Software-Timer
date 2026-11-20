@@ -31,6 +31,13 @@ pub fn classify_process(process_name: &str, executable_path: &str) -> Classifica
     }
 }
 
+/// Windows itself: system process names and anything under `C:\Windows`.
+pub fn is_system_process_path(process_name: &str, executable_path: &str) -> bool {
+    let name = process_name.trim().to_lowercase();
+    let path = executable_path.trim().replace('/', "\\").to_lowercase();
+    is_system_process(&name, &path)
+}
+
 fn known_display_name(name: &str) -> Option<&'static str> {
     match name {
         "code.exe" => Some("Visual Studio Code"),
@@ -91,6 +98,8 @@ fn is_system_process(name: &str, path: &str) -> bool {
     const SYSTEM_NAMES: &[&str] = &[
         "system",
         "registry",
+        "secure system",
+        "memory compression",
         "idle",
         "svchost.exe",
         "conhost.exe",

@@ -45,7 +45,8 @@ struct SoftwareLegacyRuntimeSeconds {
     today_seconds: i64,
 }
 
-const SCHEMA_VERSION: i64 = 1;
+/// 2 adds `daily_background_usage`.
+const SCHEMA_VERSION: i64 = 2;
 /// WAL readers and the writer can briefly contend during checkpoints.
 const BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 static NEXT_SAVEPOINT_ID: AtomicU64 = AtomicU64::new(0);
@@ -125,6 +126,11 @@ impl Store {
         let transaction = self.savepoint()?;
         if version == 0 {
             self.create_baseline_schema()?;
+        }
+        if version < 2 {
+            self.create_background_usage_table()?;
+        }
+        if version < SCHEMA_VERSION {
             self.conn
                 .pragma_update(None, "user_version", SCHEMA_VERSION)?;
         }
@@ -249,6 +255,100 @@ impl Store {
              CREATE INDEX IF NOT EXISTS software_identity_members_app_id_idx ON software_identity_members(app_id);"
         )?;
         Ok(())
+    }
+
+    fn create_background_usage_table(&self) -> StoreResult<()> {
+        self.conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS daily_background_usage (
+                usage_date TEXT NOT NULL,
+                family_key TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                process_name TEXT NOT NULL,
+                executable_path TEXT NOT NULL,
+                running_seconds INTEGER NOT NULL DEFAULT 0,
+                cpu_core_seconds REAL NOT NULL DEFAULT 0,
+                peak_memory_bytes INTEGER NOT NULL DEFAULT 0,
+                peak_process_count INTEGER NOT NULL DEFAULT 0,
+                last_seen_at TEXT NOT NULL,
+                PRIMARY KEY (usage_date, family_key)
+            );
+            "#,
+        )?;
+        Ok(())
+    }
+
+    /// Adds one credited slice for a background process group. CPU is stored
+    /// as core-seconds: one fully busy core for one second is 1.0.
+    pub fn increment_daily_background_usage(
+        &self,
+        date: NaiveDate,
+        group: &crate::background::BackgroundProcessGroup,
+        seconds: i64,
+        recorded_at: DateTime<Utc>,
+    ) -> StoreResult<()> {
+        let seconds = seconds.max(0);
+        let cpu_core_seconds = f64::from(group.cpu_percent.max(0.0)) / 100.0 * seconds as f64;
+        self.conn.execute(
+            r#"
+            INSERT INTO daily_background_usage (
+                usage_date, family_key, display_name, process_name, executable_path,
+                running_seconds, cpu_core_seconds, peak_memory_bytes, peak_process_count,
+                last_seen_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            ON CONFLICT(usage_date, family_key) DO UPDATE SET
+                display_name = excluded.display_name,
+                process_name = excluded.process_name,
+                executable_path = excluded.executable_path,
+                running_seconds = running_seconds + excluded.running_seconds,
+                cpu_core_seconds = cpu_core_seconds + excluded.cpu_core_seconds,
+                peak_memory_bytes = MAX(peak_memory_bytes, excluded.peak_memory_bytes),
+                peak_process_count = MAX(peak_process_count, excluded.peak_process_count),
+                last_seen_at = excluded.last_seen_at
+            "#,
+            params![
+                date.to_string(),
+                group.family_key,
+                group.display_name,
+                group.process_name,
+                group.executable_path,
+                seconds,
+                cpu_core_seconds,
+                i64::try_from(group.memory_bytes).unwrap_or(i64::MAX),
+                i64::from(group.process_count),
+                recorded_at.to_rfc3339(),
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn background_usage_for_date(&self, date: NaiveDate) -> StoreResult<Vec<BackgroundUsage>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT family_key, display_name, process_name, executable_path,
+                   running_seconds, cpu_core_seconds, peak_memory_bytes,
+                   peak_process_count, last_seen_at
+            FROM daily_background_usage
+            WHERE usage_date = ?1
+            ORDER BY cpu_core_seconds DESC, running_seconds DESC, family_key
+            "#,
+        )?;
+        let rows = stmt.query_map(params![date.to_string()], |row| {
+            Ok(BackgroundUsage {
+                family_key: row.get(0)?,
+                display_name: row.get(1)?,
+                process_name: row.get(2)?,
+                executable_path: row.get(3)?,
+                running_seconds: row.get(4)?,
+                cpu_core_seconds: row.get(5)?,
+                peak_memory_bytes: row.get(6)?,
+                peak_process_count: row.get(7)?,
+                last_seen_at: row.get(8)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StoreError::from)
     }
 
     /// Refresh derived identity metadata at startup, outside summary read paths.
@@ -1856,6 +1956,19 @@ impl Store {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct BackgroundUsage {
+    pub family_key: String,
+    pub display_name: String,
+    pub process_name: String,
+    pub executable_path: String,
+    pub running_seconds: i64,
+    pub cpu_core_seconds: f64,
+    pub peak_memory_bytes: i64,
+    pub peak_process_count: i64,
+    pub last_seen_at: String,
+}
+
 #[derive(Debug, Clone)]
 struct SoftwareIdentityListOrder {
     created_at: String,
@@ -1984,18 +2097,32 @@ pub fn normalize_identity_key(executable_path: &str, process_name: &str) -> Stri
 ///
 /// Unversioned keys are returned unchanged, so their identity keys stay stable.
 pub fn software_family_key(normalized_key: &str) -> String {
-    let segments = normalized_key.split('\\').collect::<Vec<_>>();
-    if let Some(index) = segments
-        .iter()
-        .position(|segment| *segment == "windowsapps")
-    {
+    version_insensitive_key(normalized_key, true)
+}
+
+/// Like [`software_family_key`] but keeps the executable inside a package, so
+/// `sample.exe` and a helper shipped in the same package stay distinct.
+pub fn executable_version_key(normalized_key: &str) -> String {
+    version_insensitive_key(normalized_key, false)
+}
+
+fn version_insensitive_key(normalized_key: &str, collapse_packages: bool) -> String {
+    let mut segments = normalized_key
+        .split('\\')
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    if let Some(index) = segments.iter().position(|segment| segment == "windowsapps") {
         if let Some(family) = segments
             .get(index + 1)
             .and_then(|package| package_family_name(package))
         {
-            return format!("{}\\{family}", segments[..=index].join("\\"));
+            if collapse_packages {
+                return format!("{}\\{family}", segments[..=index].join("\\"));
+            }
+            segments[index + 1] = family;
         }
     }
+    let segments = segments.iter().map(String::as_str).collect::<Vec<_>>();
 
     let last = segments.len().saturating_sub(1);
     segments

@@ -1,14 +1,25 @@
 use serde::Serialize;
+use std::collections::HashSet;
 use std::ffi::OsString;
+use std::time::{Duration, Instant};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// The tray registry changes rarely; re-read it at most this often.
+const TRAY_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct ProcessSnapshot {
     pub pid: u32,
+    pub parent_pid: Option<u32>,
     pub process_name: String,
     pub executable_path: String,
     pub is_background_helper: bool,
     pub has_visible_window: bool,
+    /// The executable has a notification-area icon registered (see `tray_icons`).
+    pub has_tray_icon: bool,
+    /// CPU usage since the previous snapshot; 100.0 is one fully busy core.
+    pub cpu_percent: f32,
+    pub memory_bytes: u64,
 }
 
 pub trait ProcessSource: Send {
@@ -17,13 +28,34 @@ pub trait ProcessSource: Send {
 
 pub struct SysinfoProcessSource {
     system: System,
+    tray_keys: Option<HashSet<String>>,
+    tray_read_at: Option<Instant>,
 }
 
 impl SysinfoProcessSource {
     pub fn new() -> Self {
         Self {
-            system: System::new(),
+            system: {
+                // Process CPU usage is scaled by the CPU count; without the CPU
+                // list sysinfo reports 0% for every process.
+                let mut system = System::new();
+                system.refresh_cpu_list(sysinfo::CpuRefreshKind::new());
+                system
+            },
+            tray_keys: None,
+            tray_read_at: None,
         }
+    }
+
+    fn tray_keys(&mut self) -> Option<&HashSet<String>> {
+        if self
+            .tray_read_at
+            .is_none_or(|read_at| read_at.elapsed() >= TRAY_REFRESH_INTERVAL)
+        {
+            self.tray_keys = crate::tray_icons::tray_family_keys();
+            self.tray_read_at = Some(Instant::now());
+        }
+        self.tray_keys.as_ref()
     }
 }
 
@@ -42,17 +74,37 @@ impl ProcessSource for SysinfoProcessSource {
             // and are never stored or shown.
             ProcessRefreshKind::new()
                 .with_exe(UpdateKind::OnlyIfNotSet)
-                .with_cmd(UpdateKind::OnlyIfNotSet),
+                .with_cmd(UpdateKind::OnlyIfNotSet)
+                .with_cpu()
+                .with_memory(),
         );
         let visible_window_pids = crate::window_info::app_window_pids();
+        let tray_keys = self.tray_keys().cloned();
         self.system
             .processes()
             .iter()
             .map(|(pid, process)| {
                 let process_name = process.name().to_string_lossy().into_owned();
+                let executable_path = process
+                    .exe()
+                    .map(|path| path.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                // Services (session 0) cannot show tray icons even when the
+                // registry remembers one from an earlier user-session run.
+                let has_tray_icon = !executable_path.is_empty()
+                    && tray_keys.as_ref().is_some_and(|keys| {
+                        keys.contains(&crate::storage::executable_version_key(
+                            &crate::storage::normalize_identity_key(
+                                &executable_path,
+                                &process_name,
+                            ),
+                        ))
+                    })
+                    && is_in_current_session(pid.as_u32());
 
                 ProcessSnapshot {
                     pid: pid.as_u32(),
+                    parent_pid: process.parent().map(|parent| parent.as_u32()),
                     is_background_helper: is_background_helper_process(
                         &process_name,
                         process.cmd(),
@@ -60,15 +112,34 @@ impl ProcessSource for SysinfoProcessSource {
                     has_visible_window: visible_window_pids
                         .as_ref()
                         .is_none_or(|pids| pids.contains(&pid.as_u32())),
+                    has_tray_icon,
+                    cpu_percent: process.cpu_usage(),
+                    memory_bytes: process.memory(),
                     process_name,
-                    executable_path: process
-                        .exe()
-                        .map(|path| path.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
+                    executable_path,
                 }
             })
             .collect()
     }
+}
+
+#[cfg(target_os = "windows")]
+fn is_in_current_session(pid: u32) -> bool {
+    use windows_sys::Win32::System::RemoteDesktop::ProcessIdToSessionId;
+    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+
+    let mut current = 0;
+    let mut session = 0;
+    unsafe {
+        ProcessIdToSessionId(GetCurrentProcessId(), &mut current) != 0
+            && ProcessIdToSessionId(pid, &mut session) != 0
+            && session == current
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn is_in_current_session(_pid: u32) -> bool {
+    true
 }
 
 fn is_background_helper_process(process_name: &str, command_line: &[OsString]) -> bool {

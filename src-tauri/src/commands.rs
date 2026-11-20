@@ -1,7 +1,8 @@
 use crate::app_state::AppState;
+use crate::background::BackgroundProcessGroup;
 use crate::domain::{AppRuntimeStatus, AppUsageSummary, SoftwarePageRow};
 use crate::native_icon::native_icon_data_url_for_path;
-use crate::storage::{Store, StoreError};
+use crate::storage::{BackgroundUsage, Store, StoreError};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -35,6 +36,31 @@ pub struct AppUsageRow {
     pub active_today_seconds: i64,
     pub status: AppRuntimeStatus,
     pub is_running: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BackgroundPageSummary {
+    /// Logical processors; `cpu_percent` is already divided by this.
+    pub logical_cores: u32,
+    pub running_count: usize,
+    pub rows: Vec<BackgroundRowDto>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct BackgroundRowDto {
+    pub family_key: String,
+    pub display_name: String,
+    pub process_name: String,
+    pub icon_data_url: Option<String>,
+    pub is_running: bool,
+    pub process_count: u32,
+    /// Share of the whole machine's CPU right now (0-100), when running.
+    pub cpu_percent: Option<f32>,
+    /// Current memory when running, else today's peak.
+    pub memory_bytes: u64,
+    pub today_running_seconds: i64,
+    /// Core-seconds of CPU used today.
+    pub today_cpu_seconds: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -151,6 +177,101 @@ pub fn get_software_page_summary(
             .map_err(|error| error.to_string())?;
     transaction.commit().map_err(|error| error.to_string())?;
     Ok(summary)
+}
+
+#[tauri::command(async)]
+pub fn get_background_page_summary(
+    state: State<'_, AppState>,
+) -> Result<BackgroundPageSummary, String> {
+    let live = crate::app_state::lock_tracker(&state.tracker)
+        .background_live()
+        .to_vec();
+    let store = crate::app_state::lock_recovering(&state.summary_store);
+    let stored = store
+        .background_usage_for_date(Local::now().date_naive())
+        .map_err(|error| error.to_string())?;
+    let cores = std::thread::available_parallelism()
+        .map(|count| count.get() as u32)
+        .unwrap_or(1);
+    let rows = background_rows(stored, live, cores);
+    Ok(BackgroundPageSummary {
+        logical_cores: cores,
+        running_count: rows.iter().filter(|(row, _)| row.is_running).count(),
+        rows: rows
+            .into_iter()
+            .map(|(row, path)| BackgroundRowDto {
+                icon_data_url: native_icon_data_url_for_path(&path),
+                ..row
+            })
+            .collect(),
+    })
+}
+
+/// Today's stored totals overlaid with the latest live sample. Sorted by
+/// today's CPU use, so the heaviest background software comes first.
+fn background_rows(
+    stored: Vec<BackgroundUsage>,
+    live: Vec<BackgroundProcessGroup>,
+    logical_cores: u32,
+) -> Vec<(BackgroundRowDto, String)> {
+    let mut rows: HashMap<String, (BackgroundRowDto, String)> = HashMap::new();
+    for usage in stored {
+        rows.insert(
+            usage.family_key.clone(),
+            (
+                BackgroundRowDto {
+                    family_key: usage.family_key,
+                    display_name: usage.display_name,
+                    process_name: usage.process_name,
+                    icon_data_url: None,
+                    is_running: false,
+                    process_count: u32::try_from(usage.peak_process_count).unwrap_or(0),
+                    cpu_percent: None,
+                    memory_bytes: u64::try_from(usage.peak_memory_bytes).unwrap_or(0),
+                    today_running_seconds: usage.running_seconds,
+                    today_cpu_seconds: usage.cpu_core_seconds,
+                },
+                usage.executable_path,
+            ),
+        );
+    }
+    for group in live {
+        let (row, path) = rows.entry(group.family_key.clone()).or_insert_with(|| {
+            (
+                BackgroundRowDto {
+                    family_key: group.family_key.clone(),
+                    display_name: group.display_name.clone(),
+                    process_name: group.process_name.clone(),
+                    icon_data_url: None,
+                    is_running: true,
+                    process_count: 0,
+                    cpu_percent: None,
+                    memory_bytes: 0,
+                    today_running_seconds: 0,
+                    today_cpu_seconds: 0.0,
+                },
+                group.executable_path.clone(),
+            )
+        });
+        row.is_running = true;
+        row.display_name = group.display_name;
+        row.process_count = group.process_count;
+        row.cpu_percent = Some(group.cpu_percent / logical_cores.max(1) as f32);
+        row.memory_bytes = group.memory_bytes;
+        if !group.executable_path.is_empty() {
+            *path = group.executable_path;
+        }
+    }
+    let mut rows = rows.into_values().collect::<Vec<_>>();
+    rows.sort_by(|(left, _), (right, _)| {
+        right
+            .today_cpu_seconds
+            .total_cmp(&left.today_cpu_seconds)
+            .then_with(|| right.is_running.cmp(&left.is_running))
+            .then_with(|| right.today_running_seconds.cmp(&left.today_running_seconds))
+            .then_with(|| left.family_key.cmp(&right.family_key))
+    });
+    rows
 }
 
 #[tauri::command(async)]
@@ -436,7 +557,7 @@ impl AppUsageRow {
             today_seconds: summary.today_seconds,
             active_today_seconds: summary.active_today_seconds,
             status,
-            is_running: status == AppRuntimeStatus::Foreground,
+            is_running: status.is_user_facing(),
         }
     }
 }
@@ -486,7 +607,7 @@ fn runtime_status_for_app_ids(
             .get(app_id)
             .copied()
             .unwrap_or(AppRuntimeStatus::Closed);
-        if runtime_status_rank(candidate) > runtime_status_rank(status) {
+        if candidate.rank() > status.rank() {
             status = candidate;
         }
     }
@@ -494,11 +615,46 @@ fn runtime_status_for_app_ids(
     status
 }
 
-fn runtime_status_rank(status: AppRuntimeStatus) -> u8 {
-    match status {
-        AppRuntimeStatus::Closed => 0,
-        AppRuntimeStatus::Background => 1,
-        AppRuntimeStatus::Foreground => 2,
+#[cfg(test)]
+mod background_row_tests {
+    use super::*;
+
+    fn usage(key: &str, cpu: f64) -> BackgroundUsage {
+        BackgroundUsage {
+            family_key: key.into(),
+            display_name: key.into(),
+            process_name: format!("{key}.exe"),
+            executable_path: format!(r"C:\Tools\{key}.exe"),
+            running_seconds: 600,
+            cpu_core_seconds: cpu,
+            peak_memory_bytes: 1_000,
+            peak_process_count: 3,
+            last_seen_at: "2026-11-20T08:00:00+00:00".into(),
+        }
+    }
+
+    #[test]
+    fn overlays_live_samples_and_sorts_by_cpu_today() {
+        let live = vec![BackgroundProcessGroup {
+            family_key: "light".into(),
+            display_name: "Light".into(),
+            process_name: "light.exe".into(),
+            executable_path: r"C:\Tools\light.exe".into(),
+            process_count: 2,
+            cpu_percent: 80.0,
+            memory_bytes: 500,
+        }];
+        let rows = background_rows(vec![usage("light", 5.0), usage("heavy", 90.0)], live, 8);
+
+        assert_eq!(rows[0].0.family_key, "heavy");
+        assert!(!rows[0].0.is_running);
+        assert_eq!(rows[0].0.memory_bytes, 1_000);
+        let light = &rows[1].0;
+        assert!(light.is_running);
+        assert_eq!(light.process_count, 2);
+        assert_eq!(light.cpu_percent, Some(10.0));
+        assert_eq!(light.memory_bytes, 500);
+        assert_eq!(light.today_running_seconds, 600);
     }
 }
 
