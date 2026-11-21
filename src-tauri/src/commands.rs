@@ -1,11 +1,12 @@
 use crate::app_state::AppState;
 use crate::background::BackgroundProcessGroup;
-use crate::domain::{AppRuntimeStatus, AppUsageSummary, SoftwarePageRow};
+use crate::domain::{AppRuntimeStatus, AppUsageSummary, DailySystemUsage, SoftwarePageRow};
 use crate::native_icon::icon_url;
+use crate::statistics::{self, DateRange, SoftwareDate};
 use crate::storage::{BackgroundUsage, Store, StoreError};
-use chrono::{DateTime, Local, TimeZone, Utc};
+use chrono::{DateTime, Duration, Local, NaiveDate, NaiveTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tauri::{AppHandle, Manager, State};
 
 const CLOSE_BEHAVIOR_SETTING_KEY: &str = "window.close_behavior";
@@ -16,6 +17,8 @@ const DEFAULT_CLOSE_BEHAVIOR: CloseBehavior = CloseBehavior::MinimizeToTray;
 const DEFAULT_AUTOSTART_ENABLED: bool = true;
 const DEFAULT_DURATION_FORMAT: DurationFormat = DurationFormat::DecimalHours;
 const DEFAULT_THEME: ThemePreference = ThemePreference::System;
+const STATISTICS_INVALID_RANGE: &str = "statistics_invalid_range";
+const ACHIEVEMENTS_INVALID_HEATMAP_DAYS: &str = "achievements_invalid_heatmap_days";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DashboardSummary {
@@ -90,6 +93,131 @@ pub struct SoftwarePageRowDto {
     pub last_opened_at: Option<String>,
     pub status: AppRuntimeStatus,
     pub mark: String,
+}
+
+/// Dates are local `YYYY-MM-DD`; timestamps are RFC 3339.
+#[derive(Debug, Clone, Serialize)]
+pub struct StatisticsSummary {
+    pub start: String,
+    pub end: String,
+    pub days_count: u32,
+    pub previous_start: String,
+    pub previous_end: String,
+    pub data_start_date: Option<String>,
+    pub software_detail_start_date: Option<String>,
+    pub days_without_software_detail: u32,
+    pub system_comparison_available: bool,
+    pub software_comparison_available: bool,
+    pub previous_recorded_seconds: i64,
+    pub previous_active_seconds: i64,
+    pub days: Vec<StatisticsDayDto>,
+    pub ranking: Vec<RankingRowDto>,
+    pub idle_open: Vec<IdleOpenRowDto>,
+    pub sessions: Vec<SessionStatRowDto>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StatisticsDayDto {
+    pub date: String,
+    pub recorded_seconds: i64,
+    pub active_seconds: i64,
+    pub tracker_uptime_seconds: i64,
+    pub first_recorded_at: Option<String>,
+    pub last_recorded_at: Option<String>,
+    pub has_software_detail: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RankingRowDto {
+    pub identity_key: String,
+    pub display_name: String,
+    pub icon_data_url: Option<String>,
+    pub rank: u32,
+    pub previous_rank: Option<u32>,
+    pub is_new: bool,
+    pub focused_seconds: i64,
+    pub previous_focused_seconds: i64,
+    pub window_seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct IdleOpenRowDto {
+    pub identity_key: String,
+    pub display_name: String,
+    pub icon_data_url: Option<String>,
+    pub window_seconds: i64,
+    pub focused_seconds: i64,
+    pub idle_seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SessionStatRowDto {
+    pub identity_key: String,
+    pub display_name: String,
+    pub icon_data_url: Option<String>,
+    pub launch_count: u32,
+    pub average_seconds: i64,
+    pub longest_seconds: i64,
+}
+
+/// Dates are local `YYYY-MM-DD`. Streaks, records and milestones use all history.
+#[derive(Debug, Clone, Serialize)]
+pub struct AchievementsSummary {
+    pub today: String,
+    pub heatmap_days: u32,
+    pub heatmap: Vec<HeatmapDayDto>,
+    pub streak_threshold_seconds: i64,
+    pub current_streak_days: u32,
+    pub current_streak_start: Option<String>,
+    pub longest_streak_days: u32,
+    pub longest_streak_start: Option<String>,
+    pub longest_streak_end: Option<String>,
+    pub best_active_day: Option<DayRecordDto>,
+    pub best_software_day: Option<SoftwareDayRecordDto>,
+    pub milestone_hours: Vec<i64>,
+    pub milestones: Vec<MilestoneRowDto>,
+    pub new_software: Vec<SoftwareRefDto>,
+    pub dormant_software: Vec<SoftwareRefDto>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HeatmapDayDto {
+    pub date: String,
+    pub active_seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DayRecordDto {
+    pub date: String,
+    pub seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SoftwareDayRecordDto {
+    pub identity_key: String,
+    pub display_name: String,
+    pub icon_data_url: Option<String>,
+    pub date: String,
+    pub seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MilestoneRowDto {
+    pub identity_key: String,
+    pub display_name: String,
+    pub icon_data_url: Option<String>,
+    pub focused_seconds: i64,
+    pub reached_hours: Option<i64>,
+    pub reached_on: Option<String>,
+    pub next_hours: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SoftwareRefDto {
+    pub identity_key: String,
+    pub display_name: String,
+    pub icon_data_url: Option<String>,
+    pub date: String,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -209,6 +337,38 @@ pub fn get_software_page_summary(
     let summary =
         software_page_summary_from_store(&store, local_day_start_utc(), now_utc, &live.statuses)
             .map_err(|error| error.to_string())?;
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(summary)
+}
+
+#[tauri::command(async)]
+pub fn get_statistics_summary(
+    state: State<'_, AppState>,
+    start: String,
+    end: String,
+    include_hidden: bool,
+) -> Result<StatisticsSummary, String> {
+    let store = crate::app_state::lock_recovering(&state.summary_store);
+    let transaction = store.savepoint().map_err(|error| error.to_string())?;
+    let summary = statistics_summary_from_store(&store, &start, &end, include_hidden)?;
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(summary)
+}
+
+#[tauri::command(async)]
+pub fn get_achievements_summary(
+    state: State<'_, AppState>,
+    heatmap_days: u32,
+    include_hidden: bool,
+) -> Result<AchievementsSummary, String> {
+    let store = crate::app_state::lock_recovering(&state.summary_store);
+    let transaction = store.savepoint().map_err(|error| error.to_string())?;
+    let summary = achievements_summary_from_store(
+        &store,
+        heatmap_days,
+        include_hidden,
+        Local::now().date_naive(),
+    )?;
     transaction.commit().map_err(|error| error.to_string())?;
     Ok(summary)
 }
@@ -606,6 +766,322 @@ fn local_day_start_utc() -> DateTime<Utc> {
         .single()
         .unwrap_or_else(Local::now);
     local_midnight.with_timezone(&Utc)
+}
+
+/// The instant `date` starts in local time. Where a DST change skips
+/// midnight, the day starts at the first local hour that exists.
+fn local_date_start_utc(date: NaiveDate) -> DateTime<Utc> {
+    (0..24)
+        .find_map(|hour| {
+            Local
+                .from_local_datetime(&date.and_hms_opt(hour, 0, 0)?)
+                .earliest()
+        })
+        .map(|start| start.with_timezone(&Utc))
+        .unwrap_or_else(|| Utc.from_utc_datetime(&date.and_time(NaiveTime::MIN)))
+}
+
+/// Strict `YYYY-MM-DD`; chrono alone also accepts unpadded fields and signed
+/// years of five or more digits, whose range arithmetic can overflow.
+fn parse_local_date(value: &str) -> Option<NaiveDate> {
+    if value.len() != 10 {
+        return None;
+    }
+    NaiveDate::parse_from_str(value, "%Y-%m-%d")
+        .ok()
+        .filter(|date| date.to_string() == value)
+}
+
+/// Hidden identities to leave out, or none when hidden software is included.
+fn excluded_identities(store: &Store, include_hidden: bool) -> Result<HashSet<String>, StoreError> {
+    if include_hidden {
+        return Ok(HashSet::new());
+    }
+    Ok(store.hidden_software_identity_keys()?.into_iter().collect())
+}
+
+fn without<V>(mut map: HashMap<String, V>, excluded: &HashSet<String>) -> HashMap<String, V> {
+    map.retain(|key, _| !excluded.contains(key));
+    map
+}
+
+/// Display names and icons per identity; unknown identities show their key.
+struct SoftwareLabels(HashMap<String, (String, String)>);
+
+impl SoftwareLabels {
+    fn display_name(&self, identity_key: &str) -> String {
+        self.0
+            .get(identity_key)
+            .map_or_else(|| identity_key.to_string(), |(name, _)| name.clone())
+    }
+
+    fn icon_data_url(&self, identity_key: &str) -> Option<String> {
+        self.0
+            .get(identity_key)
+            .and_then(|(_, path)| icon_url(path))
+    }
+
+    fn display_names(&self) -> HashMap<String, String> {
+        self.0
+            .iter()
+            .map(|(key, (name, _))| (key.clone(), name.clone()))
+            .collect()
+    }
+}
+
+fn statistics_summary_from_store(
+    store: &Store,
+    start: &str,
+    end: &str,
+    include_hidden: bool,
+) -> Result<StatisticsSummary, String> {
+    let range = parse_local_date(start)
+        .zip(parse_local_date(end))
+        .and_then(|(start, end)| DateRange::new(start, end).ok())
+        .ok_or_else(|| STATISTICS_INVALID_RANGE.to_string())?;
+    statistics_summary_for_range(store, range, include_hidden).map_err(|error| error.to_string())
+}
+
+fn statistics_summary_for_range(
+    store: &Store,
+    range: DateRange,
+    include_hidden: bool,
+) -> Result<StatisticsSummary, StoreError> {
+    let previous = range.previous();
+    let data_start = store.data_start_date()?;
+    let detail_start = store.software_detail_start_date()?;
+    let has_software_detail = |date: NaiveDate| detail_start.is_some_and(|start| date >= start);
+    let previous_covered_from =
+        |first: Option<NaiveDate>| first.is_some_and(|first| previous.start >= first);
+    let software_comparison_available = previous_covered_from(detail_start);
+
+    let system: HashMap<NaiveDate, DailySystemUsage> = store
+        .daily_system_usage_range(range.start, range.end)?
+        .into_iter()
+        .map(|usage| (usage.date, usage))
+        .collect();
+    let bounds: HashMap<NaiveDate, (DateTime<Utc>, DateTime<Utc>)> = store
+        .daily_recorded_bounds_range(range.start, range.end)?
+        .into_iter()
+        .map(|(date, first, last)| (date, (first, last)))
+        .collect();
+    let days = range
+        .dates()
+        .map(|date| {
+            let usage = system.get(&date);
+            let bound = bounds.get(&date);
+            StatisticsDayDto {
+                date: date.to_string(),
+                recorded_seconds: usage.map_or(0, |usage| usage.recorded_seconds),
+                active_seconds: usage.map_or(0, |usage| usage.active_seconds),
+                tracker_uptime_seconds: usage.map_or(0, |usage| usage.tracker_uptime_seconds),
+                first_recorded_at: bound.map(|(first, _)| first.to_rfc3339()),
+                last_recorded_at: bound.map(|(_, last)| last.to_rfc3339()),
+                has_software_detail: has_software_detail(date),
+            }
+        })
+        .collect::<Vec<_>>();
+    let previous_usage = store.daily_system_usage_range(previous.start, previous.end)?;
+
+    let excluded = excluded_identities(store, include_hidden)?;
+    let focus = without(
+        store.software_focus_seconds_range(range.start, range.end)?,
+        &excluded,
+    );
+    let previous_focus = without(
+        store.software_focus_seconds_range(previous.start, previous.end)?,
+        &excluded,
+    );
+    let window = without(
+        store.software_window_seconds_range(range.start, range.end)?,
+        &excluded,
+    );
+    let sessions = store
+        .sessions_started_between(
+            local_date_start_utc(range.start),
+            local_date_start_utc(range.end + Duration::days(1)),
+        )?
+        .into_iter()
+        .filter(|(key, _)| !excluded.contains(key))
+        .collect::<Vec<_>>();
+    let labels = SoftwareLabels(store.software_identity_labels()?);
+
+    Ok(StatisticsSummary {
+        start: range.start.to_string(),
+        end: range.end.to_string(),
+        days_count: days.len() as u32,
+        previous_start: previous.start.to_string(),
+        previous_end: previous.end.to_string(),
+        data_start_date: data_start.map(|date| date.to_string()),
+        software_detail_start_date: detail_start.map(|date| date.to_string()),
+        days_without_software_detail: days.iter().filter(|day| !day.has_software_detail).count()
+            as u32,
+        system_comparison_available: previous_covered_from(data_start),
+        software_comparison_available,
+        previous_recorded_seconds: previous_usage
+            .iter()
+            .map(|usage| usage.recorded_seconds)
+            .sum(),
+        previous_active_seconds: previous_usage
+            .iter()
+            .map(|usage| usage.active_seconds)
+            .sum(),
+        days,
+        ranking: statistics::rank_software(
+            &focus,
+            &previous_focus,
+            &window,
+            &labels.display_names(),
+            software_comparison_available,
+        )
+        .into_iter()
+        .map(|entry| RankingRowDto {
+            display_name: labels.display_name(&entry.identity_key),
+            icon_data_url: labels.icon_data_url(&entry.identity_key),
+            identity_key: entry.identity_key,
+            rank: entry.rank,
+            previous_rank: entry.previous_rank,
+            is_new: entry.is_new,
+            focused_seconds: entry.focused_seconds,
+            previous_focused_seconds: entry.previous_focused_seconds,
+            window_seconds: entry.window_seconds,
+        })
+        .collect(),
+        idle_open: statistics::idle_open(&window, &focus)
+            .into_iter()
+            .map(|entry| IdleOpenRowDto {
+                display_name: labels.display_name(&entry.identity_key),
+                icon_data_url: labels.icon_data_url(&entry.identity_key),
+                identity_key: entry.identity_key,
+                window_seconds: entry.window_seconds,
+                focused_seconds: entry.focused_seconds,
+                idle_seconds: entry.idle_seconds,
+            })
+            .collect(),
+        sessions: statistics::session_stats(&sessions)
+            .into_iter()
+            .map(|entry| SessionStatRowDto {
+                display_name: labels.display_name(&entry.identity_key),
+                icon_data_url: labels.icon_data_url(&entry.identity_key),
+                identity_key: entry.identity_key,
+                launch_count: entry.launch_count,
+                average_seconds: entry.average_seconds,
+                longest_seconds: entry.longest_seconds,
+            })
+            .collect(),
+    })
+}
+
+fn achievements_summary_from_store(
+    store: &Store,
+    heatmap_days: u32,
+    include_hidden: bool,
+    today: NaiveDate,
+) -> Result<AchievementsSummary, String> {
+    if !statistics::HEATMAP_DAY_OPTIONS.contains(&heatmap_days) {
+        return Err(ACHIEVEMENTS_INVALID_HEATMAP_DAYS.to_string());
+    }
+    achievements_summary_for_days(store, heatmap_days, include_hidden, today)
+        .map_err(|error| error.to_string())
+}
+
+fn achievements_summary_for_days(
+    store: &Store,
+    heatmap_days: u32,
+    include_hidden: bool,
+    today: NaiveDate,
+) -> Result<AchievementsSummary, StoreError> {
+    let active_days: Vec<(NaiveDate, i64)> = match store.data_start_date()? {
+        Some(start) => store
+            .daily_system_usage_range(start, today)?
+            .into_iter()
+            .map(|usage| (usage.date, usage.active_seconds))
+            .collect(),
+        None => Vec::new(),
+    };
+    let active_by_date: HashMap<NaiveDate, i64> = active_days.iter().copied().collect();
+    let heatmap = (today - Duration::days(i64::from(heatmap_days) - 1))
+        .iter_days()
+        .take(heatmap_days as usize)
+        .map(|date| HeatmapDayDto {
+            date: date.to_string(),
+            active_seconds: active_by_date.get(&date).copied().unwrap_or(0),
+        })
+        .collect();
+    let streaks = statistics::streaks(&active_days, today);
+    // The highest value wins; on a tie the earliest day stays the record.
+    let best_active_day = active_days
+        .iter()
+        .filter(|(_, seconds)| *seconds > 0)
+        .max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.0.cmp(&a.0)))
+        .map(|(date, seconds)| DayRecordDto {
+            date: date.to_string(),
+            seconds: *seconds,
+        });
+
+    let excluded = excluded_identities(store, include_hidden)?;
+    let focus_daily = store
+        .software_focus_daily()?
+        .into_iter()
+        .filter(|(key, _, _)| !excluded.contains(key))
+        .collect::<Vec<_>>();
+    let (new_software, dormant_software) = match store.software_detail_start_date()? {
+        Some(detail_start) => statistics::comings_and_goings(
+            &without(store.software_window_date_bounds()?, &excluded),
+            today,
+            detail_start,
+        ),
+        None => (Vec::new(), Vec::new()),
+    };
+    let labels = SoftwareLabels(store.software_identity_labels()?);
+    let software_ref = |row: SoftwareDate| SoftwareRefDto {
+        display_name: labels.display_name(&row.identity_key),
+        icon_data_url: labels.icon_data_url(&row.identity_key),
+        identity_key: row.identity_key,
+        date: row.date.to_string(),
+    };
+
+    Ok(AchievementsSummary {
+        today: today.to_string(),
+        heatmap_days,
+        heatmap,
+        streak_threshold_seconds: statistics::STREAK_MIN_ACTIVE_SECONDS,
+        current_streak_days: streaks.current_days,
+        current_streak_start: streaks.current_start.map(|date| date.to_string()),
+        longest_streak_days: streaks.longest_days,
+        longest_streak_start: streaks.longest_start.map(|date| date.to_string()),
+        longest_streak_end: streaks.longest_end.map(|date| date.to_string()),
+        best_active_day,
+        best_software_day: focus_daily
+            .iter()
+            .max_by(|a, b| {
+                a.2.cmp(&b.2)
+                    .then_with(|| b.1.cmp(&a.1))
+                    .then_with(|| b.0.cmp(&a.0))
+            })
+            .map(|(key, date, seconds)| SoftwareDayRecordDto {
+                identity_key: key.clone(),
+                display_name: labels.display_name(key),
+                icon_data_url: labels.icon_data_url(key),
+                date: date.to_string(),
+                seconds: *seconds,
+            }),
+        milestone_hours: statistics::MILESTONE_HOURS.to_vec(),
+        milestones: statistics::milestones(&focus_daily)
+            .into_iter()
+            .map(|entry| MilestoneRowDto {
+                display_name: labels.display_name(&entry.identity_key),
+                icon_data_url: labels.icon_data_url(&entry.identity_key),
+                identity_key: entry.identity_key,
+                focused_seconds: entry.focused_seconds,
+                reached_hours: entry.reached_hours,
+                reached_on: entry.reached_on.map(|date| date.to_string()),
+                next_hours: entry.next_hours,
+            })
+            .collect(),
+        new_software: new_software.into_iter().map(software_ref).collect(),
+        dormant_software: dormant_software.into_iter().map(software_ref).collect(),
+    })
 }
 
 impl AppUsageRow {
@@ -1168,5 +1644,432 @@ mod tests {
             software_list_command_error(focused_error),
             "software_conflict_focused"
         );
+    }
+}
+
+#[cfg(test)]
+mod statistics_command_tests {
+    use super::{
+        achievements_summary_from_store, statistics_summary_from_store, StatisticsSummary,
+    };
+    use crate::storage::Store;
+    use chrono::{DateTime, Duration, Local, NaiveDate, TimeZone, Utc};
+    use tempfile::NamedTempFile;
+
+    const H: i64 = 3600;
+
+    fn migrated_store() -> (NamedTempFile, Store) {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+        (db_file, store)
+    }
+
+    /// `(app_id, identity_key)` for a fixture app.
+    fn software(store: &Store, process_name: &str) -> (i64, String) {
+        let app_id = store
+            .upsert_app(
+                process_name,
+                &format!(r"X:\Fixtures\{process_name}"),
+                process_name,
+            )
+            .expect("app")
+            .id;
+        let identity_key = store
+            .upsert_software_identity_for_app(app_id)
+            .expect("identity")
+            .identity_key;
+        (app_id, identity_key)
+    }
+
+    fn date(year: i32, month: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(year, month, day).unwrap()
+    }
+
+    fn local_utc(day: NaiveDate, hour: u32) -> DateTime<Utc> {
+        Local
+            .from_local_datetime(&day.and_hms_opt(hour, 0, 0).unwrap())
+            .single()
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    fn summary(store: &Store, start: &str, end: &str, include_hidden: bool) -> StatisticsSummary {
+        statistics_summary_from_store(store, start, end, include_hidden).expect("summary")
+    }
+
+    fn system_day(store: &Store, day: NaiveDate, active: i64) {
+        store
+            .increment_daily_system_usage(day, active * 2, active, active * 3)
+            .expect("system usage");
+    }
+
+    fn window_day(store: &Store, day: NaiveDate, key: &str, foreground: i64) {
+        store
+            .increment_daily_software_runtime_usage(day, key, foreground, 0, local_utc(day, 9))
+            .expect("runtime usage");
+    }
+
+    fn focus_day(store: &Store, day: NaiveDate, key: &str, focused: i64) {
+        store
+            .increment_daily_software_focus_usage(day, key, focused)
+            .expect("focus usage");
+    }
+
+    fn session(store: &Store, app_id: i64, day: NaiveDate, seconds: i64) {
+        session_at(store, app_id, local_utc(day, 10), seconds);
+    }
+
+    fn session_at(store: &Store, app_id: i64, started_at: DateTime<Utc>, seconds: i64) {
+        let session_id = store.start_session(app_id, started_at).expect("start");
+        store
+            .close_session(
+                session_id,
+                started_at + Duration::seconds(seconds),
+                "test",
+                false,
+            )
+            .expect("close");
+    }
+
+    fn display_name(store: &Store, identity_key: &str) -> String {
+        store.software_identity_labels().expect("labels")[identity_key]
+            .0
+            .clone()
+    }
+
+    fn keys<'a>(rows: impl IntoIterator<Item = &'a String>) -> Vec<&'a str> {
+        rows.into_iter().map(String::as_str).collect()
+    }
+
+    #[test]
+    fn statistics_summary_zero_fills_days_and_flags_days_before_software_detail() {
+        let (_file, store) = migrated_store();
+        let (_, code) = software(&store, "Code.exe");
+        system_day(&store, date(2026, 11, 1), 600);
+        system_day(&store, date(2026, 11, 3), 1200);
+        window_day(&store, date(2026, 11, 3), &code, 1800);
+
+        let summary = summary(&store, "2026-11-01", "2026-11-04", false);
+
+        assert_eq!(summary.days_count, 4);
+        assert_eq!(
+            summary
+                .days
+                .iter()
+                .map(|day| (
+                    day.date.as_str(),
+                    day.active_seconds,
+                    day.has_software_detail
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("2026-11-01", 600, false),
+                ("2026-11-02", 0, false),
+                ("2026-11-03", 1200, true),
+                ("2026-11-04", 0, true),
+            ]
+        );
+        assert_eq!(summary.days_without_software_detail, 2);
+        assert_eq!(summary.days[0].recorded_seconds, 1200);
+        assert_eq!(summary.days[0].tracker_uptime_seconds, 1800);
+        assert_eq!(
+            summary.days[2].first_recorded_at,
+            Some(local_utc(date(2026, 11, 3), 9).to_rfc3339())
+        );
+        assert_eq!(summary.days[1].first_recorded_at, None);
+        assert_eq!(
+            (summary.start.as_str(), summary.end.as_str()),
+            ("2026-11-01", "2026-11-04")
+        );
+        assert_eq!(
+            (
+                summary.previous_start.as_str(),
+                summary.previous_end.as_str()
+            ),
+            ("2026-10-28", "2026-10-31")
+        );
+        assert_eq!(summary.data_start_date.as_deref(), Some("2026-11-01"));
+        assert_eq!(
+            summary.software_detail_start_date.as_deref(),
+            Some("2026-11-03")
+        );
+    }
+
+    #[test]
+    fn statistics_summary_excludes_hidden_software_unless_requested() {
+        let (_file, store) = migrated_store();
+        let (code_app, code) = software(&store, "Code.exe");
+        let (game_app, game) = software(&store, "Game.exe");
+        let day = date(2026, 11, 3);
+        system_day(&store, day, 1200);
+        for key in [&code, &game] {
+            window_day(&store, day, key, 6 * H);
+            focus_day(&store, day, key, 60);
+        }
+        session(&store, code_app, day, 600);
+        session(&store, game_app, day, 900);
+        store
+            .add_hidden_software_identities(std::slice::from_ref(&game))
+            .expect("hide");
+
+        let visible = summary(&store, "2026-11-03", "2026-11-03", false);
+        let all = summary(&store, "2026-11-03", "2026-11-03", true);
+
+        assert_eq!(
+            keys(visible.ranking.iter().map(|row| &row.identity_key)),
+            vec![code.as_str()]
+        );
+        assert_eq!(
+            keys(visible.idle_open.iter().map(|row| &row.identity_key)),
+            vec![code.as_str()]
+        );
+        assert_eq!(
+            keys(visible.sessions.iter().map(|row| &row.identity_key)),
+            vec![code.as_str()]
+        );
+        assert!(all.ranking.iter().any(|row| row.identity_key == game));
+        assert!(all.idle_open.iter().any(|row| row.identity_key == game));
+        assert!(all.sessions.iter().any(|row| row.identity_key == game));
+        assert_eq!(visible.ranking[0].display_name, display_name(&store, &code));
+        let machine = |summary: &StatisticsSummary| {
+            summary
+                .days
+                .iter()
+                .map(|day| (day.recorded_seconds, day.active_seconds))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(machine(&visible), machine(&all));
+    }
+
+    #[test]
+    fn statistics_summary_counts_sessions_started_on_inclusive_local_days() {
+        let (_file, store) = migrated_store();
+        let (inside_app, inside) = software(&store, "Code.exe");
+        let (before_app, _) = software(&store, "Before.exe");
+        let (after_app, _) = software(&store, "After.exe");
+        let local_at = |day: NaiveDate, hour: u32, minute: u32| {
+            Local
+                .from_local_datetime(&day.and_hms_opt(hour, minute, 0).unwrap())
+                .single()
+                .unwrap()
+                .with_timezone(&Utc)
+        };
+        // range 11-03..11-04: first and last local minutes count, neighbours do not
+        session_at(&store, before_app, local_at(date(2026, 11, 2), 23, 30), 60);
+        session_at(&store, inside_app, local_at(date(2026, 11, 3), 0, 30), 60);
+        session_at(&store, inside_app, local_at(date(2026, 11, 4), 23, 30), 120);
+        session_at(&store, after_app, local_at(date(2026, 11, 5), 0, 30), 60);
+
+        let summary = summary(&store, "2026-11-03", "2026-11-04", true);
+
+        assert_eq!(
+            summary
+                .sessions
+                .iter()
+                .map(|row| (row.identity_key.as_str(), row.launch_count))
+                .collect::<Vec<_>>(),
+            vec![(inside.as_str(), 2)]
+        );
+        assert_eq!(summary.sessions[0].longest_seconds, 120);
+    }
+
+    #[test]
+    fn statistics_summary_reports_comparison_availability() {
+        let (_file, store) = migrated_store();
+        let (_, code) = software(&store, "Code.exe");
+        for day in 1..=6 {
+            system_day(&store, date(2026, 11, day), 600);
+        }
+        window_day(&store, date(2026, 11, 3), &code, 600);
+
+        let availability = |start: &str, end: &str| {
+            let summary = summary(&store, start, end, false);
+            (
+                summary.system_comparison_available,
+                summary.software_comparison_available,
+            )
+        };
+
+        // previous 10-31..11-01 starts before the data start
+        assert_eq!(availability("2026-11-02", "2026-11-03"), (false, false));
+        // previous 11-01..11-02 starts before the software detail start
+        assert_eq!(availability("2026-11-03", "2026-11-04"), (true, false));
+        // previous 11-03..11-04 is fully covered
+        assert_eq!(availability("2026-11-05", "2026-11-06"), (true, true));
+
+        // previous 11-01..11-03
+        let summary = summary(&store, "2026-11-04", "2026-11-06", false);
+        assert_eq!(summary.previous_active_seconds, 1800);
+        assert_eq!(summary.previous_recorded_seconds, 3600);
+    }
+
+    #[test]
+    fn statistics_summary_rejects_invalid_ranges() {
+        let (_file, store) = migrated_store();
+
+        for (start, end) in [
+            ("2026-11-05", "2026-11-01"),
+            ("2025-01-01", "2026-11-21"),
+            ("2026-13-01", "2026-11-21"),
+            ("2026/11/01", "2026-11-21"),
+            ("2026-11-1", "2026-11-21"),
+            ("", "2026-11-21"),
+            ("+262142-12-31", "+262142-12-31"),
+            ("-262143-01-01", "-262143-01-01"),
+            ("+10000-01-01", "+10000-01-01"),
+        ] {
+            assert_eq!(
+                statistics_summary_from_store(&store, start, end, false).err(),
+                Some("statistics_invalid_range".to_string()),
+                "{start}..{end}"
+            );
+        }
+        assert!(statistics_summary_from_store(&store, "2025-11-21", "2026-11-21", false).is_ok());
+    }
+
+    #[test]
+    fn achievements_summary_heatmap_has_exactly_requested_days_ending_today() {
+        let (_file, store) = migrated_store();
+        let today = date(2026, 11, 21);
+        system_day(&store, today, 600);
+        system_day(&store, today - Duration::days(2), 900);
+
+        for invalid in [0, 30, 91, 366] {
+            assert_eq!(
+                achievements_summary_from_store(&store, invalid, false, today).err(),
+                Some("achievements_invalid_heatmap_days".to_string())
+            );
+        }
+        for days in [90_u32, 180, 365] {
+            let summary =
+                achievements_summary_from_store(&store, days, false, today).expect("summary");
+            assert_eq!(summary.heatmap_days, days);
+            assert_eq!(summary.heatmap.len(), days as usize);
+            assert_eq!(summary.heatmap.last().unwrap().date, "2026-11-21");
+            assert_eq!(
+                summary.heatmap[0].date,
+                (today - Duration::days(i64::from(days) - 1)).to_string()
+            );
+        }
+        let summary = achievements_summary_from_store(&store, 90, false, today).unwrap();
+        assert_eq!(
+            summary.heatmap[87..]
+                .iter()
+                .map(|day| (day.date.as_str(), day.active_seconds))
+                .collect::<Vec<_>>(),
+            vec![("2026-11-19", 900), ("2026-11-20", 0), ("2026-11-21", 600)]
+        );
+        assert_eq!(summary.today, "2026-11-21");
+        assert_eq!(summary.streak_threshold_seconds, 300);
+        assert_eq!(summary.milestone_hours, vec![10, 50, 100, 500, 1000, 6666]);
+    }
+
+    #[test]
+    fn achievements_summary_picks_best_active_day_and_best_software_day() {
+        let (_file, store) = migrated_store();
+        let (_, code) = software(&store, "Code.exe");
+        let (_, word) = software(&store, "Word.exe");
+        let today = date(2026, 11, 21);
+        // Records and streaks use all history, not just the heatmap window.
+        for (day, active) in [
+            (date(2026, 1, 10), 9 * H),
+            (date(2026, 1, 11), 9 * H),
+            (date(2026, 11, 19), 2 * H),
+            (date(2026, 11, 20), 2 * H),
+            (date(2026, 11, 21), 60),
+        ] {
+            system_day(&store, day, active);
+        }
+        focus_day(&store, date(2026, 11, 2), &code, 3 * H);
+        focus_day(&store, date(2026, 11, 3), &word, 4 * H);
+        focus_day(&store, date(2026, 11, 4), &code, 4 * H);
+
+        let summary = achievements_summary_from_store(&store, 90, false, today).unwrap();
+
+        // Equal days: the earlier one stays the record.
+        let best = summary.best_active_day.expect("best active day");
+        assert_eq!((best.date.as_str(), best.seconds), ("2026-01-10", 9 * H));
+        let best_software = summary.best_software_day.expect("best software day");
+        assert_eq!(
+            (
+                best_software.identity_key.as_str(),
+                best_software.date.as_str(),
+                best_software.seconds
+            ),
+            (word.as_str(), "2026-11-03", 4 * H)
+        );
+        assert_eq!(best_software.display_name, display_name(&store, &word));
+        assert_eq!(summary.current_streak_days, 2);
+        assert_eq!(summary.current_streak_start.as_deref(), Some("2026-11-19"));
+        assert_eq!(summary.longest_streak_days, 2);
+        assert_eq!(summary.longest_streak_start.as_deref(), Some("2026-01-10"));
+        assert_eq!(summary.longest_streak_end.as_deref(), Some("2026-01-11"));
+    }
+
+    #[test]
+    fn achievements_summary_without_history_has_no_records() {
+        let (_file, store) = migrated_store();
+
+        let summary =
+            achievements_summary_from_store(&store, 90, false, date(2026, 11, 21)).unwrap();
+
+        assert!(summary.heatmap.iter().all(|day| day.active_seconds == 0));
+        assert!(summary.best_active_day.is_none());
+        assert!(summary.best_software_day.is_none());
+        assert_eq!(summary.current_streak_days, 0);
+        assert!(summary.milestones.is_empty());
+        assert!(summary.new_software.is_empty() && summary.dormant_software.is_empty());
+    }
+
+    #[test]
+    fn achievements_summary_excludes_hidden_software_from_milestones_and_comings_goings() {
+        let (_file, store) = migrated_store();
+        let (_, base) = software(&store, "Base.exe");
+        let (_, code) = software(&store, "Code.exe");
+        let (_, game) = software(&store, "Game.exe");
+        let today = date(2026, 11, 21);
+        let recent = today - Duration::days(5);
+        window_day(&store, today - Duration::days(100), &base, H);
+        for key in [&code, &game] {
+            window_day(&store, recent, key, H);
+        }
+        focus_day(&store, recent, &code, 2 * H);
+        focus_day(&store, recent, &game, 12 * H);
+        store
+            .add_hidden_software_identities(std::slice::from_ref(&game))
+            .expect("hide");
+
+        let visible = achievements_summary_from_store(&store, 90, false, today).unwrap();
+        let all = achievements_summary_from_store(&store, 90, true, today).unwrap();
+
+        assert_eq!(
+            keys(visible.milestones.iter().map(|row| &row.identity_key)),
+            vec![code.as_str()]
+        );
+        assert_eq!(visible.milestones[0].reached_hours, None);
+        assert_eq!(visible.milestones[0].next_hours, Some(10));
+        assert_eq!(
+            keys(visible.new_software.iter().map(|row| &row.identity_key)),
+            vec![code.as_str()]
+        );
+        assert_eq!(visible.new_software[0].date, recent.to_string());
+        assert_eq!(
+            keys(visible.dormant_software.iter().map(|row| &row.identity_key)),
+            vec![base.as_str()]
+        );
+        assert_eq!(visible.best_software_day.unwrap().identity_key, code);
+
+        assert_eq!(
+            keys(all.milestones.iter().map(|row| &row.identity_key)),
+            vec![game.as_str(), code.as_str()]
+        );
+        assert_eq!(all.milestones[0].reached_hours, Some(10));
+        assert_eq!(
+            all.milestones[0].reached_on.as_deref(),
+            Some(recent.to_string().as_str())
+        );
+        assert_eq!(all.new_software.len(), 2);
+        assert_eq!(all.best_software_day.unwrap().identity_key, game);
     }
 }
