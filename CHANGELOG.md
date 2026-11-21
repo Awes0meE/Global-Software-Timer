@@ -11,6 +11,7 @@
 - Days with under 5 active minutes count as 没用, so switching the computer on for a moment is not recorded as use. The page only records: no targets, countdowns, streak reminders or notifications.
 - Added personal records (longest active day, longest focus day for a single app), focus-time milestone plates at 10, 50, 100, 500 and 1000 hours plus a 6666-hour ultimate milestone, and software comings and goings over the last 30 days. Software with under a minute of total window time, such as installers, is left out of comings and goings.
 - Both pages leave hidden software out by default and offer a 包含隐藏软件 switch; machine-wide totals are unaffected. Both read existing local data only, without schema or tracking changes.
+- The unfinished single-day date button in the page header now appears only on `概览` and `后台`; `软件`, `统计`, `成就` and `设置` no longer show it.
 
 ## v0.2.4 - 2026-11-21
 
