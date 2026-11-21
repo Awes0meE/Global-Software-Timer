@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**状态：** 任务 0～9 已在分支 `feat/statistics-and-achievements`（worktree `.worktrees/statistics-brainstorm`）完成，随 v0.3.0（2026-11-22）发布；任务 10 的各项没有记录在案的结果，未勾选。界面与下文描述不同之处以设计草案的「视觉方向」「实现与样稿的差别」两节为准。
+**状态：** 任务 0～9 已在分支 `feat/statistics-and-achievements`（worktree `.worktrees/statistics-brainstorm`）完成，随 v0.3.0（2026-11-22）发布；任务 10 的验收结果记在 `docs/CURRENT_STATE.md` 的「发布与验证」。界面与下文描述不同之处以设计草案的「视觉方向」「实现与样稿的差别」两节为准。
 
 **目标：** 把侧栏的 `统计` 和 `成就` 从占位改成真实页面。统计页按用户选的跨天区间显示趋势、排行涨跌、开着没用榜、会话和作息；成就页显示活跃热力图、连续天数、个人纪录、焦点里程碑和软件来去。
 
@@ -558,9 +558,9 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
 
 ## 任务 10：整体验收
 
-- [ ] `npm.cmd run check`（前端测试、构建、`cargo fmt --check`、`cargo test`、`npm audit`）全部通过。
-- [ ] 预览（`.claude/launch.json` 的 `ui-preview-statistics`，端口 1451）：两页在 1440×900 与 1180×760、浅色与深色、`?empty` 下截图；控制台无错误；窄窗口无横向滚动。
-- [ ] 真实数据只读核对：把生产库复制到 scratchpad，用 SQL 独立算出近 30 天的开着没用榜和焦点里程碑，和 `*_from_store` 在同一份副本上的输出逐项对比。不写生产库。
-- [ ] 性能：在副本上测两个命令的耗时，各自应在 200 ms 内；超过则先加索引方案并另行讨论（会改 schema，不在本计划内直接做）。
+- [x] `npm.cmd run check`（前端测试、构建、`cargo fmt --check`、`cargo test`、`npm audit`）全部通过。
+- [x] 预览（`.claude/launch.json` 的 `ui-preview-statistics`，端口 1451）：两页在 1440×900 与 1180×760、浅色与深色、`?empty` 下截图；控制台无错误；窄窗口无横向滚动。
+- [x] 真实数据只读核对：把生产库复制到 scratchpad，用 SQL 独立算出近 30 天的开着没用榜和焦点里程碑，和 `*_from_store` 在同一份副本上的输出逐项对比。不写生产库。
+- [x] 性能：在副本上测两个命令的耗时，各自应在 200 ms 内；超过则先加索引方案并另行讨论（会改 schema，不在本计划内直接做）。
   上面两项的输出与耗时由 `src-tauri/src/commands.rs` 的 `real_database_statistics_acceptance` 打印（`#[ignore]`；`GST_BENCH_DB` 指向库副本，`GST_ACCEPT_END` 指定末日，默认 2026-11-21）。
-- [ ] 按 `AGENTS.md` 的审查关口做规格符合性与代码质量审查，修完再收尾。
+- [x] 按 `AGENTS.md` 的审查关口做规格符合性与代码质量审查，修完再收尾。
