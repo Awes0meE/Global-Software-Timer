@@ -68,7 +68,7 @@ Last updated: 2026-11-21
 ## Current Repository State
 
 - Version `0.2.3` updates helper filtering, most-used ranking, short CPU times, font loading and NSIS shortcut icons. It retains schema 2.
-- Unreleased on main since v0.2.3 (pushed 2026-11-21): the 已发现软件 noise filter, the icon pipeline (largest embedded size scaled to 96px, `gsticon` protocol, disk cache under `%LOCALAPPDATA%\com.globalsoftwaretimer.app\icons`), 后台 column sorting and the 今日活跃 help popover fix. `CHANGELOG.md` `Unreleased` lists them. The next release must also mention the icon cache in `PRIVACY.md`.
+- Unreleased on main since v0.2.3 (pushed 2026-11-21): the 已发现软件 noise filter, the icon pipeline (largest embedded size scaled to 96px, `gsticon` protocol, disk cache under `%LOCALAPPDATA%\com.globalsoftwaretimer.app\icons`), 后台 column sorting and the 今日活跃 help popover fix. `CHANGELOG.md` `Unreleased` lists them. `PRIVACY.md` already describes the icon cache; at the next release, change its "Builds after v0.2.3" wording to that release's version.
 - Version `0.2.2` includes the v0.2.0 UI, the v0.2.1 Edge startup boost fix, the v0.2.2 startup-bundle split, detailed taskbar clock icons and scan/loading/icon reliability fixes, and the published `v0.1.5` process-grouping implementation and schema 2.
 - PR #12 is merged. Main worktree: `.worktrees/v01-implementation`; create a worktree and branch per task (`.worktrees/current-dev` is a detached v0.1.4 checkout, not an active development tree). The enclosing folder is a container.
 - Repair baseline: local and GitHub API `main` were both `d8bfc6cb986d7f72113c84bdade6cc06cc261ab6` on 2026-11-17. As of 2026-11-21 `git fetch` and the `gh` CLI reach GitHub from this machine.

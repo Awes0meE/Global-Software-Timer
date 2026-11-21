@@ -28,6 +28,15 @@ To tell windowed, tray and background apps apart, GST reads window styles and cl
 - Browser history
 - Cloud data
 
+## Local icon cache
+
+Builds after v0.2.3, currently on `main`, also save software icons to disk, so they are not read from each executable again after every restart.
+
+- Location: `%LOCALAPPDATA%\com.globalsoftwaretimer.app\icons\`
+- Contents: one 96px PNG per icon, taken from the executable or its package resources. Each file is named by a hash of the executable path, size and modification time, so the folder holds no paths or software names in plain text.
+- Cleanup: icon files written more than 90 days ago are deleted at startup. You can delete the folder at any time; icons are read again when needed.
+- The app window loads these icons through the local `gsticon` protocol. They never leave the computer.
+
 ## Network
 
 v0.2.3 does not upload usage data or require an account.
