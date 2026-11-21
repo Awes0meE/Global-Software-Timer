@@ -105,6 +105,11 @@ The v0.2 desktop UI additionally includes:
 - Light and dark themes with a 跟随系统 / 浅色 / 深色 Settings choice stored as `ui.theme`.
 - A pixel-font LCD readout (bundled Ark Pixel 12px, SIL OFL 1.1) and the skeuomorphic clock app mark.
 
+v0.1.5 through v0.2.3 additionally include:
+
+- Tray-app runtime (`托盘运行`) and the `后台` page, which records background processes' executable name and path, running time, CPU time, peak memory and process count (SQLite schema 2).
+- Version-insensitive software identities, Edge startup-boost handling, default hiding of listed vendor helper processes, and `最常用` chosen from today's active time.
+
 v0.1 excludes:
 
 - macOS implementation.

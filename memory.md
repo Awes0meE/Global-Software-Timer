@@ -34,8 +34,9 @@ Last updated: 2026-11-21
 - User-facing = taskbar window or tray icon. Tray detection (`tray_icons.rs`) matches `HKCU\Control Panel\NotifyIconSettings` executable paths version-insensitively per executable, only for processes in the user's session; Windows 10 has no such data. Tray-only apps get runtime sessions with status `tray` (`托盘运行`).
 - The `后台` page (`background.rs`) groups non-system processes with neither window nor tray icon by software family; descendants of user-facing processes belong to that app. Daily totals live in `daily_background_usage` (schema version 2).
 - Software identity keys are version-insensitive (`storage::software_family_key`): packaged apps group by package family; version and hash directories are ignored. Startup maintenance folds legacy per-version identities together.
-- Dashboard status is tri-state: an eligible visible-window process is `前台运行`; a known executable seen only without a visible window or as a helper is `后台运行`; no detected matching process is `未运行`. Here foreground means window visibility, not keyboard focus. Software-page focused active time separately uses the Windows foreground PID. Window titles and command lines are not stored in SQLite or shown in the UI.
-- Default classifier noise filtering uses conservative process-name rules for hardware vendor background helpers. ASUS Armoury Crate helper processes and `nvcontainer.exe` are hidden by default, while the main `armourycrate.exe` app remains visible as `Armoury Crate`; avoid broad vendor path substring filters that could hide user-launched apps.
+- Dashboard status has four states: an eligible process with a taskbar-style window is `前台运行`; one without such a window but with a recognized tray icon is `托盘运行`; a known executable seen only without either, or only as a helper, is `后台运行`; no detected matching process is `未运行`. Here foreground means window visibility, not keyboard focus. Software-page focused active time separately uses the Windows foreground PID. Window titles and command lines are not stored in SQLite or shown in the UI.
+- Default classifier noise filtering uses conservative process-name rules for hardware vendor background helpers. ASUS Armoury Crate helper processes and `nvcontainer.exe` are hidden by default, while the main `armourycrate.exe` app remains visible as `Armoury Crate`. v0.2.3 adds exact-stem rules for `NVIDIA Overlay`, `AsHotplugCtrl`, `Razer Synapse Service Process` and `BitCenter` (their main apps stay tracked; the `后台` page still lists them). Avoid broad vendor path substring filters that could hide user-launched apps.
+- The overview LCD `最常用` (v0.2.3) is the app with the most active time today, falling back to today's runtime; the ledger still sorts by all-time runtime.
 - WPS suite components are grouped as `WPS Office` for usage summaries, including `wps.exe`, `et.exe`, `wpp.exe`, and `wpspdf.exe`; live status for merged rows is taken from the highest-priority status across all grouped app ids. WPS grouped rows use the main `wps.exe` sibling path for icon lookup, even when the visible component is `wpspdf.exe`, `et.exe`, or `wpp.exe`.
 - Active time: v0.1 tracks daily machine-level active time using keyboard/mouse idle state.
 - App settings are stored locally in the existing SQLite `app_settings` table, including `window.close_behavior`, `startup.autostart_enabled`, the `ui.duration_format` display preference, and the `ui.theme` preference.
@@ -47,6 +48,7 @@ Last updated: 2026-11-21
 - v0.1.3 records app identity, app runtime, daily recorded computer time, daily active computer time, software-page marks, software-page foreground/background runtime aggregates, software-page focused active time, and local app settings.
 - v0.1.3 does not record window titles, document names, webpage titles, keystrokes, mouse coordinates, file contents, browser history, or cloud data.
 - v0.1.3 does not upload data or require an account.
+- Since v0.1.5 GST also records, for the `后台` page, background processes' executable name and path, daily running time, CPU time, peak memory and process count. `PRIVACY.md` is the current public statement.
 
 ## Product Strategy
 
@@ -67,8 +69,8 @@ Last updated: 2026-11-21
 
 - Version `0.2.3` updates helper filtering, most-used ranking, short CPU times, font loading and NSIS shortcut icons. It retains schema 2.
 - Version `0.2.2` includes the v0.2.0 UI, the v0.2.1 Edge startup boost fix, the v0.2.2 startup-bundle split, detailed taskbar clock icons and scan/loading/icon reliability fixes, and the published `v0.1.5` process-grouping implementation and schema 2.
-- PR #12 is merged. Main worktree: `.worktrees/v01-implementation`; development worktree: `.worktrees/current-dev`. The enclosing folder is a container.
-- Repair baseline: local and GitHub API `main` were both `d8bfc6cb986d7f72113c84bdade6cc06cc261ab6` on 2026-11-17. Direct CLI GitHub access fails in this environment; verify remote Git objects through the connected GitHub service when publishing.
+- PR #12 is merged. Main worktree: `.worktrees/v01-implementation`; create a worktree and branch per task (`.worktrees/current-dev` is a detached v0.1.4 checkout, not an active development tree). The enclosing folder is a container.
+- Repair baseline: local and GitHub API `main` were both `d8bfc6cb986d7f72113c84bdade6cc06cc261ab6` on 2026-11-17. As of 2026-11-21 `git fetch` and the `gh` CLI reach GitHub from this machine.
 - A redacted reviewer report is preserved in `docs/2026-11-17-improvement-suggestions.md`; the complete original is archived locally outside Git. Its current-state claims refer to the pre-fix baseline. Use `docs/CURRENT_STATE.md` for repaired behavior and remaining work.
 - Completed repair plan: `docs/superpowers/plans/2026-11-17-reliability-fixes.md`.
 - Approved settings, software-page and duration-format specifications are under `docs/superpowers/specs/`. Historical plans under `docs/superpowers/plans/` are not a live backlog.
@@ -76,12 +78,16 @@ Last updated: 2026-11-21
 - Local gate: `npm.cmd run check` runs release-script failure tests, frontend tests/build, Rust fmt/tests, and npm audit. `npm.cmd run release:build` runs the gate and Tauri build, stops on failure, then stages installers and prints SHA256 hashes.
 - Redesign changes, benchmark results and outstanding environment checks for the UI redesign are recorded in `docs/ui-redesign-backlog.md`.
 - Browser UI preview with synthetic data: `npm.cmd run preview:ui` (port 1421) aliases the Tauri APIs to `scripts/ui-preview/`; query options `?theme=light|dark`, `?format=hm`, `?empty`, `?page=software|settings`, `?dialog=add`. It never touches the real database.
-- Load `. .\scripts\dev-env.ps1` before Rust commands. The 2026-06-18 toolchain/audit observations are historical; the 2026-11-17 online npm audit could not reach its endpoint. Do not claim a fresh clean dependency audit.
+- Load `. .\scripts\dev-env.ps1` before Rust commands. The 2026-06-18 toolchain/audit observations are historical; on 2026-11-21 the local `npm.cmd run check` audit reported 0 vulnerabilities. Re-run the audit before claiming a clean result for a later release.
 - Superpowers workflows are available in the active environment's plugin cache; discover them per environment. Portable workflow fallback is `docs/DEVELOPMENT_WORKFLOW.md` and `AGENTS.md`.
 - The original v0.1 plan requires subagent-driven development. This repair used implementation plus independent spec and quality reviews.
 
 ## Release State
 
+- `v0.2.3` (2026-11-21): default-hidden vendor helpers, most-used from today's active time, short CPU times on the `后台` page, LCD font preload, NSIS hook that refreshes shortcut icons after in-place upgrades.
+- `v0.2.2` (2026-11-21): split first-paint bundle, detailed taskbar clock, scan recovery and live scan status, loading/error states, stable package names and icons.
+- `v0.2.1` (2026-11-21): first public release of the v0.2.0 instrument UI, plus the Edge startup-boost tracking fix. `v0.2.0` itself was a branch version, never published on its own.
+- `v0.1.5` (2026-11-20): tray tracking, the `后台` page, version-insensitive identities, schema 2.
 - `v0.1.4` (2026-11-17) includes reliability repairs and dependency remediation; installer publication is gated by the Windows release workflow.
 
 - `v0.1.0` was the initial Windows-first GitHub release on 2026-05-30.
