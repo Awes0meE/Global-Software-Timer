@@ -542,7 +542,7 @@ fn dashboard_summary_from_store(
         last_scan_succeeded,
         product_title: "全局软件计时器".to_string(),
         locale: "zh-CN".to_string(),
-        most_used: apps.first().cloned(),
+        most_used: most_used_today(&apps),
         recorded_today_seconds: daily_usage
             .as_ref()
             .map(|usage| usage.recorded_seconds)
@@ -553,6 +553,21 @@ fn dashboard_summary_from_store(
             .unwrap_or(0),
         apps,
     })
+}
+
+/// Today's keyboard/mouse-active focus picks the app, so an always-on tray app
+/// with large runtime does not win; falls back to today's runtime.
+fn most_used_today(apps: &[AppUsageRow]) -> Option<AppUsageRow> {
+    apps.iter()
+        .filter(|app| app.today_seconds > 0 || app.active_today_seconds > 0)
+        .min_by(|left, right| {
+            right
+                .active_today_seconds
+                .cmp(&left.active_today_seconds)
+                .then_with(|| right.today_seconds.cmp(&left.today_seconds))
+                .then_with(|| left.display_name.cmp(&right.display_name))
+        })
+        .cloned()
 }
 
 fn software_page_summary_from_store(
@@ -711,6 +726,70 @@ mod background_row_tests {
 }
 
 #[cfg(test)]
+mod most_used_tests {
+    use super::*;
+
+    fn row(name: &str, total: i64, today: i64, active: i64) -> AppUsageRow {
+        AppUsageRow {
+            app_id: 0,
+            display_name: name.into(),
+            process_name: format!("{name}.exe"),
+            icon_data_url: None,
+            total_seconds: total,
+            today_seconds: today,
+            active_today_seconds: active,
+            status: AppRuntimeStatus::Closed,
+            is_running: false,
+        }
+    }
+
+    fn picked(apps: &[AppUsageRow]) -> Option<String> {
+        most_used_today(apps).map(|app| app.display_name)
+    }
+
+    #[test]
+    fn active_time_beats_an_always_on_tray_app() {
+        let apps = vec![
+            row("BitDock", 2_000 * 3600, 10 * 3600, 0),
+            row("Code", 50 * 3600, 2 * 3600, 600),
+            row("Chrome", 80 * 3600, 3 * 3600, 300),
+        ];
+
+        assert_eq!(picked(&apps).as_deref(), Some("Code"));
+    }
+
+    #[test]
+    fn active_ties_fall_back_to_today_then_name() {
+        let apps = vec![
+            row("Zed", 0, 100, 60),
+            row("Code", 0, 200, 60),
+            row("Atom", 0, 200, 60),
+        ];
+
+        assert_eq!(picked(&apps).as_deref(), Some("Atom"));
+    }
+
+    #[test]
+    fn without_active_time_uses_largest_today_runtime() {
+        let apps = vec![
+            row("Legacy", 9_000 * 3600, 0, 0),
+            row("BitDock", 100, 4 * 3600, 0),
+            row("Code", 100, 3600, 0),
+        ];
+
+        assert_eq!(picked(&apps).as_deref(), Some("BitDock"));
+    }
+
+    #[test]
+    fn nothing_ran_today_means_no_most_used() {
+        let apps = vec![row("Legacy", 9_000 * 3600, 0, 0)];
+
+        assert_eq!(picked(&apps), None);
+        assert_eq!(picked(&[]), None);
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::{
         app_settings_from_store, dashboard_summary_from_store, save_duration_format_preference,
@@ -791,6 +870,63 @@ mod tests {
         );
         assert!(summary.apps[0].icon_data_url.is_none());
         assert_eq!(summary.apps[0].status, AppRuntimeStatus::Closed);
+    }
+
+    #[test]
+    fn dashboard_most_used_comes_from_today_not_the_ledger_leader() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+        let legacy = store
+            .upsert_app("Legacy.exe", r"X:\Fixtures\Legacy\Legacy.exe", "Legacy")
+            .expect("legacy app");
+        let code = store
+            .upsert_app(
+                "Code.exe",
+                r"X:\Fixtures\Code\Code.exe",
+                "Visual Studio Code",
+            )
+            .expect("code app");
+        let legacy_session = store
+            .start_session(
+                legacy.id,
+                Utc.with_ymd_and_hms(2026, 5, 20, 0, 0, 0).unwrap(),
+            )
+            .expect("legacy start");
+        store
+            .close_session(
+                legacy_session,
+                Utc.with_ymd_and_hms(2026, 5, 20, 20, 0, 0).unwrap(),
+                "process_closed",
+                false,
+            )
+            .expect("legacy close");
+        let code_session = store
+            .start_session(code.id, Utc.with_ymd_and_hms(2026, 5, 29, 8, 0, 0).unwrap())
+            .expect("code start");
+        store
+            .close_session(
+                code_session,
+                Utc.with_ymd_and_hms(2026, 5, 29, 8, 10, 0).unwrap(),
+                "process_closed",
+                false,
+            )
+            .expect("code close");
+
+        let summary = dashboard_summary_from_store(
+            &store,
+            Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap(),
+            &HashMap::new(),
+            Some(true),
+        )
+        .expect("summary");
+
+        assert_eq!(summary.apps[0].display_name, "Legacy");
+        assert_eq!(
+            summary.most_used.as_ref().unwrap().display_name,
+            "Visual Studio Code"
+        );
     }
 
     #[test]

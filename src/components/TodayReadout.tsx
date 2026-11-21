@@ -42,7 +42,11 @@ export function TodayReadout({ summary, durationFormat = "decimal_hours", now = 
                 <SoftwareIcon app={summary.most_used} size="sm" />
                 <strong>{summary.most_used.display_name}</strong>
               </div>
-              <p className="lcd-note">累计 {formatDurationZh(summary.most_used.total_seconds, durationFormat)}</p>
+              <p className="lcd-note">
+                {summary.most_used.active_today_seconds > 0
+                  ? `今日活跃 ${formatDurationZh(summary.most_used.active_today_seconds, durationFormat)}`
+                  : `今日 ${formatDurationZh(summary.most_used.today_seconds, durationFormat)}`}
+              </p>
             </>
           ) : (
             <>

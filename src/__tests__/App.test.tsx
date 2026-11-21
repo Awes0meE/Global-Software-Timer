@@ -304,7 +304,7 @@ describe("App", () => {
     expect(within(readout).getByText("今日活跃")).toBeInTheDocument();
     expect(within(readout).getByText("8.8")).toBeInTheDocument();
     expect(within(readout).getByText("0.5")).toBeInTheDocument();
-    expect(within(readout).getByText("累计 482.6小时")).toBeInTheDocument();
+    expect(within(readout).getByText("今日活跃 0.4小时")).toBeInTheDocument();
     expect(screen.getByRole("figure", { name: /^满圈 24 小时，今日已过 \d{2}:\d{2}$/ })).toBeInTheDocument();
     expect(container.querySelectorAll(".lcd-ring-recorded path.is-lit")).toHaveLength(17);
     expect(container.querySelectorAll(".lcd-ring-active path.is-lit")).toHaveLength(0);
