@@ -7,6 +7,7 @@
 - Serve icons through a local `gsticon` protocol instead of embedding them in every summary refresh, and keep them on disk between restarts. Icons appear as soon as they are read rather than on the next refresh; software without an icon keeps its initial.
 - Sort the 后台 table by clicking a column header. The first click sorts high to low and the next one reverses it; rows without a value stay at the bottom. The default order is still today's CPU time.
 - Keep the 今日活跃 help bubble in the 特别关注 table fully visible: it opens above the button when there is no room below and stays inside the window while the table scrolls.
+- Update `serde_with`, which Tauri depends on, from 3.20.0 to 3.21.0 to resolve advisory GHSA-7gcf-g7xr-8hxj. Neither Tauri nor this app uses the affected `KeyValueMap` serializer, so behavior is unchanged.
 
 ## v0.2.3 - 2026-11-21
 
