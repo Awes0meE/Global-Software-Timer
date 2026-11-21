@@ -100,6 +100,136 @@ export async function getBackgroundPageSummary(): Promise<BackgroundPageSummary>
   return invoke<BackgroundPageSummary>("get_background_page_summary");
 }
 
+/** Dates are local `YYYY-MM-DD`; timestamps are RFC 3339. */
+export interface StatisticsDay {
+  date: string;
+  recorded_seconds: number;
+  active_seconds: number;
+  tracker_uptime_seconds: number;
+  first_recorded_at: string | null;
+  last_recorded_at: string | null;
+  has_software_detail: boolean;
+}
+
+export interface RankingRow {
+  identity_key: string;
+  display_name: string;
+  icon_data_url: string | null;
+  rank: number;
+  previous_rank: number | null;
+  is_new: boolean;
+  focused_seconds: number;
+  previous_focused_seconds: number;
+  window_seconds: number;
+}
+
+export interface IdleOpenRow {
+  identity_key: string;
+  display_name: string;
+  icon_data_url: string | null;
+  window_seconds: number;
+  focused_seconds: number;
+  idle_seconds: number;
+}
+
+export interface SessionStatRow {
+  identity_key: string;
+  display_name: string;
+  icon_data_url: string | null;
+  launch_count: number;
+  average_seconds: number;
+  longest_seconds: number;
+}
+
+export interface StatisticsSummary {
+  start: string;
+  end: string;
+  days_count: number;
+  previous_start: string;
+  previous_end: string;
+  data_start_date: string | null;
+  software_detail_start_date: string | null;
+  days_without_software_detail: number;
+  system_comparison_available: boolean;
+  software_comparison_available: boolean;
+  previous_recorded_seconds: number;
+  previous_active_seconds: number;
+  days: StatisticsDay[];
+  ranking: RankingRow[];
+  idle_open: IdleOpenRow[];
+  sessions: SessionStatRow[];
+}
+
+export interface HeatmapDay {
+  date: string;
+  active_seconds: number;
+}
+
+export interface DayRecord {
+  date: string;
+  seconds: number;
+}
+
+export interface SoftwareDayRecord {
+  identity_key: string;
+  display_name: string;
+  icon_data_url: string | null;
+  date: string;
+  seconds: number;
+}
+
+export interface MilestoneRow {
+  identity_key: string;
+  display_name: string;
+  icon_data_url: string | null;
+  focused_seconds: number;
+  reached_hours: number | null;
+  reached_on: string | null;
+  next_hours: number | null;
+}
+
+export interface SoftwareRef {
+  identity_key: string;
+  display_name: string;
+  icon_data_url: string | null;
+  date: string;
+}
+
+export interface AchievementsSummary {
+  today: string;
+  heatmap_days: number;
+  heatmap: HeatmapDay[];
+  streak_threshold_seconds: number;
+  current_streak_days: number;
+  current_streak_start: string | null;
+  longest_streak_days: number;
+  longest_streak_start: string | null;
+  longest_streak_end: string | null;
+  best_active_day: DayRecord | null;
+  best_software_day: SoftwareDayRecord | null;
+  milestone_hours: number[];
+  milestones: MilestoneRow[];
+  new_software: SoftwareRef[];
+  dormant_software: SoftwareRef[];
+}
+
+export type HeatmapDays = 90 | 180 | 365;
+
+export async function getStatisticsSummary(args: {
+  start: string;
+  end: string;
+  includeHidden: boolean;
+}): Promise<StatisticsSummary> {
+  return invoke<StatisticsSummary>("get_statistics_summary", args);
+}
+
+export async function getAchievementsSummary(args: {
+  heatmapDays: HeatmapDays;
+  includeHidden: boolean;
+}): Promise<AchievementsSummary> {
+  return invoke<AchievementsSummary>("get_achievements_summary", args);
+}
+
 export async function addFocusedSoftwareIdentities(identityKeys: string[]): Promise<void> {
   return invoke("add_focused_software_identities", { identityKeys });
 }

@@ -12,7 +12,48 @@ vi.mock("@tauri-apps/plugin-autostart", () => ({
   isEnabled: vi.fn(),
 }));
 
-import { getAppSettings, setDurationFormatPreference, setThemePreference } from "../api";
+import {
+  getAchievementsSummary,
+  getAppSettings,
+  getStatisticsSummary,
+  setDurationFormatPreference,
+  setThemePreference,
+} from "../api";
+
+describe("api statistics and achievements", () => {
+  afterEach(() => {
+    mockInvoke.mockReset();
+  });
+
+  it("reads the statistics summary for a date range", async () => {
+    const summary = { start: "2026-11-15", end: "2026-11-21" };
+    mockInvoke.mockResolvedValue(summary);
+
+    await expect(
+      getStatisticsSummary({ start: "2026-11-15", end: "2026-11-21", includeHidden: false }),
+    ).resolves.toBe(summary);
+
+    expect(mockInvoke).toHaveBeenCalledWith("get_statistics_summary", {
+      start: "2026-11-15",
+      end: "2026-11-21",
+      includeHidden: false,
+    });
+  });
+
+  it("reads the achievements summary for a heatmap length", async () => {
+    const summary = { today: "2026-11-21", heatmap_days: 180 };
+    mockInvoke.mockResolvedValue(summary);
+
+    await expect(getAchievementsSummary({ heatmapDays: 180, includeHidden: true })).resolves.toBe(
+      summary,
+    );
+
+    expect(mockInvoke).toHaveBeenCalledWith("get_achievements_summary", {
+      heatmapDays: 180,
+      includeHidden: true,
+    });
+  });
+});
 
 describe("api settings", () => {
   afterEach(() => {
