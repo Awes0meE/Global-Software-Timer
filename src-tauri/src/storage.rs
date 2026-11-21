@@ -1835,25 +1835,223 @@ impl Store {
                 "SELECT usage_date, recorded_seconds, active_seconds, tracker_uptime_seconds
                  FROM daily_system_usage WHERE usage_date = ?1",
                 params![date.to_string()],
-                |row| {
-                    let usage_date: String = row.get(0)?;
-                    Ok(DailySystemUsage {
-                        date: NaiveDate::parse_from_str(&usage_date, "%Y-%m-%d").map_err(
-                            |error| {
-                                rusqlite::Error::FromSqlConversionFailure(
-                                    0,
-                                    rusqlite::types::Type::Text,
-                                    Box::new(error),
-                                )
-                            },
-                        )?,
-                        recorded_seconds: row.get(1)?,
-                        active_seconds: row.get(2)?,
-                        tracker_uptime_seconds: row.get(3)?,
-                    })
-                },
+                daily_system_usage_from_row,
             )
             .optional()
+            .map_err(StoreError::from)
+    }
+
+    /// Earliest day with machine-level totals; custom ranges cannot start before it.
+    pub fn data_start_date(&self) -> StoreResult<Option<NaiveDate>> {
+        self.min_usage_date("SELECT MIN(usage_date) FROM daily_system_usage")
+    }
+
+    /// Earliest day with per-software totals; earlier days have no software detail.
+    pub fn software_detail_start_date(&self) -> StoreResult<Option<NaiveDate>> {
+        self.min_usage_date("SELECT MIN(usage_date) FROM daily_software_runtime_usage")
+    }
+
+    fn min_usage_date(&self, sql: &str) -> StoreResult<Option<NaiveDate>> {
+        let value = self
+            .conn
+            .query_row(sql, [], |row| row.get::<_, Option<String>>(0))?;
+        Ok(value.map(|value| parse_usage_date(&value)).transpose()?)
+    }
+
+    /// Machine-level daily totals for `start..=end`, in date order. Days without rows are absent.
+    pub fn daily_system_usage_range(
+        &self,
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> StoreResult<Vec<DailySystemUsage>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT usage_date, recorded_seconds, active_seconds, tracker_uptime_seconds
+             FROM daily_system_usage
+             WHERE usage_date BETWEEN ?1 AND ?2
+             ORDER BY usage_date",
+        )?;
+        let rows = stmt.query_map(
+            params![start.to_string(), end.to_string()],
+            daily_system_usage_from_row,
+        )?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StoreError::from)
+    }
+
+    /// Window (taskbar foreground) seconds per identity for `start..=end`.
+    pub fn software_window_seconds_range(
+        &self,
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> StoreResult<HashMap<String, i64>> {
+        self.seconds_by_identity_range(
+            "SELECT identity_key, SUM(foreground_seconds)
+             FROM daily_software_runtime_usage
+             WHERE usage_date BETWEEN ?1 AND ?2
+             GROUP BY identity_key",
+            start,
+            end,
+        )
+    }
+
+    /// Focused seconds per identity for `start..=end`.
+    pub fn software_focus_seconds_range(
+        &self,
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> StoreResult<HashMap<String, i64>> {
+        self.seconds_by_identity_range(
+            "SELECT identity_key, SUM(focused_seconds)
+             FROM daily_software_focus_usage
+             WHERE usage_date BETWEEN ?1 AND ?2
+             GROUP BY identity_key",
+            start,
+            end,
+        )
+    }
+
+    fn seconds_by_identity_range(
+        &self,
+        sql: &str,
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> StoreResult<HashMap<String, i64>> {
+        let mut stmt = self.conn.prepare(sql)?;
+        let rows = stmt.query_map(params![start.to_string(), end.to_string()], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })?;
+        rows.collect::<Result<HashMap<_, _>, _>>()
+            .map_err(StoreError::from)
+    }
+
+    /// Earliest and latest record time per day for `start..=end`, counting only
+    /// identities that had window time that day, in date order.
+    pub fn daily_recorded_bounds_range(
+        &self,
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> StoreResult<Vec<(NaiveDate, DateTime<Utc>, DateTime<Utc>)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT usage_date, MIN(first_recorded_at), MAX(last_recorded_at)
+             FROM daily_software_runtime_usage
+             WHERE usage_date BETWEEN ?1 AND ?2 AND foreground_seconds > 0
+             GROUP BY usage_date
+             ORDER BY usage_date",
+        )?;
+        let mut rows = stmt.query(params![start.to_string(), end.to_string()])?;
+        let mut bounds = Vec::new();
+
+        while let Some(row) = rows.next()? {
+            bounds.push((
+                parse_usage_date(&row.get::<_, String>(0)?)?,
+                parse_utc(&row.get::<_, String>(1)?)?,
+                parse_utc(&row.get::<_, String>(2)?)?,
+            ));
+        }
+
+        Ok(bounds)
+    }
+
+    /// `(identity_key, seconds)` for every session started in `[start_utc, end_utc)`.
+    /// Closed sessions use their stored duration; open ones run to their last heartbeat.
+    pub fn sessions_started_between(
+        &self,
+        start_utc: DateTime<Utc>,
+        end_utc: DateTime<Utc>,
+    ) -> StoreResult<Vec<(String, i64)>> {
+        // `started_at` has variable-length fractional seconds, so text comparison is
+        // only a coarse filter widened by a day on each side; the exact bounds are
+        // checked on parsed timestamps below.
+        let coarse_start = (start_utc.date_naive() - chrono::Duration::days(1)).to_string();
+        let coarse_end = (end_utc.date_naive() + chrono::Duration::days(2)).to_string();
+        let mut stmt = self.conn.prepare(
+            "SELECT m.identity_key, s.started_at, s.ended_at, s.last_heartbeat_at, s.duration_seconds
+             FROM usage_sessions s
+             JOIN software_identity_members m USING (app_id)
+             WHERE s.started_at >= ?1 AND s.started_at < ?2
+             ORDER BY s.id",
+        )?;
+        let mut rows = stmt.query(params![coarse_start, coarse_end])?;
+        let mut sessions = Vec::new();
+
+        while let Some(row) = rows.next()? {
+            let started_at = parse_utc(&row.get::<_, String>(1)?)?;
+            if started_at < start_utc || started_at >= end_utc {
+                continue;
+            }
+            let ended_at: Option<String> = row.get(2)?;
+            let seconds = if ended_at.is_some() {
+                row.get::<_, i64>(4)?
+            } else {
+                non_negative_seconds(started_at, parse_utc(&row.get::<_, String>(3)?)?)
+            };
+            sessions.push((row.get::<_, String>(0)?, seconds));
+        }
+
+        Ok(sessions)
+    }
+
+    /// All-time `(identity_key, date, focused_seconds)` with positive focus, in date order.
+    pub fn software_focus_daily(&self) -> StoreResult<Vec<(String, NaiveDate, i64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT identity_key, usage_date, focused_seconds
+             FROM daily_software_focus_usage
+             WHERE focused_seconds > 0
+             ORDER BY usage_date, identity_key",
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut daily = Vec::new();
+
+        while let Some(row) = rows.next()? {
+            daily.push((
+                row.get::<_, String>(0)?,
+                parse_usage_date(&row.get::<_, String>(1)?)?,
+                row.get::<_, i64>(2)?,
+            ));
+        }
+
+        Ok(daily)
+    }
+
+    /// First and last day each identity had window time.
+    pub fn software_window_date_bounds(
+        &self,
+    ) -> StoreResult<HashMap<String, (NaiveDate, NaiveDate)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT identity_key, MIN(usage_date), MAX(usage_date)
+             FROM daily_software_runtime_usage
+             WHERE foreground_seconds > 0
+             GROUP BY identity_key",
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut bounds = HashMap::new();
+
+        while let Some(row) = rows.next()? {
+            bounds.insert(
+                row.get::<_, String>(0)?,
+                (
+                    parse_usage_date(&row.get::<_, String>(1)?)?,
+                    parse_usage_date(&row.get::<_, String>(2)?)?,
+                ),
+            );
+        }
+
+        Ok(bounds)
+    }
+
+    /// `identity_key -> (display_name, representative_executable_path)`.
+    pub fn software_identity_labels(&self) -> StoreResult<HashMap<String, (String, String)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT identity_key, display_name, representative_executable_path
+             FROM software_identities",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                (row.get::<_, String>(1)?, row.get::<_, String>(2)?),
+            ))
+        })?;
+        rows.collect::<Result<HashMap<_, _>, _>>()
             .map_err(StoreError::from)
     }
 
@@ -2059,6 +2257,30 @@ fn is_wps_suite_component(process_name: &str) -> bool {
         process_name.trim().to_lowercase().as_str(),
         "wps.exe" | "et.exe" | "wpp.exe" | "wpspdf.exe"
     )
+}
+
+fn daily_system_usage_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DailySystemUsage> {
+    let usage_date: String = row.get(0)?;
+    Ok(DailySystemUsage {
+        date: NaiveDate::parse_from_str(&usage_date, "%Y-%m-%d").map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                0,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?,
+        recorded_seconds: row.get(1)?,
+        active_seconds: row.get(2)?,
+        tracker_uptime_seconds: row.get(3)?,
+    })
+}
+
+fn parse_usage_date(value: &str) -> Result<NaiveDate, chrono::ParseError> {
+    NaiveDate::parse_from_str(value, "%Y-%m-%d")
+}
+
+fn parse_utc(value: &str) -> Result<DateTime<Utc>, chrono::ParseError> {
+    DateTime::parse_from_rfc3339(value).map(|dt| dt.with_timezone(&Utc))
 }
 
 fn parse_optional_utc(value: Option<String>) -> Result<Option<DateTime<Utc>>, chrono::ParseError> {
