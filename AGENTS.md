@@ -110,6 +110,12 @@ v0.1.5 through v0.2.3 additionally include:
 - Tray-app runtime (`托盘运行`) and the `后台` page, which records background processes' executable name and path, running time, CPU time, peak memory and process count (SQLite schema 2).
 - Version-insensitive software identities, Edge startup-boost handling, default hiding of listed vendor helper processes, and `最常用` chosen from today's active time.
 
+v0.2.4 additionally includes:
+
+- Executable icons read at their largest embedded size, served through the local `gsticon` protocol and cached as 96px PNGs under `%LOCALAPPDATA%\com.globalsoftwaretimer.app\icons\`. Cache files have hashed names and are pruned after 90 days. Keep `PRIVACY.md` in step with any change to this cache.
+- Stricter default noise filtering: listed services, helpers and command-line tools, and executables run from Temp, Downloads or updater folders are not tracked. As a result, a portable app run from Downloads is not tracked either.
+- Column-header sorting on the `后台` table.
+
 v0.1 excludes:
 
 - macOS implementation.
