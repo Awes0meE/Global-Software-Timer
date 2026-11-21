@@ -21,6 +21,15 @@ function tile(letter: string, background: string, foreground = "#ffffff"): strin
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+// Real app icons for README screenshots. They are third-party artwork, so they are not committed:
+// `node scripts/ui-preview/collect-demo-icons.mjs` copies them from the local GST icon cache into
+// ./demo-icons/ (gitignored). Without them the preview falls back to the letter tiles.
+const demoIcons = import.meta.glob<string>("./demo-icons/*.png", { eager: true, query: "?url", import: "default" });
+
+function icon(key: string, fallback: string | null): string | null {
+  return demoIcons[`./demo-icons/${key}.png`] ?? fallback;
+}
+
 const hour = 3600;
 
 function hoursAgo(hours: number): string {
@@ -52,18 +61,18 @@ interface Seed {
 }
 
 const seeds: Seed[] = [
-  { key: "code", name: "Visual Studio Code", process: "Code.exe", icon: tile("VS", "#1f6fb2"), total: 412.6 * hour, today: 5.4 * hour, active: 2.4 * hour, status: "foreground", lastOpened: hoursAgo(0.3) },
-  { key: "chrome", name: "Google Chrome", process: "chrome.exe", icon: tile("G", "#e8eaed", "#1a73e8"), total: 388.2 * hour, today: 4.1 * hour, active: 1.5 * hour, status: "foreground", lastOpened: hoursAgo(0.6) },
-  { key: "wechat", name: "微信", process: "WeChat.exe", icon: tile("微", "#07c160"), total: 201.4 * hour, today: 6.2 * hour, active: 0.4 * hour, status: "tray", lastOpened: hoursAgo(1.4) },
-  { key: "wps", name: "WPS Office", process: "wps.exe", icon: tile("W", "#d63b2f"), total: 96.3 * hour, today: 1.8 * hour, active: 0.7 * hour, status: "foreground", lastOpened: hoursAgo(0.1) },
-  { key: "zotero", name: "Zotero", process: "zotero.exe", icon: tile("Z", "#b5262e"), total: 74.9 * hour, today: 0.9 * hour, active: 0.2 * hour, status: "closed", lastOpened: hoursAgo(15) },
-  { key: "steam", name: "Steam", process: "steam.exe", icon: tile("S", "#1b2838"), total: 61.5 * hour, today: 0.4 * hour, active: 0.03 * hour, status: "background", lastOpened: hoursAgo(40) },
-  { key: "matlab", name: "MATLAB", process: "MATLAB.exe", icon: tile("M", "#c4581b"), total: 48.7 * hour, today: 0, active: 0, status: "closed", lastOpened: hoursAgo(70) },
-  { key: "obsidian", name: "Obsidian", process: "Obsidian.exe", icon: tile("O", "#6c3fc5"), total: 33.2 * hour, today: 0.7 * hour, active: 0.3 * hour, status: "closed", lastOpened: hoursAgo(20) },
-  { key: "terminal", name: "Windows Terminal", process: "WindowsTerminal.exe", icon: tile(">_", "#2b2b2b"), total: 22.8 * hour, today: 1.2 * hour, active: 0.5 * hour, status: "foreground", lastOpened: hoursAgo(0.2) },
-  { key: "qq-music", name: "QQ音乐", process: "QQMusic.exe", icon: null, total: 18.1 * hour, today: 2.3 * hour, active: 0.05 * hour, status: "background", lastOpened: hoursAgo(1.0) },
-  { key: "everything", name: "Everything", process: "Everything.exe", icon: tile("E", "#f2a516", "#3a2600"), total: 3.4 * hour, today: 0.1 * hour, active: 0.01 * hour, status: "background", lastOpened: hoursAgo(2.5) },
-  { key: "onedrive", name: "OneDrive", process: "OneDrive.exe", icon: tile("☁", "#0f6cbd"), total: 120.0 * hour, today: 6.0 * hour, active: 0, status: "background", lastOpened: hoursAgo(3.2) },
+  { key: "code", name: "Visual Studio Code", process: "Code.exe", icon: icon("code", tile("VS", "#1f6fb2")), total: 412.6 * hour, today: 5.4 * hour, active: 2.4 * hour, status: "foreground", lastOpened: hoursAgo(0.3) },
+  { key: "chrome", name: "Google Chrome", process: "chrome.exe", icon: icon("chrome", tile("G", "#e8eaed", "#1a73e8")), total: 388.2 * hour, today: 4.1 * hour, active: 1.5 * hour, status: "foreground", lastOpened: hoursAgo(0.6) },
+  { key: "wechat", name: "微信", process: "Weixin.exe", icon: icon("wechat", tile("微", "#07c160")), total: 201.4 * hour, today: 6.2 * hour, active: 0.4 * hour, status: "tray", lastOpened: hoursAgo(1.4) },
+  { key: "excel", name: "Microsoft Excel", process: "EXCEL.EXE", icon: icon("excel", tile("X", "#107c41")), total: 96.3 * hour, today: 1.8 * hour, active: 0.7 * hour, status: "foreground", lastOpened: hoursAgo(0.1) },
+  { key: "typora", name: "Typora", process: "Typora.exe", icon: icon("typora", tile("T", "#3f3f3f")), total: 74.9 * hour, today: 0.9 * hour, active: 0.2 * hour, status: "closed", lastOpened: hoursAgo(15) },
+  { key: "steam", name: "Steam", process: "steam.exe", icon: icon("steam", tile("S", "#1b2838")), total: 61.5 * hour, today: 0.4 * hour, active: 0.03 * hour, status: "background", lastOpened: hoursAgo(40) },
+  { key: "matlab", name: "MATLAB", process: "MATLAB.exe", icon: icon("matlab", tile("M", "#c4581b")), total: 48.7 * hour, today: 0, active: 0, status: "closed", lastOpened: hoursAgo(70) },
+  { key: "notion", name: "Notion", process: "Notion.exe", icon: icon("notion", tile("N", "#191919")), total: 33.2 * hour, today: 0.7 * hour, active: 0.3 * hour, status: "closed", lastOpened: hoursAgo(20) },
+  { key: "terminal", name: "Windows Terminal", process: "WindowsTerminal.exe", icon: icon("terminal", tile(">_", "#2b2b2b")), total: 22.8 * hour, today: 1.2 * hour, active: 0.5 * hour, status: "foreground", lastOpened: hoursAgo(0.2) },
+  { key: "cloudmusic", name: "网易云音乐", process: "cloudmusic.exe", icon: icon("cloudmusic", null), total: 18.1 * hour, today: 2.3 * hour, active: 0.05 * hour, status: "background", lastOpened: hoursAgo(1.0) },
+  { key: "snipaste", name: "Snipaste", process: "Snipaste.exe", icon: icon("snipaste", tile("S", "#2f6fdf")), total: 3.4 * hour, today: 0.1 * hour, active: 0.01 * hour, status: "background", lastOpened: hoursAgo(2.5) },
+  { key: "onedrive", name: "OneDrive", process: "OneDrive.exe", icon: icon("onedrive", tile("☁", "#0f6cbd")), total: 120.0 * hour, today: 6.0 * hour, active: 0, status: "background", lastOpened: hoursAgo(3.2) },
 ];
 
 export function dashboardSummary(hidden: Set<string>): DashboardSummary {
@@ -292,15 +301,15 @@ interface SoftwareModel {
 const softwareModels: SoftwareModel[] = [
   { key: "code", focusShare: 0.3, windowHours: 7, launchesPerDay: 2 },
   { key: "chrome", focusShare: 0.22, windowHours: 6, launchesPerDay: 3, trend: { sinceOffset: 10, recent: 0.6, earlier: 1.3 } },
-  { key: "wps", focusShare: 0.12, windowHours: 3, launchesPerDay: 2, trend: { sinceOffset: 10, recent: 1.8, earlier: 0.7 } },
-  { key: "obsidian", focusShare: 0.08, windowHours: 2, launchesPerDay: 1, firstOffset: 5 },
-  { key: "zotero", focusShare: 0.06, windowHours: 2, launchesPerDay: 1, trend: { sinceOffset: 30, recent: 1.3, earlier: 0.1 } },
+  { key: "excel", focusShare: 0.12, windowHours: 3, launchesPerDay: 2, trend: { sinceOffset: 10, recent: 1.8, earlier: 0.7 } },
+  { key: "notion", focusShare: 0.08, windowHours: 2, launchesPerDay: 1, firstOffset: 5 },
+  { key: "typora", focusShare: 0.06, windowHours: 2, launchesPerDay: 1, trend: { sinceOffset: 30, recent: 1.3, earlier: 0.1 } },
   { key: "terminal", focusShare: 0.05, windowHours: 1.5, launchesPerDay: 3, firstOffset: 18 },
   { key: "steam", focusShare: 0.03, windowHours: 1, launchesPerDay: 1, lastOffset: 45 },
   { key: "matlab", focusShare: 0.03, windowHours: 1.5, launchesPerDay: 1, lastOffset: 38 },
   { key: "wechat", focusShare: 0.02, windowHours: 9, launchesPerDay: 1 }, // open all day, rarely used
-  { key: "everything", focusShare: 0.01, windowHours: 6, launchesPerDay: 1 },
-  { key: "qq-music", focusShare: 0.005, windowHours: 5, launchesPerDay: 1 },
+  { key: "snipaste", focusShare: 0.01, windowHours: 6, launchesPerDay: 1 },
+  { key: "cloudmusic", focusShare: 0.005, windowHours: 5, launchesPerDay: 1 },
 ];
 
 function visibleModels(includeHidden: boolean, hidden: Set<string>): SoftwareModel[] {
@@ -507,12 +516,12 @@ export function emptyStatisticsSummary(start: string, end: string): StatisticsSu
 const milestoneSeeds: { key: string; hours: number; reachedOffset: number | null }[] = [
   { key: "code", hours: 6702.4, reachedOffset: 2 },
   { key: "chrome", hours: 742.5, reachedOffset: 41 },
-  { key: "wps", hours: 100.3, reachedOffset: 0 },
-  { key: "zotero", hours: 63.4, reachedOffset: 20 },
+  { key: "excel", hours: 100.3, reachedOffset: 0 },
+  { key: "typora", hours: 63.4, reachedOffset: 20 },
   { key: "matlab", hours: 55.1, reachedOffset: 63 },
   { key: "terminal", hours: 18.6, reachedOffset: 6 },
-  { key: "everything", hours: 12.1, reachedOffset: 90 },
-  { key: "obsidian", hours: 7.2, reachedOffset: null },
+  { key: "snipaste", hours: 12.1, reachedOffset: 90 },
+  { key: "notion", hours: 7.2, reachedOffset: null },
 ];
 
 function checkHeatmapDays(heatmapDays: number) {

@@ -12,8 +12,8 @@ import {
 
 const params = new URLSearchParams(window.location.search);
 const empty = params.has("empty");
-const focused = new Set<string>(empty ? [] : ["code", "wps", "zotero", "matlab"]);
-const hidden = new Set<string>(empty ? [] : ["onedrive", "everything"]);
+const focused = new Set<string>(empty ? [] : ["code", "excel", "typora", "matlab"]);
+const hidden = new Set<string>(empty ? [] : ["onedrive", "snipaste"]);
 const settings: Record<string, unknown> = {
   close_behavior: "minimize_to_tray",
   close_behavior_configured: true,

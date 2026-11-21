@@ -23,3 +23,6 @@ Thumbs.db
 .impeccable/review/
 .impeccable/mocks/
 .impeccable/config.local.json
+
+# Third-party app icons copied locally for README screenshots
+scripts/ui-preview/demo-icons/
