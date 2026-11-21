@@ -56,6 +56,7 @@ pub const IDLE_OPEN_MAX_FOCUS_PERMILLE: i64 = 50; // 5%
 pub const MILESTONE_HOURS: [i64; 6] = [10, 50, 100, 500, 1000, 6666];
 pub const STREAK_MIN_ACTIVE_SECONDS: i64 = 5 * 60; // 当天活跃满 5 分钟算用过，2026-11-21 确认
 pub const COMINGS_GOINGS_DAYS: i64 = 30;
+pub const COMINGS_GOINGS_MIN_WINDOW_SECONDS: i64 = 60; // 累计窗口不满 1 分钟不计入软件来去，2026-11-21 确认（任务 3b）
 pub const HEATMAP_DAY_OPTIONS: [u32; 3] = [90, 180, 365];
 pub const RANKING_LIMIT: usize = 20;
 ```
@@ -105,6 +106,7 @@ pub const RANKING_LIMIT: usize = 20;
 
 - 任务 0（视觉样稿）只产出图片，不改源码，可与任务 1～5 并行；**任务 6、7 必须等用户选定样稿后再开始**。
 - 任务 1 → 2 → 3 顺序执行（后端）。任务 4、5（前端类型与预览数据）只依赖任务 3 定下的 DTO 形状，可在任务 3 的 DTO 写定后开始。
+- 任务 6、7 可以并行。为了不让两边同时改 `src/styles.css`，两页的样式各自放在 `src/components/StatisticsPage.css`、`src/components/AchievementsPage.css`，由页面组件导入（随懒加载分块），只用 `styles.css` 里现有的令牌；下文任务 6、7 文件列表里的 `src/styles.css` 以此为准。
 - 每个任务结束：跑该任务的检查、自查 diff、按 `AGENTS.md` 的审查关口过一遍，再按任务末尾的提交信息提交。
 
 ---
@@ -124,6 +126,8 @@ pub const RANKING_LIMIT: usize = 20;
 - [ ] 把截图发给用户，记录所选方向到设计草案。
 
 **完成标准：** 用户选定统计页和成就页各一个方向（或给出修改意见并重出）。
+
+**结果（2026-11-21）：** 统计页选 A 走纸记录仪，成就页选 B 日历刻度盘。选中的截图在 本机样稿目录（含真实数据，未入库），取舍与用词规则记在设计草案的「视觉方向」「用词」两节，任务 6、7 以那两节为准。
 
 提交（只提交选中的截图和草案更新）：`docs(spec): add the chosen statistics and achievements mockups`
 
@@ -426,6 +430,20 @@ pub fn get_achievements_summary(state: State<'_, AppState>, heatmap_days: u32,
 
 ---
 
+## 任务 3b：软件来去的最低窗口门槛
+
+**文件：** `src-tauri/src/storage.rs`、`src-tauri/tests/statistics_storage_tests.rs`、`src-tauri/src/statistics.rs`、`src-tauri/src/commands.rs`
+
+用户在看过样稿后确认：累计窗口时长（全部历史的 `foreground_seconds` 之和）不满 `COMINGS_GOINGS_MIN_WINDOW_SECONDS`（60 秒）的身份不进新面孔和沉寂软件，避免安装包、临时程序充数。
+
+- [ ] 先写失败测试：59 秒的身份不计入、60 秒恰好计入；新面孔和沉寂两边都覆盖。
+- [ ] `software_window_date_bounds` 一并返回累计窗口秒数（或新增一个只读查询，二选一，保持简单），`comings_and_goings` 按常量过滤。
+- [ ] `cargo test`、`cargo fmt -- --check` 通过。
+
+提交：`feat(statistics): skip software with under a minute of window time in comings and goings`
+
+---
+
 ## 任务 4：前端类型与区间工具
 
 **文件：** `src/api.ts`、`src/statisticsRange.ts`、`src/__tests__/statisticsRange.test.ts`、`src/__tests__/api.test.ts`
@@ -501,7 +519,7 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
 - [ ] **Step 1：写失败测试：**
   - 默认请求 `heatmapDays: 90`；切到 180、365 重新请求。
   - 热力图格子数等于 `heatmap.length`，每格 `aria-label` 形如「2026-11-21 活跃 2.7小时」；按 4 级深浅分档，分档阈值写在组件里并测试（建议：0、<1 小时、<3 小时、≥3 小时）。
-  - 连续天数读数显示当前与最长，说明文字写明达标标准（「当天活跃满 5 分钟」，取自 `streak_threshold_seconds`）。
+  - 连续天数读数显示当前与最长，说明文字按设计草案「用词」一节写成过滤说明（「活跃不到 5 分钟的日子不算在内，免得开机看一眼也被记上」，分钟数取自 `streak_threshold_seconds`）。图例、每月小字、区间合计用「用过 / 没用」「用过 N 天」，测试断言页面上不出现「达标」二字，也没有「今天还差」之类的提示。
   - 里程碑：已达成显示最高档与解锁日期，未满档显示到下一档的进度；6666 小时显示「终极成就」。
   - 软件来去为空时各自显示空文案；包含隐藏软件开关同统计页。
   - 三态文案：「正在读取成就…」「无法读取成就」。
@@ -544,11 +562,3 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
 - [ ] 真实数据只读核对：把生产库复制到 scratchpad，用 SQL 独立算出近 30 天的开着没用榜和焦点里程碑，和 `*_from_store` 在同一份副本上的输出逐项对比。不写生产库。
 - [ ] 性能：在副本上测两个命令的耗时，各自应在 200 ms 内；超过则先加索引方案并另行讨论（会改 schema，不在本计划内直接做）。
 - [ ] 按 `AGENTS.md` 的审查关口做规格符合性与代码质量审查，修完再收尾。
-
----
-
-## 待用户确认
-
-| 问题 | 计划里的默认值 |
-| --- | --- |
-| 软件维度用焦点而不是活跃排名 | 用焦点，与开着没用、里程碑一致 |
