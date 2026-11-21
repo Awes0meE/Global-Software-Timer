@@ -12,6 +12,13 @@ interface Props {
 }
 
 type Density = "small" | "mid" | "dense";
+/**
+ * How a short range labels its days, tried in order until the labels fit side by side:
+ * full (`11-17 周二` over `活跃 6.8小时` and `记录 22.4小时`), short (the values without their
+ * prefixes, which move to the left gutter) and dates (the day line alone, values in the hover card).
+ */
+type LabelStyle = "full" | "short" | "dates";
+const LABEL_STYLES: LabelStyle[] = ["full", "short", "dates"];
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 const PLOT_LEFT = 52;
@@ -29,9 +36,9 @@ const LABEL_GAP = 8;
 /**
  * 走纸记录仪: one needle per day on a paper strip (recorded light, active dark),
  * the active ratio as a thin trace and the daily average active time as a dashed rule.
- * Up to 10 days every day is labelled with its values when the labels fit side by side
- * in their columns; otherwise, and for longer ranges, it labels Mondays (≤ 40 days) or
- * months and shows a day's values in a hover card.
+ * Up to 10 days every day is labelled, with its values when they fit side by side in their
+ * columns (see LabelStyle). Longer ranges, or a short one too narrow for even the day line,
+ * label Mondays (≤ 40 days) or months; a day without values on the paper shows them in a hover card.
  */
 export function TrendRecorder({ summary, durationFormat, today }: Props) {
   const { days } = summary;
@@ -169,10 +176,14 @@ function RecorderPaper({
   const bottom = PLOT_BOTTOM;
   const columnWidth = (right - left) / Math.max(1, n);
   const format = (seconds: number) => formatDurationZh(seconds, durationFormat);
-  // Per-day labels need room: a narrow window or long hours-minutes values fall back to the hover card.
-  const density: Density =
-    rangeDensity === "small" && !dayLabelsFit(days, columnWidth, today, format) ? "mid" : rangeDensity;
-  const height = density === "small" ? 226 : 186;
+  // Per-day labels need room: a narrow window or long hours-minutes values shorten them first.
+  const labelStyle =
+    rangeDensity === "small"
+      ? (LABEL_STYLES.find((style) => dayLabelsFit(days, style, columnWidth, today, format)) ?? null)
+      : null;
+  const density: Density = rangeDensity === "small" && labelStyle === null ? "mid" : rangeDensity;
+  const valuesShown = labelStyle === "full" || labelStyle === "short";
+  const height = valuesShown ? 226 : labelStyle === "dates" ? 190 : 186;
   const yHours = (seconds: number) => bottom - (Math.min(seconds, 86400) / 86400) * (bottom - top);
   const ratioPoints = density === "dense" ? weeklyRatios(days) : dailyRatios(days);
   const ratioTop = Math.max(0, ...ratioPoints.flat().map((point) => point.ratio)) <= 0.5 ? 0.5 : 1;
@@ -188,7 +199,7 @@ function RecorderPaper({
   const averageY = yHours(averageActive);
 
   const onMove = (event: MouseEvent<SVGSVGElement>) => {
-    if (density === "small") return;
+    if (valuesShown) return;
     const box = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - box.left) / Math.max(1, box.width)) * width;
     const index = Math.floor((x - left) / columnWidth);
@@ -290,11 +301,20 @@ function RecorderPaper({
               </g>
             );
           })}
-          {density === "small"
+          {labelStyle === "short" ? (
+            <g>
+              <text className="vals vals-dim" x={left - 9} y={bottom + 38} textAnchor="end">
+                活跃
+              </text>
+              <text className="vals vals-dim" x={left - 9} y={bottom + 55} textAnchor="end">
+                记录
+              </text>
+            </g>
+          ) : null}
+          {labelStyle !== null
             ? days.map((day, index) => {
                 const center = left + (index + 0.5) * columnWidth;
-                const label = dayLabel(day, today);
-                const [first, second] = valueLabels(day, format);
+                const [label, first, second] = dayLabelLines(day, labelStyle, today, format);
                 return (
                   <g key={`label-${day.date}`}>
                     <text className="day" x={center} y={bottom + 20} textAnchor="middle">
@@ -303,14 +323,16 @@ function RecorderPaper({
                     {day.date === today ? (
                       <circle className="pen-lamp" cx={center - textWidth(label) / 2 - 8} cy={bottom + 16} r={3.5} />
                     ) : null}
-                    <text
-                      className={`vals ${second ? "vals-strong" : "vals-dim"}`}
-                      x={center}
-                      y={bottom + 38}
-                      textAnchor="middle"
-                    >
-                      {first}
-                    </text>
+                    {first ? (
+                      <text
+                        className={`vals ${second ? "vals-strong" : "vals-dim"}`}
+                        x={center}
+                        y={bottom + 38}
+                        textAnchor="middle"
+                      >
+                        {first}
+                      </text>
+                    ) : null}
                     {second ? (
                       <text className="vals vals-dim" x={center} y={bottom + 55} textAnchor="middle">
                         {second}
@@ -472,14 +494,33 @@ function valueLabels(day: StatisticsDay, format: (seconds: number) => string): [
     : [`活跃 ${format(day.active_seconds)}`, `记录 ${format(day.recorded_seconds)}`];
 }
 
+/**
+ * The lines under a day in a label style: the day line, then the active and recorded rows
+ * (无记录 alone on a day without records). Short and dates styles call today just 今天.
+ */
+function dayLabelLines(
+  day: StatisticsDay,
+  style: LabelStyle,
+  today: string,
+  format: (seconds: number) => string,
+): string[] {
+  if (style === "full") return [dayLabel(day, today), ...valueLabels(day, format)];
+  const head = day.date === today ? "今天" : `${monthDay(day.date)} ${weekday(day.date)}`;
+  if (style === "dates") return [head];
+  return day.recorded_seconds <= 0
+    ? [head, "无记录", ""]
+    : [head, format(day.active_seconds), format(day.recorded_seconds)];
+}
+
 /** Whether each centred label row clears its left neighbour's (today's label also carries the lamp). */
 function dayLabelsFit(
   days: StatisticsDay[],
+  style: LabelStyle,
   columnWidth: number,
   today: string,
   format: (seconds: number) => string,
 ): boolean {
-  const rows = days.map((day) => [dayLabel(day, today), ...valueLabels(day, format)].map(textWidth));
+  const rows = days.map((day) => dayLabelLines(day, style, today, format).map(textWidth));
   return rows.every(
     (row, index) =>
       index === 0 ||

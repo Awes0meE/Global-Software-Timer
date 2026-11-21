@@ -240,23 +240,44 @@ describe("StatisticsPage", () => {
       expect(chart()).toHaveTextContent("活跃 5.0小时");
     });
 
-    it("falls back to sparse labels when a 10-day range is too narrow at the minimum window width", async () => {
+    function dayLabels() {
+      return Array.from(chart().querySelectorAll("text.day"), (node) => node.textContent);
+    }
+
+    it("drops the value prefixes to the gutter when full labels are too wide at the minimum window width", async () => {
       paperWidth = 855;
       invoke.mockResolvedValue(tenDays());
       await renderPage();
 
-      expect(chart().querySelectorAll(".vals")).toHaveLength(0);
-      expect(chart()).not.toHaveTextContent("（今天）");
-      expect(chart()).toHaveTextContent("今天");
+      expect(dayLabels()).toHaveLength(10);
+      expect(dayLabels()[0]).toBe("11-12 周四");
+      expect(dayLabels()[9]).toBe("今天");
+      expect(chart().querySelectorAll(".vals-strong")).toHaveLength(10);
+      expect(chart()).toHaveTextContent("12.6小时");
+      expect(chart()).not.toHaveTextContent("活跃 12.6小时");
+      // One 活跃 / 记录 row header each, in the left gutter.
+      expect(Array.from(chart().querySelectorAll(".vals-dim"), (node) => node.textContent)).toEqual(
+        expect.arrayContaining(["活跃", "记录"]),
+      );
     });
 
-    it("falls back to sparse labels when hours-minutes values are too long for 7 columns", async () => {
+    it("keeps every day labelled when hours-minutes values are too long for 7 columns", async () => {
       paperWidth = 855;
       invoke.mockResolvedValue(
         summary({ days: summary().days.map((item) => day(item.date, 23 * H, 12.6 * H)) }),
       );
       await renderPage({ durationFormat: "hours_minutes" });
-      expect(chart().querySelectorAll(".vals")).toHaveLength(0);
+      expect(dayLabels()).toEqual([
+        "11-15 周日",
+        "11-16 周一",
+        "11-17 周二",
+        "11-18 周三",
+        "11-19 周四",
+        "11-20 周五",
+        "今天",
+      ]);
+      expect(chart().querySelectorAll(".vals-strong")).toHaveLength(7);
+      expect(chart()).toHaveTextContent("12小时36分钟");
       cleanup();
 
       invoke.mockReset();
@@ -264,7 +285,28 @@ describe("StatisticsPage", () => {
         summary({ days: summary().days.map((item) => day(item.date, 23 * H, 12.6 * H)) }),
       );
       await renderPage();
+      expect(chart()).toHaveTextContent("活跃 12.6小时");
       expect(chart().querySelectorAll(".vals-strong")).toHaveLength(7);
+    });
+
+    it("keeps only the day lines of a 10-day range when even short values do not fit", async () => {
+      paperWidth = 855;
+      invoke.mockResolvedValue(tenDays());
+      await renderPage({ durationFormat: "hours_minutes" });
+
+      expect(dayLabels()).toHaveLength(10);
+      expect(dayLabels()[9]).toBe("今天");
+      expect(chart().querySelectorAll(".vals")).toHaveLength(0);
+      expect(chart().querySelectorAll(".pen-lamp")).toHaveLength(1);
+    });
+
+    it("falls back to sparse labels when a 10-day range is too narrow for the day lines", async () => {
+      paperWidth = 600;
+      invoke.mockResolvedValue(tenDays());
+      await renderPage();
+
+      expect(chart().querySelectorAll(".vals")).toHaveLength(0);
+      expect(dayLabels()).toEqual(["11-12", "11-16", "今天"]);
     });
 
     // Every day from `start` to `end` inclusive, each with 8 h recorded.
@@ -274,10 +316,6 @@ describe("StatisticsPage", () => {
         days.push(day(new Date(at).toISOString().slice(0, 10), 8 * H, 4 * H));
       }
       return summary({ start, end, days_count: days.length, days });
-    }
-
-    function dayLabels() {
-      return Array.from(chart().querySelectorAll("text.day"), (node) => node.textContent);
     }
 
     it("drops month labels that would collide with the first or last label of a long range", async () => {
