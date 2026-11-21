@@ -85,6 +85,11 @@ function achievementCalls() {
   return invoke.mock.calls.filter(([command]) => command === "get_achievements_summary");
 }
 
+function monthCaption(label: string): HTMLElement {
+  const month = screen.getByText(label, { selector: ".ach-month-head b" }).closest(".ach-month") as HTMLElement;
+  return month.querySelector(".ach-month-caption") as HTMLElement;
+}
+
 async function renderPage(props: Parameters<typeof AchievementsPage>[0] = {}) {
   await act(async () => {
     render(<AchievementsPage {...props} />);
@@ -270,9 +275,12 @@ describe("AchievementsPage", () => {
     invoke.mockResolvedValue(summary());
     await renderPage();
 
-    // 11-18 has 299 s, below the 5-minute filter, so November has three used days.
-    expect(screen.getByText("用过 3 天 · 3.9小时")).toBeInTheDocument();
-    expect(screen.getByText("用过 1 天 · 3.0小时")).toBeInTheDocument();
+    // 11-18 has 299 s, below the 5-minute filter, so November has three used days. The caption is
+    // two unbreakable parts so a narrow month wraps between them; the "·" is drawn by CSS.
+    const november = monthCaption("11月");
+    expect([...november.children].map((part) => part.textContent)).toEqual(["用过 3 天", "3.9小时"]);
+    expect(monthCaption("10月")).toHaveTextContent(/^用过 1 天3\.0小时$/);
+    expect(screen.getByTitle("2026-11 用过 3 天 · 3.9小时")).toBeInTheDocument();
     expect(screen.getByText("近 90 天里用过").nextElementSibling).toHaveTextContent("4天");
   });
 
@@ -362,7 +370,7 @@ describe("AchievementsPage", () => {
     await renderPage({ durationFormat: "hours_minutes" });
 
     expect(screen.getByLabelText("2026-11-21 活跃 2小时42分钟")).toBeInTheDocument();
-    expect(screen.getByText("用过 3 天 · 3小时51分钟")).toBeInTheDocument();
+    expect(monthCaption("11月")).toHaveTextContent(/^用过 3 天3小时51分钟$/);
     expect(screen.getByText("225小时 / 500小时")).toBeInTheDocument();
   });
 });

@@ -94,7 +94,9 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
       <div className={`lcd ach-dial${compact ? " is-compact" : ""}`}>
         <div className="ach-months" role="img" aria-label={chartLabel} style={{ "--ach-per-row": perRow } as CSSProperties}>
           {months.map((month, index) => {
-            const caption = `用过 ${month.usedDays} 天 · ${formatDurationZh(month.activeSeconds, durationFormat)}`;
+            const usedCaption = `用过 ${month.usedDays} 天`;
+            const durationCaption = formatDurationZh(month.activeSeconds, durationFormat);
+            const caption = `${usedCaption} · ${durationCaption}`;
             const classes = ["ach-month"];
             if (index % perRow === 0) classes.push("is-row-start");
             if (index >= perRow) classes.push("is-wrapped");
@@ -107,7 +109,13 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
                 <div className="ach-month-head">
                   <b>{month.label}</b>
                   {month.recorded ? (
-                    <span className="lcd-note">{compact ? `用过 ${month.usedDays} 天` : caption}</span>
+                    <span className="lcd-note">
+                      {/* Two unbreakable parts; the CSS separator in front of a part that starts a line is clipped. */}
+                      <span className="ach-month-caption">
+                        <span>{usedCaption}</span>
+                        {compact ? null : <span>{durationCaption}</span>}
+                      </span>
+                    </span>
                   ) : null}
                 </div>
                 <div className="ach-month-grid">

@@ -114,7 +114,7 @@
 .ach-month-head {
   display: grid;
   align-content: start;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -129,10 +129,30 @@
   line-height: 12px;
 }
 
-/* Narrow windows wrap the caption at its spaces, never inside a word. */
+/* The caption is "用过 N 天" and the active time, each unbreakable. Every part carries a "·" in
+   front; the row is pulled left by the separator's width so the one opening a line is clipped.
+   On one line it reads "用过 N 天 · X小时"; a narrow month wraps between the parts with no dot
+   left hanging. */
 .ach-month-head .lcd-note {
   overflow: hidden;
-  word-break: keep-all;
+  line-height: 16px;
+}
+
+.ach-month-caption {
+  display: flex;
+  flex-wrap: wrap;
+  margin-left: -14px;
+}
+
+.ach-month-caption > span {
+  white-space: nowrap;
+}
+
+.ach-month-caption > span::before {
+  content: "·";
+  display: inline-block;
+  width: 14px;
+  text-align: center;
 }
 
 .ach-month-grid {
@@ -224,17 +244,23 @@
 
 .ach-readings {
   display: grid;
+  /* Both pairs share these columns, so their labels line up. The right column never gets narrower
+     than its widest reading (近一年 in 小时分钟 can be "1234小时56分钟"); the left one gives way. */
+  grid-template-columns: minmax(0, 1fr) minmax(max-content, 1fr);
   align-content: space-between;
-  gap: 12px;
+  gap: 12px 18px;
   min-width: 0;
   padding-left: 26px;
   border-left: var(--ach-rule);
 }
 
+.ach-readings > * {
+  grid-column: 1 / -1;
+}
+
 .ach-pair {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 18px;
+  grid-template-columns: subgrid;
 }
 
 .ach-rule-top {
@@ -253,7 +279,7 @@
 
 .ach-dial-stat {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
   gap: 0 4px;
   margin-top: 6px;
@@ -272,6 +298,8 @@
 .ach-caption {
   display: grid;
   gap: 10px;
+  /* Spans both reading columns; it wraps to their width and must not widen the right one. */
+  contain: inline-size;
 }
 
 .ach-caption > .lcd-note {
@@ -802,9 +830,14 @@
   }
 
   .lcd.ach-dial.is-compact {
-    --ach-readout-width: 244px;
+    --ach-readout-width: 280px;
     --ach-cell: 7px;
     --ach-gap: 2px;
+  }
+
+  .ach-readings {
+    column-gap: 14px;
+    padding-left: 20px;
   }
 
   .ach-shelf {
