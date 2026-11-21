@@ -8,7 +8,7 @@ function appRow(id: number, todaySeconds: number, activeTodaySeconds: number): A
     app_id: id,
     display_name: `App ${id}`,
     process_name: `app-${id}.exe`,
-    icon_data_url: null,
+    icon_url: null,
     total_seconds: todaySeconds,
     today_seconds: todaySeconds,
     active_today_seconds: activeTodaySeconds,

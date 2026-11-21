@@ -1,23 +1,325 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{mpsc, Mutex, OnceLock};
+use std::sync::{mpsc, Arc, Mutex, MutexGuard, OnceLock, Weak};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use std::time::{Duration, Instant};
-
+/// Pixel size of every cached icon. The largest UI icon is 44 CSS px, so this
+/// stays sharp up to about 200% display scaling.
+const ICON_SIZE: u32 = 96;
+/// Executables are read at their largest embedded icon size, up to this, and
+/// scaled here: Windows stretches smaller icons blockily, a system-size icon too.
+const NATIVE_EXTRACT_SIZE: u32 = 256;
+/// Bump when the icon pipeline changes, so stale disk-cached icons are not reused.
+const ICON_FORMAT_VERSION: u8 = 2;
 const RETRY_DELAY: Duration = Duration::from_secs(60);
-enum IconEntry {
-    Pending,
-    Ready(String),
+const DISK_CACHE_MAX_AGE: Duration = Duration::from_secs(90 * 24 * 60 * 60);
+const PNG_SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
+
+/// Webview protocol that serves cached icons, so summaries carry a short URL
+/// instead of the image itself.
+pub const URI_SCHEME: &str = "gsticon";
+
+pub type IconBytes = Arc<Vec<u8>>;
+/// Receives the icon once it is known; `None` means there is no icon.
+pub type IconWaiter = Box<dyn FnOnce(Option<IconBytes>) + Send>;
+
+enum IconState {
+    Pending(Vec<IconWaiter>),
+    Ready(IconBytes),
     Failed(Instant),
 }
 
-impl IconEntry {
-    fn retry_due(&self, now: Instant) -> bool {
-        matches!(self, Self::Failed(at) if now.duration_since(*at) >= RETRY_DELAY)
+struct IconEntry {
+    path: String,
+    state: IconState,
+    /// Bumped on each retry; it changes the URL so the webview asks again.
+    attempt: u32,
+}
+
+#[derive(Default)]
+struct Registry {
+    keys_by_path: HashMap<String, String>,
+    entries: HashMap<String, IconEntry>,
+}
+
+struct IconStore {
+    registry: Mutex<Registry>,
+    disk_dir: Option<PathBuf>,
+    extract: fn(&str) -> Option<Vec<u8>>,
+    queue: OnceLock<mpsc::Sender<String>>,
+}
+
+static STORE: OnceLock<Arc<IconStore>> = OnceLock::new();
+
+fn store() -> &'static Arc<IconStore> {
+    STORE.get_or_init(|| IconStore::new(None, native_icon_png_for_path))
+}
+
+/// Keeps extracted icons in `dir` across restarts. Call once at startup,
+/// before any summary is served.
+pub fn init_disk_cache(dir: PathBuf) {
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let prune_dir = dir.clone();
+    std::thread::spawn(move || prune_disk_cache(&prune_dir, SystemTime::now()));
+    let _ = STORE.set(IconStore::new(Some(dir), native_icon_png_for_path));
+}
+
+/// Image URL for a summary row. Shell icon lookup can block for seconds, so it
+/// runs on a worker thread and the webview request waits for it instead.
+pub fn icon_url(executable_path: &str) -> Option<String> {
+    store().url_for(executable_path)
+}
+
+/// Answers a `gsticon` protocol request for `request_path` ("/<key>.png").
+pub fn resolve_icon(request_path: &str, waiter: IconWaiter) {
+    let key = request_path
+        .trim_start_matches('/')
+        .trim_end_matches(".png");
+    store().resolve(key, waiter);
+}
+
+pub fn icon_response(icon: Option<IconBytes>) -> tauri::http::Response<Vec<u8>> {
+    let response = match icon {
+        // The key changes with the executable, so a served icon never goes stale.
+        Some(bytes) => tauri::http::Response::builder()
+            .status(200)
+            .header("Content-Type", "image/png")
+            .header("Cache-Control", "max-age=31536000, immutable")
+            .body(bytes.as_ref().clone()),
+        None => tauri::http::Response::builder()
+            .status(404)
+            .header("Cache-Control", "no-store")
+            .body(Vec::new()),
+    };
+    response.unwrap_or_default()
+}
+
+fn url_for_key(key: &str, attempt: u32) -> String {
+    let retry = if attempt == 0 {
+        String::new()
+    } else {
+        format!("?retry={attempt}")
+    };
+    if cfg!(any(windows, target_os = "android")) {
+        format!("http://{URI_SCHEME}.localhost/{key}.png{retry}")
+    } else {
+        format!("{URI_SCHEME}://localhost/{key}.png{retry}")
     }
 }
 
-static ICON_CACHE: OnceLock<Mutex<HashMap<String, IconEntry>>> = OnceLock::new();
+/// Stable across runs. Windows paths are case-insensitive, and the file's size
+/// and modification time are included so an updated executable gets a new icon.
+fn icon_key(path: &str) -> String {
+    let (len, modified) = std::fs::metadata(path)
+        .map(|metadata| {
+            let modified = metadata
+                .modified()
+                .ok()
+                .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+                .map_or(0, |since| since.as_nanos());
+            (metadata.len(), modified)
+        })
+        .unwrap_or((0, 0));
+    // FNV-1a: std's hasher is not guaranteed to be stable between Rust releases.
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let bytes = path
+        .to_lowercase()
+        .into_bytes()
+        .into_iter()
+        .chain(len.to_le_bytes())
+        .chain(modified.to_le_bytes())
+        .chain([ICON_FORMAT_VERSION]);
+    for byte in bytes {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("{hash:016x}")
+}
+
+enum Resolution {
+    Answer(Option<IconBytes>),
+    Wait,
+}
+
+impl IconStore {
+    fn new(disk_dir: Option<PathBuf>, extract: fn(&str) -> Option<Vec<u8>>) -> Arc<Self> {
+        Arc::new(Self {
+            registry: Mutex::default(),
+            disk_dir,
+            extract,
+            queue: OnceLock::new(),
+        })
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Registry> {
+        self.registry
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn url_for(self: &Arc<Self>, executable_path: &str) -> Option<String> {
+        let path = executable_path.trim();
+        if path.is_empty() {
+            return None;
+        }
+        {
+            let mut registry = self.lock();
+            if let Some(key) = registry.keys_by_path.get(path).cloned() {
+                return Some(self.current_url(&mut registry, &key));
+            }
+        }
+
+        let key = icon_key(path);
+        let on_disk = self.read_disk(&key);
+        let mut registry = self.lock();
+        registry.keys_by_path.insert(path.to_owned(), key.clone());
+        if !registry.entries.contains_key(&key) {
+            let needs_lookup = on_disk.is_none();
+            let state = on_disk.map_or_else(|| IconState::Pending(Vec::new()), IconState::Ready);
+            registry.entries.insert(
+                key.clone(),
+                IconEntry {
+                    path: path.to_owned(),
+                    state,
+                    attempt: 0,
+                },
+            );
+            if needs_lookup {
+                self.enqueue(&key);
+            }
+        }
+        Some(self.current_url(&mut registry, &key))
+    }
+
+    /// Summaries refresh every few seconds, so a failed lookup is queued again
+    /// here once the cooldown has passed, under a new URL the webview requests.
+    fn current_url(self: &Arc<Self>, registry: &mut Registry, key: &str) -> String {
+        let Some(entry) = registry.entries.get_mut(key) else {
+            return url_for_key(key, 0);
+        };
+        if matches!(entry.state, IconState::Failed(at) if at.elapsed() >= RETRY_DELAY) {
+            entry.attempt += 1;
+            entry.state = IconState::Pending(Vec::new());
+            self.enqueue(key);
+        }
+        url_for_key(key, entry.attempt)
+    }
+
+    fn resolve(&self, key: &str, waiter: IconWaiter) {
+        let mut registry = self.lock();
+        let resolution = match registry.entries.get(key).map(|entry| &entry.state) {
+            None => Resolution::Answer(None),
+            Some(IconState::Ready(bytes)) => Resolution::Answer(Some(Arc::clone(bytes))),
+            Some(IconState::Pending(_)) => Resolution::Wait,
+            Some(IconState::Failed(_)) => Resolution::Answer(None),
+        };
+        match resolution {
+            Resolution::Answer(icon) => {
+                drop(registry);
+                waiter(icon);
+            }
+            Resolution::Wait => {
+                if let Some(IconState::Pending(waiters)) =
+                    registry.entries.get_mut(key).map(|entry| &mut entry.state)
+                {
+                    waiters.push(waiter);
+                }
+            }
+        }
+    }
+
+    fn enqueue(self: &Arc<Self>, key: &str) {
+        let queue = self.queue.get_or_init(|| {
+            let (sender, receiver) = mpsc::channel::<String>();
+            // Weak, so a dropped store closes the channel and ends the worker.
+            let store: Weak<Self> = Arc::downgrade(self);
+            std::thread::spawn(move || {
+                for key in receiver {
+                    let Some(store) = store.upgrade() else {
+                        break;
+                    };
+                    // A panic must not end the worker: later requests would hang.
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        store.look_up(&key);
+                    }));
+                }
+            });
+            sender
+        });
+        let _ = queue.send(key.to_owned());
+    }
+
+    fn look_up(&self, key: &str) {
+        let Some(path) = self.lock().entries.get(key).map(|entry| entry.path.clone()) else {
+            return;
+        };
+        let extract = self.extract;
+        let icon = std::panic::catch_unwind(|| extract(&path))
+            .ok()
+            .flatten()
+            .map(Arc::new);
+        if let Some(bytes) = &icon {
+            self.write_disk(key, bytes);
+        }
+        let waiters = {
+            let mut registry = self.lock();
+            let Some(entry) = registry.entries.get_mut(key) else {
+                return;
+            };
+            let state = icon
+                .clone()
+                .map_or_else(|| IconState::Failed(Instant::now()), IconState::Ready);
+            match std::mem::replace(&mut entry.state, state) {
+                IconState::Pending(waiters) => waiters,
+                _ => Vec::new(),
+            }
+        };
+        for waiter in waiters {
+            waiter(icon.clone());
+        }
+    }
+
+    fn disk_path(&self, key: &str) -> Option<PathBuf> {
+        Some(self.disk_dir.as_ref()?.join(format!("{key}.png")))
+    }
+
+    fn read_disk(&self, key: &str) -> Option<IconBytes> {
+        let bytes = std::fs::read(self.disk_path(key)?).ok()?;
+        bytes.starts_with(PNG_SIGNATURE).then(|| Arc::new(bytes))
+    }
+
+    fn write_disk(&self, key: &str, bytes: &[u8]) {
+        let Some(path) = self.disk_path(key) else {
+            return;
+        };
+        // Write then rename, so a crash never leaves a truncated icon behind.
+        let temp = path.with_extension("png.tmp");
+        if std::fs::write(&temp, bytes).is_ok() {
+            let _ = std::fs::rename(&temp, &path);
+        }
+    }
+}
+
+/// Icons of replaced executables are never requested again. Files written more
+/// than `DISK_CACHE_MAX_AGE` ago are dropped; one still in use is re-extracted.
+fn prune_disk_cache(dir: &Path, now: SystemTime) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let expired = entry
+            .metadata()
+            .and_then(|metadata| metadata.modified())
+            .ok()
+            .and_then(|modified| now.duration_since(modified).ok())
+            .is_some_and(|age| age > DISK_CACHE_MAX_AGE);
+        if expired {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum IconLookupStep {
@@ -28,44 +330,8 @@ enum IconLookupStep {
     PackageFile(PathBuf),
 }
 
-/// Shell icon lookup can block for seconds. Summaries return cached icons on the
-/// next visible refresh; a missing or queued icon uses the software's initial.
-pub fn cached_native_icon(executable_path: &str) -> Option<String> {
-    static QUEUE: OnceLock<mpsc::Sender<String>> = OnceLock::new();
-    let key = executable_path.trim();
-    if key.is_empty() {
-        return None;
-    }
-    let cache = ICON_CACHE.get_or_init(Default::default);
-    let mut icons = cache.lock().ok()?;
-    match icons.get(key) {
-        Some(IconEntry::Ready(icon)) => return Some(icon.clone()),
-        Some(entry) if !entry.retry_due(Instant::now()) => return None,
-        _ => {}
-    }
-    let queue = QUEUE.get_or_init(|| {
-        let (sender, receiver) = mpsc::channel::<String>();
-        std::thread::spawn(move || {
-            for path in receiver {
-                let icon = std::panic::catch_unwind(|| native_icon_data_url_for_path(&path))
-                    .ok()
-                    .flatten()
-                    .map(IconEntry::Ready)
-                    .unwrap_or_else(|| IconEntry::Failed(Instant::now()));
-                if let Ok(mut icons) = cache.lock() {
-                    icons.insert(path, icon);
-                }
-            }
-        });
-        sender
-    });
-    if queue.send(key.to_owned()).is_ok() {
-        icons.insert(key.to_owned(), IconEntry::Pending);
-    }
-    None
-}
-
-fn native_icon_data_url_for_path(key: &str) -> Option<String> {
+/// PNG bytes of the best icon found for `key`, an executable or image path.
+fn native_icon_png_for_path(key: &str) -> Option<Vec<u8>> {
     let path = Path::new(key);
     icon_lookup_steps_for_path(path)
         .into_iter()
@@ -73,8 +339,8 @@ fn native_icon_data_url_for_path(key: &str) -> Option<String> {
             IconLookupStep::DirectImageFile(candidate)
             | IconLookupStep::ExplicitLocalFile(candidate)
             | IconLookupStep::DiscoveredLocalFile(candidate)
-            | IconLookupStep::PackageFile(candidate) => image_file_data_url(&candidate),
-            IconLookupStep::NativeExecutable => extract_native_icon_data_url(key),
+            | IconLookupStep::PackageFile(candidate) => image_file_png(&candidate),
+            IconLookupStep::NativeExecutable => extract_native_icon_png(key),
         })
 }
 
@@ -127,18 +393,63 @@ fn push_file_lookup_step(
     }
 }
 
-fn image_file_data_url(path: &Path) -> Option<String> {
+fn image_file_png(path: &Path) -> Option<Vec<u8>> {
     let extension = path.extension()?.to_string_lossy().to_lowercase();
     if !matches!(extension.as_str(), "ico" | "png") {
         return None;
     }
 
-    let image = image::ImageReader::open(path).ok()?.decode().ok()?;
-    let image = image.resize(64, 64, image::imageops::FilterType::Lanczos3);
-    let rgba = image.to_rgba8();
-    let (width, height) = rgba.dimensions();
+    let image = image::ImageReader::open(path)
+        .ok()?
+        .decode()
+        .ok()?
+        .to_rgba8();
+    let (width, height) = image.dimensions();
+    let mut rgba = image.into_raw();
+    premultiply_alpha(&mut rgba);
+    premultiplied_rgba_to_icon_png(rgba, width, height)
+}
 
-    encode_rgba_png_data_url(rgba.as_raw(), width, height)
+/// Scales premultiplied RGBA to `ICON_SIZE` and encodes it as a normal
+/// (straight-alpha) PNG. Scaling premultiplied pixels keeps the colour of fully
+/// transparent pixels from bleeding into antialiased edges.
+fn premultiplied_rgba_to_icon_png(rgba: Vec<u8>, width: u32, height: u32) -> Option<Vec<u8>> {
+    let image = image::RgbaImage::from_raw(width, height, rgba)?;
+    let image = if width == ICON_SIZE && height == ICON_SIZE {
+        image
+    } else {
+        image::DynamicImage::ImageRgba8(image)
+            .resize(ICON_SIZE, ICON_SIZE, image::imageops::FilterType::Lanczos3)
+            .into_rgba8()
+    };
+    let (width, height) = image.dimensions();
+    let mut rgba = image.into_raw();
+    unpremultiply_alpha(&mut rgba);
+    encode_rgba_png(&rgba, width, height)
+}
+
+fn premultiply_alpha(rgba: &mut [u8]) {
+    for pixel in rgba.chunks_exact_mut(4) {
+        let alpha = u32::from(pixel[3]);
+        for channel in &mut pixel[..3] {
+            *channel = ((u32::from(*channel) * alpha + 127) / 255) as u8;
+        }
+    }
+}
+
+fn unpremultiply_alpha(rgba: &mut [u8]) {
+    for pixel in rgba.chunks_exact_mut(4) {
+        let alpha = u32::from(pixel[3]);
+        match alpha {
+            0 => pixel[..3].fill(0),
+            255 => {}
+            _ => {
+                for channel in &mut pixel[..3] {
+                    *channel = ((u32::from(*channel) * 255 + alpha / 2) / alpha).min(255) as u8;
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -516,23 +827,18 @@ fn windowsapps_root_from_path(path: &Path) -> Option<PathBuf> {
     None
 }
 
-fn encode_rgba_png_data_url(rgba: &[u8], width: u32, height: u32) -> Option<String> {
-    use base64::Engine;
+fn encode_rgba_png(rgba: &[u8], width: u32, height: u32) -> Option<Vec<u8>> {
     use image::{codecs::png::PngEncoder, ColorType, ImageEncoder};
 
     let mut png = Vec::new();
     PngEncoder::new(&mut png)
         .write_image(rgba, width, height, ColorType::Rgba8.into())
         .ok()?;
-
-    Some(format!(
-        "data:image/png;base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(png)
-    ))
+    Some(png)
 }
 
 #[cfg(target_os = "windows")]
-fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
+fn extract_native_icon_png(executable_path: &str) -> Option<Vec<u8>> {
     use std::ffi::OsStr;
     use std::mem::{size_of, zeroed};
     use std::os::windows::ffi::OsStrExt;
@@ -541,12 +847,8 @@ fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
         CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, SelectObject, BITMAPINFO,
         BITMAPINFOHEADER, DIB_RGB_COLORS,
     };
-    use windows_sys::Win32::UI::Shell::{
-        ExtractIconExW, SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON,
-    };
+    use windows_sys::Win32::UI::Shell::{ExtractIconExW, SHDefExtractIconW};
     use windows_sys::Win32::UI::WindowsAndMessaging::{DestroyIcon, DrawIconEx, DI_NORMAL};
-
-    const ICON_SIZE: i32 = 48;
 
     if !looks_like_windows_executable(Path::new(executable_path)) {
         return None;
@@ -561,25 +863,30 @@ fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
         return None;
     }
 
-    let mut shell_info: SHFILEINFOW = unsafe { zeroed() };
-    let shell_result = unsafe {
-        SHGetFileInfoW(
+    let extract_size = largest_embedded_icon_size(&wide_path)
+        .unwrap_or(NATIVE_EXTRACT_SIZE)
+        .clamp(16, NATIVE_EXTRACT_SIZE);
+    let mut icon = null_mut();
+    let result = unsafe {
+        SHDefExtractIconW(
             wide_path.as_ptr(),
             0,
-            &mut shell_info,
-            size_of::<SHFILEINFOW>() as u32,
-            SHGFI_ICON | SHGFI_LARGEICON,
+            0,
+            &mut icon,
+            null_mut(),
+            extract_size,
         )
     };
-    if shell_result == 0 || shell_info.hIcon.is_null() {
+    if result != 0 || icon.is_null() {
         return None;
     }
 
-    let mut bitmap_info = BITMAPINFO {
+    let size = extract_size as i32;
+    let bitmap_info = BITMAPINFO {
         bmiHeader: BITMAPINFOHEADER {
             biSize: size_of::<BITMAPINFOHEADER>() as u32,
-            biWidth: ICON_SIZE,
-            biHeight: -ICON_SIZE,
+            biWidth: size,
+            biHeight: -size,
             biPlanes: 1,
             biBitCount: 32,
             biCompression: 0,
@@ -596,7 +903,7 @@ fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
     let memory_dc = unsafe { CreateCompatibleDC(null_mut()) };
     if memory_dc.is_null() {
         unsafe {
-            DestroyIcon(shell_info.hIcon);
+            DestroyIcon(icon);
         }
         return None;
     }
@@ -604,7 +911,7 @@ fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
     let bitmap = unsafe {
         CreateDIBSection(
             memory_dc,
-            &mut bitmap_info,
+            &bitmap_info,
             DIB_RGB_COLORS,
             &mut bits,
             null_mut(),
@@ -614,67 +921,136 @@ fn extract_native_icon_data_url(executable_path: &str) -> Option<String> {
     if bitmap.is_null() || bits.is_null() {
         unsafe {
             DeleteDC(memory_dc);
-            DestroyIcon(shell_info.hIcon);
+            DestroyIcon(icon);
         }
         return None;
     }
 
     let old_object = unsafe { SelectObject(memory_dc, bitmap) };
-    let drew_icon = unsafe {
-        DrawIconEx(
-            memory_dc,
-            0,
-            0,
-            shell_info.hIcon,
-            ICON_SIZE,
-            ICON_SIZE,
-            0,
-            null_mut(),
-            DI_NORMAL,
-        )
-    } != 0;
-
-    let byte_len = (ICON_SIZE * ICON_SIZE * 4) as usize;
-    let bgra = if drew_icon {
-        unsafe { std::slice::from_raw_parts(bits.cast::<u8>(), byte_len) }.to_vec()
-    } else {
-        Vec::new()
+    let byte_len = (size * size * 4) as usize;
+    let draw_on = |background: u8| -> Option<Vec<u8>> {
+        unsafe {
+            std::ptr::write_bytes(bits.cast::<u8>(), background, byte_len);
+            if DrawIconEx(memory_dc, 0, 0, icon, size, size, 0, null_mut(), DI_NORMAL) == 0 {
+                return None;
+            }
+            Some(std::slice::from_raw_parts(bits.cast::<u8>(), byte_len).to_vec())
+        }
     };
+    let on_black = draw_on(0);
+    // Legacy icons have no alpha channel; drawing them on white as well shows
+    // which pixels their mask leaves transparent.
+    let on_white = on_black
+        .as_deref()
+        .filter(|pixels| !has_alpha_channel(pixels))
+        .and_then(|_| draw_on(0xff));
 
     unsafe {
         SelectObject(memory_dc, old_object);
         DeleteObject(bitmap);
         DeleteDC(memory_dc);
-        DestroyIcon(shell_info.hIcon);
+        DestroyIcon(icon);
     }
 
-    if bgra.is_empty() {
-        return None;
-    }
-
-    let rgba = bgra_to_rgba_with_alpha_fallback(&bgra)?;
-    encode_rgba_png_data_url(&rgba, ICON_SIZE as u32, ICON_SIZE as u32)
+    let rgba = drawn_icon_to_premultiplied_rgba(&on_black?, on_white.as_deref())?;
+    premultiplied_rgba_to_icon_png(rgba, extract_size, extract_size)
 }
 
-/// Legacy 24-bit/masked icons drawn into a zeroed 32bpp DIB leave alpha at 0,
-/// which would render as an invisible image. Treat drawn colour as opaque then.
-/// Returns `None` for a blank result so the UI falls back to its letter badge.
-fn bgra_to_rgba_with_alpha_fallback(bgra: &[u8]) -> Option<Vec<u8>> {
-    let has_alpha = bgra.chunks_exact(4).any(|pixel| pixel[3] != 0);
-    let mut rgba = Vec::with_capacity(bgra.len());
-    let mut any_visible = false;
-    for pixel in bgra.chunks_exact(4) {
-        let alpha = if has_alpha {
-            pixel[3]
-        } else if pixel[..3].iter().any(|channel| *channel != 0) {
-            255
-        } else {
-            0
-        };
-        any_visible |= alpha != 0;
-        rgba.extend_from_slice(&[pixel[2], pixel[1], pixel[0], alpha]);
+/// Width of the largest image in the executable's first icon group: the one
+/// `SHDefExtractIconW` index 0 reads.
+#[cfg(target_os = "windows")]
+fn largest_embedded_icon_size(wide_path: &[u16]) -> Option<u32> {
+    use windows_sys::core::PCWSTR;
+    use windows_sys::Win32::Foundation::{FreeLibrary, BOOL, HMODULE};
+    use windows_sys::Win32::System::LibraryLoader::{
+        EnumResourceNamesW, FindResourceW, LoadLibraryExW, LoadResource, LockResource,
+        SizeofResource, LOAD_LIBRARY_AS_DATAFILE, LOAD_LIBRARY_AS_IMAGE_RESOURCE,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::RT_GROUP_ICON;
+
+    unsafe extern "system" fn first_group(
+        module: HMODULE,
+        _kind: PCWSTR,
+        name: PCWSTR,
+        result: isize,
+    ) -> BOOL {
+        let resource = FindResourceW(module, name, RT_GROUP_ICON);
+        let data = LockResource(LoadResource(module, resource));
+        if !resource.is_null() && !data.is_null() {
+            let len = SizeofResource(module, resource) as usize;
+            let directory = std::slice::from_raw_parts(data.cast::<u8>(), len);
+            *(result as *mut Option<u32>) = largest_icon_in_group(directory);
+        }
+        0 // Stop after the first group.
     }
-    any_visible.then_some(rgba)
+
+    let module = unsafe {
+        LoadLibraryExW(
+            wide_path.as_ptr(),
+            std::ptr::null_mut(),
+            LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE,
+        )
+    };
+    if module.is_null() {
+        return None;
+    }
+    let mut largest: Option<u32> = None;
+    unsafe {
+        EnumResourceNamesW(
+            module,
+            RT_GROUP_ICON,
+            Some(first_group),
+            &mut largest as *mut Option<u32> as isize,
+        );
+        FreeLibrary(module);
+    }
+    largest
+}
+
+/// Parses a GRPICONDIR: a 6-byte header with the entry count at offset 4,
+/// then 14-byte entries starting with the width (0 means 256).
+fn largest_icon_in_group(directory: &[u8]) -> Option<u32> {
+    let count = usize::from(u16::from_le_bytes([*directory.get(4)?, *directory.get(5)?]));
+    (0..count)
+        .filter_map(|index| directory.get(6 + index * 14))
+        .map(|&width| if width == 0 { 256 } else { u32::from(width) })
+        .max()
+}
+
+fn has_alpha_channel(bgra: &[u8]) -> bool {
+    bgra.chunks_exact(4).any(|pixel| pixel[3] != 0)
+}
+
+/// Converts an icon drawn by `DrawIconEx` to premultiplied RGBA. On a black
+/// background an icon with an alpha channel leaves premultiplied colour and its
+/// alpha. A legacy masked icon leaves alpha at 0, so its coverage comes from the
+/// copy drawn on white: transparent pixels turn white there, while opaque ones
+/// (black outlines included) stay the same. Returns `None` for a blank icon.
+fn drawn_icon_to_premultiplied_rgba(on_black: &[u8], on_white: Option<&[u8]>) -> Option<Vec<u8>> {
+    let mut rgba = Vec::with_capacity(on_black.len());
+    for (index, pixel) in on_black.chunks_exact(4).enumerate() {
+        let alpha = match on_white {
+            Some(on_white) if !has_alpha_channel(on_black) => {
+                let white = on_white.get(index * 4..index * 4 + 3)?;
+                let shown = pixel[..3]
+                    .iter()
+                    .zip(white)
+                    .map(|(black, white)| white.saturating_sub(*black))
+                    .max()
+                    .unwrap_or(0);
+                255 - shown
+            }
+            _ => pixel[3],
+        };
+        if alpha == 0 {
+            rgba.extend_from_slice(&[0, 0, 0, 0]);
+        } else {
+            rgba.extend_from_slice(&[pixel[2], pixel[1], pixel[0], alpha]);
+        }
+    }
+    rgba.chunks_exact(4)
+        .any(|pixel| pixel[3] != 0)
+        .then_some(rgba)
 }
 
 #[cfg(target_os = "windows")]
@@ -689,44 +1065,194 @@ fn looks_like_windows_executable(path: &Path) -> bool {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn extract_native_icon_data_url(_executable_path: &str) -> Option<String> {
+fn extract_native_icon_png(_executable_path: &str) -> Option<Vec<u8>> {
     None
 }
 
 #[cfg(test)]
 mod alpha_tests {
-    use super::bgra_to_rgba_with_alpha_fallback;
 
     #[test]
-    fn keeps_real_alpha_and_makes_alpha_less_icons_visible() {
+    fn keeps_real_alpha_and_finds_the_mask_of_legacy_icons() {
+        use super::drawn_icon_to_premultiplied_rgba as convert;
+        // BGRA pixels: a half-covered alpha pixel, then a transparent one.
         assert_eq!(
-            bgra_to_rgba_with_alpha_fallback(&[1, 2, 3, 128, 0, 0, 0, 0]),
+            convert(&[1, 2, 3, 128, 0, 0, 0, 0], None),
             Some(vec![3, 2, 1, 128, 0, 0, 0, 0])
         );
+        // Legacy icon: a black outline pixel, a red pixel and a masked-out one.
+        let on_black = [0, 0, 0, 0, 0, 0, 200, 0, 0, 0, 0, 0];
+        let on_white = [0, 0, 0, 255, 0, 0, 200, 255, 255, 255, 255, 255];
         assert_eq!(
-            bgra_to_rgba_with_alpha_fallback(&[10, 20, 30, 0, 0, 0, 0, 0]),
-            Some(vec![30, 20, 10, 255, 0, 0, 0, 0])
+            convert(&on_black, Some(&on_white)),
+            Some(vec![0, 0, 0, 255, 200, 0, 0, 255, 0, 0, 0, 0])
         );
-        assert_eq!(bgra_to_rgba_with_alpha_fallback(&[0; 8]), None);
+        assert_eq!(convert(&[0; 8], Some(&[255; 8])), None);
+    }
+
+    #[test]
+    fn converts_premultiplied_edges_back_to_their_real_colour() {
+        // A half-transparent white edge pixel arrives premultiplied as 128 grey.
+        let mut pixels = vec![128, 128, 128, 128, 7, 7, 7, 0, 10, 20, 30, 255];
+        super::unpremultiply_alpha(&mut pixels);
+        assert_eq!(
+            pixels,
+            vec![255, 255, 255, 128, 0, 0, 0, 0, 10, 20, 30, 255]
+        );
+
+        let mut straight = vec![255, 255, 255, 128];
+        super::premultiply_alpha(&mut straight);
+        assert_eq!(straight, vec![128, 128, 128, 128]);
+    }
+
+    #[test]
+    fn reads_the_largest_size_from_an_icon_group() {
+        let entry = |width: u8| {
+            let mut bytes = vec![0u8; 14];
+            bytes[0] = width;
+            bytes
+        };
+        let mut group = vec![0, 0, 1, 0, 3, 0];
+        group.extend(entry(16));
+        group.extend(entry(48));
+        group.extend(entry(32));
+        assert_eq!(super::largest_icon_in_group(&group), Some(48));
+        group.extend(entry(0));
+        group[4] = 4;
+        assert_eq!(super::largest_icon_in_group(&group), Some(256));
+        assert_eq!(super::largest_icon_in_group(&[0, 0, 1, 0]), None);
+        // A count larger than the data reads only the entries present.
+        assert_eq!(
+            super::largest_icon_in_group(&[0, 0, 1, 0, 9, 0, 24]),
+            Some(24)
+        );
+    }
+
+    #[test]
+    fn every_icon_is_scaled_to_the_shared_size() {
+        let size = 8;
+        let rgba = [128u8, 128, 128, 128].repeat((size * size) as usize);
+        let png = super::premultiplied_rgba_to_icon_png(rgba, size, size).expect("png");
+        let image = image::load_from_memory(&png).expect("decode").to_rgba8();
+        assert_eq!(image.dimensions(), (super::ICON_SIZE, super::ICON_SIZE));
+        assert_eq!(image.get_pixel(48, 48).0, [255, 255, 255, 128]);
+    }
+}
+
+#[cfg(test)]
+mod store_tests {
+    use super::{IconBytes, IconState, IconStore, PNG_SIGNATURE, RETRY_DELAY};
+    use std::sync::mpsc;
+    use std::time::{Duration, Instant};
+
+    fn fake_png(_path: &str) -> Option<Vec<u8>> {
+        Some(PNG_SIGNATURE.to_vec())
+    }
+
+    fn no_icon(_path: &str) -> Option<Vec<u8>> {
+        None
+    }
+
+    fn key_of(url: &str) -> String {
+        url.rsplit('/')
+            .next()
+            .unwrap()
+            .trim_end_matches(".png")
+            .to_owned()
+    }
+
+    fn resolve_blocking(store: &std::sync::Arc<IconStore>, key: &str) -> Option<IconBytes> {
+        let (sender, receiver) = mpsc::channel();
+        store.resolve(
+            key,
+            Box::new(move |icon| {
+                let _ = sender.send(icon);
+            }),
+        );
+        receiver
+            .recv_timeout(Duration::from_secs(5))
+            .expect("protocol request answered")
+    }
+
+    #[test]
+    fn same_executable_shares_one_short_url_regardless_of_case() {
+        let store = IconStore::new(None, fake_png);
+        let url = store.url_for(r" C:\Apps\Tool.exe ").expect("url");
+        assert_eq!(store.url_for(r"c:\apps\tool.EXE"), Some(url.clone()));
+        assert_ne!(store.url_for(r"C:\Apps\Other.exe"), Some(url.clone()));
+        assert!(url.len() < 64, "{url}");
+        assert_eq!(store.url_for("  "), None);
+    }
+
+    #[test]
+    fn a_request_waits_for_the_lookup_and_unknown_keys_get_nothing() {
+        let store = IconStore::new(None, fake_png);
+        let key = key_of(&store.url_for(r"C:\Apps\Tool.exe").unwrap());
+        assert_eq!(
+            resolve_blocking(&store, &key).as_deref(),
+            Some(&PNG_SIGNATURE.to_vec())
+        );
+        assert_eq!(resolve_blocking(&store, "0123456789abcdef"), None);
+    }
+
+    #[test]
+    fn a_failed_lookup_is_retried_only_after_the_cooldown() {
+        let store = IconStore::new(None, no_icon);
+        let key = key_of(&store.url_for(r"C:\Apps\Plain.exe").unwrap());
+        assert_eq!(resolve_blocking(&store, &key), None);
+        assert!(matches!(
+            store.lock().entries[&key].state,
+            IconState::Failed(_)
+        ));
+
+        // Before the cooldown the URL stays the same and nothing is queued.
+        let url = store.url_for(r"C:\Apps\Plain.exe").unwrap();
+        assert!(!url.contains("retry"), "{url}");
+
+        let expired = Instant::now()
+            .checked_sub(RETRY_DELAY)
+            .expect("old instant");
+        store.lock().entries.get_mut(&key).unwrap().state = IconState::Failed(expired);
+        let retry_url = store.url_for(r"C:\Apps\Plain.exe").unwrap();
+        assert!(retry_url.ends_with(".png?retry=1"), "{retry_url}");
+        assert_eq!(resolve_blocking(&store, &key), None);
+        let IconState::Failed(at) = store.lock().entries[&key].state else {
+            panic!("lookup should have failed again");
+        };
+        assert!(at > expired);
+    }
+
+    #[test]
+    fn extracted_icons_survive_a_restart_through_the_disk_cache() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let first = IconStore::new(Some(dir.path().to_path_buf()), fake_png);
+        let key = key_of(&first.url_for(r"C:\Apps\Tool.exe").unwrap());
+        assert!(resolve_blocking(&first, &key).is_some());
+        assert!(dir.path().join(format!("{key}.png")).exists());
+
+        let restarted = IconStore::new(Some(dir.path().to_path_buf()), no_icon);
+        restarted.url_for(r"C:\Apps\Tool.exe").unwrap();
+        assert!(matches!(
+            restarted.lock().entries[&key].state,
+            IconState::Ready(_)
+        ));
+    }
+
+    #[test]
+    fn pruning_removes_only_files_written_long_ago() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        std::fs::write(dir.path().join("a.png"), PNG_SIGNATURE).unwrap();
+        let now = std::time::SystemTime::now();
+        super::prune_disk_cache(dir.path(), now);
+        assert!(dir.path().join("a.png").exists());
+        super::prune_disk_cache(dir.path(), now + super::DISK_CACHE_MAX_AGE * 2);
+        assert!(!dir.path().join("a.png").exists());
     }
 }
 
 #[cfg(all(test, target_os = "windows"))]
 mod tests {
-    use super::{native_icon_data_url_for_path, IconEntry, RETRY_DELAY};
-    use std::time::Instant;
-
-    #[test]
-    fn only_a_failed_lookup_can_be_queued_again_after_cooldown() {
-        let start = Instant::now();
-        let expired = start + RETRY_DELAY;
-        assert!(!IconEntry::Pending.retry_due(expired));
-        assert!(!IconEntry::Ready("icon".into()).retry_due(expired));
-        let miss = IconEntry::Failed(start);
-        assert!(!miss.retry_due(start));
-        assert!(miss.retry_due(expired));
-    }
-
+    use super::native_icon_png_for_path;
     use std::path::Path;
 
     #[test]
@@ -879,17 +1405,43 @@ mod tests {
         let executable_path = temp_dir.path().join("helper.exe");
         std::fs::write(&executable_path, []).expect("exe placeholder");
 
-        let icon = native_icon_data_url_for_path(&executable_path.to_string_lossy());
+        let icon = native_icon_png_for_path(&executable_path.to_string_lossy());
 
         assert!(icon.is_none());
+    }
+
+    #[test]
+    fn reads_embedded_icon_sizes_of_real_executables() {
+        use std::os::windows::ffi::OsStrExt;
+        let system = Path::new(&std::env::var("WINDIR").expect("WINDIR")).join("System32");
+        let size = |name: &str| {
+            let wide: Vec<u16> = system
+                .join(name)
+                .as_os_str()
+                .encode_wide()
+                .chain(Some(0))
+                .collect();
+            super::largest_embedded_icon_size(&wide)
+        };
+        assert_eq!(size("notepad.exe"), Some(256));
+        // An older tool with small icons only; it must not be stretched to 256.
+        assert!(size("certutil.exe").is_some_and(|size| size < 256));
+        assert_eq!(size("does-not-exist.exe"), None);
     }
 
     #[test]
     fn extracts_shell_icon_for_existing_executable() {
         let windows_dir = std::env::var("WINDIR").expect("WINDIR");
         let notepad = Path::new(&windows_dir).join("System32").join("notepad.exe");
-        let icon = native_icon_data_url_for_path(&notepad.to_string_lossy()).expect("icon");
+        let png = native_icon_png_for_path(&notepad.to_string_lossy()).expect("icon");
+        let image = image::load_from_memory(&png).expect("decode").to_rgba8();
 
-        assert!(icon.starts_with("data:image/png;base64,"));
+        assert_eq!(image.dimensions(), (super::ICON_SIZE, super::ICON_SIZE));
+        // Straight alpha: a light antialiased edge is brighter than its coverage.
+        // Premultiplied output (the old dark-fringe bug) never is.
+        assert!(image.pixels().any(|pixel| {
+            let [red, green, blue, alpha] = pixel.0;
+            alpha > 0 && alpha < 255 && red.max(green).max(blue) > alpha
+        }));
     }
 }

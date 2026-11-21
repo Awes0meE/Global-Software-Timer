@@ -8,7 +8,7 @@ function appRow(todaySeconds: number, activeTodaySeconds: number): AppUsageRow {
     app_id: 1,
     display_name: "Visual Studio Code",
     process_name: "Code.exe",
-    icon_data_url: null,
+    icon_url: null,
     total_seconds: 500 * 3600,
     today_seconds: todaySeconds,
     active_today_seconds: activeTodaySeconds,

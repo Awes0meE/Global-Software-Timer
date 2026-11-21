@@ -45,6 +45,15 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .register_asynchronous_uri_scheme_protocol(
+            native_icon::URI_SCHEME,
+            |_context, request, responder| {
+                native_icon::resolve_icon(
+                    request.uri().path(),
+                    Box::new(move |icon| responder.respond(native_icon::icon_response(icon))),
+                );
+            },
+        )
         .setup(|app| {
             #[cfg(windows)]
             if let Some(window) = app.get_webview_window("main") {
@@ -61,6 +70,10 @@ pub fn run() {
                     "无法创建数据目录 {}：{error}",
                     app_data_dir.display()
                 ));
+            }
+            match app.path().app_cache_dir() {
+                Ok(cache_dir) => native_icon::init_disk_cache(cache_dir.join("icons")),
+                Err(error) => eprintln!("icons will not be cached on disk: {error}"),
             }
             let db_path = app_data_dir.join("global-software-timer.sqlite3");
             let state = AppState::new(db_path.clone()).unwrap_or_else(|error| {

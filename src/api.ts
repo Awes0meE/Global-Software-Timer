@@ -13,7 +13,7 @@ export interface AppUsageRow {
   app_id: number;
   display_name: string;
   process_name: string;
-  icon_data_url: string | null;
+  icon_url: string | null;
   total_seconds: number;
   today_seconds: number;
   active_today_seconds: number;
@@ -35,7 +35,7 @@ export interface SoftwarePageRow {
   identity_key: string;
   display_name: string;
   process_name: string;
-  icon_data_url: string | null;
+  icon_url: string | null;
   today_runtime_seconds: number;
   today_focused_seconds: number;
   total_runtime_seconds: number;
@@ -78,7 +78,7 @@ export interface BackgroundRow {
   family_key: string;
   display_name: string;
   process_name: string;
-  icon_data_url: string | null;
+  icon_url: string | null;
   is_running: boolean;
   process_count: number;
   /** Share of the whole machine's CPU right now (0-100); null when not running. */

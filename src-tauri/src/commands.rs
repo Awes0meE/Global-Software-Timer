@@ -1,7 +1,7 @@
 use crate::app_state::AppState;
 use crate::background::BackgroundProcessGroup;
 use crate::domain::{AppRuntimeStatus, AppUsageSummary, SoftwarePageRow};
-use crate::native_icon::cached_native_icon;
+use crate::native_icon::icon_url;
 use crate::storage::{BackgroundUsage, Store, StoreError};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
@@ -33,7 +33,7 @@ pub struct AppUsageRow {
     pub app_id: i64,
     pub display_name: String,
     pub process_name: String,
-    pub icon_data_url: Option<String>,
+    pub icon_url: Option<String>,
     pub total_seconds: i64,
     pub today_seconds: i64,
     pub active_today_seconds: i64,
@@ -54,7 +54,7 @@ pub struct BackgroundRowDto {
     pub family_key: String,
     pub display_name: String,
     pub process_name: String,
-    pub icon_data_url: Option<String>,
+    pub icon_url: Option<String>,
     pub is_running: bool,
     pub process_count: u32,
     /// Share of the whole machine's CPU right now (0-100), when running.
@@ -78,7 +78,7 @@ pub struct SoftwarePageRowDto {
     pub identity_key: String,
     pub display_name: String,
     pub process_name: String,
-    pub icon_data_url: Option<String>,
+    pub icon_url: Option<String>,
     pub today_runtime_seconds: i64,
     pub today_focused_seconds: i64,
     pub total_runtime_seconds: i64,
@@ -232,7 +232,7 @@ pub fn get_background_page_summary(
         rows: rows
             .into_iter()
             .map(|(row, path)| BackgroundRowDto {
-                icon_data_url: cached_native_icon(&path),
+                icon_url: icon_url(&path),
                 ..row
             })
             .collect(),
@@ -255,7 +255,7 @@ fn background_rows(
                     family_key: usage.family_key,
                     display_name: usage.display_name,
                     process_name: usage.process_name,
-                    icon_data_url: None,
+                    icon_url: None,
                     is_running: false,
                     process_count: u32::try_from(usage.peak_process_count).unwrap_or(0),
                     cpu_percent: None,
@@ -274,7 +274,7 @@ fn background_rows(
                     family_key: group.family_key.clone(),
                     display_name: group.display_name.clone(),
                     process_name: group.process_name.clone(),
-                    icon_data_url: None,
+                    icon_url: None,
                     is_running: true,
                     process_count: 0,
                     cpu_percent: None,
@@ -619,7 +619,7 @@ impl AppUsageRow {
             app_id: summary.app_id,
             display_name: summary.display_name,
             process_name: summary.process_name,
-            icon_data_url: cached_native_icon(&summary.executable_path),
+            icon_url: icon_url(&summary.executable_path),
             total_seconds: summary.total_seconds,
             today_seconds: summary.today_seconds,
             active_today_seconds: summary.active_today_seconds,
@@ -640,7 +640,7 @@ impl SoftwarePageRowDto {
             identity_key: row.identity_key,
             display_name: row.display_name,
             process_name: row.process_name,
-            icon_data_url: cached_native_icon(&row.executable_path),
+            icon_url: icon_url(&row.executable_path),
             today_runtime_seconds: row.today_runtime_seconds,
             today_focused_seconds: row.today_focused_seconds,
             total_runtime_seconds: row.total_runtime_seconds,
@@ -734,7 +734,7 @@ mod most_used_tests {
             app_id: 0,
             display_name: name.into(),
             process_name: format!("{name}.exe"),
-            icon_data_url: None,
+            icon_url: None,
             total_seconds: total,
             today_seconds: today,
             active_today_seconds: active,
@@ -868,7 +868,11 @@ mod tests {
             summary.most_used.as_ref().unwrap().display_name,
             "Visual Studio Code"
         );
-        assert!(summary.apps[0].icon_data_url.is_none());
+        // Rows carry a short protocol URL; the icon itself is fetched lazily.
+        assert!(summary.apps[0]
+            .icon_url
+            .as_deref()
+            .is_some_and(|url| url.contains(crate::native_icon::URI_SCHEME) && url.len() < 64));
         assert_eq!(summary.apps[0].status, AppRuntimeStatus::Closed);
     }
 

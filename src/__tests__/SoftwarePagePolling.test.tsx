@@ -13,7 +13,7 @@ it.each(["resolve", "reject"])("ignores an older poll that %ss after removing so
   const initial: SoftwarePageSummary = {
     focused: [], discovered: [], hidden: [{
       identity_key: "test", display_name: "Test App", process_name: "test.exe",
-      icon_data_url: null, today_runtime_seconds: 0, today_focused_seconds: 0,
+      icon_url: null, today_runtime_seconds: 0, today_focused_seconds: 0,
       total_runtime_seconds: 0, total_focused_seconds: 0, last_opened_at: null,
       status: "closed", mark: "hidden",
     }],

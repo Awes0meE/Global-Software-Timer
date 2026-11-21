@@ -920,7 +920,7 @@ p {
   border-radius: var(--radius-case);
 }
 
-:root[data-theme="light"] .software-icon:has(img) {
+:root[data-theme="light"] .software-icon:has(img:not([hidden])) {
   background: var(--icon-well);
 }
 
