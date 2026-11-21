@@ -116,6 +116,13 @@ v0.2.4 additionally includes:
 - Stricter default noise filtering: listed services, helpers and command-line tools, and executables run from Temp, Downloads or updater folders are not tracked. As a result, a portable app run from Downloads is not tracked either.
 - Column-header sorting on the `后台` table.
 
+v0.3.0 additionally includes:
+
+- The `统计` page (a chosen multi-day range compared with the previous range of the same length) and the `成就` page (activity heatmap, streaks, personal records, focus-time milestones, software comings and goings). Both only read the existing local daily-summary and session tables: no schema change (still schema 2) and no tracking change. Binding decisions: `docs/superpowers/specs/2026-11-21-statistics-and-achievements-design.md`.
+- 只记录，不设目标: days with under 5 active minutes count as `没用` to filter noise, not as a target. Write `用过 / 没用`; never show `达标`, countdowns, streak reminders or notifications.
+- Hidden software stays out of both pages' software-level figures unless their `包含隐藏软件` switch is on.
+- The header single-day date button appears only on `概览` and `后台`.
+
 v0.1 excludes:
 
 - macOS implementation.
