@@ -8,7 +8,8 @@ The latest public release is the supported version for security reports.
 
 | Version | Supported |
 | --- | --- |
-| 0.1.x | Yes |
+| 0.3.x | Yes |
+| < 0.3 | No |
 
 ## Reporting a Vulnerability
 
@@ -26,7 +27,7 @@ Include:
 
 ## Security Boundaries
 
-v0.1.x should not:
+Global Software Timer should not:
 
 - Upload usage data.
 - Require an account.

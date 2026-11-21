@@ -1,8 +1,8 @@
 # Privacy
 
-Global Software Timer v0.2.4 is local-first.
+Global Software Timer v0.3.0 is local-first.
 
-## What v0.2.4 records
+## What v0.3.0 records
 
 - Application executable identity
 - User-facing application name
@@ -17,7 +17,7 @@ Global Software Timer v0.2.4 is local-first.
 
 To tell windowed, tray and background apps apart, GST reads window styles and class names, process command lines (checked in memory for helper flags such as `--type=`, never stored), and the executable paths Windows lists under `HKCU\Control Panel\NotifyIconSettings`. It does not read window titles or tray icon tooltips.
 
-## What v0.2.4 does not record
+## What v0.3.0 does not record
 
 - Window titles
 - Document names
@@ -27,6 +27,10 @@ To tell windowed, tray and background apps apart, GST reads window styles and cl
 - File contents
 - Browser history
 - Cloud data
+
+## Statistics and achievements pages
+
+Since v0.3.0, the `统计` and `成就` pages calculate multi-day totals, rankings, streaks and milestones from the records listed above. They add no new collection and write nothing: they read, through the app's read-only database connection, the existing daily machine totals, daily per-software window and focus time, sessions, software names and executable paths, and the software-page hidden marks. Software icons come from the local icon cache below. The `包含隐藏软件` switch only changes what is shown and is not saved.
 
 ## Local icon cache
 
@@ -39,10 +43,10 @@ Since v0.2.4, GST also saves software icons to disk, so they are not read from e
 
 ## Network
 
-v0.2.4 does not upload usage data or require an account.
+v0.3.0 does not upload usage data or require an account.
 
 ## Permissions
 
-v0.2.4 runs as a normal user-space app and does not request administrator permission by default.
+v0.3.0 runs as a normal user-space app and does not request administrator permission by default.
 
-Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.2.4, can be turned off in Settings, and does not require administrator permission.
+Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.3.0, can be turned off in Settings, and does not require administrator permission.

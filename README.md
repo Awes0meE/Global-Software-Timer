@@ -99,6 +99,8 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 
 还有这些细节：
 
+- 📈 **多天统计**：统计页按近 7 天、本周、本月、近 30 天、今年或自定义区间（最长 366 天）汇总，每个数字都和上一个等长区间对比；能看到每天的记录与活跃时长、软件焦点排行与名次涨跌、「开着没用」的软件、打开次数和作息。
+- 🏆 **成就只记录、不设目标**：成就页用点阵热力图摆出近 90 天（可切换半年、一年）用过的日子，再加上连续天数、个人纪录和按软件累计焦点时长点亮的里程碑；没有目标、倒计时，也不发提醒。
 - 📦 **小巧**：EXE 安装包不到 4 MB。基于 Tauri，用系统自带的 WebView2 显示界面，不用再打包一整个浏览器。
 - 🔄 **升级不断档**：软件更新后换了带版本号的安装目录，仍然算同一个软件，累计时长接着往上加。
 - 🧭 **托盘软件也算数**：在 Windows 11 上，最小化到托盘的软件（比如聊天软件）同样计入运行时长。
@@ -118,6 +120,26 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
   <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/ui-software-dark.png" />
   <source media="(prefers-color-scheme: light)" srcset="./docs/assets/ui-software-light.png" />
   <img alt="软件页（示例数据）" src="./docs/assets/ui-software-light.png" width="100%" />
+</picture>
+
+### 统计
+
+选一段日期，走纸记录仪式的主图画出每天的记录和活跃时长；下面是按焦点时长的区间排行、开着没用榜、会话和作息，全部和上一个等长区间对比。
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/ui-statistics-dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="./docs/assets/ui-statistics-light.png" />
+  <img alt="统计页（示例数据）" src="./docs/assets/ui-statistics-light.png" width="100%" />
+</picture>
+
+### 成就
+
+液晶屏里按月排开的活跃热力图，配上当前和最长连续天数；下方是个人纪录、10 到 1000 小时的里程碑（6666 小时为终极成就），以及近 30 天新出现和没再打开的软件。
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/ui-achievements-dark.png" />
+  <source media="(prefers-color-scheme: light)" srcset="./docs/assets/ui-achievements-light.png" />
+  <img alt="成就页（示例数据）" src="./docs/assets/ui-achievements-light.png" width="100%" />
 </picture>
 
 <table>
@@ -160,6 +182,9 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 | **托盘运行** | 没有任务栏窗口，但在右下角通知区域有图标（需要 Windows 11）。 |
 | **后台运行** | 进程还在，但既没有窗口也没有托盘图标。 |
 | **软件页的“活跃”** | 软件拿到 Windows 前台焦点的时间，不看键鼠是否空闲。 |
+| **统计、成就页的“焦点”** | 和软件页的“活跃”同一口径。这两页里整台电脑的数字（每日趋势、热力图、连续天数）用今日活跃的键鼠口径，软件的数字（排行、开着没用、里程碑）用焦点。 |
+| **开着没用** | 区间内有窗口的时间不少于 5 小时、焦点却不到窗口时间 5% 的软件；托盘和后台时间不算。 |
+| **用过 / 没用** | 热力图和连续天数里，活跃不到 5 分钟的日子不算在内，记为“没用”，免得开机看一眼也被记上。 |
 
 > ℹ️ **说明**：概览按软件名称合并，软件页按软件身份汇总，两边的分组和后台口径不同，所以总数不一定完全相等。
 
@@ -215,6 +240,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 </table>
 
 - **不上传、不联网**：不上传任何使用数据，不需要账号，没有遥测。
+- **统计和成就不多收集**：这两页只用只读连接读取上面这些已有的本地记录来计算，不新增采集项，也不写入数据库。
 - **不要管理员权限**：作为普通程序运行；开机自启用的是当前用户自己的自启动项，同样不需要管理员权限。
 - **判断方式透明**：为了区分前台、托盘和后台，GST 只读取窗口样式和类名、进程命令行（只在内存里检查 `--type=` 这类辅助进程标记，不保存），以及 Windows 登记的托盘程序路径；不读取窗口标题，也不读取托盘图标的提示文字。
 - **数据放在哪**：
@@ -247,7 +273,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 <summary><b>把软件隐藏以后，它的记录会丢吗？</b></summary>
 <br />
 
-不会。隐藏的软件照常记录，只是不再出现在概览的排行和今日分布里；从隐藏列表里移除后，它的历史时长会重新显示。
+不会。隐藏的软件照常记录，只是不再出现在概览的排行和今日分布里，统计页和成就页的软件榜单默认也不列出它（打开页面上的「包含隐藏软件」开关就会算进去）；从隐藏列表里移除后，它的历史时长会重新显示。
 
 </details>
 
@@ -266,7 +292,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 安装包暂时没有代码签名，SmartScreen 会对没签名的新软件弹出这个提示。点 **更多信息 → 仍要运行** 即可。如果担心安装包被改动，可以对照 Releases 里的 `SHA256SUMS.txt` 校验：
 
 ```powershell
-Get-FileHash .\Global.Software.Timer_0.2.4_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Global.Software.Timer_0.3.0_x64-setup.exe -Algorithm SHA256
 ```
 
 </details>
@@ -296,7 +322,8 @@ Get-FileHash .\Global.Software.Timer_0.2.4_x64-setup.exe -Algorithm SHA256
 - [x] 软件页：特别关注、隐藏软件、离线拼音搜索
 - [x] Windows 11 托盘软件识别与「后台」进程页
 - [x] 浅色 / 深色主题，开机自启与关闭行为设置
-- [ ] 周 / 月 / 年统计
+- [x] 统计页：周、月、年与自定义区间，和上一个等长区间对比
+- [x] 成就页：活跃热力图、连续天数、个人纪录与里程碑
 - [ ] 时间轴
 - [ ] 数据导出与备份
 - [ ] 安装包签名与自动更新
@@ -323,7 +350,7 @@ flowchart LR
         DB[("SQLite<br/>本地数据库")]
     end
     subgraph UI["React 界面"]
-        D["概览 · 软件 · 后台 · 设置"]
+        D["概览 · 软件 · 后台 · 统计 · 成就 · 设置"]
     end
     P --> TR
     T --> TR
@@ -349,6 +376,7 @@ Rust 端的主要模块：
 | `storage` | 数据库结构与迁移、事件日志、会话、软件身份和每日汇总 |
 | `activity` | 根据 Windows 的键鼠空闲时间计算活跃时长 |
 | `background` | 「后台」页的进程分组和 CPU、内存统计 |
+| `statistics` | 统计页和成就页的区间对比、排行、连续天数和里程碑计算 |
 | `native_icon` | 读取软件图标并缓存到本机磁盘 |
 | `commands` / `tray` | 给界面提供数据接口；托盘菜单与主窗口 |
 
