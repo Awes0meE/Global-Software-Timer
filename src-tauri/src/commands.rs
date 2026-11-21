@@ -1303,6 +1303,58 @@ mod tests {
         );
     }
 
+    /// Prints both statistics summaries for a database snapshot as JSON, to
+    /// compare with independent SQL, and each call's first and warm median time.
+    /// `GST_ACCEPT_END` is the last day (default 2026-11-21): the statistics
+    /// range is the 30 days ending then, and achievements use it as today.
+    #[test]
+    #[ignore = "requires GST_BENCH_DB pointing to a disposable database snapshot"]
+    fn real_database_statistics_acceptance() {
+        let path = std::env::var("GST_BENCH_DB").expect("set GST_BENCH_DB");
+        let end = std::env::var("GST_ACCEPT_END").unwrap_or_else(|_| "2026-11-21".to_string());
+        let today = chrono::NaiveDate::parse_from_str(&end, "%Y-%m-%d").expect("GST_ACCEPT_END");
+        let start = (today - chrono::Duration::days(29)).to_string();
+        let store = Store::open_read_only(path).unwrap();
+
+        // (first call, warm median of five) in milliseconds
+        let timings_ms = |run: &dyn Fn()| {
+            let mut times: Vec<f64> = (0..6)
+                .map(|_| {
+                    let started = std::time::Instant::now();
+                    run();
+                    started.elapsed().as_secs_f64() * 1000.0
+                })
+                .collect();
+            let first = times.remove(0); // also warms the icon cache and SQLite pages
+            times.sort_by(f64::total_cmp);
+            (first, times[2])
+        };
+        let statistics_ms = timings_ms(&|| {
+            let transaction = store.savepoint().unwrap();
+            super::statistics_summary_from_store(&store, &start, &end, false).unwrap();
+            transaction.commit().unwrap();
+        });
+        let achievements_ms = timings_ms(&|| {
+            let transaction = store.savepoint().unwrap();
+            super::achievements_summary_from_store(&store, 90, false, today).unwrap();
+            transaction.commit().unwrap();
+        });
+
+        let statistics = super::statistics_summary_from_store(&store, &start, &end, false).unwrap();
+        let achievements =
+            super::achievements_summary_from_store(&store, 90, false, today).unwrap();
+        println!(
+            "ACCEPT_JSON {}",
+            serde_json::json!({ "statistics": statistics, "achievements": achievements })
+        );
+        for (name, (first, warm)) in [
+            ("statistics", statistics_ms),
+            ("achievements", achievements_ms),
+        ] {
+            println!("{name}: first call {first:.1} ms, warm median of 5 {warm:.1} ms");
+        }
+    }
+
     #[test]
     fn dashboard_summary_reads_sessions_and_daily_system_usage() {
         let db_file = NamedTempFile::new().expect("temp db");
