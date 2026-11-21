@@ -117,6 +117,8 @@ The script runs the full local gate, builds Tauri bundles, copies installer asse
 
 The release wrapper checks both npm exit codes and stops before staging on failure. `scripts/test-release-build.ps1` verifies both failure paths and runs through the local check gate and CI. A source push is not an installer release; verify artifacts before publishing.
 
+The `Windows release` workflow (`.github/workflows/release-validation.yml`) reruns `release:build` on pushes to `main` that touch `package-lock.json`, `docs/releases/*.md`, or the workflow. It creates the `v<version>` GitHub Release only when the head commit subject is exactly `chore(release): publish <version>`, matching the `package.json` version, and it uses `docs/releases/v<version>.md` as the notes, appending the source commit and SHA256 hashes.
+
 Release notes must include:
 
 - version and commit
@@ -158,7 +160,7 @@ gh api repos/Awes0meE/Global-Software-Timer/dependabot/alerts --paginate
 
 As of 2026-06-18, `npm.cmd audit --audit-level=moderate` reports zero vulnerabilities after the Vite/Vitest/jsdom toolchain update.
 
-On 2026-11-17, CI #45 reported seven npm findings. Compatible lockfile updates resolved them, and cloud npm audit returned zero vulnerabilities. CI now enforces a blocking audit. Windows release builds rerun the complete gate and produce installer hashes; only a main merge titled `chore(release): publish 0.1.4` publishes this release.
+On 2026-11-17, CI #45 reported seven npm findings. Compatible lockfile updates resolved them, and cloud npm audit returned zero vulnerabilities. CI now enforces a blocking audit.
 
 The 2026-06-18 audit also recorded a medium Rust Dependabot alert for `glib` in `src-tauri/Cargo.lock`. These are historical results, not a current clean bill of health. In that check, the crate was absent from the Windows target dependency tree:
 
