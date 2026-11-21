@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**状态：** 待执行。分支 `feat/statistics-and-achievements`，worktree `.worktrees/statistics-brainstorm`。
+**状态：** 任务 0～9 已在分支 `feat/statistics-and-achievements`（worktree `.worktrees/statistics-brainstorm`）完成，随 v0.3.0（2026-11-22）发布；任务 10 的各项没有记录在案的结果，未勾选。界面与下文描述不同之处以设计草案的「视觉方向」「实现与样稿的差别」两节为准。
 
 **目标：** 把侧栏的 `统计` 和 `成就` 从占位改成真实页面。统计页按用户选的跨天区间显示趋势、排行涨跌、开着没用榜、会话和作息；成就页显示活跃热力图、连续天数、个人纪录、焦点里程碑和软件来去。
 
@@ -59,6 +59,7 @@ pub const COMINGS_GOINGS_DAYS: i64 = 30;
 pub const COMINGS_GOINGS_MIN_WINDOW_SECONDS: i64 = 60; // 累计窗口不满 1 分钟不计入软件来去，2026-11-21 确认（任务 3b）
 pub const HEATMAP_DAY_OPTIONS: [u32; 3] = [90, 180, 365];
 pub const RANKING_LIMIT: usize = 20;
+pub const MILESTONE_LIMIT: usize = 30;
 ```
 
 ---
@@ -115,15 +116,15 @@ pub const RANKING_LIMIT: usize = 20;
 
 **产出：** 本机样稿目录（含真实数据，未入库） 下的 PNG，浅色和深色各一套，1440×900。
 
-- [ ] 用现有 `src/styles.css` 的令牌写两张静态 HTML 样稿（放 scratchpad，不进仓库），用无头 Edge `--screenshot` 截图。
-- [ ] 统计页给 2 个方向：
+- [x] 用现有 `src/styles.css` 的令牌写两张静态 HTML 样稿（放 scratchpad，不进仓库），用无头 Edge `--screenshot` 截图。
+- [x] 统计页给 2 个方向：
   - A：走纸记录仪。凹陷纸槽里横向走纸，每天一根记录针柱（记录浅、活跃深），活跃率是一条细描线，日均是一条虚线刻度；下方是排行台账。
   - B：仪表条带。每天一列凹槽刻度条，上方小液晶窗显示区间合计与环比。
-- [ ] 成就页给 2 个方向：
+- [x] 成就页给 2 个方向：
   - A：液晶点阵墙。热力图整个放进液晶屏，每天一个像素点，4 级墨色深浅；右侧液晶读数显示当前连续天数和最长连续天数。
   - B：日历刻度盘。按月排列的小液晶块，每块 7 列点阵。
-- [ ] 里程碑样式：六级刻字铭牌（10/50/100/500/1000/6666 小时），6666 用信号橙描边作为终极成就；未达成的铭牌是凹陷空槽加进度刻度。
-- [ ] 把截图发给用户，记录所选方向到设计草案。
+- [x] 里程碑样式：六级刻字铭牌（10/50/100/500/1000/6666 小时），6666 用信号橙描边作为终极成就；未达成的铭牌是凹陷空槽加进度刻度。
+- [x] 把截图发给用户，记录所选方向到设计草案。
 
 **完成标准：** 用户选定统计页和成就页各一个方向（或给出修改意见并重出）。
 
@@ -139,7 +140,7 @@ pub const RANKING_LIMIT: usize = 20;
 
 所有日期参数是本地日期 `NaiveDate`，包含两端；SQL 用 `usage_date BETWEEN ?1 AND ?2`，参数为 `date.to_string()`（`YYYY-MM-DD`，与现有写入一致）。
 
-- [ ] **Step 1：写失败测试。** 新建 `src-tauri/tests/statistics_storage_tests.rs`，用 `NamedTempFile` + `Store::open` + `migrate`，通过现有 `increment_*` 写入数据。至少覆盖：
+- [x] **Step 1：写失败测试。** 新建 `src-tauri/tests/statistics_storage_tests.rs`，用 `NamedTempFile` + `Store::open` + `migrate`，通过现有 `increment_*` 写入数据。至少覆盖：
 
 ```rust
 #[test]
@@ -182,13 +183,13 @@ fn software_window_and_focus_range_sum_per_identity() {
 
   另外覆盖：`software_detail_start_date` 与 `data_start_date` 在空库返回 `None`、有数据时返回最早日期；`daily_recorded_bounds_range` 只统计当天 `foreground_seconds > 0` 的身份并取最早 `first_recorded_at` 与最晚 `last_recorded_at`；`sessions_started_between` 用 UTC 边界、把多个 app 合并到同一身份、未关闭会话按心跳计时；`software_window_date_bounds` 只看 `foreground_seconds > 0` 的日子；`software_focus_daily` 按日期升序。需要的 `increment_daily_software_focus_usage` 真实签名以 `storage.rs:1605` 为准，测试里照抄。
 
-- [ ] **Step 2：确认失败。**
+- [x] **Step 2：确认失败。**
 
 ```powershell
 cargo test --manifest-path src-tauri\Cargo.toml --test statistics_storage_tests
 ```
 
-- [ ] **Step 3：实现以下 `pub fn`（都在 `impl Store`，只读）：**
+- [x] **Step 3：实现以下 `pub fn`（都在 `impl Store`，只读）：**
 
 | 函数 | 返回 | SQL 要点 |
 | --- | --- | --- |
@@ -205,7 +206,7 @@ cargo test --manifest-path src-tauri\Cargo.toml --test statistics_storage_tests
 
   `usage_sessions.started_at` 是 RFC 3339 文本，生产库里带不定长的小数秒（如 `2026-05-28T19:25:49.212314600+00:00`），同一秒内按字符串比较可能错序。`sessions_started_between` 用 SQL 按日期前缀前后各放宽一天粗筛，再在 Rust 里用 `DateTime::parse_from_rfc3339` 精确过滤。测试里用 `start_session` / `close_session(session_id, ended_at, "test", false)` 写入，保证格式与生产一致，并加一条小数秒恰好落在边界上的用例。
 
-- [ ] **Step 4：通过测试并检查格式。**
+- [x] **Step 4：通过测试并检查格式。**
 
 ```powershell
 cargo test --manifest-path src-tauri\Cargo.toml --test statistics_storage_tests
@@ -222,7 +223,7 @@ cargo fmt --manifest-path src-tauri\Cargo.toml -- --check
 
 只接收任务 1 查出来的普通集合，不碰数据库，方便穷举边界。
 
-- [ ] **Step 1：在模块内写失败测试**（`#[cfg(test)] mod tests`），至少包含：
+- [x] **Step 1：在模块内写失败测试**（`#[cfg(test)] mod tests`），至少包含：
 
 ```rust
 #[test]
@@ -321,9 +322,9 @@ fn comings_and_goings_use_window_days_and_ignore_the_detail_start_day() {
 
   再补：会话统计（打开次数、平均取整、最长）；`rank_software` 只保留焦点或窗口大于 0 的身份并截到 `RANKING_LIMIT`；同分按显示名排序要稳定（排序键需要显示名时，由调用方传入标签表或在命令层二次排序，二选一并写测试）。
 
-- [ ] **Step 2：确认失败**：`cargo test --manifest-path src-tauri\Cargo.toml statistics::`
+- [x] **Step 2：确认失败**：`cargo test --manifest-path src-tauri\Cargo.toml statistics::`
 
-- [ ] **Step 3：实现。** 类型建议：
+- [x] **Step 3：实现。** 类型建议：
 
 ```rust
 pub struct DateRange { pub start: NaiveDate, pub end: NaiveDate }
@@ -345,7 +346,7 @@ pub struct MilestoneEntry { pub identity_key: String, pub focused_seconds: i64,
 
   开着没用判断用整数避免浮点误差：`window >= IDLE_OPEN_MIN_WINDOW_SECONDS && focus * 1000 < window * IDLE_OPEN_MAX_FOCUS_PERMILLE`，按 `idle_seconds = window - focus` 降序。连续天数：达标日 = `active_seconds >= STREAK_MIN_ACTIVE_SECONDS`；当前连续从今天往回数，今天未达标则从昨天开始。里程碑列表只返回累计焦点不少于 1 小时的身份，按焦点降序，最多 30 个。
 
-- [ ] **Step 4：通过测试**，`cargo fmt -- --check`。
+- [x] **Step 4：通过测试**，`cargo fmt -- --check`。
 
 提交：`feat(statistics): add range, ranking, streak and milestone calculations`
 
@@ -355,7 +356,7 @@ pub struct MilestoneEntry { pub identity_key: String, pub focused_seconds: i64,
 
 **文件：** `src-tauri/src/commands.rs`、`src-tauri/src/lib.rs`
 
-- [ ] **Step 1：写失败测试**（`commands.rs` 现有 `mod tests` 风格，临时库 + `*_from_store` 组装函数，不经过 Tauri `State`）：
+- [x] **Step 1：写失败测试**（`commands.rs` 现有 `mod tests` 风格，临时库 + `*_from_store` 组装函数，不经过 Tauri `State`）：
   - `statistics_summary_zero_fills_days_and_flags_days_before_software_detail`：系统数据从 11-01 开始、软件数据从 11-03 开始，查 11-01～11-04，`days` 有 4 项，前两项 `has_software_detail == false`，`days_without_software_detail == 2`。
   - `statistics_summary_excludes_hidden_software_unless_requested`：隐藏身份不出现在 `ranking`、`idle_open`、`sessions`；`include_hidden = true` 时出现；机器级 `days` 数字两种情况相同。
   - `statistics_summary_reports_comparison_availability`：上一区间早于数据起点时 `system_comparison_available == false`；早于软件明细起点时 `software_comparison_available == false`。
@@ -364,7 +365,7 @@ pub struct MilestoneEntry { pub identity_key: String, pub focused_seconds: i64,
   - `achievements_summary_picks_best_active_day_and_best_software_day`。
   - `achievements_summary_excludes_hidden_software_from_milestones_and_comings_goings`。
 
-- [ ] **Step 2：实现 DTO（`#[derive(Debug, Clone, Serialize)]`，字段 snake_case，日期一律 `YYYY-MM-DD` 字符串，时间戳 RFC 3339）：**
+- [x] **Step 2：实现 DTO（`#[derive(Debug, Clone, Serialize)]`，字段 snake_case，日期一律 `YYYY-MM-DD` 字符串，时间戳 RFC 3339）：**
 
 ```rust
 pub struct StatisticsSummary {
@@ -410,7 +411,7 @@ pub struct AchievementsSummary {
 
   连续天数按全部历史算，不受热力图天数影响。最佳单日、里程碑同样按全部历史。
 
-- [ ] **Step 3：命令。** 写法照搬 `get_software_page_summary`：锁 `summary_store`、开 `savepoint`、调用 `*_from_store`、提交。
+- [x] **Step 3：命令。** 写法照搬 `get_software_page_summary`：锁 `summary_store`、开 `savepoint`、调用 `*_from_store`、提交。
 
 ```rust
 #[tauri::command(async)]
@@ -422,9 +423,9 @@ pub fn get_achievements_summary(state: State<'_, AppState>, heatmap_days: u32,
     include_hidden: bool) -> Result<AchievementsSummary, String>;
 ```
 
-  `today` 用 `Local::now().date_naive()`；`*_from_store` 接收 `today` 参数以便测试。会话的 UTC 边界用区间首日本地零点和末日次日本地零点，转换写法参照 `local_day_start_utc`，夏令时歧义用 `.single()` 的回退逻辑。图标用 `cached_native_icon(&representative_executable_path)`。在 `lib.rs` 的 `invoke_handler` 注册两个命令。
+  `today` 用 `Local::now().date_naive()`；`*_from_store` 接收 `today` 参数以便测试。会话的 UTC 边界用区间首日本地零点和末日次日本地零点，转换写法参照 `local_day_start_utc`，夏令时歧义用 `.single()` 的回退逻辑。图标用 `cached_native_icon(&representative_executable_path)`（实际：DTO 字段为 `icon_url`，用 `native_icon::icon_url` 生成 `gsticon` 图标协议地址，图标按需读取，与其他页面一致）。在 `lib.rs` 的 `invoke_handler` 注册两个命令。
 
-- [ ] **Step 4：** `cargo test --manifest-path src-tauri\Cargo.toml`，`cargo fmt -- --check`，全部通过。
+- [x] **Step 4：** `cargo test --manifest-path src-tauri\Cargo.toml`，`cargo fmt -- --check`，全部通过。
 
 提交：`feat(commands): expose statistics and achievements summaries`
 
@@ -436,9 +437,9 @@ pub fn get_achievements_summary(state: State<'_, AppState>, heatmap_days: u32,
 
 用户在看过样稿后确认：累计窗口时长（全部历史的 `foreground_seconds` 之和）不满 `COMINGS_GOINGS_MIN_WINDOW_SECONDS`（60 秒）的身份不进新面孔和沉寂软件，避免安装包、临时程序充数。
 
-- [ ] 先写失败测试：59 秒的身份不计入、60 秒恰好计入；新面孔和沉寂两边都覆盖。
-- [ ] `software_window_date_bounds` 一并返回累计窗口秒数（或新增一个只读查询，二选一，保持简单），`comings_and_goings` 按常量过滤。
-- [ ] `cargo test`、`cargo fmt -- --check` 通过。
+- [x] 先写失败测试：59 秒的身份不计入、60 秒恰好计入；新面孔和沉寂两边都覆盖。
+- [x] `software_window_date_bounds` 一并返回累计窗口秒数（或新增一个只读查询，二选一，保持简单；实现选了前者），`comings_and_goings` 按常量过滤。
+- [x] `cargo test`、`cargo fmt -- --check` 通过。
 
 提交：`feat(statistics): skip software with under a minute of window time in comings and goings`
 
@@ -448,13 +449,13 @@ pub fn get_achievements_summary(state: State<'_, AppState>, heatmap_days: u32,
 
 **文件：** `src/api.ts`、`src/statisticsRange.ts`、`src/__tests__/statisticsRange.test.ts`、`src/__tests__/api.test.ts`
 
-- [ ] **Step 1：写失败测试** `statisticsRange.test.ts`（固定 `now`，不依赖系统时间）：
+- [x] **Step 1：写失败测试** `statisticsRange.test.ts`（固定 `now`，不依赖系统时间）：
   - 预设 `last7`（默认）：今天 2026-11-21（周六）→ 11-15～11-21；`thisWeek` → 11-16（周一）～11-21；`thisMonth` → 11-01～11-21；`last30` → 10-23～11-21；`thisYear` → 2026-01-01～11-21，但起点不早于 `dataStartDate`（2026-05-29）。
   - `custom` 校验：倒序、超过 366 天、早于数据起点、晚于今天都返回中文错误文案。
   - `percentChange(current, previous)`：previous 为 0 返回 `null`（界面显示「无对比」），否则四舍五入到整数百分比。
   - `splitWeekdayWeekend(days)`：按本地星期拆分（周六、周日为周末），返回两组的日均活跃秒数。均值按区间内该组的全部日子算，没开机的空白日也计入分母；某组在区间内一天都没有时返回 `null`。测试写明这两点。
   - 日期一律按本地时区格式化成 `YYYY-MM-DD`，不用 `toISOString()`（避免 UTC 偏一天）。
-- [ ] **Step 2：** `api.ts` 加与任务 3 DTO 一一对应的接口和：
+- [x] **Step 2：** `api.ts` 加与任务 3 DTO 一一对应的接口和：
 
 ```ts
 export async function getStatisticsSummary(args: { start: string; end: string; includeHidden: boolean }) {
@@ -466,7 +467,7 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
 ```
 
   在 `api.test.ts` 断言命令名和参数（参照现有写法）。
-- [ ] **Step 3：** `npm.cmd test`、`npx.cmd tsc --noEmit` 通过。
+- [x] **Step 3：** `npm.cmd test`、`npx.cmd tsc --noEmit` 通过。
 
 提交：`feat(api): add statistics range helpers and summary wrappers`
 
@@ -476,9 +477,9 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
 
 **文件：** `scripts/ui-preview/mock-data.ts`、`scripts/ui-preview/tauri-core.ts`
 
-- [ ] `mock-data.ts` 加 `statisticsSummary(start, end, includeHidden)` 与 `achievementsSummary(heatmapDays, includeHidden)`，由固定种子生成确定的数据（每次刷新一样）。数据要能演示：早期「无软件明细」的日子、新上榜和名次变化、至少 2 个开着没用、一个连续 12 天的连续记录、一个刚解锁 100 小时的里程碑、一个 6666 小时终极成就（演示用）、新面孔和沉寂软件各 2 个。注释写明是合成数据。
-- [ ] `tauri-core.ts` 加两个 `case`；`?empty` 时返回全空；`pageLabels` 加 `statistics: "统计"`、`achievements: "成就"`。
-- [ ] 手动：任务 8 接入导航后用 `?page=statistics`、`?page=achievements` 打开。
+- [x] `mock-data.ts` 加 `statisticsSummary(start, end, includeHidden)` 与 `achievementsSummary(heatmapDays, includeHidden)`，由固定种子生成确定的数据（每次刷新一样）。数据要能演示：早期「无软件明细」的日子、新上榜和名次变化、至少 2 个开着没用、一个连续 12 天的连续记录、一个刚解锁 100 小时的里程碑、一个 6666 小时终极成就（演示用）、新面孔和沉寂软件各 2 个。注释写明是合成数据。
+- [x] `tauri-core.ts` 加两个 `case`；`?empty` 时返回全空；`pageLabels` 加 `statistics: "统计"`、`achievements: "成就"`。
+- [x] 手动：任务 8 接入导航后用 `?page=statistics`、`?page=achievements` 打开。
 
 提交：`build(preview): add statistics and achievements demo data`
 
@@ -490,7 +491,7 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
 
 布局自上而下：区间选择条 → 趋势主图（唯一主导区） → 两栏台账（排行 | 开着没用） → 会话台账 → 作息面板。不做统计卡片网格。
 
-- [ ] **Step 1：写失败测试**（mock `api.ts`）：
+- [x] **Step 1：写失败测试**（mock `api.ts`）：
   - 默认请求近 7 天、`includeHidden: false`；切换预设会以新区间重新请求，旧请求晚到的响应不能覆盖新区间（参照 `SoftwarePagePolling.test.tsx` 的过期响应写法）。
   - 读取中显示「正在读取统计…」，失败显示「无法读取统计」，区间内没有任何记录显示空状态文案。
   - 趋势区显示区间记录与活跃合计、日均、环比；`system_comparison_available == false` 时显示「无对比」而不是 0%。
@@ -499,12 +500,12 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
   - 开着没用为空时显示「这段时间没有开着不用的软件」。
   - 打开「包含隐藏软件」开关后以 `includeHidden: true` 重新请求。
   - 时长都经过 `formatDurationZh`，遵守设置里的时长格式。
-- [ ] **Step 2：实现。**
+- [x] **Step 2：实现。**
   - `StatisticsPage`：持有区间状态与开关，`startVisiblePolling(refresh, 60_000)`（区间含今天，数据会涨）；区间或开关变化立即刷新。
   - 区间选择：六个按键（近 7 天、本周、本月、近 30 天、今年、自定义），当前项用凹陷面板样式；自定义展开两个 `<input type="date">`，`min` 为数据起点、`max` 为今天，校验文案来自 `statisticsRange.ts`。
   - `TrendRecorder`：纯 SVG，按任务 0 选定方向实现。每天一组柱（记录、活跃），活跃率折线，日均虚线；无软件明细的日子不影响这里（机器数据完整）。可访问性：`role="img"` + `aria-label` 汇总句，另附一个视觉隐藏的 `<table>` 列出逐日数据。
   - `StatisticsLedgers`：台账样式沿用 `AppUsageTable`（软件名与图标、右对齐数字、行线、悬停）。作息面板显示工作日 / 周末日均活跃、日均开机时长（`tracker_uptime_seconds`）、最早与最晚记录的中位时间（`HH:MM`，本地时区）。
-- [ ] **Step 3：** `npm.cmd test`、`npx.cmd tsc --noEmit` 通过。
+- [x] **Step 3：** `npm.cmd test`、`npx.cmd tsc --noEmit` 通过。
 
 提交：`feat(statistics): add the statistics page`
 
@@ -516,15 +517,15 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
 
 布局：液晶屏（热力图 + 连续天数读数，主导区） → 个人纪录 → 里程碑铭牌 → 软件来去。
 
-- [ ] **Step 1：写失败测试：**
+- [x] **Step 1：写失败测试：**
   - 默认请求 `heatmapDays: 90`；切到 180、365 重新请求。
   - 热力图格子数等于 `heatmap.length`，每格 `aria-label` 形如「2026-11-21 活跃 2.7小时」；按 4 级深浅分档，分档阈值写在组件里并测试（建议：0、<1 小时、<3 小时、≥3 小时）。
   - 连续天数读数显示当前与最长，说明文字按设计草案「用词」一节写成过滤说明（「活跃不到 5 分钟的日子不算在内，免得开机看一眼也被记上」，分钟数取自 `streak_threshold_seconds`）。图例、每月小字、区间合计用「用过 / 没用」「用过 N 天」，测试断言页面上不出现「达标」二字，也没有「今天还差」之类的提示。
   - 里程碑：已达成显示最高档与解锁日期，未满档显示到下一档的进度；6666 小时显示「终极成就」。
   - 软件来去为空时各自显示空文案；包含隐藏软件开关同统计页。
   - 三态文案：「正在读取成就…」「无法读取成就」。
-- [ ] **Step 2：实现。** 热力图在 `.lcd-window` 内，用像素字体，点阵纹理只在液晶屏里；格子按周排成列（7 行），列顶标月份。成就页不轮询，挂载和切换时读取一次，页面重新可见时刷新一次（用 `startVisiblePolling` 配长间隔即可，如 5 分钟）。
-- [ ] **Step 3：** `npm.cmd test`、`npx.cmd tsc --noEmit` 通过。
+- [x] **Step 2：实现。** 热力图在 `.lcd-window` 内，用像素字体，点阵纹理只在液晶屏里；格子按周排成列（7 行），列顶标月份。成就页不轮询，挂载和切换时读取一次，页面重新可见时刷新一次（用 `startVisiblePolling` 配长间隔即可，如 5 分钟）。
+- [x] **Step 3：** `npm.cmd test`、`npx.cmd tsc --noEmit` 通过。
 
 提交：`feat(achievements): add the achievements page`
 
@@ -534,10 +535,10 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
 
 **文件：** `src/App.tsx`、`src/__tests__/App.test.tsx`
 
-- [ ] 测试先改：未开放按钮列表去掉「统计」「成就」，保留「时间轴」等；点击「统计」后标题为「统计」且 `aria-current="page"`；「成就」同理。
-- [ ] `PageId` 加 `"statistics" | "achievements"`，`pageTitles` 加两项，导航项 `available: true`。两页用 `lazy()` 懒加载，悬停/聚焦预热，写法照搬软件页；`Suspense` 回退沿用现有文案风格。
-- [ ] 页头日期按钮与导出按钮保持未完成占位，不在本计划内改动。
-- [ ] `npm.cmd test`、`npm.cmd run build` 通过。
+- [x] 测试先改：未开放按钮列表去掉「统计」「成就」，保留「时间轴」等；点击「统计」后标题为「统计」且 `aria-current="page"`；「成就」同理。
+- [x] `PageId` 加 `"statistics" | "achievements"`，`pageTitles` 加两项，导航项 `available: true`。两页用 `lazy()` 懒加载，悬停/聚焦预热，写法照搬软件页；`Suspense` 回退沿用现有文案风格。
+- [x] 页头日期按钮与导出按钮保持未完成占位，不在本计划内改动。（之后另行改动：日期按钮仍是占位，但只在概览和后台显示，见设计草案「视觉方向」。）
+- [x] `npm.cmd test`、`npm.cmd run build` 通过。
 
 提交：`feat(nav): open the statistics and achievements pages`
 
@@ -545,11 +546,11 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
 
 ## 任务 9：文档
 
-- [ ] `DESIGN.md`：Components 加「走纸记录仪趋势图」「液晶点阵热力图」「里程碑铭牌」，Layout 加两页布局；保持「不做统计卡片网格」。
-- [ ] `PRODUCT.md`：页面列表加入统计、成就，未开放项只剩时间轴等。
-- [ ] `docs/CURRENT_STATE.md`：统计口径表加统计页与成就页的行（焦点 / 窗口 / 活跃的选用、开着没用阈值、里程碑档位、连续天数门槛、软件明细起点）。
-- [ ] `CHANGELOG.md`：新增 `## Unreleased`，写用户能看到的变化。版本号与发布另做，不在本计划内。
-- [ ] 设计草案状态行改为「已实现，待发布」。
+- [x] `DESIGN.md`：Components 加「走纸记录仪趋势图」「液晶点阵热力图」「里程碑铭牌」，Layout 加两页布局；保持「不做统计卡片网格」。
+- [x] `PRODUCT.md`：页面列表加入统计、成就，未开放项只剩时间轴等。
+- [x] `docs/CURRENT_STATE.md`：统计口径表加统计页与成就页的行（焦点 / 窗口 / 活跃的选用、开着没用阈值、里程碑档位、连续天数门槛、软件明细起点）。
+- [x] `CHANGELOG.md`：新增 `## Unreleased`，写用户能看到的变化。版本号与发布另做，不在本计划内。
+- [x] 设计草案状态行改为「已实现，待发布」。
 
 提交：`docs: document the statistics and achievements pages`
 
@@ -561,4 +562,5 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
 - [ ] 预览（`.claude/launch.json` 的 `ui-preview-statistics`，端口 1451）：两页在 1440×900 与 1180×760、浅色与深色、`?empty` 下截图；控制台无错误；窄窗口无横向滚动。
 - [ ] 真实数据只读核对：把生产库复制到 scratchpad，用 SQL 独立算出近 30 天的开着没用榜和焦点里程碑，和 `*_from_store` 在同一份副本上的输出逐项对比。不写生产库。
 - [ ] 性能：在副本上测两个命令的耗时，各自应在 200 ms 内；超过则先加索引方案并另行讨论（会改 schema，不在本计划内直接做）。
+  上面两项的输出与耗时由 `src-tauri/src/commands.rs` 的 `real_database_statistics_acceptance` 打印（`#[ignore]`；`GST_BENCH_DB` 指向库副本，`GST_ACCEPT_END` 指定末日，默认 2026-11-21）。
 - [ ] 按 `AGENTS.md` 的审查关口做规格符合性与代码质量审查，修完再收尾。
