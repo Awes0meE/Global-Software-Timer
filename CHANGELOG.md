@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.0 - 2026-11-22
 
 - Opened the `统计` page. Pick 近 7 天 (default), 本周, 本月, 近 30 天, 今年 or a custom range of up to 366 days; every total is compared with the previous range of the same length.
 - Drew daily recorded and active time as a paper-strip recorder chart, with the active ratio as a trace and the daily average active time as a dashed rule.
