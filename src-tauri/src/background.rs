@@ -233,6 +233,25 @@ mod tests {
     }
 
     #[test]
+    fn hidden_vendor_helpers_still_list_on_the_background_page() {
+        let overlay = process(
+            300,
+            Some(8),
+            "NVIDIA Overlay.exe",
+            r"C:\Program Files\NVIDIA Corporation\NVIDIA app\CEF\NVIDIA Overlay.exe",
+        );
+        assert_eq!(
+            classify_process(&overlay.process_name, &overlay.executable_path),
+            Classification::Hidden
+        );
+
+        let groups = background_groups(&[overlay]);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].display_name, "NVIDIA Overlay");
+        assert_eq!(groups[0].process_name, "nvidia overlay.exe");
+    }
+
+    #[test]
     fn parent_cycles_do_not_hang() {
         let first = process(50, Some(51), "a.exe", r"D:\a.exe");
         let second = process(51, Some(50), "b.exe", r"D:\b.exe");

@@ -85,6 +85,12 @@ fn is_hardware_vendor_background_noise(name: &str) -> bool {
         "asusmultiantennasvc",
         "asussmartdisplaycontrol",
         "nvcontainer",
+        // Overlay/host helpers that v0.1.4 miscounted as foreground; their
+        // main apps (NVIDIA app, Razer Synapse, BitDock) stay tracked.
+        "ashotplugctrl",
+        "bitcenter",
+        "nvidia overlay",
+        "razer synapse service process",
     ];
 
     let stem = executable_stem(name);
@@ -205,5 +211,80 @@ fn executable_stem(process_name: &str) -> &str {
         &trimmed[..trimmed.len() - 4]
     } else {
         trimmed
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hides_vendor_overlay_and_host_helpers_by_exact_stem() {
+        let helpers = [
+            (
+                "NVIDIA Overlay.exe",
+                r"C:\Program Files\NVIDIA Corporation\NVIDIA app\CEF\NVIDIA Overlay.exe",
+            ),
+            (
+                "AsHotplugCtrl.exe",
+                r"C:\Program Files (x86)\ASUS\ATK Package\ATK Hotkey\AsHotplugCtrl.exe",
+            ),
+            (
+                "Razer Synapse Service Process.exe",
+                r"C:\Program Files (x86)\Razer\Synapse3\Service\Razer Synapse Service Process.exe",
+            ),
+            ("BitCenter.exe", r"D:\Software\BitDock\BitCenter.exe"),
+            ("BITCENTER.EXE", r"D:\Software\BitDock\BITCENTER.EXE"),
+        ];
+
+        for (process_name, executable_path) in helpers {
+            assert_eq!(
+                classify_process(process_name, executable_path),
+                Classification::Hidden,
+                "{process_name} should be hidden"
+            );
+        }
+    }
+
+    #[test]
+    fn keeps_vendor_main_apps_next_to_hidden_helpers() {
+        let main_apps = [
+            ("BitDock.exe", r"D:\Software\BitDock\BitDock.exe", "BitDock"),
+            (
+                "Razer Synapse 3.exe",
+                r"C:\Program Files (x86)\Razer\Synapse3\WPFUI\Framework\Razer Synapse 3 Host\Razer Synapse 3.exe",
+                "Razer Synapse 3",
+            ),
+            (
+                "NvidiaApp.exe",
+                r"C:\Program Files\NVIDIA Corporation\NVIDIA app\CEF\NvidiaApp.exe",
+                "NvidiaApp",
+            ),
+            (
+                "NVIDIA GeForce Experience.exe",
+                r"C:\Program Files\NVIDIA Corporation\NVIDIA GeForce Experience\NVIDIA GeForce Experience.exe",
+                "NVIDIA GeForce Experience",
+            ),
+            (
+                "ArmouryCrate.exe",
+                r"C:\Program Files\ASUS\ARMOURY CRATE Service\ArmouryCrate.exe",
+                "Armoury Crate",
+            ),
+            (
+                "NVIDIA Overlay Tool.exe",
+                r"D:\Tools\NVIDIA Overlay Tool.exe",
+                "NVIDIA Overlay Tool",
+            ),
+        ];
+
+        for (process_name, executable_path, display_name) in main_apps {
+            assert_eq!(
+                classify_process(process_name, executable_path),
+                Classification::Tracked {
+                    display_name: display_name.to_string()
+                },
+                "{process_name} should stay tracked"
+            );
+        }
     }
 }
