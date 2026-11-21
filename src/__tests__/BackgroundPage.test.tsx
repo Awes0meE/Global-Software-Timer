@@ -4,6 +4,7 @@ import type { BackgroundPageSummary } from "../api";
 import {
   BackgroundPage,
   formatBytes,
+  formatCpuSeconds,
   formatPercent,
 } from "../components/BackgroundPage";
 
@@ -60,11 +61,13 @@ describe("BackgroundPage", () => {
     expect(cells.getByText("3.3%")).toBeInTheDocument();
     expect(cells.getByText("64 MB")).toBeInTheDocument();
     expect(cells.getByText("2.0小时")).toBeInTheDocument();
-    expect(cells.getByText("0.0小时")).toBeInTheDocument();
+    expect(cells.getByText("2分钟")).toBeInTheDocument();
+    expect(cells.queryByText("0.0小时")).not.toBeInTheDocument();
     expect(cells.getByText("运行中")).toBeInTheDocument();
 
     const exited = within(list).getByText("Updater").closest(".background-row");
     expect(within(exited as HTMLElement).getByText("已退出")).toBeInTheDocument();
+    expect(within(exited as HTMLElement).getByText("<1秒")).toBeInTheDocument();
     expect(within(exited as HTMLElement).getByText("2.0 GB")).toBeInTheDocument();
 
     const overview = screen.getByRole("region", { name: "后台概况" });
@@ -92,6 +95,30 @@ describe("BackgroundPage", () => {
     view.rerender(<BackgroundPage durationFormat="decimal_hours" />);
     expect(screen.getByText("1.0小时")).toBeInTheDocument();
     expect(screen.getByRole("table")).toHaveAccessibleDescription(/已退出的进程显示今日峰值/);
+  });
+
+  it("formats CPU time without misleading zeros", () => {
+    const cases: Array<[number, string, string]> = [
+      // [seconds, decimal_hours, hours_minutes]
+      [0, "0秒", "0秒"],
+      [0.4, "<1秒", "<1秒"],
+      [1, "1秒", "1秒"],
+      [59.6, "59秒", "59秒"],
+      [60, "1分钟", "1分钟"],
+      [359, "5分钟", "5分钟"],
+      [360, "0.1小时", "6分钟"],
+      [3599, "1.0小时", "59分钟"],
+      [3600, "1.0小时", "1小时"],
+      [7260, "2.0小时", "2小时1分钟"],
+      [Number.NaN, "0秒", "0秒"],
+      [Number.POSITIVE_INFINITY, "0秒", "0秒"],
+      [-5, "0秒", "0秒"],
+    ];
+    for (const [seconds, decimal, hoursMinutes] of cases) {
+      expect(formatCpuSeconds(seconds, "decimal_hours")).toBe(decimal);
+      expect(formatCpuSeconds(seconds, "hours_minutes")).toBe(hoursMinutes);
+    }
+    expect(formatCpuSeconds(150)).toBe("2分钟");
   });
 
   it("formats small and large values readably", () => {

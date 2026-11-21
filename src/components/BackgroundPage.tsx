@@ -129,7 +129,7 @@ function BackgroundRowView({
       <td>{row.cpu_percent === null ? "—" : formatPercent(row.cpu_percent)}</td>
       <td title={row.is_running ? "当前占用" : "今日峰值"}>{formatBytes(row.memory_bytes)}</td>
       <td>{formatDurationZh(row.today_running_seconds, durationFormat)}</td>
-      <td>{formatDurationZh(row.today_cpu_seconds, durationFormat)}</td>
+      <td>{formatCpuSeconds(row.today_cpu_seconds, durationFormat)}</td>
       <td>
         <span className={`status-badge ${row.is_running ? "background" : "closed"}`}>
           <i className="lamp" aria-hidden="true" />
@@ -138,6 +138,25 @@ function BackgroundRowView({
       </td>
     </tr>
   );
+}
+
+/**
+ * CPU time (core-seconds) for the background table. Background processes often
+ * use only seconds of CPU per day, so small values get seconds/minutes instead
+ * of a misleading "0.0小时" / "0分钟"; larger values follow the user's format.
+ */
+export function formatCpuSeconds(
+  seconds: number,
+  durationFormat: DurationFormat = "decimal_hours",
+): string {
+  const value = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+  if (value === 0) return "0秒";
+  if (value < 1) return "<1秒";
+  if (value < 60) return `${Math.floor(value)}秒`;
+  if (durationFormat === "decimal_hours" && value < 360) {
+    return `${Math.floor(value / 60)}分钟`;
+  }
+  return formatDurationZh(value, durationFormat);
 }
 
 export function formatPercent(value: number): string {
