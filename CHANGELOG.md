@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Hide the NVIDIA Overlay, AsHotplugCtrl, Razer Synapse Service Process and BitCenter helpers by default, so their runtime recorded by v0.1.4 no longer heads the overview. Their main apps stay tracked, the 后台 page still lists the helpers, and stored history is unchanged.
+- Choose 最常用 from today's active time, falling back to today's runtime, instead of all-time runtime, so an always-running tray app no longer wins. The note under it shows the figure used.
+- Show seconds or minutes for small CPU times on the 后台 page instead of `0.0小时` or `0分钟`.
+- Preload the LCD pixel font so the readout does not briefly render in the fallback font.
+- Set an explicit icon on the Start menu shortcut and taskbar pin during installation and notify Windows, so the taskbar shows the current clock icon after an in-place upgrade.
+
 ## v0.2.2 - 2026-11-21
 
 - Split the initial frontend bundle and read the latest completed sample independently of ongoing scans. Software rows outside the viewport defer layout and painting.
