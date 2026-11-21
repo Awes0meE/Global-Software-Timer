@@ -151,7 +151,8 @@
   text-shadow: none;
 }
 
-/* Four ink levels, plus days outside the range (blank) and days still to come in this month. */
+/* Four ink levels, plus days outside the range (blank), days before records began and days still
+   to come in this month. */
 .ach-cell {
   display: block;
   width: var(--ach-cell);
@@ -184,6 +185,23 @@
 
 .ach-cell.is-blank {
   background: transparent;
+}
+
+/* Days before local records began: a dim centre dot, no outline, so they never read as gaps. */
+.ach-cell.is-norecord {
+  position: relative;
+  background: transparent;
+}
+
+.ach-cell.is-norecord::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 2px;
+  margin: -1px 0 0 -1px;
+  background: color-mix(in srgb, var(--lcd-ink) 34%, transparent);
 }
 
 .ach-cell.is-today {

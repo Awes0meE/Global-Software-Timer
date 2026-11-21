@@ -14,6 +14,9 @@ export type HeatLevel = 0 | 1 | 2 | 3;
 const LEVEL_1_MAX_SECONDS = 3600;
 const LEVEL_2_MAX_SECONDS = 3 * 3600;
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
+/** Months per row before the normal-size dot matrices wrap; 近一年 switches to small cells instead. */
+const MONTHS_PER_ROW = 4;
+const COMPACT_MIN_DAYS = 200;
 
 export function heatLevel(activeSeconds: number, thresholdSeconds: number): HeatLevel {
   if (activeSeconds < thresholdSeconds) return 0;
@@ -25,14 +28,42 @@ export function heatLevel(activeSeconds: number, thresholdSeconds: number): Heat
 type Cell =
   | { kind: "blank" }
   | { kind: "future" }
+  | { kind: "norecord"; date: string }
   | { kind: "day"; day: HeatmapDay; level: HeatLevel; isToday: boolean };
 
 interface MonthBlock {
   key: string;
   label: string;
   cells: Cell[];
+  recorded: boolean;
   usedDays: number;
   activeSeconds: number;
+}
+
+/** Accepts a first-record date once the summary reports one; until then it is inferred. */
+type HeatmapSummary = AchievementsSummary & { data_start_date?: string | null };
+
+/**
+ * The first day with local records, or null when nothing has been recorded yet. Days before it
+ * are 无记录, not 没用. The summary zero-fills the heatmap, so without `data_start_date` the zero
+ * days that open the range count as 无记录, unless a streak, record, milestone or software date
+ * shows history from before the range.
+ */
+export function recordStartDate(summary: HeatmapSummary): string | null {
+  if (summary.data_start_date !== undefined) return summary.data_start_date;
+  const rangeStart = summary.heatmap[0]?.date ?? summary.today;
+  const known = [
+    summary.longest_streak_start,
+    summary.best_active_day?.date,
+    summary.best_software_day?.date,
+    ...summary.milestones.map((row) => row.reached_on),
+    ...summary.new_software.map((row) => row.date),
+    ...summary.dormant_software.map((row) => row.date),
+    summary.heatmap.find((day) => day.active_seconds > 0)?.date,
+  ].filter((date): date is string => Boolean(date));
+  if (known.length === 0) return null;
+  const earliest = known.reduce((min, date) => (date < min ? date : min));
+  return earliest < rangeStart ? rangeStart : earliest;
 }
 
 interface Props {
@@ -43,15 +74,20 @@ interface Props {
 export function ActivityHeatmap({ summary, durationFormat }: Props) {
   const { heatmap, today, streak_threshold_seconds: threshold } = summary;
   const rangeLabel = HEATMAP_RANGE_LABELS[summary.heatmap_days as HeatmapDays] ?? `近 ${heatmap.length} 天`;
-  const months = buildMonths(heatmap, today, threshold);
-  const usedDays = heatmap.filter((day) => day.active_seconds >= threshold).length;
+  const recordStart = recordStartDate(summary);
+  const isRecorded = (date: string) => recordStart !== null && date >= recordStart;
+  const months = buildMonths(heatmap, today, threshold, isRecorded);
+  const usedDays = heatmap.filter((day) => isRecorded(day.date) && day.active_seconds >= threshold).length;
   const activeTotal = heatmap.reduce((sum, day) => sum + day.active_seconds, 0);
-  const compact = heatmap.length > 120;
-  const perRow = compact ? 7 : Math.max(months.length, 1);
+  const hasNoRecordDays = heatmap.some((day) => !isRecorded(day.date));
+  const compact = heatmap.length > COMPACT_MIN_DAYS;
+  const rows = Math.max(Math.ceil(months.length / MONTHS_PER_ROW), 1);
+  const perRow = compact ? 7 : Math.max(Math.ceil(months.length / rows), 1);
   const thresholdMinutes = Math.round(threshold / 60);
   const start = heatmap[0]?.date ?? today;
   const end = heatmap[heatmap.length - 1]?.date ?? today;
-  const chartLabel = `${rangeLabel}活跃热力图：${start} 至 ${end}，用过 ${usedDays} 天，活跃 ${formatDurationZh(activeTotal, durationFormat)}`;
+  const recordNote = !hasNoRecordDays ? "" : recordStart === null ? "，还没有记录" : `，${recordStart} 之前无记录`;
+  const chartLabel = `${rangeLabel}活跃热力图：${start} 至 ${end}，用过 ${usedDays} 天，活跃 ${formatDurationZh(activeTotal, durationFormat)}${recordNote}`;
 
   return (
     <>
@@ -63,10 +99,16 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
             if (index % perRow === 0) classes.push("is-row-start");
             if (index >= perRow) classes.push("is-wrapped");
             return (
-              <div className={classes.join(" ")} key={month.key} title={`${month.key} ${caption}`}>
+              <div
+                className={classes.join(" ")}
+                key={month.key}
+                title={month.recorded ? `${month.key} ${caption}` : `${month.key} 无记录`}
+              >
                 <div className="ach-month-head">
                   <b>{month.label}</b>
-                  <span className="lcd-note">{compact ? `用过 ${month.usedDays} 天` : caption}</span>
+                  {month.recorded ? (
+                    <span className="lcd-note">{compact ? `用过 ${month.usedDays} 天` : caption}</span>
+                  ) : null}
                 </div>
                 <div className="ach-month-grid">
                   {compact ? null : WEEKDAYS.map((weekday) => <span className="ach-weekday" key={weekday}>{weekday}</span>)}
@@ -119,6 +161,7 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
               <span><i className="ach-cell l2" />&lt;3小时</span>
               <span><i className="ach-cell l3" />≥3小时</span>
               <span><i className="ach-cell is-future" />未到</span>
+              {hasNoRecordDays ? <span><i className="ach-cell is-norecord" />无记录</span> : null}
             </div>
           </div>
         </div>
@@ -138,7 +181,7 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
             <tr key={day.date}>
               <th scope="row">{day.date}</th>
               <td>{formatDurationZh(day.active_seconds, durationFormat)}</td>
-              <td>{day.active_seconds >= threshold ? "用过" : "没用"}</td>
+              <td>{!isRecorded(day.date) ? "无记录" : day.active_seconds >= threshold ? "用过" : "没用"}</td>
             </tr>
           ))}
         </tbody>
@@ -150,6 +193,10 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
 function HeatCell({ cell, durationFormat }: { cell: Cell; durationFormat: DurationFormat }) {
   if (cell.kind === "blank") return <i className="ach-cell is-blank" />;
   if (cell.kind === "future") return <i className="ach-cell is-future" />;
+  if (cell.kind === "norecord") {
+    const label = `${cell.date} 无记录`;
+    return <i className="ach-cell is-norecord" aria-label={label} title={label} />;
+  }
   const label = `${cell.day.date} 活跃 ${formatDurationZh(cell.day.active_seconds, durationFormat)}`;
   return (
     <i
@@ -161,7 +208,12 @@ function HeatCell({ cell, durationFormat }: { cell: Cell; durationFormat: Durati
   );
 }
 
-function buildMonths(heatmap: HeatmapDay[], today: string, threshold: number): MonthBlock[] {
+function buildMonths(
+  heatmap: HeatmapDay[],
+  today: string,
+  threshold: number,
+  isRecorded: (date: string) => boolean,
+): MonthBlock[] {
   const byDate = new Map(heatmap.map((day) => [day.date, day]));
   const keys = [...new Set(heatmap.map((day) => day.date.slice(0, 7)))];
   const lastYear = Number(keys[keys.length - 1]?.slice(0, 4));
@@ -172,13 +224,17 @@ function buildMonths(heatmap: HeatmapDay[], today: string, threshold: number): M
     const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
     const mondayOffset = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
     const cells: Cell[] = Array.from({ length: mondayOffset }, () => ({ kind: "blank" }));
+    let recorded = false;
     let usedDays = 0;
     let activeSeconds = 0;
 
     for (let dayOfMonth = 1; dayOfMonth <= daysInMonth; dayOfMonth += 1) {
       const date = `${key}-${String(dayOfMonth).padStart(2, "0")}`;
       const day = byDate.get(date);
-      if (day) {
+      if (day && !isRecorded(date)) {
+        cells.push({ kind: "norecord", date });
+      } else if (day) {
+        recorded = true;
         const level = heatLevel(day.active_seconds, threshold);
         if (day.active_seconds >= threshold) usedDays += 1;
         activeSeconds += day.active_seconds;
@@ -199,6 +255,7 @@ function buildMonths(heatmap: HeatmapDay[], today: string, threshold: number): M
       key,
       label: withYear ? `${String(year % 100).padStart(2, "0")}年${month}月` : `${month}月`,
       cells: cells.slice(firstRow),
+      recorded,
       usedDays,
       activeSeconds,
     };

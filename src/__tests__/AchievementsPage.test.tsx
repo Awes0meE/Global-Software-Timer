@@ -113,7 +113,7 @@ describe("AchievementsPage", () => {
     });
     expect(invoke).toHaveBeenLastCalledWith("get_achievements_summary", { heatmapDays: 365, includeHidden: false });
     expect(screen.getByRole("radio", { name: "近一年" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getAllByLabelText(/^\d{4}-\d{2}-\d{2} 活跃/)).toHaveLength(365);
+    expect(screen.getAllByLabelText(/^\d{4}-\d{2}-\d{2} (活跃|无记录)/)).toHaveLength(365);
     expect(screen.getByText("近一年里用过")).toBeInTheDocument();
   });
 
@@ -135,7 +135,7 @@ describe("AchievementsPage", () => {
       resolveOld(summary({ heatmap_days: 180, heatmap: heatmapDays(180) }));
     });
 
-    expect(screen.getAllByLabelText(/^\d{4}-\d{2}-\d{2} 活跃/)).toHaveLength(365);
+    expect(screen.getAllByLabelText(/^\d{4}-\d{2}-\d{2} (活跃|无记录)/)).toHaveLength(365);
   });
 
   it("shows loading and error states", async () => {
@@ -167,6 +167,70 @@ describe("AchievementsPage", () => {
     expect(chart).toHaveAccessibleName(/用过 4 天/);
     const table = screen.getByRole("table", { name: /逐日活跃/ });
     expect(within(table).getAllByRole("row")).toHaveLength(91);
+  });
+
+  it("draws days before local records began as 无记录, not as unused days", async () => {
+    // Records start on 05-29: the longest streak and best day are the earliest known dates.
+    invoke.mockResolvedValue(
+      summary({
+        heatmap_days: 365,
+        heatmap: heatmapDays(365, { "2026-05-29": 600, "2026-06-02": 2 * H }),
+        longest_streak_start: "2026-05-29",
+        longest_streak_end: "2026-05-29",
+        best_active_day: { date: "2026-06-02", seconds: 2 * H },
+      }),
+    );
+    await renderPage();
+
+    expect(screen.getByLabelText("2026-05-28 无记录")).toHaveClass("is-norecord");
+    expect(screen.getByLabelText("2025-11-22 无记录")).toHaveClass("is-norecord");
+    expect(screen.getByLabelText("2026-05-29 活跃 0.2小时")).toHaveAttribute("data-level", "1");
+    expect(screen.getByLabelText("2026-05-30 活跃 0.0小时")).toHaveAttribute("data-level", "0");
+
+    const heatmap = screen.getByRole("region", { name: "活跃热力图" });
+    expect(heatmap.querySelector(".ach-legend")).toHaveTextContent("未到无记录");
+    // Months with no records carry no 用过 caption; May counts only its recorded days.
+    const april = within(heatmap).getByText("4月").closest(".ach-month") as HTMLElement;
+    expect(april).not.toHaveTextContent("用过");
+    const may = within(heatmap).getByText("5月").closest(".ach-month") as HTMLElement;
+    expect(may).toHaveTextContent("用过 1 天");
+    expect(screen.getByRole("img", { name: /活跃热力图/ })).toHaveAccessibleName(/2026-05-29 之前无记录/);
+    const table = screen.getByRole("table", { name: /逐日活跃/ });
+    expect(within(table).getByRole("row", { name: /2026-05-28/ })).toHaveTextContent("无记录");
+  });
+
+  it("draws every day as 无记录 when nothing has been recorded", async () => {
+    invoke.mockResolvedValue(
+      summary({
+        heatmap: heatmapDays(90),
+        current_streak_days: 0,
+        current_streak_start: null,
+        longest_streak_days: 0,
+        longest_streak_start: null,
+        longest_streak_end: null,
+        best_active_day: null,
+        best_software_day: null,
+        milestones: [],
+        new_software: [],
+        dormant_software: [],
+      }),
+    );
+    await renderPage();
+
+    expect(screen.getAllByLabelText(/^\d{4}-\d{2}-\d{2} 无记录$/)).toHaveLength(90);
+    expect(screen.queryByText(/^用过 \d+ 天/)).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /活跃热力图/ })).toHaveAccessibleName(/还没有记录/);
+  });
+
+  it("keeps normal-size cells for 近半年 and wraps its months into two rows", async () => {
+    invoke.mockResolvedValue(summary({ heatmap_days: 180, heatmap: heatmapDays(180) }));
+    await renderPage();
+
+    const dial = document.querySelector(".lcd.ach-dial") as HTMLElement;
+    expect(dial).not.toHaveClass("is-compact");
+    const months = dial.querySelectorAll(".ach-month");
+    expect(months).toHaveLength(7);
+    expect(dial.querySelectorAll(".ach-month.is-wrapped")).toHaveLength(3);
   });
 
   it("buckets days below the filter, under 1 hour, under 3 hours and from 3 hours", () => {
