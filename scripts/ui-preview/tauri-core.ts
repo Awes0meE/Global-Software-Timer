@@ -1,5 +1,14 @@
 // Browser-only stand-in for @tauri-apps/api/core used by `npm run preview:ui`.
-import { backgroundSummary, dashboardSummary, softwareSummary } from "./mock-data";
+import type { HeatmapDays } from "../../src/api";
+import {
+  achievementsSummary,
+  backgroundSummary,
+  dashboardSummary,
+  emptyAchievementsSummary,
+  emptyStatisticsSummary,
+  softwareSummary,
+  statisticsSummary,
+} from "./mock-data";
 
 const params = new URLSearchParams(window.location.search);
 const empty = params.has("empty");
@@ -28,6 +37,15 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
       return (empty ? { ...backgroundSummary, running_count: 0, rows: [] } : backgroundSummary) as T;
     case "get_software_page_summary":
       return (empty ? { focused: [], hidden: [], discovered: [] } : softwareSummary(focused, hidden)) as T;
+    case "get_statistics_summary": {
+      const start = args.start as string;
+      const end = args.end as string;
+      return (empty ? emptyStatisticsSummary(start, end) : statisticsSummary(start, end, args.includeHidden === true, hidden)) as T;
+    }
+    case "get_achievements_summary": {
+      const heatmapDays = args.heatmapDays as HeatmapDays;
+      return (empty ? emptyAchievementsSummary(heatmapDays) : achievementsSummary(heatmapDays, args.includeHidden === true, hidden)) as T;
+    }
     case "add_focused_software_identities":
       keys.forEach((item) => focused.add(item));
       return undefined as T;
@@ -64,8 +82,15 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
   }
 }
 
-// ?page=software|background|settings opens that page after the first render; ?dialog=add|close opens a dialog.
-const pageLabels: Record<string, string> = { software: "软件", background: "后台", settings: "设置" };
+// ?page=software|background|statistics|achievements|settings opens that page after the first render;
+// ?dialog=add|close opens a dialog.
+const pageLabels: Record<string, string> = {
+  software: "软件",
+  background: "后台",
+  statistics: "统计",
+  achievements: "成就",
+  settings: "设置",
+};
 const targetPage = pageLabels[params.get("page") ?? ""];
 const targetDialog = params.get("dialog");
 
