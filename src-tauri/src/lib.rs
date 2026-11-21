@@ -8,6 +8,7 @@ pub mod foreground;
 pub mod native_icon;
 pub mod process_source;
 pub mod single_instance;
+pub mod statistics;
 pub mod storage;
 pub mod tracker;
 pub mod tray;
