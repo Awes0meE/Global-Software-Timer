@@ -46,21 +46,32 @@ import { startVisiblePolling } from "./visiblePolling";
 const loadSoftwarePage = () => import("./components/SoftwarePage");
 const SoftwarePage = lazy(() => loadSoftwarePage().then(({ SoftwarePage }) => ({ default: SoftwarePage })));
 const warmSoftwarePage = () => { void loadSoftwarePage().catch(() => {}); };
+const loadStatisticsPage = () => import("./components/StatisticsPage");
+const StatisticsPage = lazy(() => loadStatisticsPage().then(({ StatisticsPage }) => ({ default: StatisticsPage })));
+const warmStatisticsPage = () => { void loadStatisticsPage().catch(() => {}); };
+const loadAchievementsPage = () => import("./components/AchievementsPage");
+const AchievementsPage = lazy(() => loadAchievementsPage().then(({ AchievementsPage }) => ({ default: AchievementsPage })));
+const warmAchievementsPage = () => { void loadAchievementsPage().catch(() => {}); };
+const pageWarmers: Partial<Record<PageId, () => void>> = {
+  software: warmSoftwarePage,
+  statistics: warmStatisticsPage,
+  achievements: warmAchievementsPage,
+};
 
 const dashboardLoadError = "无法读取本地数据";
 const dashboardRefreshIntervalMs = 5000;
 const defaultCloseBehavior: CloseBehavior = "minimize_to_tray";
 const defaultDurationFormat: DurationFormat = "decimal_hours";
 
-type PageId = "overview" | "settings" | "software" | "background";
+type PageId = "overview" | "settings" | "software" | "background" | "statistics" | "achievements";
 
 const navItems = [
   { id: "overview", label: "概览", icon: LayoutDashboard, available: true },
   { id: "software", label: "软件", icon: SquareStack, available: true },
   { id: "background", label: "后台", icon: Cpu, available: true },
-  { id: "statistics", label: "统计", icon: BarChart3, available: false },
+  { id: "statistics", label: "统计", icon: BarChart3, available: true },
   { id: "timeline", label: "时间轴", icon: History, available: false },
-  { id: "achievements", label: "成就", icon: Trophy, available: false },
+  { id: "achievements", label: "成就", icon: Trophy, available: true },
   { id: "settings", label: "设置", icon: Settings, available: true },
 ] as const;
 
@@ -68,6 +79,8 @@ const pageTitles: Record<PageId, string> = {
   overview: "概览",
   software: "软件",
   background: "后台",
+  statistics: "统计",
+  achievements: "成就",
   settings: "设置",
 };
 
@@ -369,14 +382,7 @@ export default function App() {
     }
   };
 
-  const contentId =
-    activePage === "settings"
-      ? "settings-content"
-      : activePage === "software"
-        ? "software-content"
-        : activePage === "background"
-          ? "background-content"
-          : "overview-content";
+  const contentId = `${activePage}-content`;
 
   const recording = !error && summary?.last_scan_succeeded === true;
   const recordingLabel = error ? "记录状态未知"
@@ -402,6 +408,7 @@ export default function App() {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = item.id === activePage;
+              const warmPage = pageWarmers[item.id as PageId];
 
               const navButton = (
                 <button
@@ -409,8 +416,8 @@ export default function App() {
                   type="button"
                   aria-current={isActive ? "page" : undefined}
                   aria-disabled={!item.available}
-                  onPointerEnter={item.id === "software" ? warmSoftwarePage : undefined}
-                  onFocus={item.id === "software" ? warmSoftwarePage : undefined}
+                  onPointerEnter={warmPage}
+                  onFocus={warmPage}
                   onClick={() => handleNavClick(item)}
                 >
                   <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
@@ -494,6 +501,14 @@ export default function App() {
             </Suspense>
           ) : activePage === "background" ? (
             <BackgroundPage durationFormat={durationFormat} />
+          ) : activePage === "statistics" ? (
+            <Suspense fallback={<main id="statistics-content"><p role="status">正在读取统计…</p></main>}>
+              <StatisticsPage durationFormat={durationFormat} />
+            </Suspense>
+          ) : activePage === "achievements" ? (
+            <Suspense fallback={<main id="achievements-content"><p role="status">正在读取成就…</p></main>}>
+              <AchievementsPage durationFormat={durationFormat} />
+            </Suspense>
           ) : (
             <main className="overview-page" id="overview-content">
               {error ? <div className="warning" role="alert">{error}</div> : null}

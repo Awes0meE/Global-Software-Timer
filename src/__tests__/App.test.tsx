@@ -136,6 +136,38 @@ describe("App", () => {
     expect(mockInvoke).toHaveBeenCalledWith("get_background_page_summary");
   });
 
+  it.each([
+    {
+      label: "统计",
+      command: "get_statistics_summary",
+      args: expect.objectContaining({ includeHidden: false }),
+      loading: "正在读取统计…",
+      contentId: "statistics-content",
+    },
+    {
+      label: "成就",
+      command: "get_achievements_summary",
+      args: { heatmapDays: 90, includeHidden: false },
+      loading: "正在读取成就…",
+      contentId: "achievements-content",
+    },
+  ])("opens the $label page from the sidebar", async ({ label, command, args, loading, contentId }) => {
+    const invokeDefault = mockInvoke.getMockImplementation()!;
+    mockInvoke.mockImplementation((name, invokeArgs) =>
+      name === command ? new Promise(() => {}) : invokeDefault(name, invokeArgs),
+    );
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: label }));
+
+    expect(screen.getByRole("heading", { level: 2, name: label })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: label })).toHaveAttribute("aria-current", "page");
+    await waitFor(() => expect(mockInvoke).toHaveBeenCalledWith(command, args));
+    expect(await screen.findByText(loading)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "跳到内容" })).toHaveAttribute("href", `#${contentId}`);
+    expect(document.getElementById(contentId)).toBeInTheDocument();
+  });
+
   it("shows a friendly warning instead of raw Tauri runtime errors", async () => {
     mockInvoke.mockImplementation(() => {
       throw new TypeError("Cannot read properties of undefined (reading 'invoke')");
@@ -383,9 +415,7 @@ describe("App", () => {
 
     expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
     const unavailableButtons = [
-      screen.getByRole("button", { name: "统计" }),
       screen.getByRole("button", { name: "时间轴" }),
-      screen.getByRole("button", { name: "成就" }),
       screen.getByRole("button", { name: "更多" }),
       screen.getByRole("button", { name: /查看更多今日分布/ }),
       screen.getByRole("button", { name: /查看更多正在运行/ }),
@@ -400,13 +430,19 @@ describe("App", () => {
       expect(button).toHaveAttribute("aria-disabled", "true");
     }
 
-    const statisticsTrigger = unavailableButtons[0].closest("[data-tooltip='该功能暂未完成']");
-    expect(statisticsTrigger).not.toBeNull();
+    for (const name of ["统计", "成就"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button.closest("[data-tooltip='该功能暂未完成']")).toBeNull();
+      expect(button).toHaveAttribute("aria-disabled", "false");
+    }
 
-    fireEvent.mouseEnter(statisticsTrigger as Element);
+    const timelineTrigger = unavailableButtons[0].closest("[data-tooltip='该功能暂未完成']");
+    expect(timelineTrigger).not.toBeNull();
+
+    fireEvent.mouseEnter(timelineTrigger as Element);
     expect(screen.getByRole("tooltip")).toHaveTextContent("该功能暂未完成");
 
-    fireEvent.mouseLeave(statisticsTrigger as Element);
+    fireEvent.mouseLeave(timelineTrigger as Element);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 
     fireEvent.focus(unavailableButtons[0]);
