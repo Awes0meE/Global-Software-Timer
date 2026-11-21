@@ -10,7 +10,8 @@ export default defineConfig({
   root: here("../.."),
   plugins: [react()],
   clearScreen: false,
-  server: { port: 1421, strictPort: true },
+  // Rust build output holds locked executables that crash the file watcher.
+  server: { port: 1421, strictPort: true, watch: { ignored: ["**/src-tauri/target/**"] } },
   resolve: {
     alias: [
       { find: "@tauri-apps/api/core", replacement: here("./tauri-core.ts") },
