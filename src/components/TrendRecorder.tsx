@@ -247,7 +247,7 @@ function RecorderPaper({
             </text>
           ))}
           {[0, ratioTop / 2, ratioTop].map((ratio) => (
-            <text key={`ratio-${ratio}`} className="scale" x={right + 8} y={yRatio(ratio) + 4}>
+            <text key={`ratio-${ratio}`} className="scale" x={right + 14} y={yRatio(ratio) + 4}>
               {Math.round(ratio * 100)}%
             </text>
           ))}
@@ -397,7 +397,7 @@ function RecorderPaper({
             <RecordingHead
               x={left + (n - 0.5) * columnWidth + needleWidth / 2 + (density === "dense" ? 1 : 4)}
               y={yHours(lastDay.recorded_seconds)}
-              end={width - 4}
+              end={right + 4}
             />
           ) : null}
         </svg>
@@ -430,7 +430,8 @@ function RecordingHead({ x, y, end }: { x: number; y: number; end: number }) {
   return (
     <>
       <path className="pen" d={`M${x} ${y} l9 -6 v12 z`} />
-      <line className="pen-arm" x1={x + 9} x2={end} y1={y} y2={y} />
+      {/* The arm stops short of the ratio scale labels in the right gutter. */}
+      {end > x + 9 ? <line className="pen-arm" x1={x + 9} x2={end} y1={y} y2={y} /> : null}
     </>
   );
 }
