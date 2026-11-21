@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BackgroundPageSummary } from "../api";
 import {
@@ -6,6 +7,8 @@ import {
   formatBytes,
   formatCpuSeconds,
   formatPercent,
+  nextBackgroundSort,
+  sortBackgroundRows,
 } from "../components/BackgroundPage";
 
 const invoke = vi.hoisted(() => vi.fn());
@@ -95,6 +98,69 @@ describe("BackgroundPage", () => {
     view.rerender(<BackgroundPage durationFormat="decimal_hours" />);
     expect(screen.getByText("1.0小时")).toBeInTheDocument();
     expect(screen.getByRole("table")).toHaveAccessibleDescription(/已退出的进程显示今日峰值/);
+  });
+
+  it("sorts by a clicked column, high to low first, then low to high", async () => {
+    const third = {
+      ...summary.rows[0],
+      family_key: "agent",
+      display_name: "Agent",
+      process_name: "agent.exe",
+      cpu_percent: 0.5,
+      memory_bytes: 512 * 1024 * 1024,
+      today_cpu_seconds: 30,
+    };
+    invoke.mockResolvedValue({ ...summary, rows: [...summary.rows, third] });
+    const user = userEvent.setup();
+    await act(async () => {
+      render(<BackgroundPage />);
+    });
+    const names = () =>
+      screen.getAllByRole("row").slice(1).map((row) => row.querySelector("strong")?.textContent);
+    const header = (label: string) => screen.getByRole("columnheader", { name: label });
+
+    // Default: today's CPU time, high to low (the backend order).
+    expect(header("今日 CPU 时间")).toHaveAttribute("aria-sort", "descending");
+    expect(header("内存")).toHaveAttribute("aria-sort", "none");
+    expect(names()).toEqual(["RazerCentralService", "Agent", "Updater"]);
+
+    await user.click(within(header("内存")).getByRole("button"));
+    expect(header("内存")).toHaveAttribute("aria-sort", "descending");
+    expect(header("今日 CPU 时间")).toHaveAttribute("aria-sort", "none");
+    expect(names()).toEqual(["Updater", "Agent", "RazerCentralService"]);
+    expect(header("内存").querySelector("[data-sort-icon]")).toHaveAttribute("data-sort-icon", "desc");
+
+    await user.click(within(header("内存")).getByRole("button"));
+    expect(header("内存")).toHaveAttribute("aria-sort", "ascending");
+    expect(names()).toEqual(["RazerCentralService", "Agent", "Updater"]);
+    expect(header("内存").querySelector("[data-sort-icon]")).toHaveAttribute("data-sort-icon", "asc");
+
+    // Rows without a current CPU value ("—") stay last in both directions.
+    await user.click(within(header("当前 CPU")).getByRole("button"));
+    expect(names()).toEqual(["RazerCentralService", "Agent", "Updater"]);
+    await user.click(within(header("当前 CPU")).getByRole("button"));
+    expect(names()).toEqual(["Agent", "RazerCentralService", "Updater"]);
+  });
+
+  it("sorts names and status like spreadsheet columns", () => {
+    const rows = [
+      { ...summary.rows[0], display_name: "b", is_running: false },
+      { ...summary.rows[0], display_name: "A", is_running: true },
+      { ...summary.rows[0], display_name: "c", is_running: false },
+    ];
+    const pick = (sorted: typeof rows) => sorted.map((row) => row.display_name);
+    expect(pick(sortBackgroundRows(rows, { key: "name", direction: "asc" }))).toEqual(["A", "b", "c"]);
+    expect(pick(sortBackgroundRows(rows, { key: "name", direction: "desc" }))).toEqual(["c", "b", "A"]);
+    expect(pick(sortBackgroundRows(rows, { key: "status", direction: "desc" }))).toEqual(["A", "b", "c"]);
+    expect(pick(sortBackgroundRows(rows, { key: "status", direction: "asc" }))).toEqual(["b", "c", "A"]);
+    expect(nextBackgroundSort({ key: "name", direction: "desc" }, "memory")).toEqual({
+      key: "memory",
+      direction: "desc",
+    });
+    expect(nextBackgroundSort({ key: "memory", direction: "asc" }, "memory")).toEqual({
+      key: "memory",
+      direction: "desc",
+    });
   });
 
   it("formats CPU time without misleading zeros", () => {

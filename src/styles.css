@@ -1926,6 +1926,59 @@ mark {
   font-weight: 600;
 }
 
+.background-table .sort-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  justify-content: flex-start;
+  padding: 8px 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.background-table th:not(:first-child, :last-child) .sort-button {
+  justify-content: flex-end;
+}
+
+.background-table th:first-child .sort-button {
+  padding-left: 18px;
+}
+
+.background-table th:last-child .sort-button {
+  padding-right: 18px;
+}
+
+.background-table .sort-button:hover,
+.background-table .sort-button.is-active {
+  color: var(--ink);
+}
+
+.background-table .sort-button:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: -2px;
+}
+
+/* The icon keeps its space so hovering never shifts the column. */
+.background-table .sort-icon {
+  flex: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.background-table .sort-button:is(:hover, :focus-visible) .sort-icon {
+  opacity: 0.55;
+}
+
+.background-table .sort-button.is-active .sort-icon {
+  opacity: 1;
+  color: var(--signal-ink);
+}
+
 .background-table td:nth-child(n+2):nth-child(-n+6) {
   font-family: var(--font-num);
   font-size: var(--type-table-number);
@@ -1959,6 +2012,12 @@ mark {
 .background-table :is(th, td):last-child {
   padding-right: 18px;
   text-align: left;
+}
+
+/* Header padding lives on the sort button so the whole cell is clickable. */
+.background-table th,
+.background-table th:is(:first-child, :last-child) {
+  padding: 0;
 }
 
 @media (max-width: 1200px) {
