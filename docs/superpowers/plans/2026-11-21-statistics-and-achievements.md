@@ -54,7 +54,7 @@ pub const MAX_RANGE_DAYS: i64 = 366;
 pub const IDLE_OPEN_MIN_WINDOW_SECONDS: i64 = 5 * 3600;
 pub const IDLE_OPEN_MAX_FOCUS_PERMILLE: i64 = 50; // 5%
 pub const MILESTONE_HOURS: [i64; 6] = [10, 50, 100, 500, 1000, 6666];
-pub const STREAK_MIN_ACTIVE_SECONDS: i64 = 10 * 60; // 待用户确认，见文末
+pub const STREAK_MIN_ACTIVE_SECONDS: i64 = 5 * 60; // 当天活跃满 5 分钟算用过，2026-11-21 确认
 pub const COMINGS_GOINGS_DAYS: i64 = 30;
 pub const HEATMAP_DAY_OPTIONS: [u32; 3] = [90, 180, 365];
 pub const RANKING_LIMIT: usize = 20;
@@ -278,7 +278,8 @@ fn current_streak_does_not_break_while_today_is_still_running() {
 
 #[test]
 fn days_below_threshold_break_the_streak() {
-    let days = active_days(&[(18, 900), (19, 599), (20, 900), (21, 900)]);
+    // 299 秒差一秒不达标，300 秒恰好达标
+    let days = active_days(&[(18, 900), (19, 299), (20, 300), (21, 900)]);
     let streaks = streaks(&days, d(2026, 11, 21));
     assert_eq!((streaks.current_days, streaks.longest_days), (2, 2));
 }
@@ -500,7 +501,7 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
 - [ ] **Step 1：写失败测试：**
   - 默认请求 `heatmapDays: 90`；切到 180、365 重新请求。
   - 热力图格子数等于 `heatmap.length`，每格 `aria-label` 形如「2026-11-21 活跃 2.7小时」；按 4 级深浅分档，分档阈值写在组件里并测试（建议：0、<1 小时、<3 小时、≥3 小时）。
-  - 连续天数读数显示当前与最长，说明文字写明达标标准（「当天活跃满 10 分钟」，取自 `streak_threshold_seconds`）。
+  - 连续天数读数显示当前与最长，说明文字写明达标标准（「当天活跃满 5 分钟」，取自 `streak_threshold_seconds`）。
   - 里程碑：已达成显示最高档与解锁日期，未满档显示到下一档的进度；6666 小时显示「终极成就」。
   - 软件来去为空时各自显示空文案；包含隐藏软件开关同统计页。
   - 三态文案：「正在读取成就…」「无法读取成就」。
@@ -550,5 +551,4 @@ export async function getAchievementsSummary(args: { heatmapDays: 90 | 180 | 365
 
 | 问题 | 计划里的默认值 |
 | --- | --- |
-| 连续使用天数的达标标准 | 当天活跃满 10 分钟 |
 | 软件维度用焦点而不是活跃排名 | 用焦点，与开着没用、里程碑一致 |
