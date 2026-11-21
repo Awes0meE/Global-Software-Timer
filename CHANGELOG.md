@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Opened the `统计` page. Pick 近 7 天 (default), 本周, 本月, 近 30 天, 今年 or a custom range of up to 366 days; every total is compared with the previous range of the same length.
+- Drew daily recorded and active time as a paper-strip recorder chart, with the active ratio as a trace and the daily average active time as a dashed rule.
+- Ranked software by focus time in the range and marked 新上榜, rises and falls. `开着没用` lists software whose window was open for at least 5 hours but focused for under 5% of that time; tray and background time do not count.
+- Added per-software sessions (opens, average and longest) and a rhythm panel: weekday and weekend average active time, average tracker uptime, and the median first and last record time.
+- Days recorded before per-software detail began are marked 无软件明细; they are left out of software figures instead of counted as zero.
+- Opened the `成就` page. An LCD month-by-month activity heatmap covers the last 90 days, half a year or a year, next to the current and longest streak.
+- Days with under 5 active minutes count as 没用, so switching the computer on for a moment is not recorded as use. The page only records: no targets, countdowns, streak reminders or notifications.
+- Added personal records (longest active day, longest focus day for a single app), focus-time milestone plates at 10, 50, 100, 500 and 1000 hours plus a 6666-hour ultimate milestone, and software comings and goings over the last 30 days. Software with under a minute of total window time, such as installers, is left out of comings and goings.
+- Both pages leave hidden software out by default and offer a 包含隐藏软件 switch; machine-wide totals are unaffected. Both read existing local data only, without schema or tracking changes.
+
 ## v0.2.4 - 2026-11-21
 
 - Hide more noise from 已发现软件 and the tracked runtime: always-on services (SQL Server, Wacom, Bonjour, Office Click-to-Run, FlexNet, ASUS GameSDK, Microsoft Gaming Services), helpers next to tracked apps (BitDock, Eternal, MATLAB, SolidWorks, Sogou, WPS), command-line tools started by other programs (git, rustup, Codex runtimes), and installers run from Temp, Downloads or an updater folder. The 后台 page still lists them and stored history is unchanged.
