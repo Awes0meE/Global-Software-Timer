@@ -23,7 +23,7 @@
 
 现在没有未解决的问题。MSI 的 ICE 校验、开发库清理、125%/150% 缩放实测和 N6 的分组决定（保持按包合并）都已于 2026-11-21 完成。
 
-本机历史清理（2026-11-21 08:53，用户确认）：从正式库删除 NVIDIA Overlay、Razer Synapse Service Process、BitCenter、AsHotplugCtrl 和 BitDock 的全部运行记录（7,560,475 条事件、246 段会话、104 行每日应用统计、582 行软件页日运行统计、104 行专注统计），软件条目、身份、隐藏和关注标记保留。删除在单个事务里完成，完整性检查通过，压缩后数据库从 652 MB 降到 204 MB。删除前完整备份在 `%APPDATA%\com.globalsoftwaretimer.appackup-before-noise-cleanup-20261121\`，恢复方法：退出 GST，把这三个文件拷回原目录。重启后 BitDock 因常驻托盘重新开始计时。
+本机历史清理（2026-11-21 08:53，用户确认）：从正式库删除 NVIDIA Overlay、Razer Synapse Service Process、BitCenter、AsHotplugCtrl 和 BitDock 的全部运行记录（7,560,475 条事件、246 段会话、104 行每日应用统计、582 行软件页日运行统计、104 行专注统计），软件条目、身份、隐藏和关注标记保留。删除在单个事务里完成，完整性检查通过，压缩后数据库从 652 MB 降到 204 MB。删除前完整备份在 `%APPDATA%\com.globalsoftwaretimer.app\backup-before-noise-cleanup-20261121\`，恢复方法：退出 GST，把这三个文件拷回原目录。重启后 BitDock 因常驻托盘重新开始计时。
 
 本机安装：2026-11-21 09:43 用 GitHub Release 的 `Global.Software.Timer_0.2.3_x64-setup.exe`（SHA256 与 `SHA256SUMS.txt` 一致）静默覆盖安装 0.2.2，侧栏显示 V0.2.3、正在记录，任务栏图标为新版时钟，数据库照常写入。
 
