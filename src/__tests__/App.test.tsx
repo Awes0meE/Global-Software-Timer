@@ -385,7 +385,7 @@ describe("App", () => {
     const unavailableButtons = [
       screen.getByRole("button", { name: "统计" }),
       screen.getByRole("button", { name: "时间轴" }),
-      screen.getByRole("button", { name: "日报" }),
+      screen.getByRole("button", { name: "成就" }),
       screen.getByRole("button", { name: "更多" }),
       screen.getByRole("button", { name: /查看更多今日分布/ }),
       screen.getByRole("button", { name: /查看更多正在运行/ }),
@@ -1335,7 +1335,8 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "软件" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "统计" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "时间轴" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "日报" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "成就" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "日报" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "设置" })).toHaveAttribute("aria-current", "page");
     const startupSwitch = screen.getByRole("switch", { name: "开机自启动" });
     const closeSwitch = screen.getByRole("switch", { name: "关闭窗口时最小化到后台" });

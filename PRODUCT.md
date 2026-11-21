@@ -29,7 +29,7 @@ Local-first and privacy-strict: no account, no telemetry, no network upload, no 
 
 ## Capabilities and Constraints
 
-- Pages: 概览 (overview), 软件 (software directory), 后台 (background processes), 设置 (settings). Navigation also shows 统计, 时间轴, 日报 and the 日期/导出 controls as not-yet-available items with a "该功能暂未完成" tooltip.
+- Pages: 概览 (overview), 软件 (software directory), 后台 (background processes), 设置 (settings). Navigation also shows 统计, 时间轴, 成就 and the 日期/导出 controls as not-yet-available items with a "该功能暂未完成" tooltip.
 - Overview: most-used software with lifetime total, 今日记录, 今日活跃, per-software table (累计, 今天, 状态), 今日分布 by software active time, and 正在运行 (windowed and tray apps).
 - Status vocabulary: 前台运行 (eligible taskbar window), 托盘运行 (eligible tray process), 后台运行 (only windowless or helper processes remain), 未运行.
 - Software page: 特别关注 table (今日前台, 今日后台, 今日活跃, 共计前台, 共计后台, 共计活跃, 上次打开), 隐藏软件列表, read-only 已发现软件 with offline search by English, Chinese, full pinyin and pinyin initials; add dialog with multi-select; 特别关注 and 隐藏 are mutually exclusive.

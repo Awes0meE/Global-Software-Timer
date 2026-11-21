@@ -15,6 +15,7 @@ import {
   Power,
   Settings,
   SquareStack,
+  Trophy,
 } from "lucide-react";
 import {
   applyWindowCloseChoice,
@@ -59,7 +60,7 @@ const navItems = [
   { id: "background", label: "后台", icon: Cpu, available: true },
   { id: "statistics", label: "统计", icon: BarChart3, available: false },
   { id: "timeline", label: "时间轴", icon: History, available: false },
-  { id: "daily", label: "日报", icon: CalendarDays, available: false },
+  { id: "achievements", label: "成就", icon: Trophy, available: false },
   { id: "settings", label: "设置", icon: Settings, available: true },
 ] as const;
 
