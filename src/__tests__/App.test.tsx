@@ -410,6 +410,30 @@ describe("App", () => {
     expect(within(windowActions as HTMLElement).getByRole("button", { name: "更多" })).toBeInTheDocument();
   });
 
+  it.each([
+    { label: "概览", shown: true },
+    { label: "后台", shown: true },
+    { label: "软件", shown: false },
+    { label: "统计", shown: false },
+    { label: "成就", shown: false },
+    { label: "设置", shown: false },
+  ])("shows the header date button on $label: $shown", async ({ label, shown }) => {
+    const invokeDefault = mockInvoke.getMockImplementation()!;
+    mockInvoke.mockImplementation((name, invokeArgs) =>
+      name === "get_statistics_summary" || name === "get_achievements_summary"
+        ? new Promise(() => {})
+        : invokeDefault(name, invokeArgs),
+    );
+    const { container } = render(<App />);
+
+    if (label !== "概览") {
+      await userEvent.click(await screen.findByRole("button", { name: label }));
+    }
+
+    expect(await screen.findByRole("heading", { level: 2, name: label })).toBeInTheDocument();
+    expect(container.querySelector(".page-header .date-control") !== null).toBe(shown);
+  });
+
   it("shows and hides an unfinished-feature tooltip on unavailable controls", async () => {
     render(<App />);
 

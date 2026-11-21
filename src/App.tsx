@@ -84,6 +84,9 @@ const pageTitles: Record<PageId, string> = {
   settings: "设置",
 };
 
+// 单日日期按钮只对按「某一天」看数据的页面有意义；软件、统计、成就有自己的时间范围，设置页不看数据。
+const pagesWithDateControl: ReadonlySet<PageId> = new Set<PageId>(["overview", "background"]);
+
 const themeOptions: { value: ThemePreference; label: string }[] = [
   { value: "system", label: "跟随系统" },
   { value: "light", label: "浅色" },
@@ -452,13 +455,15 @@ export default function App() {
         <div className="workspace">
           <header className="page-header">
             <h2>{pageTitles[activePage]}</h2>
-            <UnavailableTooltip>
-              <button className="header-button date-control" type="button">
-                <CalendarDays size={16} aria-hidden="true" />
-                <span className="num">{formatTodayDate()}</span>
-                <ChevronDown size={14} aria-hidden="true" />
-              </button>
-            </UnavailableTooltip>
+            {pagesWithDateControl.has(activePage) ? (
+              <UnavailableTooltip>
+                <button className="header-button date-control" type="button">
+                  <CalendarDays size={16} aria-hidden="true" />
+                  <span className="num">{formatTodayDate()}</span>
+                  <ChevronDown size={14} aria-hidden="true" />
+                </button>
+              </UnavailableTooltip>
+            ) : null}
             <div className="window-actions">
               <UnavailableTooltip>
                 <button className="header-button" type="button">
