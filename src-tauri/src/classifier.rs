@@ -66,6 +66,14 @@ fn known_display_name(name: &str) -> Option<&'static str> {
 }
 
 fn is_known_backend_helper(name: &str, path: &str) -> bool {
+    // Codex's bundled runtimes (PowerShell, computer-use, node) run as agent
+    // tools; checked before known names so their pwsh.exe is not "PowerShell".
+    if path.contains(r"\.cache\codex-runtimes\")
+        || path.contains(r"\appdata\local\openai\codex\runtimes\")
+    {
+        return true;
+    }
+
     if executable_stem(name) != "codex" {
         return false;
     }
@@ -134,28 +142,65 @@ fn is_system_process(name: &str, path: &str) -> bool {
 fn is_helper_process(name: &str, path: &str) -> bool {
     const HELPER_STEMS: &[&str] = &[
         "cargo",
+        "checknetinst",
         "cl",
+        "dispatcher",
+        "enableloopback",
         "esbuild",
         "edgegameassist",
+        "eternalcore",
+        "ewserver",
+        "fnplicensingservice64",
+        "fpsserver",
+        "gamesdk",
+        "gamingservices",
+        "gamingservicesnet",
+        "git",
+        "git-remote-https",
         "global-software-timer",
         "global_software_timer_lib",
+        "kmenureg",
         "listaryhookhost32",
         "listaryhookhost64",
         "lmgrd",
         "mathworksservicehost-monitor",
+        "matlabwindow",
+        "mdnsresponder",
         "node",
         "node_repl",
+        "officeclicktorun",
+        "photolaunch",
+        "pubkey_verify",
         "rustc",
+        "rustup",
+        "search",
+        "sgkaomoji",
         "sgtool",
+        "sldexitapp",
+        "sldim",
+        "sldprocmon",
         "sldworks_fs",
         "sogoucloud",
+        "sqlbrowser",
+        "sqlceip",
+        "sqlservr",
+        "sqlwriter",
         "sw_d",
+        "taskprocess",
+        "typeeasytask",
         "vctip",
+        "vpnclient_x64",
+        "wacom_tablet",
+        "wacom_tabletuser",
+        "wacom_touchuser",
         "wallpaper64",
         "webwallpaper32",
         "wechatappex",
         "widgets",
         "windowtool",
+        "winshowdesktop",
+        "winsmod",
+        "wtabletservicepro",
         "xboxpcappft",
     ];
     const HELPER_KEYWORDS: &[&str] = &[
@@ -174,15 +219,21 @@ fn is_helper_process(name: &str, path: &str) -> bool {
         "sync",
         "setup",
         "installer",
+        "unins",
+        "vcredist",
         "packagemanager",
         "hookhost",
         "servicehost",
     ];
     const HELPER_PATH_SEGMENTS: &[&str] = &["squirreltemp"];
+    // Installers run once from these folders; installed apps live elsewhere.
+    const INSTALLER_PATH_PARTS: &[&str] = &[r"\appdata\local\temp\", r"\downloads\", r"-updater\"];
 
     let stem = executable_stem(name);
 
     path.is_empty()
+        || stem.ends_with(".tmp")
+        || INSTALLER_PATH_PARTS.iter().any(|part| path.contains(part))
         || is_hardware_vendor_background_noise(name)
         || HELPER_STEMS.contains(&stem)
         || stem.starts_with("global_software_timer_lib-")

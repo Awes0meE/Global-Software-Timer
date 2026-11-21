@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Hide more noise from 已发现软件 and the tracked runtime: always-on services (SQL Server, Wacom, Bonjour, Office Click-to-Run, FlexNet, ASUS GameSDK, Microsoft Gaming Services), helpers next to tracked apps (BitDock, Eternal, MATLAB, SolidWorks, Sogou, WPS), command-line tools started by other programs (git, rustup, Codex runtimes), and installers run from Temp, Downloads or an updater folder. The 后台 page still lists them and stored history is unchanged.
+
 ## v0.2.3 - 2026-11-21
 
 - Hide the NVIDIA Overlay, AsHotplugCtrl, Razer Synapse Service Process and BitCenter helpers by default, so their runtime recorded by v0.1.4 no longer heads the overview. Their main apps stay tracked, the 后台 page still lists the helpers, and stored history is unchanged.

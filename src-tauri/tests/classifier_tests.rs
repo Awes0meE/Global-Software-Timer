@@ -265,6 +265,278 @@ fn hides_hardware_vendor_background_noise_without_hiding_main_apps() {
 }
 
 #[test]
+fn hides_services_installers_and_tool_children_seen_in_real_history() {
+    let noisy_processes = [
+        // Always-on services and driver daemons with no window of their own.
+        (
+            "sqlservr.exe",
+            r"C:\ProgramData\SOLIDWORKS Electrical\MSSQL15.TEW_SQLEXPRESS\MSSQL\Binn\sqlservr.exe",
+        ),
+        (
+            "sqlceip.exe",
+            r"C:\ProgramData\SOLIDWORKS Electrical\MSSQL15.TEW_SQLEXPRESS\MSSQL\Binn\sqlceip.exe",
+        ),
+        (
+            "sqlwriter.exe",
+            r"C:\Program Files\Microsoft SQL Server\90\Shared\sqlwriter.exe",
+        ),
+        (
+            "sqlbrowser.exe",
+            r"C:\Program Files (x86)\Microsoft SQL Server\90\Shared\sqlbrowser.exe",
+        ),
+        (
+            "WTabletServicePro.exe",
+            r"C:\Program Files\Tablet\Wacom\WTabletServicePro.exe",
+        ),
+        (
+            "Wacom_Tablet.exe",
+            r"C:\Program Files\Tablet\Wacom\Wacom_Tablet.exe",
+        ),
+        (
+            "Wacom_TabletUser.exe",
+            r"C:\Program Files\Tablet\Wacom\Wacom_TabletUser.exe",
+        ),
+        (
+            "Wacom_TouchUser.exe",
+            r"C:\Program Files\Tablet\Wacom\Wacom_TouchUser.exe",
+        ),
+        (
+            "EwServer.exe",
+            r"E:\software\SolidWorks\MAIN\SOLIDWORKS Electrical\server\EwServer.exe",
+        ),
+        (
+            "dispatcher.exe",
+            r"E:\software\SolidWorks\MAIN\SOLIDWORKS Flow Simulation\binCFW\dispatcher.exe",
+        ),
+        (
+            "GameSDK.exe",
+            r"C:\Program Files (x86)\ASUS\GameSDK Service\GameSDK.exe",
+        ),
+        (
+            "mDNSResponder.exe",
+            r"C:\Program Files\Bonjour\mDNSResponder.exe",
+        ),
+        (
+            "OfficeClickToRun.exe",
+            r"C:\Program Files\Common Files\microsoft shared\ClickToRun\OfficeClickToRun.exe",
+        ),
+        (
+            "FNPLicensingService64.exe",
+            r"C:\Program Files\Common Files\Macrovision Shared\FlexNet Publisher\FNPLicensingService64.exe",
+        ),
+        (
+            "vpnclient_x64.exe",
+            r"C:\Program Files\PacketiX VPN Client\vpnclient_x64.exe",
+        ),
+        (
+            "gamingservices.exe",
+            r"C:\Program Files\WindowsApps\Microsoft.GamingServices_36.113.14003.0_x64__8wekyb3d8bbwe\gamingservices.exe",
+        ),
+        (
+            "gamingservicesnet.exe",
+            r"C:\Program Files\WindowsApps\Microsoft.GamingServices_36.113.14003.0_x64__8wekyb3d8bbwe\gamingservicesnet.exe",
+        ),
+        (
+            "TypeEasyTask.exe",
+            r"E:\金山打字通\Typeeasy\11.9\TypeEasyTask.exe",
+        ),
+        (
+            "kmenureg.exe",
+            r"C:\ProgramData\SogouInput\shell_ext\sdk\wallpaper\1.0.0.14\kmenureg.exe",
+        ),
+        (
+            "SGKaomoji.exe",
+            r"D:\Software\SogouInput\16.2.0.3548\SGKaomoji.exe",
+        ),
+        // Helpers next to a main app that stays tracked.
+        ("WinSMod.exe", r"C:\Program Files (x86)\BitDock\WinSMod.exe"),
+        (
+            "WinShowDesktop.exe",
+            r"C:\Program Files (x86)\BitDock\WinShowDesktop.exe",
+        ),
+        (
+            "TaskProcess.exe",
+            r"C:\Program Files (x86)\BitDock\TaskProcess.exe",
+        ),
+        ("search.exe", r"C:\Program Files (x86)\BitDock\search.exe"),
+        (
+            "EternalCore.exe",
+            r"D:\Users\dev\AppData\Local\Programs\Eternal\EternalCore.exe",
+        ),
+        (
+            "MATLABWindow.exe",
+            r"D:\Program Files\MATLAB\R2021a\bin\win64\MATLABWindow.exe",
+        ),
+        (
+            "sldProcMon.exe",
+            r"D:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\sldProcMon.exe",
+        ),
+        (
+            "SLDEXITAPP.exe",
+            r"D:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\SLDEXITAPP.exe",
+        ),
+        (
+            "sldIM.exe",
+            r"D:\Program Files\SolidWorks\SolidWorks2026\Setup\sldim\sldIM.exe",
+        ),
+        (
+            "photolaunch.exe",
+            r"C:\Users\dev\AppData\Local\kingsoft\WPS Office\12.1.0.26375\office6\photolaunch.exe",
+        ),
+        (
+            "EnableLoopback.exe",
+            r"C:\Program Files\FlClash\EnableLoopback.exe",
+        ),
+        (
+            "FPSserver.exe",
+            r"D:\Program Files (x86)\LeiGod_Acc\resources\leishenSdk\datacenter\game_fps_enhance\service\FPSserver.exe",
+        ),
+        (
+            "pubkey_verify.exe",
+            r"D:\Program Files\Cadence_Install\Cadence\SPB_17.4\tools\pubkey_verify.exe",
+        ),
+        (
+            "CheckNETInst.exe",
+            r"C:\Program Files (x86)\RIGOL\Ultra Sigma\CheckNETInst.exe",
+        ),
+        // Command-line tools spawned by editors and agents.
+        ("git.exe", r"C:\Program Files\Git\cmd\git.exe"),
+        (
+            "git-remote-https.exe",
+            r"C:\Program Files\Git\mingw64\libexec\git-core\git-remote-https.exe",
+        ),
+        ("rustup.exe", r"C:\Users\dev\.cargo\bin\rustup.exe"),
+        (
+            "pwsh.exe",
+            r"C:\Users\dev\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe",
+        ),
+        (
+            "codex-computer-use.exe",
+            r"C:\Users\dev\AppData\Local\OpenAI\Codex\runtimes\cua_node\e4d75eceaa042f20\bin\codex-computer-use.exe",
+        ),
+        // Installers, uninstallers and their unpacked temp stages.
+        (
+            "windows-x64-3.2.206.tmp",
+            r"C:\Users\dev\AppData\Local\Temp\is-LPFG0.tmp\windows-x64-3.2.206.tmp",
+        ),
+        (
+            "InstallConfig.exe",
+            r"C:\Users\dev\AppData\Local\Temp\{850611C4-DE22-4A4B-9BD8-169B4F611E8B}\InstallConfig.exe",
+        ),
+        (
+            "Un.exe",
+            r"C:\Users\dev\AppData\Local\Temp\~nsu1.tmp\Un.exe",
+        ),
+        ("geek64.exe", r"C:\Users\dev\AppData\Local\Temp\geek64.exe"),
+        (
+            "parsec-windows.exe",
+            r"C:\Users\dev\Downloads\parsec-windows.exe",
+        ),
+        (
+            "Transocks_Win_v3.5.7_official_x64 (1).exe",
+            r"C:\Users\dev\Downloads\Transocks_Win_v3.5.7_official_x64 (1).exe",
+        ),
+        (
+            "5EClient-8.2.7.exe",
+            r"C:\Users\dev\AppData\Local\5eclient-updater\pending\5EClient-8.2.7.exe",
+        ),
+        (
+            "uninstall.exe",
+            r"C:\Users\dev\AppData\Local\Global Software Timer\uninstall.exe",
+        ),
+        ("unins000.exe", r"D:\Program Files\SomeApp\unins000.exe"),
+        (
+            "vcredist_x86_sp1.exe",
+            r"D:\Program Files\Cadence_Install\Cadence\SPB_17.4\tools\msbase\vn2008\vcredist_x86_sp1.exe",
+        ),
+    ];
+
+    for (process_name, executable_path) in noisy_processes {
+        assert_eq!(
+            classify_process(process_name, executable_path),
+            Classification::Hidden,
+            "{process_name} should be hidden"
+        );
+    }
+}
+
+#[test]
+fn keeps_real_apps_that_mostly_run_in_the_background() {
+    let real_apps = [
+        (
+            "Listary.exe",
+            r"C:\Program Files\Listary\Listary.exe",
+            "Listary",
+        ),
+        (
+            "Snipaste.exe",
+            r"E:\software\Snipaste\Snipaste.exe",
+            "Snipaste",
+        ),
+        (
+            "BitDock.exe",
+            r"C:\Program Files (x86)\BitDock\BitDock.exe",
+            "BitDock",
+        ),
+        (
+            "BitSetting.exe",
+            r"C:\Program Files (x86)\BitDock\BitSetting.exe",
+            "BitSetting",
+        ),
+        (
+            "Eternal.exe",
+            r"D:\Users\dev\AppData\Local\Programs\Eternal\Eternal.exe",
+            "Eternal",
+        ),
+        (
+            "MATLAB.exe",
+            r"D:\Program Files\MATLAB\R2021a\bin\win64\MATLAB.exe",
+            "MATLAB",
+        ),
+        (
+            "eDrawings.exe",
+            r"D:\Program Files\SOLIDWORKS Corp\eDrawings\eDrawings.exe",
+            "eDrawings",
+        ),
+        (
+            "tailscale-ipn.exe",
+            r"C:\Program Files\Tailscale\tailscale-ipn.exe",
+            "tailscale-ipn",
+        ),
+        (
+            "ollama app.exe",
+            r"C:\Users\dev\AppData\Local\Programs\Ollama\ollama app.exe",
+            "ollama app",
+        ),
+        (
+            "FACEIT.exe",
+            r"C:\Users\dev\AppData\Local\FACEIT\app-2.11.2\FACEIT.exe",
+            "FACEIT",
+        ),
+        (
+            "pwsh.exe",
+            r"C:\Program Files\PowerShell\7\pwsh.exe",
+            "PowerShell",
+        ),
+        (
+            "GitHubDesktop.exe",
+            r"C:\Users\dev\AppData\Local\GitHubDesktop\app-3.4.0\GitHubDesktop.exe",
+            "GitHubDesktop",
+        ),
+    ];
+
+    for (process_name, executable_path, display_name) in real_apps {
+        assert_eq!(
+            classify_process(process_name, executable_path),
+            Classification::Tracked {
+                display_name: display_name.to_string()
+            },
+            "{process_name} should stay tracked"
+        );
+    }
+}
+
+#[test]
 fn falls_back_to_clean_exe_name() {
     assert_eq!(
         classify_process("MyResearchTool.exe", r"D:\Tools\MyResearchTool.exe"),
