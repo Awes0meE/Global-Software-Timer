@@ -2013,12 +2013,13 @@ impl Store {
         Ok(daily)
     }
 
-    /// First and last day each identity had window time.
+    /// First and last day each identity had window time, and its all-time
+    /// window seconds.
     pub fn software_window_date_bounds(
         &self,
-    ) -> StoreResult<HashMap<String, (NaiveDate, NaiveDate)>> {
+    ) -> StoreResult<HashMap<String, (NaiveDate, NaiveDate, i64)>> {
         let mut stmt = self.conn.prepare(
-            "SELECT identity_key, MIN(usage_date), MAX(usage_date)
+            "SELECT identity_key, MIN(usage_date), MAX(usage_date), SUM(foreground_seconds)
              FROM daily_software_runtime_usage
              WHERE foreground_seconds > 0
              GROUP BY identity_key",
@@ -2032,6 +2033,7 @@ impl Store {
                 (
                     parse_usage_date(&row.get::<_, String>(1)?)?,
                     parse_usage_date(&row.get::<_, String>(2)?)?,
+                    row.get::<_, i64>(3)?,
                 ),
             );
         }

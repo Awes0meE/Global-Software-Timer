@@ -13,6 +13,7 @@ pub const IDLE_OPEN_MAX_FOCUS_PERMILLE: i64 = 50; // 5%
 pub const MILESTONE_HOURS: [i64; 6] = [10, 50, 100, 500, 1000, 6666];
 pub const STREAK_MIN_ACTIVE_SECONDS: i64 = 5 * 60; // 当天活跃满 5 分钟算用过，2026-11-21 确认
 pub const COMINGS_GOINGS_DAYS: i64 = 30;
+pub const COMINGS_GOINGS_MIN_WINDOW_SECONDS: i64 = 60; // 累计窗口不满 1 分钟不计入软件来去，2026-11-21 确认
 pub const HEATMAP_DAY_OPTIONS: [u32; 3] = [90, 180, 365];
 pub const RANKING_LIMIT: usize = 20;
 pub const MILESTONE_LIMIT: usize = 30;
@@ -357,17 +358,22 @@ pub fn milestones(daily: &[(String, NaiveDate, i64)]) -> Vec<MilestoneEntry> {
 /// "Recent" means the last `COMINGS_GOINGS_DAYS` days including today. New
 /// software first had a window in that period and after the software-detail
 /// start day (anything seen on that day was already installed). Dormant
-/// software last had a window before that period. Both lists put the most
-/// recent date first, then sort by identity key.
+/// software last had a window before that period. Identities with under
+/// `COMINGS_GOINGS_MIN_WINDOW_SECONDS` of all-time window time, such as
+/// installers, are left out of both. Both lists put the most recent date
+/// first, then sort by identity key.
 pub fn comings_and_goings(
-    window_bounds: &HashMap<String, (NaiveDate, NaiveDate)>,
+    window_bounds: &HashMap<String, (NaiveDate, NaiveDate, i64)>,
     today: NaiveDate,
     software_detail_start: NaiveDate,
 ) -> (Vec<SoftwareDate>, Vec<SoftwareDate>) {
     let recent_start = today - Duration::days(COMINGS_GOINGS_DAYS - 1);
     let mut new = Vec::new();
     let mut dormant = Vec::new();
-    for (key, &(first, last)) in window_bounds {
+    for (key, &(first, last, window_seconds)) in window_bounds {
+        if window_seconds < COMINGS_GOINGS_MIN_WINDOW_SECONDS {
+            continue;
+        }
         if first >= recent_start && first > software_detail_start {
             new.push(SoftwareDate {
                 identity_key: key.clone(),
@@ -468,6 +474,7 @@ mod tests {
         assert_eq!(MILESTONE_HOURS, [10, 50, 100, 500, 1000, 6666]);
         assert_eq!(STREAK_MIN_ACTIVE_SECONDS, 300);
         assert_eq!(COMINGS_GOINGS_DAYS, 30);
+        assert_eq!(COMINGS_GOINGS_MIN_WINDOW_SECONDS, 60);
         assert_eq!(HEATMAP_DAY_OPTIONS, [90, 180, 365]);
         assert_eq!(RANKING_LIMIT, 20);
         assert_eq!(MILESTONE_LIMIT, 30);
@@ -803,9 +810,9 @@ mod tests {
     #[test]
     fn comings_and_goings_use_window_days_and_ignore_the_detail_start_day() {
         let bounds = HashMap::from([
-            ("new".into(), (d(2026, 11, 10), d(2026, 11, 20))),
-            ("old".into(), (d(2026, 6, 18), d(2026, 9, 1))), // 30 天以上没开窗口
-            ("base".into(), (d(2026, 6, 18), d(2026, 11, 21))), // 明细起点那天就有，不算新
+            ("new".into(), (d(2026, 11, 10), d(2026, 11, 20), H)),
+            ("old".into(), (d(2026, 6, 18), d(2026, 9, 1), H)), // 30 天以上没开窗口
+            ("base".into(), (d(2026, 6, 18), d(2026, 11, 21), H)), // 明细起点那天就有，不算新
         ]);
         let (new, dormant) = comings_and_goings(&bounds, d(2026, 11, 21), d(2026, 6, 18));
         assert_eq!((keys(&new), keys(&dormant)), (vec!["new"], vec!["old"]));
@@ -817,10 +824,10 @@ mod tests {
     fn comings_and_goings_window_is_the_last_thirty_days_including_today() {
         // 近 30 天 = 10-23 ～ 11-21
         let bounds = HashMap::from([
-            ("first_inside".into(), (d(2026, 10, 23), d(2026, 11, 1))),
-            ("first_outside".into(), (d(2026, 10, 22), d(2026, 11, 1))),
-            ("last_inside".into(), (d(2026, 7, 1), d(2026, 10, 23))),
-            ("last_outside".into(), (d(2026, 7, 1), d(2026, 10, 22))),
+            ("first_inside".into(), (d(2026, 10, 23), d(2026, 11, 1), H)),
+            ("first_outside".into(), (d(2026, 10, 22), d(2026, 11, 1), H)),
+            ("last_inside".into(), (d(2026, 7, 1), d(2026, 10, 23), H)),
+            ("last_outside".into(), (d(2026, 7, 1), d(2026, 10, 22), H)),
         ]);
         let (new, dormant) = comings_and_goings(&bounds, d(2026, 11, 21), d(2026, 6, 18));
         assert_eq!(
@@ -832,15 +839,31 @@ mod tests {
     #[test]
     fn comings_and_goings_sort_by_most_recent_date_first() {
         let bounds = HashMap::from([
-            ("n1".into(), (d(2026, 11, 1), d(2026, 11, 21))),
-            ("n2".into(), (d(2026, 11, 15), d(2026, 11, 21))),
-            ("d1".into(), (d(2026, 7, 1), d(2026, 8, 1))),
-            ("d2".into(), (d(2026, 7, 1), d(2026, 9, 1))),
+            ("n1".into(), (d(2026, 11, 1), d(2026, 11, 21), H)),
+            ("n2".into(), (d(2026, 11, 15), d(2026, 11, 21), H)),
+            ("d1".into(), (d(2026, 7, 1), d(2026, 8, 1), H)),
+            ("d2".into(), (d(2026, 7, 1), d(2026, 9, 1), H)),
         ]);
         let (new, dormant) = comings_and_goings(&bounds, d(2026, 11, 21), d(2026, 6, 18));
         assert_eq!(
             (keys(&new), keys(&dormant)),
             (vec!["n2", "n1"], vec!["d2", "d1"])
+        );
+    }
+
+    #[test]
+    fn comings_and_goings_skip_software_with_under_a_minute_of_window_time() {
+        // 累计窗口 59 秒不计入，60 秒恰好计入；新面孔和沉寂两边都看
+        let bounds = HashMap::from([
+            ("new_59".into(), (d(2026, 11, 10), d(2026, 11, 10), 59)),
+            ("new_60".into(), (d(2026, 11, 10), d(2026, 11, 10), 60)),
+            ("old_59".into(), (d(2026, 7, 1), d(2026, 7, 1), 59)),
+            ("old_60".into(), (d(2026, 7, 1), d(2026, 7, 1), 60)),
+        ]);
+        let (new, dormant) = comings_and_goings(&bounds, d(2026, 11, 21), d(2026, 6, 18));
+        assert_eq!(
+            (keys(&new), keys(&dormant)),
+            (vec!["new_60"], vec!["old_60"])
         );
     }
 }

@@ -2072,4 +2072,33 @@ mod statistics_command_tests {
         assert_eq!(all.new_software.len(), 2);
         assert_eq!(all.best_software_day.unwrap().identity_key, game);
     }
+
+    #[test]
+    fn achievements_summary_comings_goings_need_a_minute_of_all_time_window() {
+        let (_file, store) = migrated_store();
+        let (_, base) = software(&store, "Base.exe");
+        let (_, installer) = software(&store, "Setup.exe");
+        let (_, split) = software(&store, "Split.exe");
+        let (_, old_blip) = software(&store, "OldBlip.exe");
+        let today = date(2026, 11, 21);
+        window_day(&store, today - Duration::days(100), &base, H);
+        window_day(&store, today, &base, H);
+        window_day(&store, today - Duration::days(3), &installer, 59);
+        // 两天各 30 秒，累计恰好 1 分钟
+        window_day(&store, today - Duration::days(4), &split, 30);
+        window_day(&store, today - Duration::days(2), &split, 30);
+        window_day(&store, today - Duration::days(60), &old_blip, 59);
+
+        let summary = achievements_summary_from_store(&store, 90, false, today).unwrap();
+
+        assert_eq!(
+            keys(summary.new_software.iter().map(|row| &row.identity_key)),
+            vec![split.as_str()]
+        );
+        assert_eq!(
+            summary.new_software[0].date,
+            (today - Duration::days(4)).to_string()
+        );
+        assert!(summary.dormant_software.is_empty());
+    }
 }

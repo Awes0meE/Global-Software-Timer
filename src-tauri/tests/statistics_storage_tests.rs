@@ -297,7 +297,7 @@ fn software_focus_daily_lists_positive_days_in_date_order() {
 }
 
 #[test]
-fn software_window_date_bounds_only_count_days_with_window_time() {
+fn software_window_date_bounds_only_count_days_with_window_time_and_sum_it() {
     let (_file, store) = migrated_store();
     let code = identity_for(&store, "code.exe");
     let tray_only = identity_for(&store, "tray.exe");
@@ -319,7 +319,8 @@ fn software_window_date_bounds_only_count_days_with_window_time() {
 
     assert_eq!(
         store.software_window_date_bounds().unwrap(),
-        HashMap::from([(code, (date(2026, 11, 2), date(2026, 11, 5)))])
+        // 累计窗口秒数只加 foreground_seconds：10 + 20
+        HashMap::from([(code, (date(2026, 11, 2), date(2026, 11, 5), 30))])
     );
 }
 
