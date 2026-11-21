@@ -219,7 +219,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 - **判断方式透明**：为了区分前台、托盘和后台，GST 只读取窗口样式和类名、进程命令行（只在内存里检查 `--type=` 这类辅助进程标记，不保存），以及 Windows 登记的托盘程序路径；不读取窗口标题，也不读取托盘图标的提示文字。
 - **数据放在哪**：
   - 数据库：`%APPDATA%\com.globalsoftwaretimer.app\global-software-timer.sqlite3`
-  - 图标缓存（v0.2.3 之后的版本）：`%LOCALAPPDATA%\com.globalsoftwaretimer.app\icons\`。只存 96px 的软件图标，文件名是哈希值，不含路径或软件名；写入超过 90 天的图标会在启动时自动清理，也可以随时整个删掉。
+  - 图标缓存（v0.2.4 起）：`%LOCALAPPDATA%\com.globalsoftwaretimer.app\icons\`。只存 96px 的软件图标，文件名是哈希值，不含路径或软件名；写入超过 90 天的图标会在启动时自动清理，也可以随时整个删掉。
 
 完整的隐私声明见 [PRIVACY.md](./PRIVACY.md)（英文）。
 
@@ -266,7 +266,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 安装包暂时没有代码签名，SmartScreen 会对没签名的新软件弹出这个提示。点 **更多信息 → 仍要运行** 即可。如果担心安装包被改动，可以对照 Releases 里的 `SHA256SUMS.txt` 校验：
 
 ```powershell
-Get-FileHash .\Global.Software.Timer_0.2.3_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Global.Software.Timer_0.2.4_x64-setup.exe -Algorithm SHA256
 ```
 
 </details>

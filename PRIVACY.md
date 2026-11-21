@@ -1,8 +1,8 @@
 # Privacy
 
-Global Software Timer v0.2.3 is local-first.
+Global Software Timer v0.2.4 is local-first.
 
-## What v0.2.3 records
+## What v0.2.4 records
 
 - Application executable identity
 - User-facing application name
@@ -17,7 +17,7 @@ Global Software Timer v0.2.3 is local-first.
 
 To tell windowed, tray and background apps apart, GST reads window styles and class names, process command lines (checked in memory for helper flags such as `--type=`, never stored), and the executable paths Windows lists under `HKCU\Control Panel\NotifyIconSettings`. It does not read window titles or tray icon tooltips.
 
-## What v0.2.3 does not record
+## What v0.2.4 does not record
 
 - Window titles
 - Document names
@@ -30,7 +30,7 @@ To tell windowed, tray and background apps apart, GST reads window styles and cl
 
 ## Local icon cache
 
-Builds after v0.2.3, currently on `main`, also save software icons to disk, so they are not read from each executable again after every restart.
+Since v0.2.4, GST also saves software icons to disk, so they are not read from each executable again after every restart.
 
 - Location: `%LOCALAPPDATA%\com.globalsoftwaretimer.app\icons\`
 - Contents: one 96px PNG per icon, taken from the executable or its package resources. Each file is named by a hash of the executable path, size and modification time, so the folder holds no paths or software names in plain text.
@@ -39,10 +39,10 @@ Builds after v0.2.3, currently on `main`, also save software icons to disk, so t
 
 ## Network
 
-v0.2.3 does not upload usage data or require an account.
+v0.2.4 does not upload usage data or require an account.
 
 ## Permissions
 
-v0.2.3 runs as a normal user-space app and does not request administrator permission by default.
+v0.2.4 runs as a normal user-space app and does not request administrator permission by default.
 
-Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.2.3, can be turned off in Settings, and does not require administrator permission.
+Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.2.4, can be turned off in Settings, and does not require administrator permission.
