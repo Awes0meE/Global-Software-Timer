@@ -114,7 +114,7 @@ export interface StatisticsDay {
 export interface RankingRow {
   identity_key: string;
   display_name: string;
-  icon_data_url: string | null;
+  icon_url: string | null;
   rank: number;
   previous_rank: number | null;
   is_new: boolean;
@@ -126,7 +126,7 @@ export interface RankingRow {
 export interface IdleOpenRow {
   identity_key: string;
   display_name: string;
-  icon_data_url: string | null;
+  icon_url: string | null;
   window_seconds: number;
   focused_seconds: number;
   idle_seconds: number;
@@ -135,7 +135,7 @@ export interface IdleOpenRow {
 export interface SessionStatRow {
   identity_key: string;
   display_name: string;
-  icon_data_url: string | null;
+  icon_url: string | null;
   launch_count: number;
   average_seconds: number;
   longest_seconds: number;
@@ -173,7 +173,7 @@ export interface DayRecord {
 export interface SoftwareDayRecord {
   identity_key: string;
   display_name: string;
-  icon_data_url: string | null;
+  icon_url: string | null;
   date: string;
   seconds: number;
 }
@@ -181,7 +181,7 @@ export interface SoftwareDayRecord {
 export interface MilestoneRow {
   identity_key: string;
   display_name: string;
-  icon_data_url: string | null;
+  icon_url: string | null;
   focused_seconds: number;
   reached_hours: number | null;
   reached_on: string | null;
@@ -191,7 +191,7 @@ export interface MilestoneRow {
 export interface SoftwareRef {
   identity_key: string;
   display_name: string;
-  icon_data_url: string | null;
+  icon_url: string | null;
   date: string;
 }
 

@@ -46,7 +46,7 @@ function summary(overrides: Partial<AchievementsSummary> = {}): AchievementsSumm
     best_software_day: {
       identity_key: "chatgpt",
       display_name: "ChatGPT",
-      icon_data_url: null,
+      icon_url: null,
       date: "2026-08-12",
       seconds: 20.4 * H,
     },
@@ -55,7 +55,7 @@ function summary(overrides: Partial<AchievementsSummary> = {}): AchievementsSumm
       {
         identity_key: "chatgpt",
         display_name: "ChatGPT",
-        icon_data_url: null,
+        icon_url: null,
         focused_seconds: 225 * H,
         reached_hours: 100,
         reached_on: "2026-08-31",
@@ -64,7 +64,7 @@ function summary(overrides: Partial<AchievementsSummary> = {}): AchievementsSumm
       {
         identity_key: "code",
         display_name: "Visual Studio Code",
-        icon_data_url: null,
+        icon_url: null,
         focused_seconds: 12 * H,
         reached_hours: 10,
         reached_on: "2026-11-11",
@@ -72,10 +72,10 @@ function summary(overrides: Partial<AchievementsSummary> = {}): AchievementsSumm
       },
     ],
     new_software: [
-      { identity_key: "faceit", display_name: "FACEIT", icon_data_url: null, date: "2026-11-19" },
+      { identity_key: "faceit", display_name: "FACEIT", icon_url: null, date: "2026-11-19" },
     ],
     dormant_software: [
-      { identity_key: "excel", display_name: "Microsoft Excel", icon_data_url: null, date: "2026-10-13" },
+      { identity_key: "excel", display_name: "Microsoft Excel", icon_url: null, date: "2026-10-13" },
     ],
     ...overrides,
   };
@@ -316,7 +316,7 @@ describe("AchievementsPage", () => {
           {
             identity_key: "x",
             display_name: "Long Runner",
-            icon_data_url: null,
+            icon_url: null,
             focused_seconds: 6700 * H,
             reached_hours: 6666,
             reached_on: "2026-11-01",

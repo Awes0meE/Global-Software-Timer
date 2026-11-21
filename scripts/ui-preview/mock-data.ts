@@ -333,7 +333,7 @@ const seedByKey = new Map(seeds.map((seed) => [seed.key, seed]));
 
 function identity(key: string) {
   const seed = seedByKey.get(key);
-  return { identity_key: key, display_name: seed?.name ?? key, icon_data_url: seed?.icon ?? null };
+  return { identity_key: key, display_name: seed?.name ?? key, icon_url: seed?.icon ?? null };
 }
 
 function compareNames(left: string, right: string): number {

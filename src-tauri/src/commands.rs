@@ -131,7 +131,7 @@ pub struct StatisticsDayDto {
 pub struct RankingRowDto {
     pub identity_key: String,
     pub display_name: String,
-    pub icon_data_url: Option<String>,
+    pub icon_url: Option<String>,
     pub rank: u32,
     pub previous_rank: Option<u32>,
     pub is_new: bool,
@@ -144,7 +144,7 @@ pub struct RankingRowDto {
 pub struct IdleOpenRowDto {
     pub identity_key: String,
     pub display_name: String,
-    pub icon_data_url: Option<String>,
+    pub icon_url: Option<String>,
     pub window_seconds: i64,
     pub focused_seconds: i64,
     pub idle_seconds: i64,
@@ -154,7 +154,7 @@ pub struct IdleOpenRowDto {
 pub struct SessionStatRowDto {
     pub identity_key: String,
     pub display_name: String,
-    pub icon_data_url: Option<String>,
+    pub icon_url: Option<String>,
     pub launch_count: u32,
     pub average_seconds: i64,
     pub longest_seconds: i64,
@@ -196,7 +196,7 @@ pub struct DayRecordDto {
 pub struct SoftwareDayRecordDto {
     pub identity_key: String,
     pub display_name: String,
-    pub icon_data_url: Option<String>,
+    pub icon_url: Option<String>,
     pub date: String,
     pub seconds: i64,
 }
@@ -205,7 +205,7 @@ pub struct SoftwareDayRecordDto {
 pub struct MilestoneRowDto {
     pub identity_key: String,
     pub display_name: String,
-    pub icon_data_url: Option<String>,
+    pub icon_url: Option<String>,
     pub focused_seconds: i64,
     pub reached_hours: Option<i64>,
     pub reached_on: Option<String>,
@@ -216,7 +216,7 @@ pub struct MilestoneRowDto {
 pub struct SoftwareRefDto {
     pub identity_key: String,
     pub display_name: String,
-    pub icon_data_url: Option<String>,
+    pub icon_url: Option<String>,
     pub date: String,
 }
 
@@ -815,7 +815,7 @@ impl SoftwareLabels {
             .map_or_else(|| identity_key.to_string(), |(name, _)| name.clone())
     }
 
-    fn icon_data_url(&self, identity_key: &str) -> Option<String> {
+    fn icon_url(&self, identity_key: &str) -> Option<String> {
         self.0
             .get(identity_key)
             .and_then(|(_, path)| icon_url(path))
@@ -937,7 +937,7 @@ fn statistics_summary_for_range(
         .into_iter()
         .map(|entry| RankingRowDto {
             display_name: labels.display_name(&entry.identity_key),
-            icon_data_url: labels.icon_data_url(&entry.identity_key),
+            icon_url: labels.icon_url(&entry.identity_key),
             identity_key: entry.identity_key,
             rank: entry.rank,
             previous_rank: entry.previous_rank,
@@ -951,7 +951,7 @@ fn statistics_summary_for_range(
             .into_iter()
             .map(|entry| IdleOpenRowDto {
                 display_name: labels.display_name(&entry.identity_key),
-                icon_data_url: labels.icon_data_url(&entry.identity_key),
+                icon_url: labels.icon_url(&entry.identity_key),
                 identity_key: entry.identity_key,
                 window_seconds: entry.window_seconds,
                 focused_seconds: entry.focused_seconds,
@@ -962,7 +962,7 @@ fn statistics_summary_for_range(
             .into_iter()
             .map(|entry| SessionStatRowDto {
                 display_name: labels.display_name(&entry.identity_key),
-                icon_data_url: labels.icon_data_url(&entry.identity_key),
+                icon_url: labels.icon_url(&entry.identity_key),
                 identity_key: entry.identity_key,
                 launch_count: entry.launch_count,
                 average_seconds: entry.average_seconds,
@@ -1036,7 +1036,7 @@ fn achievements_summary_for_days(
     let labels = SoftwareLabels(store.software_identity_labels()?);
     let software_ref = |row: SoftwareDate| SoftwareRefDto {
         display_name: labels.display_name(&row.identity_key),
-        icon_data_url: labels.icon_data_url(&row.identity_key),
+        icon_url: labels.icon_url(&row.identity_key),
         identity_key: row.identity_key,
         date: row.date.to_string(),
     };
@@ -1062,7 +1062,7 @@ fn achievements_summary_for_days(
             .map(|(key, date, seconds)| SoftwareDayRecordDto {
                 identity_key: key.clone(),
                 display_name: labels.display_name(key),
-                icon_data_url: labels.icon_data_url(key),
+                icon_url: labels.icon_url(key),
                 date: date.to_string(),
                 seconds: *seconds,
             }),
@@ -1071,7 +1071,7 @@ fn achievements_summary_for_days(
             .into_iter()
             .map(|entry| MilestoneRowDto {
                 display_name: labels.display_name(&entry.identity_key),
-                icon_data_url: labels.icon_data_url(&entry.identity_key),
+                icon_url: labels.icon_url(&entry.identity_key),
                 identity_key: entry.identity_key,
                 focused_seconds: entry.focused_seconds,
                 reached_hours: entry.reached_hours,

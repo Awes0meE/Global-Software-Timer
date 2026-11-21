@@ -35,7 +35,7 @@ function rankRow(key: string, rank: number, previousRank: number | null, isNew =
   return {
     identity_key: key,
     display_name: key,
-    icon_data_url: null,
+    icon_url: null,
     rank,
     previous_rank: previousRank,
     is_new: isNew,
@@ -79,7 +79,7 @@ function summary(overrides: Partial<StatisticsSummary> = {}): StatisticsSummary 
       {
         identity_key: "wechat",
         display_name: "微信",
-        icon_data_url: null,
+        icon_url: null,
         window_seconds: 40 * H,
         focused_seconds: H,
         idle_seconds: 39 * H,
@@ -89,7 +89,7 @@ function summary(overrides: Partial<StatisticsSummary> = {}): StatisticsSummary 
       {
         identity_key: "edge",
         display_name: "Microsoft Edge",
-        icon_data_url: null,
+        icon_url: null,
         launch_count: 41,
         average_seconds: 1800,
         longest_seconds: 10 * H,

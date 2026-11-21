@@ -56,7 +56,7 @@ export function StatisticsLedgers({ summary, durationFormat }: LedgerProps) {
   );
 }
 
-function NameCell({ row }: { row: { display_name: string; icon_data_url: string | null } }) {
+function NameCell({ row }: { row: { display_name: string; icon_url: string | null } }) {
   return (
     <span className="software-cell">
       <SoftwareIcon app={row} size="sm" />
