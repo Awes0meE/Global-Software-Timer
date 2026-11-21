@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.2.3 - 2026-11-21
 
 - Hide the NVIDIA Overlay, AsHotplugCtrl, Razer Synapse Service Process and BitCenter helpers by default, so their runtime recorded by v0.1.4 no longer heads the overview. Their main apps stay tracked, the 后台 page still lists the helpers, and stored history is unchanged.
 - Choose 最常用 from today's active time, falling back to today's runtime, instead of all-time runtime, so an always-running tray app no longer wins. The note under it shows the figure used.
