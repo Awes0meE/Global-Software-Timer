@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Hide more noise from 已发现软件 and the tracked runtime: always-on services (SQL Server, Wacom, Bonjour, Office Click-to-Run, FlexNet, ASUS GameSDK, Microsoft Gaming Services), helpers next to tracked apps (BitDock, Eternal, MATLAB, SolidWorks, Sogou, WPS), command-line tools started by other programs (git, rustup, Codex runtimes), and installers run from Temp, Downloads or an updater folder. The 后台 page still lists them and stored history is unchanged.
+- Read executable icons at their largest embedded size (up to 256px) and scale them to a shared 96px, so they stay sharp at 125% and 150% display scaling. Restore the straight alpha that Windows drawing premultiplies, which had darkened antialiased icon edges, and keep the black outlines of legacy icons that have no alpha channel.
+- Serve icons through a local `gsticon` protocol instead of embedding them in every summary refresh, and keep them on disk between restarts. Icons appear as soon as they are read rather than on the next refresh; software without an icon keeps its initial.
 
 ## v0.2.3 - 2026-11-21
 
