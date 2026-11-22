@@ -44,7 +44,52 @@ struct TrackingState {
     credit_remainder: Duration,
     /// Background processes seen by the latest tick, for the live page view.
     background_live: Vec<BackgroundProcessGroup>,
+    /// Which timeline rows the next tick may extend; never persisted, so a
+    /// restart always opens new rows.
+    timeline: TimelineCursor,
     stopped: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+struct TimelineCursor {
+    segment: SegmentCursor,
+}
+
+#[derive(Debug, Clone, Default)]
+enum SegmentCursor {
+    /// No segment written by this process yet.
+    #[default]
+    Fresh,
+    /// A scan gap or clock rollback followed the last segment.
+    AfterBreak(&'static str),
+    /// The last segment, which the next chunk may extend.
+    Open {
+        segment_id: i64,
+        usage_date: NaiveDate,
+        focus_identity_key: Option<String>,
+        is_active: bool,
+    },
+}
+
+impl TimelineCursor {
+    /// `Fresh` stays `Fresh`: its next segment is `tracker_started` anyway;
+    /// an existing `AfterBreak` takes the newer reason.
+    fn note_break(&mut self, reason: &'static str) {
+        if !matches!(self.segment, SegmentCursor::Fresh) {
+            self.segment = SegmentCursor::AfterBreak(reason);
+        }
+    }
+
+    /// Why a chunk on `date` cannot continue the previous rows: `tracker_started`,
+    /// the break reason, or `day_changed`; `None` when the cursor is open on `date`.
+    fn chunk_break(&self, date: NaiveDate) -> Option<&'static str> {
+        match &self.segment {
+            SegmentCursor::Fresh => Some("tracker_started"),
+            SegmentCursor::AfterBreak(reason) => Some(reason),
+            SegmentCursor::Open { usage_date, .. } if *usage_date != date => Some("day_changed"),
+            SegmentCursor::Open { .. } => None,
+        }
+    }
 }
 
 pub struct Tracker<S: ProcessSource> {
@@ -349,6 +394,10 @@ where
         now.date_naive(),
         break_reason,
     )?;
+    if let Some(reason) = break_reason {
+        // A break credits nothing, so no chunk below can carry it.
+        next.timeline.note_break(reason);
+    }
     let is_active = activity_source.is_active(active_threshold);
     let foreground_app_id = foreground_source
         .foreground_pid()
@@ -367,20 +416,95 @@ where
             seconds,
             recorded_at,
         )?;
-        if let Some(app_id) = foreground_app_id {
-            if active_seconds > 0 {
-                store.increment_daily_app_usage(date, app_id, 0, active_seconds)?;
+        let focus_key = match foreground_app_id {
+            Some(app_id) => {
+                if active_seconds > 0 {
+                    store.increment_daily_app_usage(date, app_id, 0, active_seconds)?;
+                }
+                let identity = store.upsert_software_identity_for_app(app_id)?;
+                // Software-page focus remains independent of the machine idle gate.
+                store.increment_daily_software_focus_usage(
+                    date,
+                    &identity.identity_key,
+                    seconds,
+                )?;
+                Some(identity.identity_key)
             }
-            let identity = store.upsert_software_identity_for_app(app_id)?;
-            // Software-page focus remains independent of the machine idle gate.
-            store.increment_daily_software_focus_usage(date, &identity.identity_key, seconds)?;
-        }
+            None => None,
+        };
+        record_timeline_chunk(
+            store,
+            &mut next.timeline,
+            date,
+            recorded_at,
+            seconds,
+            focus_key.as_deref(),
+            is_active,
+        )?;
     }
     next.last_tick_at = Some(now_utc);
     next.credit_remainder = credit_remainder;
     next.background_live = background;
     transaction.commit()?;
     tracker.state = next;
+    Ok(())
+}
+
+/// Writes one dated chunk of credited seconds to the timeline: extends the open
+/// segment when nothing changed, otherwise opens a new one with the reason.
+fn record_timeline_chunk(
+    store: &Store,
+    cursor: &mut TimelineCursor,
+    date: NaiveDate,
+    chunk_start: DateTime<Utc>,
+    seconds: i64,
+    focus_key: Option<&str>,
+    is_active: bool,
+) -> StoreResult<()> {
+    let chunk_end = chunk_start + chrono::Duration::seconds(seconds);
+    let chunk_break = cursor.chunk_break(date);
+    let segment_id = match &cursor.segment {
+        SegmentCursor::Open {
+            segment_id,
+            usage_date,
+            focus_identity_key,
+            is_active: was_active,
+        } if *usage_date == date
+            && focus_identity_key.as_deref() == focus_key
+            && *was_active == is_active =>
+        {
+            store.extend_timeline_segment(*segment_id, chunk_end, seconds)?;
+            *segment_id
+        }
+        segment => {
+            let same_focus = matches!(
+                segment,
+                SegmentCursor::Open { focus_identity_key, .. }
+                    if focus_identity_key.as_deref() == focus_key
+            );
+            // A focus change that also flips activity is recorded as the focus change.
+            let reason = chunk_break.unwrap_or(if same_focus {
+                "activity_changed"
+            } else {
+                "focus_changed"
+            });
+            store.insert_timeline_segment(
+                date,
+                chunk_start,
+                chunk_end,
+                seconds,
+                focus_key,
+                is_active,
+                reason,
+            )?
+        }
+    };
+    cursor.segment = SegmentCursor::Open {
+        segment_id,
+        usage_date: date,
+        focus_identity_key: focus_key.map(str::to_string),
+        is_active,
+    };
     Ok(())
 }
 

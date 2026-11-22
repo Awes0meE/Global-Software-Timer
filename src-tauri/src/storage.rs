@@ -3,7 +3,7 @@ use crate::domain::{
     AppIdentity, AppRuntimeStatus, AppUsageSummary, DailySystemUsage, RunEventKind,
     SoftwareIdentity, SoftwarePageRow, SoftwarePageRows, UsageSession,
 };
-use chrono::{DateTime, Local, NaiveDate, Utc};
+use chrono::{DateTime, Local, NaiveDate, SecondsFormat, Utc};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
@@ -308,6 +308,57 @@ impl Store {
             CREATE INDEX IF NOT EXISTS timeline_window_spans_date_idx ON timeline_window_spans(usage_date, start_utc);
             "#,
         )?;
+        Ok(())
+    }
+
+    /// Opens a timeline segment and returns its row id.
+    #[allow(clippy::too_many_arguments)]
+    pub fn insert_timeline_segment(
+        &self,
+        usage_date: NaiveDate,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        credited_seconds: i64,
+        focus_identity_key: Option<&str>,
+        is_active: bool,
+        start_reason: &str,
+    ) -> StoreResult<i64> {
+        self.conn.execute(
+            "INSERT INTO timeline_segments
+                 (usage_date, start_utc, end_utc, credited_seconds, focus_identity_key, is_active, start_reason)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                usage_date.to_string(),
+                timeline_timestamp(start),
+                timeline_timestamp(end),
+                credited_seconds,
+                focus_identity_key,
+                is_active,
+                start_reason
+            ],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    /// Moves a segment's end to `end` and adds `seconds` to its credit.
+    pub fn extend_timeline_segment(
+        &self,
+        id: i64,
+        end: DateTime<Utc>,
+        seconds: i64,
+    ) -> StoreResult<()> {
+        let count = self.conn.execute(
+            "UPDATE timeline_segments
+             SET end_utc = ?2, credited_seconds = credited_seconds + ?3
+             WHERE id = ?1",
+            params![id, timeline_timestamp(end), seconds],
+        )?;
+        if count != 1 {
+            return Err(StoreError::UnexpectedUpdateCount {
+                operation: "extend_timeline_segment",
+                count,
+            });
+        }
         Ok(())
     }
 
@@ -2587,4 +2638,9 @@ fn merged_interval_seconds(intervals: &mut [(DateTime<Utc>, DateTime<Utc>)]) -> 
     }
 
     total + non_negative_seconds(current_start, current_end)
+}
+
+/// Millisecond RFC 3339 ending in `+00:00`: fixed width, so text order is time order.
+fn timeline_timestamp(value: DateTime<Utc>) -> String {
+    value.to_rfc3339_opts(SecondsFormat::Millis, false)
 }

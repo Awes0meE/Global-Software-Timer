@@ -1,4 +1,7 @@
-use chrono::{DateTime, FixedOffset, LocalResult, NaiveDate, NaiveDateTime, Offset, TimeZone, Utc};
+use chrono::{
+    DateTime, FixedOffset, LocalResult, NaiveDate, NaiveDateTime, Offset, SecondsFormat, TimeZone,
+    Utc,
+};
 use global_software_timer_lib::activity::ActivitySource;
 use global_software_timer_lib::app_state::AppState;
 use global_software_timer_lib::commands::local_date_bounds_in;
@@ -7,8 +10,9 @@ use global_software_timer_lib::foreground::ForegroundWindowSource;
 use global_software_timer_lib::process_source::{ProcessSnapshot, ProcessSource};
 use global_software_timer_lib::storage::Store;
 use global_software_timer_lib::tracker::{
-    run_tracker_tick, run_tracker_tick_with_foreground, Tracker,
+    run_tracker_tick, run_tracker_tick_with_foreground, Tracker, TrackerResult,
 };
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tempfile::NamedTempFile;
 
@@ -1230,4 +1234,436 @@ fn timeline_dst_day_bounds_are_23_and_25_hours() {
         local_date_bounds_in(autumn, &switch).0,
         utc_at("2026-10-24T22:00:00Z")
     );
+}
+
+/// Hands the tracker whatever processes the test set for the next tick.
+#[derive(Clone, Default)]
+struct SharedProcessSource(Arc<Mutex<Vec<ProcessSnapshot>>>);
+
+impl ProcessSource for SharedProcessSource {
+    fn snapshot(&mut self) -> Vec<ProcessSnapshot> {
+        self.0.lock().unwrap().clone()
+    }
+}
+
+/// A timeline segment row, read back with a separate connection.
+#[derive(Debug, Clone, PartialEq)]
+struct Segment {
+    date: String,
+    start: String,
+    end: String,
+    seconds: i64,
+    focus: Option<String>,
+    active: bool,
+    reason: String,
+}
+
+/// One tracker over a temp database, fed one scripted tick at a time.
+struct Rig {
+    db: NamedTempFile,
+    processes: SharedProcessSource,
+    tracker: Tracker<SharedProcessSource>,
+}
+
+impl Rig {
+    fn new() -> Self {
+        let db = NamedTempFile::new().expect("temp db");
+        let processes = SharedProcessSource::default();
+        let tracker = Self::open_tracker(&db, &processes);
+        Self {
+            db,
+            processes,
+            tracker,
+        }
+    }
+
+    fn open_tracker(
+        db: &NamedTempFile,
+        processes: &SharedProcessSource,
+    ) -> Tracker<SharedProcessSource> {
+        let store = Store::open(db.path()).expect("open");
+        store.migrate().expect("migrate");
+        Tracker::new(store, processes.clone())
+    }
+
+    /// A new tracker on the same database, as after the app restarts.
+    fn restart(&mut self) {
+        self.tracker = Self::open_tracker(&self.db, &self.processes);
+    }
+
+    fn try_tick<Tz: TimeZone>(
+        &mut self,
+        now: DateTime<Tz>,
+        tick: Duration,
+        processes: &[ProcessSnapshot],
+        focus_pid: Option<u32>,
+        active: bool,
+    ) -> TrackerResult<()> {
+        *self.processes.0.lock().unwrap() = processes.to_vec();
+        let idle_duration = if active {
+            Duration::ZERO
+        } else {
+            Duration::from_secs(600)
+        };
+        run_tracker_tick_with_foreground(
+            &mut self.tracker,
+            &FakeActivitySource { idle_duration },
+            &FakeForegroundWindowSource { pid: focus_pid },
+            now,
+            tick,
+            Duration::from_secs(300),
+        )
+    }
+
+    fn tick<Tz: TimeZone>(
+        &mut self,
+        now: DateTime<Tz>,
+        tick: Duration,
+        processes: &[ProcessSnapshot],
+        focus_pid: Option<u32>,
+        active: bool,
+    ) {
+        self.try_tick(now, tick, processes, focus_pid, active)
+            .expect("tick");
+    }
+
+    fn conn(&self) -> rusqlite::Connection {
+        rusqlite::Connection::open(self.db.path()).expect("raw open")
+    }
+
+    fn segments(&self) -> Vec<Segment> {
+        self.conn()
+            .prepare(
+                "SELECT usage_date, start_utc, end_utc, credited_seconds, focus_identity_key, is_active, start_reason
+                 FROM timeline_segments ORDER BY id",
+            )
+            .unwrap()
+            .query_map([], |r| {
+                Ok(Segment {
+                    date: r.get(0)?,
+                    start: r.get(1)?,
+                    end: r.get(2)?,
+                    seconds: r.get(3)?,
+                    focus: r.get(4)?,
+                    active: r.get(5)?,
+                    reason: r.get(6)?,
+                })
+            })
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
+    fn identity(&self, process_name: &str) -> String {
+        self.conn()
+            .query_row(
+                "SELECT m.identity_key FROM software_identity_members m
+                 JOIN apps a ON a.id = m.app_id WHERE lower(a.process_name) = lower(?1)",
+                [process_name],
+                |r| r.get(0),
+            )
+            .expect("identity")
+    }
+
+    fn recorded_seconds(&self, date: &str) -> i64 {
+        self.conn()
+            .query_row(
+                "SELECT recorded_seconds FROM daily_system_usage WHERE usage_date = ?1",
+                [date],
+                |r| r.get(0),
+            )
+            .expect("daily row")
+    }
+}
+
+fn ms<Tz: TimeZone>(value: DateTime<Tz>) -> String {
+    value
+        .with_timezone(&Utc)
+        .to_rfc3339_opts(SecondsFormat::Millis, false)
+}
+
+fn t0() -> DateTime<Utc> {
+    Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap()
+}
+
+fn after(seconds: i64) -> DateTime<Utc> {
+    t0() + chrono::Duration::seconds(seconds)
+}
+
+const FIVE: Duration = Duration::from_secs(5);
+
+fn reasons(segments: &[Segment]) -> Vec<&str> {
+    segments.iter().map(|s| s.reason.as_str()).collect()
+}
+
+#[test]
+fn timeline_consecutive_ticks_extend_one_segment() {
+    let mut rig = Rig::new();
+    for k in 0..3 {
+        rig.tick(after(5 * k), FIVE, &[code_process()], Some(42), true);
+    }
+    assert_eq!(
+        rig.segments(),
+        vec![Segment {
+            date: "2026-06-05".to_string(),
+            start: ms(after(-5)),
+            end: ms(after(10)),
+            seconds: 15,
+            focus: Some(rig.identity("Code.exe")),
+            active: true,
+            reason: "tracker_started".to_string(),
+        }]
+    );
+}
+
+#[test]
+fn timeline_focus_change_opens_a_focus_changed_segment() {
+    let mut rig = Rig::new();
+    let processes = [code_process(), edge_process(100, false, true)];
+    for (k, (pid, active)) in [(42, true), (42, true), (100, true), (42, false)]
+        .into_iter()
+        .enumerate()
+    {
+        rig.tick(after(5 * k as i64), FIVE, &processes, Some(pid), active);
+    }
+    let segments = rig.segments();
+    let (code, edge) = (rig.identity("Code.exe"), rig.identity("msedge.exe"));
+    assert_eq!(
+        reasons(&segments),
+        ["tracker_started", "focus_changed", "focus_changed"]
+    );
+    let shape: Vec<_> = segments
+        .iter()
+        .map(|s| (s.focus.clone(), s.active, s.seconds))
+        .collect();
+    assert_eq!(
+        shape,
+        vec![
+            (Some(code.clone()), true, 10),
+            (Some(edge), true, 5),
+            (Some(code), false, 5),
+        ]
+    );
+}
+
+#[test]
+fn timeline_activity_change_opens_an_activity_changed_segment() {
+    let mut rig = Rig::new();
+    for (k, active) in [true, false, true].into_iter().enumerate() {
+        rig.tick(
+            after(5 * k as i64),
+            FIVE,
+            &[code_process()],
+            Some(42),
+            active,
+        );
+    }
+    let segments = rig.segments();
+    assert_eq!(
+        reasons(&segments),
+        ["tracker_started", "activity_changed", "activity_changed"]
+    );
+    let code = rig.identity("Code.exe");
+    assert!(segments.iter().all(|s| s.focus.as_ref() == Some(&code)));
+    assert_eq!(
+        segments.iter().map(|s| s.active).collect::<Vec<_>>(),
+        [true, false, true]
+    );
+}
+
+fn windows_notepad() -> ProcessSnapshot {
+    ProcessSnapshot {
+        pid: 50,
+        process_name: "notepad.exe".to_string(),
+        executable_path: r"C:\Windows\System32\notepad.exe".to_string(),
+        has_visible_window: true,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn timeline_focus_is_null_without_a_countable_foreground_app() {
+    let mut rig = Rig::new();
+    let processes = [
+        code_process(),
+        windows_notepad(),
+        edge_process(101, true, false),
+    ];
+    // Code, then: no foreground window, a Windows process, a background
+    // helper, and a PID missing from the snapshot.
+    for (k, pid) in [Some(42), None, None, Some(50), Some(101), Some(999)]
+        .into_iter()
+        .enumerate()
+    {
+        rig.tick(after(5 * k as i64), FIVE, &processes, pid, true);
+    }
+    let segments = rig.segments();
+    assert_eq!(reasons(&segments), ["tracker_started", "focus_changed"]);
+    assert_eq!(segments[1].focus, None);
+    assert_eq!(segments[1].seconds, 25);
+}
+
+#[test]
+fn timeline_records_hidden_list_and_tray_focus() {
+    let mut rig = Rig::new();
+    let processes = [code_process(), tray_weixin()];
+    rig.tick(after(0), FIVE, &processes, Some(42), true);
+    let code = rig.identity("Code.exe");
+    rig.tracker
+        .store()
+        .add_hidden_software_identities(&[code.clone()])
+        .expect("hide");
+    rig.tick(after(5), FIVE, &processes, Some(42), true);
+    rig.tick(after(10), FIVE, &processes, Some(70), true);
+    let shape: Vec<_> = rig
+        .segments()
+        .into_iter()
+        .map(|s| (s.focus, s.seconds))
+        .collect();
+    assert_eq!(
+        shape,
+        vec![(Some(code), 10), (Some(rig.identity("Weixin.exe")), 5)]
+    );
+}
+
+#[test]
+fn timeline_midnight_splits_segments_with_day_changed() {
+    let mut rig = Rig::new();
+    let zone = FixedOffset::east_opt(8 * 3600).unwrap();
+    let now = zone.with_ymd_and_hms(2026, 6, 6, 0, 0, 2).unwrap();
+    rig.tick(now, FIVE, &[code_process()], Some(42), true);
+    let segments = rig.segments();
+    let shape: Vec<_> = segments
+        .iter()
+        .map(|s| {
+            (
+                s.date.as_str(),
+                s.start.as_str(),
+                s.end.as_str(),
+                s.seconds,
+                s.reason.as_str(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        shape,
+        vec![
+            (
+                "2026-06-05",
+                "2026-06-05T15:59:57.000+00:00",
+                "2026-06-05T16:00:00.000+00:00",
+                3,
+                "tracker_started"
+            ),
+            (
+                "2026-06-06",
+                "2026-06-05T16:00:00.000+00:00",
+                "2026-06-05T16:00:02.000+00:00",
+                2,
+                "day_changed"
+            ),
+        ]
+    );
+    assert_eq!(rig.recorded_seconds("2026-06-05"), 3);
+    assert_eq!(rig.recorded_seconds("2026-06-06"), 2);
+}
+
+#[test]
+fn timeline_long_gaps_write_nothing_and_reopen_with_scan_gap() {
+    // (seconds after the last tick, tick_duration): a wall-clock jump, an
+    // overlong tick, and a sleep.
+    for (jump, tick) in [(11, 5), (5, 11), (3600, 3600)] {
+        let mut rig = Rig::new();
+        rig.tick(after(0), FIVE, &[code_process()], Some(42), true);
+        rig.tick(after(5), FIVE, &[code_process()], Some(42), true);
+        let before = rig.segments();
+        let gap_at = 5 + jump;
+        rig.tick(
+            after(gap_at),
+            Duration::from_secs(tick),
+            &[code_process()],
+            Some(42),
+            true,
+        );
+        assert_eq!(rig.segments(), before, "jump {jump}, tick {tick}");
+        rig.tick(after(gap_at + 5), FIVE, &[code_process()], Some(42), true);
+        let segments = rig.segments();
+        assert_eq!(segments[0], before[0]);
+        assert_eq!(reasons(&segments), ["tracker_started", "scan_gap"]);
+        assert_eq!(segments[1].start, ms(after(gap_at)));
+        assert_eq!(segments[1].seconds, 5);
+    }
+}
+
+#[test]
+fn timeline_ten_second_gap_still_extends() {
+    let mut rig = Rig::new();
+    rig.tick(after(0), FIVE, &[code_process()], Some(42), true);
+    rig.tick(
+        after(10),
+        Duration::from_secs(10),
+        &[code_process()],
+        Some(42),
+        true,
+    );
+    let segments = rig.segments();
+    assert_eq!(reasons(&segments), ["tracker_started"]);
+    assert_eq!(segments[0].seconds, 15);
+}
+
+#[test]
+fn timeline_newer_break_reason_replaces_an_earlier_one() {
+    let mut rig = Rig::new();
+    rig.tick(after(0), FIVE, &[code_process()], Some(42), true);
+    rig.tick(after(20), FIVE, &[code_process()], Some(42), true); // scan gap
+    rig.tick(after(15), FIVE, &[code_process()], Some(42), true); // rollback
+    rig.tick(after(20), FIVE, &[code_process()], Some(42), true);
+    assert_eq!(
+        reasons(&rig.segments()),
+        ["tracker_started", "clock_rollback"]
+    );
+}
+
+#[test]
+fn timeline_first_tick_break_keeps_tracker_started() {
+    let mut rig = Rig::new();
+    rig.tick(
+        after(0),
+        Duration::from_secs(3600),
+        &[code_process()],
+        Some(42),
+        true,
+    );
+    assert!(rig.segments().is_empty());
+    rig.tick(after(5), FIVE, &[code_process()], Some(42), true);
+    let segments = rig.segments();
+    assert_eq!(reasons(&segments), ["tracker_started"]);
+    assert_eq!(segments[0].seconds, 5);
+}
+
+#[test]
+fn timeline_clock_rollback_reopens_and_may_overlap() {
+    let mut rig = Rig::new();
+    rig.tick(after(0), FIVE, &[code_process()], Some(42), true);
+    rig.tick(after(5), FIVE, &[code_process()], Some(42), true);
+    rig.tick(after(4), FIVE, &[code_process()], Some(42), true);
+    rig.tick(after(9), FIVE, &[code_process()], Some(42), true);
+    let segments = rig.segments();
+    assert_eq!(reasons(&segments), ["tracker_started", "clock_rollback"]);
+    assert_eq!(segments[0].end, ms(after(5)));
+    assert_eq!(segments[1].start, ms(after(4)));
+    assert!(segments[1].start < segments[0].end);
+    assert_eq!((segments[0].seconds, segments[1].seconds), (10, 5));
+}
+
+#[test]
+fn timeline_restart_never_extends_the_previous_segment() {
+    let mut rig = Rig::new();
+    rig.tick(after(0), FIVE, &[code_process()], Some(42), true);
+    rig.tick(after(5), FIVE, &[code_process()], Some(42), true);
+    rig.restart();
+    rig.tick(after(10), FIVE, &[code_process()], Some(42), true);
+    let segments = rig.segments();
+    assert_eq!(reasons(&segments), ["tracker_started", "tracker_started"]);
+    assert_eq!((segments[0].seconds, segments[1].seconds), (10, 5));
 }
