@@ -38,7 +38,7 @@ fn migration_versions_existing_data_and_is_repeatable() {
     assert_eq!(
         conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        2
+        3
     );
     assert_eq!(store.all_sessions().unwrap()[0].duration_seconds, 42);
     assert_eq!(
@@ -74,6 +74,115 @@ fn migration_versions_existing_data_and_is_repeatable() {
         1
     );
     assert_eq!(conn.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name IN ('usage_sessions_app_id_idx', 'usage_sessions_open_idx', 'software_identity_members_app_id_idx')", [], |r| r.get::<_, i64>(0)).unwrap(), 3);
+    assert_eq!(timeline_index_count(&conn), 2);
+    let tables = store.table_names().unwrap();
+    assert!(tables.contains(&"timeline_segments".to_string()));
+    assert!(tables.contains(&"timeline_window_spans".to_string()));
+}
+
+fn timeline_index_count(conn: &Connection) -> i64 {
+    conn.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name IN ('timeline_segments_date_idx', 'timeline_window_spans_date_idx')",
+        [],
+        |r| r.get(0),
+    )
+    .unwrap()
+}
+
+fn row_count(conn: &Connection, table: &str) -> i64 {
+    conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
+        .unwrap()
+}
+
+/// Turns a migrated database back into what v0.3.0 (schema 2) wrote.
+fn downgrade_to_schema_2(conn: &Connection) {
+    conn.execute_batch(
+        "DROP TABLE timeline_segments; DROP TABLE timeline_window_spans; PRAGMA user_version = 2;",
+    )
+    .unwrap();
+}
+
+#[test]
+fn migration_from_schema_2_adds_only_the_timeline_tables() {
+    let file = NamedTempFile::new().unwrap();
+    let store = Store::open(file.path()).unwrap();
+    store.migrate().unwrap();
+    let app = store
+        .upsert_app("code.exe", r"C:\Code.exe", "Code")
+        .unwrap();
+    let start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    let id = store.start_session(app.id, start).unwrap();
+    store
+        .close_session(id, start + Duration::seconds(42), "closed", false)
+        .unwrap();
+    store.set_setting_value("preserve", "yes").unwrap();
+    store
+        .increment_daily_system_usage(start.date_naive(), 42, 12, 42)
+        .unwrap();
+    let conn = Connection::open(file.path()).unwrap();
+    downgrade_to_schema_2(&conn);
+    let mut expected_tables = store.table_names().unwrap();
+
+    store.migrate().unwrap();
+    store.migrate().unwrap();
+
+    assert_eq!(
+        conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        3
+    );
+    expected_tables.push("timeline_segments".to_string());
+    expected_tables.push("timeline_window_spans".to_string());
+    expected_tables.sort();
+    assert_eq!(store.table_names().unwrap(), expected_tables);
+    assert_eq!(timeline_index_count(&conn), 2);
+    assert_eq!(row_count(&conn, "timeline_segments"), 0);
+    assert_eq!(row_count(&conn, "timeline_window_spans"), 0);
+    assert_eq!(store.all_sessions().unwrap()[0].duration_seconds, 42);
+    assert_eq!(
+        store
+            .daily_system_usage(start.date_naive())
+            .unwrap()
+            .unwrap()
+            .recorded_seconds,
+        42
+    );
+    assert_eq!(
+        store.setting_value("preserve").unwrap().as_deref(),
+        Some("yes")
+    );
+}
+
+#[test]
+fn failed_migration_from_schema_2_rolls_back_timeline_tables() {
+    let file = NamedTempFile::new().unwrap();
+    let store = Store::open(file.path()).unwrap();
+    store.migrate().unwrap();
+    store
+        .upsert_app("code.exe", r"C:\Code.exe", "Code")
+        .unwrap();
+    let conn = Connection::open(file.path()).unwrap();
+    conn.execute_batch("DELETE FROM software_identity_members; DELETE FROM software_identities;")
+        .unwrap();
+    downgrade_to_schema_2(&conn);
+    // Fails in maintain_software_identities, which runs after create_timeline_tables.
+    conn.execute_batch(
+        "CREATE TRIGGER fail_identity BEFORE INSERT ON software_identities BEGIN SELECT RAISE(ABORT, 'injected failure'); END;",
+    )
+    .unwrap();
+
+    let error = store.migrate().unwrap_err();
+    assert!(error.to_string().contains("injected failure"), "{error}");
+
+    assert_eq!(
+        conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        2
+    );
+    let tables = store.table_names().unwrap();
+    assert!(!tables.contains(&"timeline_segments".to_string()));
+    assert!(!tables.contains(&"timeline_window_spans".to_string()));
+    assert_eq!(timeline_index_count(&conn), 0);
 }
 
 #[test]

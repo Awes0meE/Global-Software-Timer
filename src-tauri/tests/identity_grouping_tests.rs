@@ -295,3 +295,169 @@ fn folding_keeps_hidden_mark_when_versions_conflict_and_caps_a_day() {
         1
     );
 }
+
+/// A migrated database with ChatGPT's two versions under the pre-fold
+/// per-version identities. Returns the file, both app ids and both old keys.
+fn legacy_per_version_identities() -> (NamedTempFile, i64, String, String) {
+    let db_file = NamedTempFile::new().expect("temp db");
+    let (v1_id, v2_id) = {
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+        let v1 = store
+            .upsert_app("chatgpt.exe", CHATGPT_V1, "ChatGPT")
+            .expect("v1");
+        let v2 = store
+            .upsert_app("chatgpt.exe", CHATGPT_V2, "ChatGPT")
+            .expect("v2");
+        (v1.id, v2.id)
+    };
+    let old_v1 = format!("app:{}", normalize_identity_key(CHATGPT_V1, ""));
+    let old_v2 = format!("app:{}", normalize_identity_key(CHATGPT_V2, ""));
+    let conn = Connection::open(db_file.path()).expect("raw open");
+    conn.execute_batch("DELETE FROM software_identity_members; DELETE FROM software_identities;")
+        .expect("reset identities");
+    for (key, app_id) in [(&old_v1, v1_id), (&old_v2, v2_id)] {
+        conn.execute(
+            "INSERT INTO software_identities (identity_key, display_name, process_name, representative_executable_path, last_opened_at)
+             VALUES (?1, 'ChatGPT', 'chatgpt.exe', '', '2026-11-18T08:00:00+00:00')",
+            params![key],
+        )
+        .expect("identity");
+        conn.execute(
+            "INSERT INTO software_identity_members (identity_key, app_id) VALUES (?1, ?2)",
+            params![key, app_id],
+        )
+        .expect("member");
+    }
+    (db_file, v1_id, old_v1, old_v2)
+}
+
+#[test]
+fn startup_fold_moves_timeline_focus_keys_to_the_new_identity() {
+    let (db_file, v1_id, old_v1, old_v2) = legacy_per_version_identities();
+    {
+        let conn = Connection::open(db_file.path()).expect("raw open");
+        for (start, end, key) in [
+            (
+                "2026-11-18T01:00:00.000+00:00",
+                "2026-11-18T01:10:00.000+00:00",
+                Some(&old_v1),
+            ),
+            (
+                "2026-11-18T01:10:00.000+00:00",
+                "2026-11-18T01:20:00.000+00:00",
+                Some(&old_v2),
+            ),
+            (
+                "2026-11-18T01:20:00.000+00:00",
+                "2026-11-18T01:30:00.000+00:00",
+                None,
+            ),
+        ] {
+            conn.execute(
+                "INSERT INTO timeline_segments
+                     (usage_date, start_utc, end_utc, credited_seconds, focus_identity_key, is_active, start_reason)
+                 VALUES ('2026-11-18', ?1, ?2, 600, ?3, 1, 'tracker_started')",
+                params![start, end, key],
+            )
+            .expect("segment");
+        }
+    }
+
+    let store = Store::open(db_file.path()).expect("reopen");
+    store.migrate().expect("migrate folds identities");
+
+    let new_key = store
+        .software_identity_key_for_app(v1_id)
+        .expect("identity")
+        .expect("key");
+    assert_ne!(new_key, old_v1);
+    let conn = Connection::open(db_file.path()).expect("raw open");
+    let rows = conn
+        .prepare("SELECT focus_identity_key, credited_seconds FROM timeline_segments ORDER BY id")
+        .expect("prepare")
+        .query_map([], |r| {
+            Ok((r.get::<_, Option<String>>(0)?, r.get::<_, i64>(1)?))
+        })
+        .expect("query")
+        .collect::<Result<Vec<_>, _>>()
+        .expect("rows");
+    assert_eq!(
+        rows,
+        vec![
+            (Some(new_key.clone()), 600),
+            (Some(new_key), 600),
+            (None, 600),
+        ]
+    );
+}
+
+#[test]
+fn startup_fold_moves_window_spans_and_keeps_overlapping_rows() {
+    let (db_file, v1_id, old_v1, old_v2) = legacy_per_version_identities();
+    {
+        let conn = Connection::open(db_file.path()).expect("raw open");
+        for (key, start, end, seconds) in [
+            (
+                &old_v1,
+                "2026-11-18T01:00:00.000+00:00",
+                "2026-11-18T01:10:00.000+00:00",
+                600,
+            ),
+            (
+                &old_v2,
+                "2026-11-18T01:05:00.000+00:00",
+                "2026-11-18T01:15:00.000+00:00",
+                600,
+            ),
+        ] {
+            conn.execute(
+                "INSERT INTO timeline_window_spans
+                     (usage_date, identity_key, start_utc, end_utc, credited_seconds, start_reason)
+                 VALUES ('2026-11-18', ?1, ?2, ?3, ?4, 'window_opened')",
+                params![key, start, end, seconds],
+            )
+            .expect("window span");
+        }
+    }
+
+    let store = Store::open(db_file.path()).expect("reopen");
+    store.migrate().expect("migrate folds identities");
+
+    let new_key = store
+        .software_identity_key_for_app(v1_id)
+        .expect("identity")
+        .expect("key");
+    let conn = Connection::open(db_file.path()).expect("raw open");
+    let rows = conn
+        .prepare("SELECT identity_key, start_utc, end_utc, credited_seconds FROM timeline_window_spans ORDER BY id")
+        .expect("prepare")
+        .query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, i64>(3)?,
+            ))
+        })
+        .expect("query")
+        .collect::<Result<Vec<_>, _>>()
+        .expect("rows");
+    assert_eq!(
+        rows,
+        vec![
+            (
+                new_key.clone(),
+                "2026-11-18T01:00:00.000+00:00".to_string(),
+                "2026-11-18T01:10:00.000+00:00".to_string(),
+                600,
+            ),
+            (
+                new_key,
+                "2026-11-18T01:05:00.000+00:00".to_string(),
+                "2026-11-18T01:15:00.000+00:00".to_string(),
+                600,
+            ),
+        ]
+    );
+}

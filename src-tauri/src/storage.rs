@@ -45,8 +45,8 @@ struct SoftwareLegacyRuntimeSeconds {
     today_seconds: i64,
 }
 
-/// 2 adds `daily_background_usage`.
-const SCHEMA_VERSION: i64 = 2;
+/// 2 adds `daily_background_usage`; 3 adds `timeline_segments` and `timeline_window_spans`.
+const SCHEMA_VERSION: i64 = 3;
 /// WAL readers and the writer can briefly contend during checkpoints.
 const BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 static NEXT_SAVEPOINT_ID: AtomicU64 = AtomicU64::new(0);
@@ -129,6 +129,9 @@ impl Store {
         }
         if version < 2 {
             self.create_background_usage_table()?;
+        }
+        if version < 3 {
+            self.create_timeline_tables()?;
         }
         if version < SCHEMA_VERSION {
             self.conn
@@ -273,6 +276,36 @@ impl Store {
                 last_seen_at TEXT NOT NULL,
                 PRIMARY KEY (usage_date, family_key)
             );
+            "#,
+        )?;
+        Ok(())
+    }
+
+    fn create_timeline_tables(&self) -> StoreResult<()> {
+        self.conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS timeline_segments (
+                id INTEGER PRIMARY KEY,
+                usage_date TEXT NOT NULL,
+                start_utc TEXT NOT NULL,
+                end_utc TEXT NOT NULL,
+                credited_seconds INTEGER NOT NULL,
+                focus_identity_key TEXT REFERENCES software_identities(identity_key),
+                is_active INTEGER NOT NULL CHECK (is_active IN (0, 1)),
+                start_reason TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS timeline_segments_date_idx ON timeline_segments(usage_date, start_utc);
+
+            CREATE TABLE IF NOT EXISTS timeline_window_spans (
+                id INTEGER PRIMARY KEY,
+                usage_date TEXT NOT NULL,
+                identity_key TEXT NOT NULL REFERENCES software_identities(identity_key),
+                start_utc TEXT NOT NULL,
+                end_utc TEXT NOT NULL,
+                credited_seconds INTEGER NOT NULL,
+                start_reason TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS timeline_window_spans_date_idx ON timeline_window_spans(usage_date, start_utc);
             "#,
         )?;
         Ok(())
@@ -486,6 +519,17 @@ impl Store {
             )
             WHERE identity_key = ?2
             "#,
+            params![old_key, new_key],
+        )?;
+        // Re-key timeline rows before the old identity is deleted below, or
+        // their foreign keys abort the merge. Rows keep their own seconds: no
+        // cap, and adjacent or overlapping rows from old versions stay apart.
+        self.conn.execute(
+            "UPDATE timeline_segments SET focus_identity_key = ?2 WHERE focus_identity_key = ?1",
+            params![old_key, new_key],
+        )?;
+        self.conn.execute(
+            "UPDATE timeline_window_spans SET identity_key = ?2 WHERE identity_key = ?1",
             params![old_key, new_key],
         )?;
         for table in [
