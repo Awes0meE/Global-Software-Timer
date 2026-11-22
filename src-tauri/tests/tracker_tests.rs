@@ -1972,3 +1972,354 @@ fn timeline_sub_second_tick_moves_nothing() {
         .iter()
         .all(|s| s.seconds == 10 && s.reason == "tracker_started"));
 }
+
+fn parse_ms(value: &str) -> DateTime<Utc> {
+    DateTime::parse_from_rfc3339(value)
+        .unwrap()
+        .with_timezone(&Utc)
+}
+
+/// `daily_system_usage.recorded_seconds` for `date`, if the row exists.
+fn daily_recorded(rig: &Rig, date: &str) -> Option<i64> {
+    rig.conn()
+        .query_row(
+            "SELECT recorded_seconds FROM daily_system_usage WHERE usage_date = ?1",
+            [date],
+            |r| r.get(0),
+        )
+        .ok()
+}
+
+fn first_heartbeat(rig: &Rig) -> DateTime<Utc> {
+    let value: String = rig
+        .conn()
+        .query_row(
+            "SELECT last_heartbeat_at FROM usage_sessions ORDER BY id LIMIT 1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    parse_ms(&value)
+}
+
+fn add_failing_trigger(rig: &Rig, name: &str, event: &str) {
+    rig.conn()
+        .execute_batch(&format!(
+            "CREATE TRIGGER {name} {event} BEGIN SELECT RAISE(ABORT, 'injected failure'); END;"
+        ))
+        .unwrap();
+}
+
+/// The tick failed, and because of the injected trigger rather than anything else.
+fn assert_injected_failure(result: TrackerResult<()>) {
+    let error = result.expect_err("the tick should fail");
+    assert!(error.to_string().contains("injected failure"), "{error}");
+}
+
+/// Everything a failed tick must leave untouched.
+#[derive(Debug, PartialEq)]
+struct TickWrites {
+    segments: Vec<Segment>,
+    spans: Vec<WindowSpan>,
+    daily: Vec<(String, i64)>,
+    heartbeats: Vec<String>,
+}
+
+fn tick_writes(rig: &Rig) -> TickWrites {
+    let conn = rig.conn();
+    let daily = conn
+        .prepare("SELECT usage_date, recorded_seconds FROM daily_system_usage ORDER BY usage_date")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    let heartbeats = conn
+        .prepare("SELECT last_heartbeat_at FROM usage_sessions ORDER BY id")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    TickWrites {
+        segments: rig.segments(),
+        spans: window_spans(rig),
+        daily,
+        heartbeats,
+    }
+}
+
+fn drop_trigger(rig: &Rig, name: &str) {
+    rig.conn()
+        .execute_batch(&format!("DROP TRIGGER {name};"))
+        .unwrap();
+}
+
+/// Each day's segment seconds against `daily_system_usage`, over the same set of dates.
+fn assert_segments_match_daily_totals(rig: &Rig) {
+    let mut by_day = std::collections::BTreeMap::<String, i64>::new();
+    for segment in rig.segments() {
+        *by_day.entry(segment.date).or_default() += segment.seconds;
+    }
+    let daily: std::collections::BTreeMap<String, i64> = rig
+        .conn()
+        .prepare("SELECT usage_date, recorded_seconds FROM daily_system_usage WHERE recorded_seconds > 0")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(by_day, daily);
+}
+
+#[test]
+fn timeline_fractional_ticks_keep_span_within_a_second_of_credit() {
+    let mut rig = Rig::new();
+    let start =
+        Utc.with_ymd_and_hms(2026, 6, 5, 9, 59, 52).unwrap() + chrono::Duration::milliseconds(300);
+    rig.tick(start, FIVE, &[code_process()], Some(42), true);
+    for k in 1..=4 {
+        // 09:59:57.8, 10:00:03.3, ... crosses the hour without splitting.
+        rig.tick(
+            start + chrono::Duration::milliseconds(5_500 * k),
+            Duration::from_millis(5_500),
+            &[code_process()],
+            Some(42),
+            true,
+        );
+    }
+    let segments = rig.segments();
+    assert_eq!(reasons(&segments), ["tracker_started"]);
+    let segment = &segments[0];
+    assert_eq!(Some(segment.seconds), daily_recorded(&rig, "2026-06-05"));
+    let span_ms = (parse_ms(&segment.end) - parse_ms(&segment.start)).num_milliseconds();
+    assert!(
+        (span_ms - segment.seconds * 1000).abs() < 1000,
+        "span {span_ms} ms vs {} s",
+        segment.seconds
+    );
+}
+
+#[test]
+fn timeline_dst_segments_follow_daily_totals() {
+    let eu = TestDst::eu_like();
+    // (first tick in UTC, ticks, expected reasons): across local midnight
+    // and across each clock change.
+    let runs = [
+        (
+            "2026-03-28T22:59:30Z",
+            12,
+            &["tracker_started", "day_changed"][..],
+        ),
+        ("2026-03-29T00:59:30Z", 12, &["tracker_started"][..]),
+        (
+            "2026-10-24T21:59:30Z",
+            12,
+            &["tracker_started", "day_changed"][..],
+        ),
+        ("2026-10-25T00:59:30Z", 12, &["tracker_started"][..]),
+    ];
+    for (first, ticks, expected) in runs {
+        let mut rig = Rig::new();
+        let first = utc_at(first);
+        for k in 0..ticks {
+            let now = (first + chrono::Duration::seconds(5 * k)).with_timezone(&eu);
+            rig.tick(now, FIVE, &[code_process()], Some(42), true);
+        }
+        assert_eq!(reasons(&rig.segments()), expected, "run from {first}");
+        assert_segments_match_daily_totals(&rig);
+    }
+}
+
+#[test]
+fn timeline_failed_segment_write_rolls_back_the_whole_tick() {
+    let mut rig = Rig::new();
+    let processes = [code_process(), edge_process(100, false, true)];
+    rig.tick(after(0), FIVE, &processes, Some(42), true);
+
+    // An extension that fails after both window spans were extended.
+    let before = tick_writes(&rig);
+    add_failing_trigger(&rig, "fail_segment", "BEFORE UPDATE ON timeline_segments");
+    assert_injected_failure(rig.try_tick(after(5), FIVE, &processes, Some(42), true));
+    assert_eq!(tick_writes(&rig), before);
+    assert_eq!(first_heartbeat(&rig), after(0));
+    drop_trigger(&rig, "fail_segment");
+    rig.tick(after(5), FIVE, &processes, Some(42), true);
+    let segments = rig.segments();
+    assert_eq!(segments.len(), 1);
+    assert_eq!(segments[0].seconds, 10);
+    assert!(window_spans(&rig).iter().all(|s| s.seconds == 10));
+
+    // A new segment that fails.
+    let before = tick_writes(&rig);
+    add_failing_trigger(&rig, "fail_insert", "BEFORE INSERT ON timeline_segments");
+    assert_injected_failure(rig.try_tick(after(10), FIVE, &processes, Some(100), true));
+    assert_eq!(tick_writes(&rig), before);
+    drop_trigger(&rig, "fail_insert");
+    rig.tick(after(10), FIVE, &processes, Some(100), true);
+    assert_eq!(
+        reasons(&rig.segments()),
+        ["tracker_started", "focus_changed"]
+    );
+    assert!(window_spans(&rig).iter().all(|s| s.seconds == 15));
+}
+
+fn plus_eight(hour: u32, minute: u32, second: u32, day: u32) -> DateTime<FixedOffset> {
+    FixedOffset::east_opt(8 * 3600)
+        .unwrap()
+        .with_ymd_and_hms(2026, 6, day, hour, minute, second)
+        .unwrap()
+}
+
+#[test]
+fn timeline_failed_second_chunk_rolls_back_the_first() {
+    let mut rig = Rig::new();
+    rig.tick(
+        plus_eight(23, 59, 58, 5),
+        FIVE,
+        &[code_process()],
+        Some(42),
+        true,
+    );
+    let before = tick_writes(&rig);
+    add_failing_trigger(
+        &rig,
+        "fail_day2",
+        "BEFORE INSERT ON timeline_segments WHEN NEW.start_reason = 'day_changed'",
+    );
+    // 2 s extend the first day's rows, the second day's window span is
+    // inserted, and then the second day's segment fails.
+    assert_injected_failure(rig.try_tick(
+        plus_eight(0, 0, 3, 6),
+        FIVE,
+        &[code_process()],
+        Some(42),
+        true,
+    ));
+    assert_eq!(tick_writes(&rig), before);
+    assert_eq!(daily_recorded(&rig, "2026-06-06"), None);
+
+    // The retry must not see the rolled-back window span in the cursor.
+    drop_trigger(&rig, "fail_day2");
+    rig.tick(
+        plus_eight(0, 0, 3, 6),
+        FIVE,
+        &[code_process()],
+        Some(42),
+        true,
+    );
+    let segments = rig.segments();
+    assert_eq!(reasons(&segments), ["tracker_started", "day_changed"]);
+    assert_eq!((segments[0].seconds, segments[1].seconds), (7, 3));
+    let spans: Vec<_> = window_spans(&rig)
+        .into_iter()
+        .map(|s| (s.seconds, s.reason))
+        .collect();
+    assert_eq!(
+        spans,
+        vec![
+            (7, "tracker_started".to_string()),
+            (3, "day_changed".to_string())
+        ]
+    );
+}
+
+#[test]
+fn timeline_failed_daily_write_leaves_no_segment() {
+    let mut rig = Rig::new();
+    let processes = [code_process(), edge_process(100, false, true)];
+    rig.tick(plus_eight(23, 59, 58, 5), FIVE, &processes, Some(42), true);
+    let before = tick_writes(&rig);
+    // The second day has no row yet, so its daily total is an insert.
+    add_failing_trigger(
+        &rig,
+        "fail_day2",
+        "BEFORE INSERT ON daily_system_usage WHEN NEW.usage_date = '2026-06-06'",
+    );
+    // Focus moves to Edge, so the first day's 2 s open a new segment (and the
+    // cursor points at it) before the second day's daily total fails.
+    assert_injected_failure(rig.try_tick(
+        plus_eight(0, 0, 3, 6),
+        FIVE,
+        &processes,
+        Some(100),
+        true,
+    ));
+    assert_eq!(tick_writes(&rig), before);
+
+    drop_trigger(&rig, "fail_day2");
+    rig.tick(plus_eight(0, 0, 3, 6), FIVE, &processes, Some(100), true);
+    let segments = rig.segments();
+    assert_eq!(
+        reasons(&segments),
+        ["tracker_started", "focus_changed", "day_changed"]
+    );
+    let seconds: Vec<_> = segments.iter().map(|s| s.seconds).collect();
+    assert_eq!(seconds, [5, 2, 3]);
+    assert_eq!(segments[0], before.segments[0]);
+    // Each window span: 7 s on the first day, 3 s on the second.
+    let mut spans: Vec<_> = window_spans(&rig)
+        .into_iter()
+        .map(|s| (s.identity, s.seconds))
+        .collect();
+    spans.sort();
+    let (code, edge) = (rig.identity("Code.exe"), rig.identity("msedge.exe"));
+    let mut expected = vec![(code.clone(), 7), (code, 3), (edge.clone(), 7), (edge, 3)];
+    expected.sort();
+    assert_eq!(spans, expected);
+}
+
+#[test]
+fn timeline_ticks_after_shutdown_write_nothing() {
+    let mut rig = Rig::new();
+    rig.tick(after(0), FIVE, &[code_process()], Some(42), true);
+    rig.tick(after(5), FIVE, &[code_process()], Some(42), true);
+    let (segments, spans) = (rig.segments(), window_spans(&rig));
+    rig.tracker.shutdown().expect("shutdown");
+    rig.tick(after(10), FIVE, &[code_process()], Some(42), true);
+    assert_eq!(rig.segments(), segments);
+    assert_eq!(window_spans(&rig), spans);
+}
+
+#[test]
+fn timeline_failed_window_span_write_rolls_back_the_whole_tick() {
+    let mut rig = Rig::new();
+    rig.tick(after(0), FIVE, &[code_process()], Some(42), true);
+
+    let before = tick_writes(&rig);
+    add_failing_trigger(&rig, "fail_span", "BEFORE UPDATE ON timeline_window_spans");
+    assert_injected_failure(rig.try_tick(after(5), FIVE, &[code_process()], Some(42), true));
+    assert_eq!(tick_writes(&rig), before);
+    assert_eq!(first_heartbeat(&rig), after(0));
+    drop_trigger(&rig, "fail_span");
+    rig.tick(after(5), FIVE, &[code_process()], Some(42), true);
+    let spans = window_spans(&rig);
+    assert_eq!(spans.len(), 1);
+    assert_eq!(spans[0].seconds, 10);
+}
+
+#[test]
+fn timeline_failed_window_span_after_other_timeline_writes_rolls_back_the_tick() {
+    let mut rig = Rig::new();
+    let processes = [code_process(), edge_process(100, false, true)];
+    rig.tick(plus_eight(23, 59, 58, 5), FIVE, &processes, Some(42), true);
+    let before = tick_writes(&rig);
+    // The first day's segment and spans are extended, and only then does the
+    // second day's first window span fail.
+    add_failing_trigger(
+        &rig,
+        "fail_day2_span",
+        "BEFORE INSERT ON timeline_window_spans WHEN NEW.start_reason = 'day_changed'",
+    );
+    assert_injected_failure(rig.try_tick(plus_eight(0, 0, 3, 6), FIVE, &processes, Some(42), true));
+    assert_eq!(tick_writes(&rig), before);
+
+    drop_trigger(&rig, "fail_day2_span");
+    rig.tick(plus_eight(0, 0, 3, 6), FIVE, &processes, Some(42), true);
+    let segments = rig.segments();
+    assert_eq!(reasons(&segments), ["tracker_started", "day_changed"]);
+    assert_eq!((segments[0].seconds, segments[1].seconds), (7, 3));
+    let mut seconds: Vec<_> = window_spans(&rig).iter().map(|s| s.seconds).collect();
+    seconds.sort();
+    assert_eq!(seconds, [3, 3, 7, 7]);
+}
