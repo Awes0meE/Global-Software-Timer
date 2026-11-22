@@ -768,17 +768,29 @@ fn local_day_start_utc() -> DateTime<Utc> {
     local_midnight.with_timezone(&Utc)
 }
 
-/// The instant `date` starts in local time. Where a DST change skips
-/// midnight, the day starts at the first local hour that exists.
+/// The instant `date` starts in local time.
 fn local_date_start_utc(date: NaiveDate) -> DateTime<Utc> {
-    (0..24)
-        .find_map(|hour| {
-            Local
-                .from_local_datetime(&date.and_hms_opt(hour, 0, 0)?)
-                .earliest()
-        })
-        .map(|start| start.with_timezone(&Utc))
-        .unwrap_or_else(|| Utc.from_utc_datetime(&date.and_time(NaiveTime::MIN)))
+    local_date_bounds_in(date, &Local).0
+}
+
+/// The UTC instants a local date starts and ends in `tz`. Where a DST change
+/// skips midnight, a day starts at the first local hour that exists; where it
+/// repeats midnight, at the earlier instant.
+pub fn local_date_bounds_in<Tz: TimeZone>(
+    date: NaiveDate,
+    tz: &Tz,
+) -> (DateTime<Utc>, DateTime<Utc>) {
+    let start_of = |date: NaiveDate| {
+        (0..24)
+            .find_map(|hour| {
+                tz.from_local_datetime(&date.and_hms_opt(hour, 0, 0)?)
+                    .earliest()
+            })
+            .map(|start| start.with_timezone(&Utc))
+            .unwrap_or_else(|| Utc.from_utc_datetime(&date.and_time(NaiveTime::MIN)))
+    };
+    let end = date.succ_opt().map_or(DateTime::<Utc>::MAX_UTC, start_of);
+    (start_of(date), end)
 }
 
 /// Strict `YYYY-MM-DD`; chrono alone also accepts unpadded fields and signed
@@ -2152,5 +2164,32 @@ mod statistics_command_tests {
             (today - Duration::days(4)).to_string()
         );
         assert!(summary.dormant_software.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod local_date_bounds_tests {
+    use super::local_date_bounds_in;
+    use chrono::{DateTime, FixedOffset, NaiveDate, Utc};
+
+    fn utc(value: &str) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(value)
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    #[test]
+    fn local_date_bounds_in_spans_one_day_for_fixed_offsets() {
+        let date = NaiveDate::from_ymd_opt(2026, 6, 5).unwrap();
+        let east = FixedOffset::east_opt(8 * 3600).unwrap();
+        assert_eq!(
+            local_date_bounds_in(date, &east),
+            (utc("2026-06-04T16:00:00Z"), utc("2026-06-05T16:00:00Z"))
+        );
+        let west = FixedOffset::west_opt(5 * 3600).unwrap();
+        assert_eq!(
+            local_date_bounds_in(date, &west),
+            (utc("2026-06-05T05:00:00Z"), utc("2026-06-06T05:00:00Z"))
+        );
     }
 }

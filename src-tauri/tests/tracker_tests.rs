@@ -1,6 +1,7 @@
-use chrono::{FixedOffset, TimeZone, Utc};
+use chrono::{DateTime, FixedOffset, LocalResult, NaiveDate, NaiveDateTime, Offset, TimeZone, Utc};
 use global_software_timer_lib::activity::ActivitySource;
 use global_software_timer_lib::app_state::AppState;
+use global_software_timer_lib::commands::local_date_bounds_in;
 use global_software_timer_lib::domain::AppRuntimeStatus;
 use global_software_timer_lib::foreground::ForegroundWindowSource;
 use global_software_timer_lib::process_source::{ProcessSnapshot, ProcessSource};
@@ -1076,4 +1077,157 @@ fn overlapping_package_versions_only_credit_one_tick() {
         .unwrap();
     assert_eq!(rows.discovered.len(), 1);
     assert_eq!(rows.discovered[0].today_foreground_seconds, 5);
+}
+
+/// A fixed-rule DST zone for tests: `summer` applies from `summer_starts`
+/// (inclusive) to `summer_ends` (exclusive), both UTC; `standard` otherwise.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct TestDst {
+    standard: FixedOffset,
+    summer: FixedOffset,
+    summer_starts: NaiveDateTime,
+    summer_ends: NaiveDateTime,
+}
+
+/// Carries the rule so `TimeZone::from_offset` can rebuild the zone.
+#[derive(Clone, Copy, Debug)]
+struct TestDstOffset {
+    zone: TestDst,
+    offset: FixedOffset,
+}
+
+impl Offset for TestDstOffset {
+    fn fix(&self) -> FixedOffset {
+        self.offset
+    }
+}
+
+impl TestDst {
+    fn utc_instant(value: &str) -> NaiveDateTime {
+        DateTime::parse_from_rfc3339(value).unwrap().naive_utc()
+    }
+
+    /// +01:00 / +02:00, changing at 01:00 UTC like the EU rule.
+    fn eu_like() -> Self {
+        Self {
+            standard: FixedOffset::east_opt(3600).unwrap(),
+            summer: FixedOffset::east_opt(2 * 3600).unwrap(),
+            summer_starts: Self::utc_instant("2026-03-29T01:00:00Z"),
+            summer_ends: Self::utc_instant("2026-10-25T01:00:00Z"),
+        }
+    }
+
+    /// Springs forward at local 00:00 (so 2026-03-29 has no midnight) and falls
+    /// back at local 01:00 (so 00:00-00:59 on 2026-10-25 happens twice).
+    fn midnight_switch() -> Self {
+        Self {
+            standard: FixedOffset::east_opt(3600).unwrap(),
+            summer: FixedOffset::east_opt(2 * 3600).unwrap(),
+            summer_starts: Self::utc_instant("2026-03-28T23:00:00Z"),
+            summer_ends: Self::utc_instant("2026-10-24T23:00:00Z"),
+        }
+    }
+
+    fn offset_at(&self, utc: &NaiveDateTime) -> FixedOffset {
+        if self.summer_starts <= *utc && *utc < self.summer_ends {
+            self.summer
+        } else {
+            self.standard
+        }
+    }
+
+    fn wrap(&self, offset: FixedOffset) -> TestDstOffset {
+        TestDstOffset {
+            zone: *self,
+            offset,
+        }
+    }
+}
+
+impl TimeZone for TestDst {
+    type Offset = TestDstOffset;
+
+    fn from_offset(offset: &TestDstOffset) -> Self {
+        offset.zone
+    }
+
+    fn offset_from_utc_datetime(&self, utc: &NaiveDateTime) -> TestDstOffset {
+        self.wrap(self.offset_at(utc))
+    }
+
+    fn offset_from_utc_date(&self, utc: &NaiveDate) -> TestDstOffset {
+        self.offset_from_utc_datetime(&utc.and_hms_opt(0, 0, 0).unwrap())
+    }
+
+    fn offset_from_local_datetime(&self, local: &NaiveDateTime) -> LocalResult<TestDstOffset> {
+        // A local time is valid under an offset when the instant it names
+        // really has that offset; none means skipped, two means repeated.
+        let mut valid: Vec<(NaiveDateTime, FixedOffset)> = [self.standard, self.summer]
+            .into_iter()
+            .map(|offset| (*local - offset, offset))
+            .filter(|(utc, offset)| self.offset_at(utc) == *offset)
+            .collect();
+        valid.sort_by_key(|(utc, _)| *utc);
+        valid.dedup();
+        match valid.as_slice() {
+            [] => LocalResult::None,
+            [(_, only)] => LocalResult::Single(self.wrap(*only)),
+            [(_, earlier), (_, later)] => {
+                LocalResult::Ambiguous(self.wrap(*earlier), self.wrap(*later))
+            }
+            _ => unreachable!("two offsets give at most two instants"),
+        }
+    }
+
+    fn offset_from_local_date(&self, local: &NaiveDate) -> LocalResult<TestDstOffset> {
+        self.offset_from_local_datetime(&local.and_hms_opt(0, 0, 0).unwrap())
+    }
+}
+
+fn utc_at(value: &str) -> DateTime<Utc> {
+    DateTime::parse_from_rfc3339(value)
+        .unwrap()
+        .with_timezone(&Utc)
+}
+
+#[test]
+fn timeline_dst_day_bounds_are_23_and_25_hours() {
+    let eu = TestDst::eu_like();
+    let spring = NaiveDate::from_ymd_opt(2026, 3, 29).unwrap();
+    let autumn = NaiveDate::from_ymd_opt(2026, 10, 25).unwrap();
+    assert_eq!(
+        local_date_bounds_in(spring, &eu),
+        (
+            utc_at("2026-03-28T23:00:00Z"),
+            utc_at("2026-03-29T22:00:00Z")
+        )
+    );
+    assert_eq!(
+        local_date_bounds_in(autumn, &eu),
+        (
+            utc_at("2026-10-24T22:00:00Z"),
+            utc_at("2026-10-25T23:00:00Z")
+        )
+    );
+    let (start, end) = local_date_bounds_in(spring, &eu);
+    assert_eq!((end - start).num_hours(), 23);
+    let (start, end) = local_date_bounds_in(autumn, &eu);
+    assert_eq!((end - start).num_hours(), 25);
+    // Consecutive days share their boundary.
+    assert_eq!(
+        local_date_bounds_in(spring.pred_opt().unwrap(), &eu).1,
+        local_date_bounds_in(spring, &eu).0
+    );
+
+    let switch = TestDst::midnight_switch();
+    // No local midnight on the spring day: it starts at 01:00 (+02:00).
+    assert_eq!(
+        local_date_bounds_in(spring, &switch).0,
+        utc_at("2026-03-28T23:00:00Z")
+    );
+    // Midnight repeats on the autumn day: the earlier instant wins.
+    assert_eq!(
+        local_date_bounds_in(autumn, &switch).0,
+        utc_at("2026-10-24T22:00:00Z")
+    );
 }
