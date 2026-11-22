@@ -5,17 +5,23 @@
 // http://localhost:<port> for the preview (Vite listens on ::1, so 127.0.0.1 is refused).
 // Node 24, no dependencies (global fetch and WebSocket).
 //
-//   node scripts/ui-preview/probe.mjs shot   --url <u> --size 1440x900 [--time 22:01] [--scale 1.25]
-//        [--media forced-colors=active] [--media prefers-reduced-transparency=reduce] [--eval "<js>"] --out <png>
-//   node scripts/ui-preview/probe.mjs layout --url <u> --size 1180x760 [--time 22:01] [--eval "<js>"] --out <json>
+//   node scripts/ui-preview/probe.mjs shot   --url <u> --size 1440x900 [[--date 2026-11-22] --time 22:01] [--scale 1.25]
+//        [--media forced-colors=active] [--media prefers-reduced-transparency=reduce] [--eval "<js>"] [--focus]
+//        [--settle 600] --out <png>
+//   node scripts/ui-preview/probe.mjs layout --url <u> --size 1180x760 [[--date 2026-11-22] --time 22:01] [--eval "<js>"]
+//        --out <json>
 //   node scripts/ui-preview/probe.mjs frames --url <u> --size 1440x900 --scroll <selector> [--seconds 5] [--cpu 4]
-//        [--headed] [--trace <json>] [--out <json>]
+//        [[--date 2026-11-22] --time 22:01] [--headed] [--trace <json>] [--out <json>]
 //
 // Viewport       Headless: the page is emulated at WxH (device scale --scale, default 1), with real scrollbars.
 //                --headed: the window is resized so its content area is WxH at the system display scale; the
 //                viewport is only emulated when --scale is given.
-// --time HH:MM   Replaces Date before the page loads: `new Date()` / `Date.now()` start at today HH:MM:00 and
-//                then advance in real time; `new Date(...)` with arguments is unchanged.
+// --time HH:MM   Replaces Date before the page loads: `new Date()` / `Date.now()` / `Date()` start at today
+//                HH:MM:00 local time and then advance in real time; `new Date(...)` with arguments is unchanged.
+//                A local time that does not exist (DST gap) moves forward, as with setHours.
+// --date YYYY-MM-DD  Only together with --time: the clock starts at that local date instead of today. The preview's
+//                synthetic data is counted back from the current date, so use it for screenshots and layouts that
+//                must match across days.
 // --eval <js>    Runs after the page is ready via Runtime.evaluate({ awaitPromise: true, returnByValue: true }).
 //                The expression may return a Promise (e.g. `new Promise(r => setTimeout(r, 6000))`, or click
 //                and then wait a frame); the probe waits for it before capturing. A throw or rejection
@@ -23,8 +29,11 @@
 //                expression that never settles ends the run with exit code 1.
 // Ready wait     After document.fonts.ready, waits until `.nav-key[aria-current="page"]`, `.page-header h2`
 //                and the page's own <main> show the page named by `?page=` (default 概览) and the <main> no
-//                longer says 正在读取, then waits for fonts again and 600ms more. file: URLs (mockups) skip
-//                this check. A --media feature that matchMedia does not report fails.
+//                longer says 正在读取, then waits for fonts again and --settle ms more (default 600; use 2500 when
+//                a transition such as the dial fill might still be running). file: URLs (mockups) skip this
+//                check. A --media feature that matchMedia does not report fails.
+// --focus        Emulates a focused page, so `el.focus()` in --eval matches :focus and :focus-visible (a
+//                headless page is otherwise never focused and no focus ring is drawn).
 // Errors         Exceptions, console.error and browser log errors (failed resource loads, CSP and other
 //                security errors; not the browser's own /favicon.ico request) are collected and printed to
 //                stderr at the end; any of them means exit 2.
@@ -35,7 +44,8 @@
 //                presented PipelineReporter frames) win when they disagree with rAF. A trace with fewer than
 //                two frames is reported as `trace: null` with a warning.
 // Output         stdout: one line per written file (`shot:`, `layout:`, `trace:`) and `eval:`; for frames the
-//                JSON result comes last. stderr: errors and warnings only.
+//                JSON result comes last. stderr: errors and warnings only. Layout and frames JSON start with the
+//                run info (url, size, date, time, scale; layout also now); compare runs on the other keys.
 //
 // Exit codes: 0 ok, 1 usage or probe failure (incl. timeout or lost DevTools connection), 2 console errors or
 // exceptions, 3 page not ready in 10s, 130 interrupted.
@@ -57,7 +67,9 @@ const LAYOUT_SELECTORS = [
   ".sidebar", ".page-header", ".nav-key", ".panel", ".readout", ".software-panel", ".lcd", ".lcd-value b",
   ".lcd-ghost b", ".lcd-ghost small", ".lcd-dial", ".paper", ".ach-plate", ".toggle", ".segmented-option",
 ];
-const VALUE_OPTIONS = new Set(["url", "size", "time", "scale", "media", "eval", "out", "scroll", "seconds", "cpu", "trace"]);
+const VALUE_OPTIONS = new Set([
+  "url", "size", "date", "time", "scale", "media", "eval", "out", "scroll", "seconds", "cpu", "trace", "settle",
+]);
 const TRACE_CATEGORIES = "devtools.timeline,disabled-by-default-devtools.timeline.frame";
 const WARM_UP_MS = 500;
 
@@ -71,7 +83,7 @@ class ProbeExit extends Error {
 function parseArgs(argv) {
   const [command, ...rest] = argv;
   const options = { media: [] };
-  const flags = new Set(["headed"]);
+  const flags = new Set(["headed", "focus"]);
   for (let i = 0; i < rest.length; i += 1) {
     const arg = rest[i];
     if (!arg.startsWith("--")) throw new ProbeExit(1, `unexpected argument: ${arg}`);
@@ -111,6 +123,17 @@ function parseArgs(argv) {
   if (options.time !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(options.time)) {
     throw new ProbeExit(1, "--time must be HH:MM");
   }
+  if (options.date !== undefined) {
+    if (options.time === undefined) throw new ProbeExit(1, "--date needs --time");
+    const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(options.date);
+    const [year, month, day] = date ? date.slice(1).map(Number) : [];
+    const check = date && new Date(year, month - 1, day);
+    if (!check || check.getFullYear() !== year || check.getMonth() !== month - 1 || check.getDate() !== day) {
+      throw new ProbeExit(1, "--date must be a real calendar date YYYY-MM-DD");
+    }
+  }
+  options.settle = options.settle === undefined ? 600 : Number(options.settle);
+  if (!Number.isInteger(options.settle) || options.settle < 0) throw new ProbeExit(1, "--settle must be whole milliseconds >= 0");
   options.mediaFeatures = options.media.map((item) => {
     const [name, value] = item.split("=");
     if (!name || !value) throw new ProbeExit(1, `--media must be name=value, got ${item}`);
@@ -346,12 +369,14 @@ class Cdp {
   }
 }
 
-function dateOverride(time) {
+function dateOverride(time, date) {
   const [hours, minutes] = time.split(":").map(Number);
+  const [year, month, day] = date ? date.split("-").map(Number) : [];
   return `(() => {
     const RealDate = Date;
     const realNow = RealDate.now.bind(RealDate);
     const start = new RealDate();
+    ${date ? `start.setFullYear(${year}, ${month - 1}, ${day});` : ""}
     start.setHours(${hours}, ${minutes}, 0, 0);
     const offset = start.getTime() - realNow();
     function FakeDate(...args) {
@@ -461,8 +486,9 @@ async function openPage(edge, options, errors) {
   if (options.mediaFeatures.length) {
     await page.send("Emulation.setEmulatedMedia", { features: options.mediaFeatures });
   }
+  if (options.focus) await page.send("Emulation.setFocusEmulationEnabled", { enabled: true });
   if (options.time) {
-    await page.send("Page.addScriptToEvaluateOnNewDocument", { source: dateOverride(options.time) });
+    await page.send("Page.addScriptToEvaluateOnNewDocument", { source: dateOverride(options.time, options.date) });
   }
 
   const loaded = page.once("Page.loadEventFired");
@@ -484,7 +510,7 @@ async function openPage(edge, options, errors) {
     // Lazy pages bring their own CSS, which can request fonts only after the switch.
     await evaluate(page, "document.fonts.ready.then(() => true)");
   }
-  await sleep(600);
+  await sleep(options.settle);
 
   if (options.eval) {
     const started = Date.now();
@@ -515,6 +541,7 @@ function runInfo(options) {
   return {
     url: options.url,
     size: `${options.width}x${options.height}`,
+    date: options.date ?? null,
     time: options.time ?? null,
     scale: options.emulateViewport ? options.scale : null,
   };
