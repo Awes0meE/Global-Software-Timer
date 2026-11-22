@@ -108,7 +108,7 @@ npm.cmd run check                                    # 发布脚本回归、vite
 15. **走纸记录仪只改颜色和纸面。** 迁移表只说「针柱和文字改用 `--eink-*`」，字体不改（仍是 `--font-num` / `--font-ui`；像素字体只「允许」在屏内用，不是必须，改字体还会改标签宽度和 `TrendRecorder` 的避让计算）。`.recorder` 槽去掉凹槽底色和内阴影，保留 `padding` 和三列网格；滚轴变成 3px 宽的 `--eink-mid` 细条，仍占原来的 14px 列。
 16. **`--radius-case` 的去处。** 面板 → `--radius-panel`（16px）；`.software-icon-lg`（44px 图标）→ `--radius-screen`（11px，最接近原来的 10px）；`.lcd` 原来用 `--radius-key` → `--radius-screen`。
 17. **屏上图标。** 规格的去色滤镜用在 `.lcd img`（同时覆盖「最常用」图标和设置页屏里的时钟标志），去掉原来的 `mix-blend-mode`、`opacity: 0.85` 和深色的 `sepia + hue-rotate`。浅色 `--icon-well` 图标底座不变。
-18. **forced-colors 下的焦点环。** 强制颜色模式会把 `box-shadow` 置为 `none`，现有焦点环（`outline: none` + `box-shadow`）在对比度主题下本来就看不见。做法：`@media (forced-colors: active)` 里 `:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }`；导航当前项、分段选中项加 `outline: 1px solid Highlight`，开关开启态 `forced-color-adjust: none; background: Highlight`。`url()` 背景（颗粒）在强制颜色下不会被自动去掉，显式 `display: none`。
+18. **forced-colors 下的焦点环。** 强制颜色模式会把 `box-shadow` 置为 `none`，现有焦点环（`outline: none` + `box-shadow`）在对比度主题下本来就看不见。做法：`@media (forced-colors: active)` 里 `:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }`；导航当前项、分段选中项加 `outline: 1px solid Highlight`，开关开启态 `forced-color-adjust: none; background: Highlight`。`url()` 背景（颗粒）在强制颜色下不会被自动去掉，显式 `display: none`。实现时补充（任务 3）：选中标记的 `outline` 会盖过 `:focus-visible`，所以另加 `:is(.nav-key.is-active, .segmented-option.is-selected):focus-visible` 把焦点环恢复为 2px；开启态的圆钮改用 `HighlightText`；关闭态开关原来只靠阴影和填充，强制颜色下完全看不见，所以加 `.toggle { outline: 1px solid ButtonText; outline-offset: -1px; }` 和 `.toggle-knob { forced-color-adjust: none; background: ButtonText; }`（只在强制颜色块里，不改盒子，焦点环仍然优先）。
 19. **透明效果读取。** 值不存在或读失败按「开」处理（Windows 默认开）。前端只把 `false` 当作关；返回值不是布尔（测试替身、预览）一律按开。开时去掉 `data-glass` 属性，关时设 `data-glass="off"`。不缓存到 `localStorage`：关了透明效果的用户启动时可能先看到一帧玻璃，接受。「窗口重新可见」用 `visibilitychange`（`visiblePolling.ts` 同款）。
 20. **`rg "backdrop-filter" src` 会多出一处 `@supports not (backdrop-filter: blur(1px))`。** 这是规格要求的回退条件，不是元素；验收 1 按「允许的元素 + 这一处条件」判断。
 21. **性能基线。** 规格写「不比 v0.3.0 高」，但发布前本机装的会是 v0.3.1（界面与 v0.3.0 相同，只多了采集）。用安装 v0.4.0 前的 v0.3.1 作基线，在 `docs/CURRENT_STATE.md` 写明。**与规格原文冲突**，任务 0 请用户拍板；用户要求严格按 v0.3.0 时，需要先装回 v0.3.0 测基线（会经过一次降级安装，数据库 schema 3 → 旧版能否打开要先确认），所以推荐 v0.3.1。**用户已确认（2026-11-23）：同意偏离规格，性能基线用 v0.3.1。**预览帧率在**有界面的** Edge 窗口里测（headless 用软件渲染，不代表 WebView2），并先在 v0.3.1 界面上测一份基线（任务 1）。
@@ -200,6 +200,8 @@ $base = "http://localhost:1431"
 页面：概览 `$base/?theme=<t>`，其余 `?theme=<t>&page=software|background|statistics|achievements|settings`；附加参数 `&empty`、`&format=hm`、`&glass=off`（任务 3 起）、`&tick`（任务 12 起）、`&dialog=add`。
 
 **示例数据随墙钟变。** `mock-data.ts` 的 `dayScale()`、表盘的「今日已过 HH:MM」和任务 11 起的走过刻线都取当前时间；不同时刻截的图读数和刻线数不同，上午还接近空数据。凡是要和别的截图逐张对比的（任务 1 基线、任务 16 对照、任务 17 README），一律用 `probe.mjs shot --time 22:01` 固定虚拟时间；下面的 headless 命令不能固定时间，只用于各任务的快速自查。
+
+**任务 3 之后的补充（2026-11-23）：** `--time` 只固定时刻，示例数据还随**日期**变（统计页 1180×760 隔一天高度就不同），所以凡是要逐张对比的截图一律再加 `--date 2026-11-22`，对照 `$scratch\gst-glass\baseline-dated\`（v0.3.1 发布提交 `d0b4be1` 在 2026-11-22 22:01 的同一套截图、布局和帧率，取代 `baseline\`）。要截焦点环时加 `--focus`（headless 页面默认没有焦点，`el.focus()` 不会触发 `:focus-visible`）；表盘等过渡可能没走完时加 `--settle 2500`。
 
 **headless 截图**（快速自查；`$scratch` 是会话 scratchpad，截图不入库）：
 
