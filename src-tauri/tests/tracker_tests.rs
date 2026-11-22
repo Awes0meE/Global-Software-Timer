@@ -2323,3 +2323,364 @@ fn timeline_failed_window_span_after_other_timeline_writes_rolls_back_the_tick()
     seconds.sort();
     assert_eq!(seconds, [3, 3, 7, 7]);
 }
+
+/// xorshift64: a fixed-seed sequence without adding a `rand` dependency.
+struct XorShift(u64);
+
+impl XorShift {
+    fn next(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.0 = x;
+        x
+    }
+
+    fn below(&mut self, bound: u64) -> u64 {
+        self.next() % bound
+    }
+}
+
+/// Runs a mixed tick sequence from `start` in `tz`: routine 5 s ticks, focus
+/// changes (including no foreground and a background helper), idle toggles, a
+/// window that turns into a tray icon and back, an app exiting and reopening,
+/// long gaps, clock rollbacks and 5.5 s ticks. One package runs two versions
+/// at once, both windowed or one of them in the tray.
+///
+/// Long gaps cover most of the wall time, so they would skip any given instant.
+/// Each `keep_ticking` window `[from, to)` is reached instead: a gap that would
+/// jump over `from` stops there, and inside the window every break becomes a
+/// routine tick.
+fn run_seeded_sequence<Tz: TimeZone>(
+    tz: &Tz,
+    start: DateTime<Utc>,
+    seed: u64,
+    ticks: usize,
+    keep_ticking: &[(DateTime<Utc>, DateTime<Utc>)],
+) -> Rig {
+    let mut rng = XorShift(seed);
+    let mut rig = Rig::new();
+    let mut now = start;
+    let mut focus = Some(42);
+    let mut active = true;
+    let mut paint_windowed = true;
+    let mut code_running = true;
+    let focus_choices = [
+        Some(42),
+        Some(100),
+        Some(90),
+        Some(70),
+        Some(101),
+        Some(141),
+        None,
+    ];
+    for _ in 0..ticks {
+        let mut step = chrono::Duration::seconds(5);
+        let mut tick = FIVE;
+        let mut breaks = false;
+        match rng.below(100) {
+            0..=71 => {}
+            72..=76 => focus = focus_choices[rng.below(focus_choices.len() as u64) as usize],
+            77..=80 => active = !active,
+            81..=83 => paint_windowed = !paint_windowed,
+            84..=85 => code_running = !code_running,
+            86..=88 => {
+                // Sleep long enough that the run crosses local midnight.
+                let gap = 3_600 + rng.below(3_601) as i64;
+                step = chrono::Duration::seconds(gap);
+                tick = Duration::from_secs(gap as u64);
+                breaks = true;
+            }
+            89 => {
+                step = chrono::Duration::seconds(11 + rng.below(50) as i64);
+                breaks = true;
+            }
+            90..=91 => {
+                step = -chrono::Duration::seconds(1 + rng.below(30) as i64);
+                breaks = true;
+            }
+            _ => {
+                step = chrono::Duration::milliseconds(5_500);
+                tick = Duration::from_millis(5_500);
+            }
+        }
+        if breaks
+            && keep_ticking
+                .iter()
+                .any(|(from, to)| *from <= now && now < *to)
+        {
+            step = chrono::Duration::seconds(5);
+            tick = FIVE;
+        } else if let Some((from, _)) = keep_ticking
+            .iter()
+            .find(|(from, _)| now < *from && *from < now + step)
+        {
+            // Land on the window's start; still a gap, since `step` was long.
+            step = *from - now;
+            tick = step.to_std().unwrap();
+        }
+        now += step;
+        let mut processes = vec![
+            edge_process(100, false, true),
+            edge_process(101, true, false),
+            tray_weixin(),
+            ProcessSnapshot {
+                pid: 90,
+                process_name: "Paint.exe".to_string(),
+                executable_path: r"D:\Apps\Paint\Paint.exe".to_string(),
+                has_visible_window: paint_windowed,
+                has_tray_icon: !paint_windowed,
+                ..Default::default()
+            },
+            // Two versions of one package: both windowed, or one in the tray.
+            packaged_test_app(141, "1.0.0.0"),
+            ProcessSnapshot {
+                has_visible_window: paint_windowed,
+                has_tray_icon: !paint_windowed,
+                ..packaged_test_app(142, "2.0.0.0")
+            },
+        ];
+        if code_running {
+            processes.push(code_process());
+        }
+        rig.tick(now.with_timezone(tz), tick, &processes, focus, active);
+    }
+    rig
+}
+
+fn sums_by<K: Ord>(rows: impl IntoIterator<Item = (K, i64)>) -> std::collections::BTreeMap<K, i64> {
+    let mut sums = std::collections::BTreeMap::new();
+    for (key, seconds) in rows {
+        *sums.entry(key).or_insert(0) += seconds;
+    }
+    sums.retain(|_, seconds| *seconds > 0);
+    sums
+}
+
+fn query_pairs<K: rusqlite::types::FromSql + Ord>(rig: &Rig, sql: &str) -> Vec<(K, i64)> {
+    rig.conn()
+        .prepare(sql)
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
+/// The spec's four equalities, day by day (and identity by identity), plus:
+/// every timeline row is dated on a day the daily summary has.
+fn assert_timeline_matches_daily_totals(rig: &Rig) {
+    let segments = rig.segments();
+    let spans = window_spans(rig);
+
+    let recorded = sums_by(segments.iter().map(|s| (s.date.clone(), s.seconds)));
+    let active = sums_by(
+        segments
+            .iter()
+            .filter(|s| s.active)
+            .map(|s| (s.date.clone(), s.seconds)),
+    );
+    assert_eq!(
+        recorded,
+        sums_by(query_pairs(
+            rig,
+            "SELECT usage_date, recorded_seconds FROM daily_system_usage"
+        )),
+        "recorded"
+    );
+    assert_eq!(
+        recorded,
+        sums_by(query_pairs(
+            rig,
+            "SELECT usage_date, tracker_uptime_seconds FROM daily_system_usage"
+        )),
+        "uptime"
+    );
+    assert_eq!(
+        active,
+        sums_by(query_pairs(
+            rig,
+            "SELECT usage_date, active_seconds FROM daily_system_usage"
+        )),
+        "active"
+    );
+
+    let focus = sums_by(
+        segments
+            .iter()
+            .filter_map(|s| Some(((s.date.clone(), s.focus.clone()?), s.seconds))),
+    );
+    let focus_daily = sums_by(
+        rig.conn()
+            .prepare(
+                "SELECT usage_date, identity_key, focused_seconds FROM daily_software_focus_usage",
+            )
+            .unwrap()
+            .query_map([], |r| {
+                Ok(((r.get::<_, String>(0)?, r.get::<_, String>(1)?), r.get(2)?))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap(),
+    );
+    assert_eq!(focus, focus_daily, "focus");
+
+    let windows = sums_by(
+        spans
+            .iter()
+            .map(|s| ((s.date.clone(), s.identity.clone()), s.seconds)),
+    );
+    let windows_daily = sums_by(
+        rig.conn()
+            .prepare("SELECT usage_date, identity_key, foreground_seconds FROM daily_software_runtime_usage")
+            .unwrap()
+            .query_map([], |r| Ok(((r.get::<_, String>(0)?, r.get::<_, String>(1)?), r.get(2)?)))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap(),
+    );
+    assert_eq!(windows, windows_daily, "window");
+
+    let days: std::collections::BTreeSet<String> = rig
+        .conn()
+        .prepare("SELECT usage_date FROM daily_system_usage")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    for date in segments
+        .iter()
+        .map(|s| &s.date)
+        .chain(spans.iter().map(|s| &s.date))
+    {
+        assert!(
+            days.contains(date),
+            "timeline row dated {date} has no daily row"
+        );
+    }
+}
+
+/// Guards against a generator that degenerates into routine ticks.
+fn assert_every_reason_occurs(rig: &Rig) {
+    let segment_reasons: std::collections::BTreeSet<String> =
+        rig.segments().into_iter().map(|s| s.reason).collect();
+    for reason in [
+        "tracker_started",
+        "scan_gap",
+        "clock_rollback",
+        "day_changed",
+        "focus_changed",
+        "activity_changed",
+    ] {
+        assert!(segment_reasons.contains(reason), "no segment {reason}");
+    }
+    let span_reasons: std::collections::BTreeSet<String> =
+        window_spans(rig).into_iter().map(|s| s.reason).collect();
+    for reason in [
+        "tracker_started",
+        "scan_gap",
+        "clock_rollback",
+        "day_changed",
+        "window_opened",
+    ] {
+        assert!(span_reasons.contains(reason), "no window span {reason}");
+    }
+    // Window time came from a window that went to the tray and back, and from
+    // a package with two windowed versions.
+    let paint = rig.identity("Paint.exe");
+    assert!(
+        window_spans(rig)
+            .iter()
+            .any(|s| s.identity == paint && s.reason == "window_opened"),
+        "Paint never reopened a window"
+    );
+    assert!(window_spans(rig)
+        .iter()
+        .any(|s| s.identity == rig.identity("TestApp.exe")));
+}
+
+/// Ten minutes of routine ticks centred on `instant`.
+fn around(instant: &str) -> (DateTime<Utc>, DateTime<Utc>) {
+    let instant = utc_at(instant);
+    (
+        instant - chrono::Duration::minutes(5),
+        instant + chrono::Duration::minutes(5),
+    )
+}
+
+/// A local midnight crossed by routine ticks: `date`'s rows open there. Credit
+/// is split at whole seconds counted back from a possibly fractional `now`, so
+/// the first row starts within a second after midnight.
+fn assert_day_changed_at(rig: &Rig, date: &str, midnight: &str) {
+    let midnight_utc = utc_at(midnight);
+    let opens_at_midnight = |row_date: &str, reason: &str, start: &str| {
+        let start = parse_ms(start);
+        row_date == date
+            && reason == "day_changed"
+            && midnight_utc <= start
+            && start < midnight_utc + chrono::Duration::seconds(1)
+    };
+    assert!(
+        rig.segments()
+            .iter()
+            .any(|s| opens_at_midnight(&s.date, &s.reason, &s.start)),
+        "no day_changed segment dated {date} at {midnight}"
+    );
+    assert!(
+        window_spans(rig)
+            .iter()
+            .any(|s| opens_at_midnight(&s.date, &s.reason, &s.start)),
+        "no day_changed window span dated {date} at {midnight}"
+    );
+}
+
+#[test]
+fn timeline_seeded_sequence_matches_daily_totals() {
+    let zone = FixedOffset::east_opt(8 * 3600).unwrap();
+    // Local midnights at 16:00 UTC.
+    let midnights = ["2026-06-05T16:00:00Z", "2026-06-06T16:00:00Z"];
+    let rig = run_seeded_sequence(
+        &zone,
+        utc_at("2026-06-05T14:30:00Z"),
+        0x5eed_7172_0001,
+        1_500,
+        &midnights.map(around),
+    );
+    assert_timeline_matches_daily_totals(&rig);
+    assert_every_reason_occurs(&rig);
+    assert_day_changed_at(&rig, "2026-06-06", midnights[0]);
+    assert_day_changed_at(&rig, "2026-06-07", midnights[1]);
+}
+
+#[test]
+fn timeline_seeded_sequence_matches_daily_totals_across_dst() {
+    let eu = TestDst::eu_like();
+    // 2026-10-25 is 25 hours long: it starts at 22:00 UTC (+02:00), the clocks
+    // fall back at 01:00 UTC, and it ends at 23:00 UTC (+01:00).
+    let (start_of_day, fall_back, end_of_day) = (
+        "2026-10-24T22:00:00Z",
+        "2026-10-25T01:00:00Z",
+        "2026-10-25T23:00:00Z",
+    );
+    let rig = run_seeded_sequence(
+        &eu,
+        utc_at("2026-10-24T20:30:00Z"),
+        0x5eed_7172_0002,
+        1_500,
+        &[around(start_of_day), around(fall_back), around(end_of_day)],
+    );
+    assert_timeline_matches_daily_totals(&rig);
+    assert_every_reason_occurs(&rig);
+    assert_day_changed_at(&rig, "2026-10-25", start_of_day);
+    assert_day_changed_at(&rig, "2026-10-26", end_of_day);
+    // Routine ticks through the clock change: one segment spans it unsplit.
+    let fall_back = utc_at(fall_back);
+    assert!(
+        rig.segments().iter().any(|s| s.date == "2026-10-25"
+            && parse_ms(&s.start) < fall_back
+            && fall_back < parse_ms(&s.end)),
+        "no segment runs through the clock change"
+    );
+}
