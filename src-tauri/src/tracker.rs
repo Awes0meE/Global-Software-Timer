@@ -53,6 +53,9 @@ struct TrackingState {
 #[derive(Debug, Clone, Default)]
 struct TimelineCursor {
     segment: SegmentCursor,
+    /// Identity key -> the window span the next chunk may extend. Holds only
+    /// identities that had a window in the previous chunk.
+    windows: HashMap<String, i64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -78,6 +81,7 @@ impl TimelineCursor {
         if !matches!(self.segment, SegmentCursor::Fresh) {
             self.segment = SegmentCursor::AfterBreak(reason);
         }
+        self.windows.clear();
     }
 
     /// Why a chunk on `date` cannot continue the previous rows: `tracker_started`,
@@ -409,7 +413,7 @@ where
         }
         let active_seconds = if is_active { seconds } else { 0 };
         store.increment_daily_system_usage(date, seconds, active_seconds, seconds)?;
-        record_daily_software_runtime_usage(
+        let windowed_keys = record_daily_software_runtime_usage(
             store,
             &next.runtime_status_by_app_id,
             date,
@@ -440,6 +444,7 @@ where
             seconds,
             focus_key.as_deref(),
             is_active,
+            &windowed_keys,
         )?;
     }
     next.last_tick_at = Some(now_utc);
@@ -451,7 +456,9 @@ where
 }
 
 /// Writes one dated chunk of credited seconds to the timeline: extends the open
-/// segment when nothing changed, otherwise opens a new one with the reason.
+/// segment when nothing changed, otherwise opens a new one with the reason; and
+/// extends or opens a window span for each identity in `windowed_keys`.
+#[allow(clippy::too_many_arguments)]
 fn record_timeline_chunk(
     store: &Store,
     cursor: &mut TimelineCursor,
@@ -460,9 +467,36 @@ fn record_timeline_chunk(
     seconds: i64,
     focus_key: Option<&str>,
     is_active: bool,
+    windowed_keys: &[String],
 ) -> StoreResult<()> {
     let chunk_end = chunk_start + chrono::Duration::seconds(seconds);
+    // Taken before the segment cursor moves: window spans break with the
+    // segments, but focus and activity changes do not split them.
     let chunk_break = cursor.chunk_break(date);
+    let mut windows = HashMap::with_capacity(windowed_keys.len());
+    for identity_key in windowed_keys {
+        let open_span = match chunk_break {
+            Some(_) => None,
+            None => cursor.windows.get(identity_key).copied(),
+        };
+        let span_id = match open_span {
+            Some(span_id) => {
+                store.extend_timeline_window_span(span_id, chunk_end, seconds)?;
+                span_id
+            }
+            None => store.insert_timeline_window_span(
+                date,
+                identity_key,
+                chunk_start,
+                chunk_end,
+                seconds,
+                chunk_break.unwrap_or("window_opened"),
+            )?,
+        };
+        windows.insert(identity_key.clone(), span_id);
+    }
+    // Identities without a window in this chunk drop out; their rows stay as written.
+    cursor.windows = windows;
     let segment_id = match &cursor.segment {
         SegmentCursor::Open {
             segment_id,
@@ -534,7 +568,7 @@ fn record_daily_software_runtime_usage(
     usage_date: NaiveDate,
     seconds: i64,
     recorded_at: DateTime<Utc>,
-) -> StoreResult<()> {
+) -> StoreResult<Vec<String>> {
     let mut status_by_identity: HashMap<String, AppRuntimeStatus> = HashMap::new();
     for (app_id, status) in statuses {
         if *status == AppRuntimeStatus::Closed {
@@ -548,7 +582,11 @@ fn record_daily_software_runtime_usage(
             *entry = *status;
         }
     }
+    let mut windowed_keys = Vec::new();
     for (identity_key, status) in status_by_identity {
+        if status == AppRuntimeStatus::Foreground {
+            windowed_keys.push(identity_key.clone());
+        }
         let (foreground_seconds, background_seconds) = match status {
             AppRuntimeStatus::Foreground => (seconds, 0),
             // The software page splits window time from out-of-window time.
@@ -563,5 +601,7 @@ fn record_daily_software_runtime_usage(
             recorded_at,
         )?;
     }
-    Ok(())
+    // The identities credited window time, sorted so writes follow a stable order.
+    windowed_keys.sort();
+    Ok(windowed_keys)
 }

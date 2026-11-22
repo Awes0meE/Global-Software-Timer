@@ -362,6 +362,54 @@ impl Store {
         Ok(())
     }
 
+    /// Opens a window span for one software identity and returns its row id.
+    pub fn insert_timeline_window_span(
+        &self,
+        usage_date: NaiveDate,
+        identity_key: &str,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        credited_seconds: i64,
+        start_reason: &str,
+    ) -> StoreResult<i64> {
+        self.conn.execute(
+            "INSERT INTO timeline_window_spans
+                 (usage_date, identity_key, start_utc, end_utc, credited_seconds, start_reason)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                usage_date.to_string(),
+                identity_key,
+                timeline_timestamp(start),
+                timeline_timestamp(end),
+                credited_seconds,
+                start_reason
+            ],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    /// Moves a window span's end to `end` and adds `seconds` to its credit.
+    pub fn extend_timeline_window_span(
+        &self,
+        id: i64,
+        end: DateTime<Utc>,
+        seconds: i64,
+    ) -> StoreResult<()> {
+        let count = self.conn.execute(
+            "UPDATE timeline_window_spans
+             SET end_utc = ?2, credited_seconds = credited_seconds + ?3
+             WHERE id = ?1",
+            params![id, timeline_timestamp(end), seconds],
+        )?;
+        if count != 1 {
+            return Err(StoreError::UnexpectedUpdateCount {
+                operation: "extend_timeline_window_span",
+                count,
+            });
+        }
+        Ok(())
+    }
+
     /// Adds one credited slice for a background process group. CPU is stored
     /// as core-seconds: one fully busy core for one second is 1.0.
     pub fn increment_daily_background_usage(

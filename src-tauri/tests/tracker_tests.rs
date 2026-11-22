@@ -1639,6 +1639,9 @@ fn timeline_first_tick_break_keeps_tracker_started() {
     let segments = rig.segments();
     assert_eq!(reasons(&segments), ["tracker_started"]);
     assert_eq!(segments[0].seconds, 5);
+    let spans = window_spans(&rig);
+    assert_eq!(spans.len(), 1);
+    assert_eq!(spans[0].reason, "tracker_started");
 }
 
 #[test]
@@ -1666,4 +1669,306 @@ fn timeline_restart_never_extends_the_previous_segment() {
     let segments = rig.segments();
     assert_eq!(reasons(&segments), ["tracker_started", "tracker_started"]);
     assert_eq!((segments[0].seconds, segments[1].seconds), (10, 5));
+}
+
+/// A timeline window span row, read back with a separate connection.
+#[derive(Debug, Clone, PartialEq)]
+struct WindowSpan {
+    date: String,
+    identity: String,
+    start: String,
+    end: String,
+    seconds: i64,
+    reason: String,
+}
+
+fn window_spans(rig: &Rig) -> Vec<WindowSpan> {
+    rig.conn()
+        .prepare(
+            "SELECT usage_date, identity_key, start_utc, end_utc, credited_seconds, start_reason
+             FROM timeline_window_spans ORDER BY id",
+        )
+        .unwrap()
+        .query_map([], |r| {
+            Ok(WindowSpan {
+                date: r.get(0)?,
+                identity: r.get(1)?,
+                start: r.get(2)?,
+                end: r.get(3)?,
+                seconds: r.get(4)?,
+                reason: r.get(5)?,
+            })
+        })
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
+/// (identity, start, end, seconds, reason) of every window span, by id.
+fn span_shape(rig: &Rig) -> Vec<(String, String, String, i64, String)> {
+    window_spans(rig)
+        .into_iter()
+        .map(|s| (s.identity, s.start, s.end, s.seconds, s.reason))
+        .collect()
+}
+
+fn span(
+    identity: &str,
+    start: i64,
+    end: i64,
+    seconds: i64,
+    reason: &str,
+) -> (String, String, String, i64, String) {
+    (
+        identity.to_string(),
+        ms(after(start)),
+        ms(after(end)),
+        seconds,
+        reason.to_string(),
+    )
+}
+
+fn windowed_weixin() -> ProcessSnapshot {
+    ProcessSnapshot {
+        has_visible_window: true,
+        ..tray_weixin()
+    }
+}
+
+#[test]
+fn timeline_window_span_follows_window_then_tray_then_window() {
+    let mut rig = Rig::new();
+    let window = [windowed_weixin()];
+    let tray = [tray_weixin()];
+    // Window, window, window, tray, tray, window, gone, window.
+    let script: [&[ProcessSnapshot]; 8] = [
+        &window,
+        &window,
+        &window,
+        &tray,
+        &tray,
+        &window,
+        &[],
+        &window,
+    ];
+    for (k, processes) in script.into_iter().enumerate() {
+        rig.tick(after(5 * k as i64), FIVE, processes, Some(70), true);
+    }
+    let weixin = rig.identity("Weixin.exe");
+    assert_eq!(
+        span_shape(&rig),
+        vec![
+            span(&weixin, -5, 10, 15, "tracker_started"),
+            span(&weixin, 20, 25, 5, "window_opened"),
+            span(&weixin, 30, 35, 5, "window_opened"),
+        ]
+    );
+    // Focus segments keep counting the tray-only stretch.
+    let shape: Vec<_> = rig
+        .segments()
+        .into_iter()
+        .map(|s| (s.focus, s.seconds))
+        .collect();
+    assert_eq!(
+        shape,
+        vec![(Some(weixin.clone()), 30), (None, 5), (Some(weixin), 5)]
+    );
+}
+
+fn packaged_test_app(pid: u32, version: &str) -> ProcessSnapshot {
+    ProcessSnapshot {
+        pid,
+        process_name: "TestApp.exe".to_string(),
+        executable_path: format!(
+            r"C:\Program Files\WindowsApps\Test.App_{version}_x64__publisher\TestApp.exe"
+        ),
+        has_visible_window: true,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn timeline_window_spans_per_identity_not_per_process() {
+    let mut rig = Rig::new();
+    // Two apps that have a window on the first tick, so they have identities,
+    // and then turn into a helper (window and all) and a windowless process.
+    let notes = ProcessSnapshot {
+        pid: 91,
+        process_name: "Notes.exe".to_string(),
+        executable_path: r"D:\Apps\Notes\Notes.exe".to_string(),
+        has_visible_window: true,
+        ..Default::default()
+    };
+    let paint = ProcessSnapshot {
+        pid: 90,
+        process_name: "Paint.exe".to_string(),
+        executable_path: r"D:\Apps\Paint\Paint.exe".to_string(),
+        has_visible_window: true,
+        ..Default::default()
+    };
+    let shared = [
+        code_process(),
+        // One identity, two processes: a window and a tray icon.
+        edge_process(100, false, true),
+        ProcessSnapshot {
+            has_tray_icon: true,
+            ..edge_process(102, false, false)
+        },
+        edge_process(101, true, false),
+        // One identity, two versions: a window and a tray icon.
+        packaged_test_app(141, "1.0.0.0"),
+        ProcessSnapshot {
+            has_visible_window: false,
+            has_tray_icon: true,
+            ..packaged_test_app(142, "2.0.0.0")
+        },
+        windows_notepad(),
+    ];
+    let mut first = shared.to_vec();
+    first.extend([notes.clone(), paint.clone()]);
+    let mut second = shared.to_vec();
+    second.extend([
+        ProcessSnapshot {
+            is_background_helper: true,
+            ..notes
+        },
+        ProcessSnapshot {
+            has_visible_window: false,
+            ..paint
+        },
+    ]);
+    rig.tick(after(0), FIVE, &first, Some(42), true);
+    let code = rig.identity("Code.exe");
+    // Hiding only affects display; the span keeps growing.
+    rig.tracker
+        .store()
+        .add_hidden_software_identities(&[code.clone()])
+        .expect("hide");
+    rig.tick(after(5), FIVE, &second, Some(42), true);
+
+    let mut shape = span_shape(&rig);
+    shape.sort();
+    let mut expected = vec![
+        span(&code, -5, 5, 10, "tracker_started"),
+        span(&rig.identity("msedge.exe"), -5, 5, 10, "tracker_started"),
+        span(&rig.identity("TestApp.exe"), -5, 5, 10, "tracker_started"),
+        // A helper with a window and a windowless process get no window time.
+        span(&rig.identity("Notes.exe"), -5, 0, 5, "tracker_started"),
+        span(&rig.identity("Paint.exe"), -5, 0, 5, "tracker_started"),
+    ];
+    expected.sort();
+    assert_eq!(shape, expected);
+}
+
+#[test]
+fn timeline_window_spans_restart_with_tracker_started() {
+    let mut rig = Rig::new();
+    rig.tick(after(0), FIVE, &[code_process()], Some(42), true);
+    rig.tick(after(5), FIVE, &[code_process()], Some(42), true);
+    rig.restart();
+    rig.tick(after(10), FIVE, &[code_process()], Some(42), true);
+    let code = rig.identity("Code.exe");
+    assert_eq!(
+        span_shape(&rig),
+        vec![
+            span(&code, -5, 5, 10, "tracker_started"),
+            span(&code, 5, 10, 5, "tracker_started"),
+        ]
+    );
+}
+
+#[test]
+fn timeline_window_spans_break_on_gaps_but_not_on_focus_or_idle() {
+    let mut rig = Rig::new();
+    let processes = [code_process(), edge_process(100, false, true)];
+    rig.tick(after(0), FIVE, &processes, Some(42), true);
+    rig.tick(after(5), FIVE, &processes, Some(42), true);
+    rig.tick(after(10), FIVE, &processes, Some(100), true); // focus change
+    rig.tick(after(15), FIVE, &processes, Some(100), false); // goes idle
+    rig.tick(after(26), FIVE, &processes, Some(100), false); // 11 s gap
+    rig.tick(after(31), FIVE, &processes, Some(100), false);
+    rig.tick(after(30), FIVE, &processes, Some(100), false); // rollback
+    rig.tick(after(35), FIVE, &processes, Some(100), false);
+    rig.tick(
+        after(45),
+        Duration::from_secs(10),
+        &processes,
+        Some(100),
+        false,
+    ); // exactly 10 s still extends
+    let mut expected = Vec::new();
+    for identity in [rig.identity("Code.exe"), rig.identity("msedge.exe")] {
+        expected.push(span(&identity, -5, 15, 20, "tracker_started"));
+        expected.push(span(&identity, 26, 31, 5, "scan_gap"));
+        expected.push(span(&identity, 30, 45, 15, "clock_rollback"));
+    }
+    expected.sort_by(|a, b| (&a.1, &a.0).cmp(&(&b.1, &b.0)));
+    let mut shape = span_shape(&rig);
+    shape.sort_by(|a, b| (&a.1, &a.0).cmp(&(&b.1, &b.0)));
+    assert_eq!(shape, expected);
+}
+
+#[test]
+fn timeline_window_spans_split_at_midnight() {
+    let mut rig = Rig::new();
+    let zone = FixedOffset::east_opt(8 * 3600).unwrap();
+    let now = zone.with_ymd_and_hms(2026, 6, 6, 0, 0, 2).unwrap();
+    let processes = [code_process(), edge_process(100, false, true)];
+    rig.tick(now, FIVE, &processes, Some(42), true);
+    let mut shape: Vec<_> = window_spans(&rig)
+        .into_iter()
+        .map(|s| (s.identity, s.date, s.start, s.end, s.seconds, s.reason))
+        .collect();
+    shape.sort();
+    let mut expected = Vec::new();
+    for identity in [rig.identity("Code.exe"), rig.identity("msedge.exe")] {
+        expected.push((
+            identity.clone(),
+            "2026-06-05".to_string(),
+            "2026-06-05T15:59:57.000+00:00".to_string(),
+            "2026-06-05T16:00:00.000+00:00".to_string(),
+            3,
+            "tracker_started".to_string(),
+        ));
+        expected.push((
+            identity,
+            "2026-06-06".to_string(),
+            "2026-06-05T16:00:00.000+00:00".to_string(),
+            "2026-06-05T16:00:02.000+00:00".to_string(),
+            2,
+            "day_changed".to_string(),
+        ));
+    }
+    expected.sort();
+    assert_eq!(shape, expected);
+}
+
+#[test]
+fn timeline_sub_second_tick_moves_nothing() {
+    let mut rig = Rig::new();
+    let processes = [code_process(), edge_process(100, false, true)];
+    rig.tick(after(0), FIVE, &processes, Some(42), true);
+    // Credits 0 whole seconds and is no break: Edge's focus must not show up.
+    rig.tick(
+        after(0) + chrono::Duration::milliseconds(500),
+        Duration::from_millis(500),
+        &processes,
+        Some(100),
+        true,
+    );
+    rig.tick(
+        after(5) + chrono::Duration::milliseconds(500),
+        FIVE,
+        &processes,
+        Some(42),
+        true,
+    );
+    let segments = rig.segments();
+    assert_eq!(reasons(&segments), ["tracker_started"]);
+    assert_eq!(segments[0].seconds, 10);
+    let spans = window_spans(&rig);
+    assert_eq!(spans.len(), 2);
+    assert!(spans
+        .iter()
+        .all(|s| s.seconds == 10 && s.reason == "tracker_started"));
 }
