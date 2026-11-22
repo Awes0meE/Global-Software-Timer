@@ -1738,6 +1738,192 @@ mod tests {
         }
     }
 
+    /// Migrates a writable database copy from schema 2 to 3, checks that every
+    /// table v0.3.0 had is unchanged, then times the timeline summary for a few
+    /// historical dates. `GST_BENCH_DB` must point to a disposable copy, never
+    /// the live database; `GST_ACCEPT_DATES` is an optional comma-separated
+    /// list of dates (default: the first recorded date, a middle date and
+    /// yesterday). Prints only dates, statuses, counts and timings: no
+    /// software names, identity keys or durations.
+    #[test]
+    #[ignore = "requires GST_BENCH_DB pointing to a writable, disposable database copy"]
+    fn real_database_timeline_acceptance() {
+        let path = std::path::PathBuf::from(
+            std::env::var("GST_BENCH_DB").expect("set GST_BENCH_DB to a disposable database copy"),
+        );
+        let copy = path.canonicalize().expect("GST_BENCH_DB exists");
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let live = std::path::Path::new(&appdata).join("com.globalsoftwaretimer.app");
+            if let Ok(live) = live.canonicalize() {
+                assert!(
+                    !copy.starts_with(&live),
+                    "GST_BENCH_DB points into the live data folder"
+                );
+            }
+        }
+
+        let raw = rusqlite::Connection::open(&copy).unwrap();
+        let user_version = || {
+            raw.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+                .unwrap()
+        };
+        assert_eq!(user_version(), 2, "expected a v0.3.0 (schema 2) copy");
+        let before = old_table_fingerprints(&raw);
+        Store::open(&copy).unwrap().migrate().unwrap();
+        assert_eq!(user_version(), 3);
+        for table in ["timeline_segments", "timeline_window_spans"] {
+            let rows: i64 = raw
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(rows, 0, "{table} should start empty");
+        }
+        let after = old_table_fingerprints(&raw);
+        for ((table, rows_before, hash_before), (_, rows_after, hash_after)) in
+            before.iter().zip(&after)
+        {
+            assert_eq!(rows_before, rows_after, "{table} row count changed");
+            assert_eq!(hash_before, hash_after, "{table} content changed");
+        }
+        println!("schema 2 -> 3: {} old tables unchanged", before.len());
+
+        let store = Store::open_read_only(&copy).unwrap();
+        let dates: Vec<chrono::NaiveDate> = match std::env::var("GST_ACCEPT_DATES") {
+            Ok(list) => list
+                .split(',')
+                .map(|date| {
+                    chrono::NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d")
+                        .expect("GST_ACCEPT_DATES")
+                })
+                .collect(),
+            Err(_) => {
+                let first = store.data_start_date().unwrap().expect("recorded data");
+                let yesterday = chrono::Local::now().date_naive() - chrono::Duration::days(1);
+                let middle = first + (yesterday - first) / 2;
+                vec![first, middle, yesterday]
+            }
+        };
+        let summary_at = |date: chrono::NaiveDate| {
+            let transaction = store.savepoint().unwrap();
+            let summary =
+                super::timeline_summary_from_store(&store, &date.to_string(), false, Utc::now())
+                    .unwrap();
+            transaction.commit().unwrap();
+            summary
+        };
+        let mut any_running = false;
+        for date in dates {
+            // (first call, warm median of five) in milliseconds
+            let mut times: Vec<f64> = (0..6)
+                .map(|_| {
+                    let started = std::time::Instant::now();
+                    summary_at(date);
+                    started.elapsed().as_secs_f64() * 1000.0
+                })
+                .collect();
+            let first = times.remove(0);
+            times.sort_by(f64::total_cmp);
+            let warm = times[2];
+            let summary = summary_at(date);
+            assert_eq!(summary.day_status, "before_collection", "{date}");
+            any_running |= !summary.running.is_empty();
+            println!(
+                "{date}: {}, {} running entries, {} segments; first call {first:.1} ms, warm median of 5 {warm:.1} ms",
+                summary.day_status,
+                summary.running.len(),
+                summary.segments.len(),
+            );
+            assert!(warm < 200.0, "{date}: warm median {warm:.1} ms");
+        }
+        assert!(any_running, "no checked date had running software");
+    }
+
+    /// (table, row count, hash) for every table v0.3.0 had. The hash covers the
+    /// table's and its indexes' definitions, then its rows in rowid order.
+    /// Startup identity maintenance refreshes `last_seen_at` and `updated_at`
+    /// on every launch of any version, so those values are left out.
+    fn old_table_fingerprints(conn: &rusqlite::Connection) -> Vec<(String, i64, u64)> {
+        use std::hash::{DefaultHasher, Hash, Hasher};
+        let tables_on_disk: Vec<String> = conn
+            .prepare(
+                "SELECT name FROM sqlite_master WHERE type = 'table'
+                   AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'timeline_%'
+                 ORDER BY name",
+            )
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        let tables: [(&str, &[&str]); 13] = [
+            ("apps", &[]),
+            ("run_events", &[]),
+            ("usage_sessions", &[]),
+            ("daily_app_usage", &[]),
+            ("daily_system_usage", &[]),
+            ("software_identities", &["last_seen_at", "updated_at"]),
+            ("software_identity_members", &["updated_at"]),
+            ("focused_software_identities", &[]),
+            ("hidden_software_identities", &[]),
+            ("daily_software_focus_usage", &[]),
+            ("daily_software_runtime_usage", &[]),
+            ("app_settings", &[]),
+            ("daily_background_usage", &[]),
+        ];
+        let mut listed: Vec<String> = tables.iter().map(|(table, _)| table.to_string()).collect();
+        listed.sort();
+        assert_eq!(
+            tables_on_disk, listed,
+            "the copy's tables differ from v0.3.0's"
+        );
+        tables
+            .iter()
+            .map(|(table, skipped)| {
+                let mut hasher = DefaultHasher::new();
+                let definitions: Vec<(String, String, Option<String>)> = conn
+                    .prepare(
+                        "SELECT type, name, sql FROM sqlite_master WHERE tbl_name = ?1 ORDER BY type, name",
+                    )
+                    .unwrap()
+                    .query_map([table], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+                    .unwrap()
+                    .collect::<Result<_, _>>()
+                    .unwrap();
+                definitions.hash(&mut hasher);
+                let columns: Vec<String> = conn
+                    .prepare(&format!(
+                        "SELECT name FROM pragma_table_info('{table}') ORDER BY cid"
+                    ))
+                    .unwrap()
+                    .query_map([], |row| row.get::<_, String>(0))
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap()
+                    .into_iter()
+                    .filter(|column| !skipped.contains(&column.as_str()))
+                    .collect();
+                assert!(!columns.is_empty(), "{table} has no columns");
+                let mut statement = conn
+                    .prepare(&format!(
+                        "SELECT {} FROM {table} ORDER BY rowid",
+                        columns.join(", ")
+                    ))
+                    .unwrap();
+                let mut rows = statement.query([]).unwrap();
+                let mut count = 0;
+                while let Some(row) = rows.next().unwrap() {
+                    count += 1;
+                    for index in 0..columns.len() {
+                        // `Value` has no `Hash` (REAL columns); its debug text does.
+                        format!("{:?}", row.get_ref(index).unwrap()).hash(&mut hasher);
+                    }
+                }
+                (table.to_string(), count, hasher.finish())
+            })
+            .collect()
+    }
+
     #[test]
     fn dashboard_summary_reads_sessions_and_daily_system_usage() {
         let db_file = NamedTempFile::new().expect("temp db");
