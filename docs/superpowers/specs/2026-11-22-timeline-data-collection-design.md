@@ -180,6 +180,7 @@ CREATE INDEX IF NOT EXISTS timeline_window_spans_date_idx ON timeline_window_spa
 
 - 来自 `usage_sessions`，经 `software_identity_members USING (app_id)` 归到身份；取与 `[day_start, day_end)` 重叠的会话，未关会话以 `last_heartbeat_at` 为终点并标 `open: true`；裁剪到当天；同一身份的重叠会话（多个版本、WPS 组件）取并集。
 - 重叠条件是 `started_at < day_end` 且 `COALESCE(ended_at, last_heartbeat_at) >= day_start`。不能照搬 `sessions_started_between` 只按开始时间筛：托盘常驻软件一次会话能跨好几天，开始于前天的会话也要取到。两端文本条件各放宽一天作粗筛，再在解析后的时刻上精确判断。
+- 边界与合并：裁剪后 `end <= start` 的已关区间丢弃（例如恰好在 `day_start` 结束的会话不产生条目），未关会话的零长度区间保留；同一身份取并集时只要有一个会话未关，合并后的区间就标 `open: true`。`running[]`、`software[]` 按 `identity_key` 升序返回，时刻格式与存储相同（毫秒精度、`+00:00`）。
 - 过滤与概览软件列表一致：跳过 `apps.is_hidden = 1` 和当前分类器判为 `Hidden` 的应用。
 - **窗口 / 托盘**：会话覆盖「有窗口或托盘」整段，状态切换不拆会话，所以 `intervals` 本身分不出窗口和托盘。v0.3.1 起由 `window_intervals` 给出有窗口的时段：取 `timeline_window_spans WHERE usage_date = ?`，同一身份按 1 秒容差取并集（合并版本后的重叠行、相接的行），再裁剪到 `[day_start, day_end)`。「开着但不在 `window_intervals` 里」= 托盘运行。`window_seconds` 是该身份当天各行 `credited_seconds` 之和，不裁剪、不去重，等于 `foreground_seconds`（见等式口径）。`day_status = before_collection` 的日子 `window_intervals` 恒为空数组、`window_seconds` 为 0，含义是「没有记录」，不是「没有窗口」；这些日子 v0.5.0 只用 `intervals` 判断「开着」，不分有窗口和托盘。`Background` 状态不建会话，所以运行区间里没有纯后台进程。
 - `running[]` 的条目取「有会话区间或有窗口段」的身份并集。窗口段按身份过滤：该身份至少有一个成员应用通过上一条的应用过滤（`apps.is_hidden = 0` 且当前分类器判为 `Tracked`）才返回，否则窗口段和会话区间一起不出现。
