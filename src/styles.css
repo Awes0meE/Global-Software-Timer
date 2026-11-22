@@ -23,9 +23,9 @@
   --panel-sunken: #e1e3e6;
   --edge: #c7cace;
   --edge-strong: #aeb2b8;
-  --ink: #1b1d20;
-  --ink-2: #3a3e44;
-  --muted: #5b6068;
+  --ink: #17191d;
+  --ink-2: #33373e;
+  --muted: #5a606c;
   --faint: #868b93;
   --signal: #ff6a13;
   --signal-ink: #b23f00;
@@ -43,13 +43,13 @@
   --lcd-ghost: rgba(23, 33, 26, 0.08);
   --lcd-glow: 1px 1px 0 rgba(23, 33, 26, 0.12);
   --lcd-grid: rgba(23, 33, 26, 0.05);
-  --mix-1: #2f62c9;
-  --mix-2: #d2462f;
-  --mix-3: #23875c;
-  --mix-4: #7d4fc4;
-  --mix-5: #c99600;
-  --mix-6: #12839a;
-  --mix-7: #7d858e;
+  --mix-1: #2f7de1;
+  --mix-2: #e2536a;
+  --mix-3: #1fa874;
+  --mix-4: #7d5ce0;
+  --mix-5: #d99a0b;
+  --mix-6: #0f9fb8;
+  --mix-7: #7b8594;
   --focus: 0 0 0 2px var(--panel-raised), 0 0 0 4px var(--signal);
   --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
   --font-num: Bahnschrift, "Segoe UI Variable Display", "Segoe UI", sans-serif;
@@ -61,11 +61,40 @@
   --panel-gap: 16px;
   --type-lcd-unit: 24px;
   --radius-tag: 4px;
-  --radius-dialog: 12px;
+  --radius-dialog: 16px;
   --radius-pill: 999px;
   --radius-case: 10px;
-  --radius-key: 6px;
+  --radius-key: 9px;
+  --radius-panel: 16px;
+  --radius-screen: 11px;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --base: #eceef3;
+  --glow:
+    radial-gradient(820px 600px at 8% -6%, rgba(90, 160, 255, 0.34), transparent 62%),
+    radial-gradient(760px 640px at 98% 10%, rgba(240, 120, 190, 0.26), transparent 60%),
+    radial-gradient(860px 600px at 52% 110%, rgba(160, 130, 255, 0.3), transparent 62%);
+  --glass: rgba(255, 255, 255, 0.5);
+  --glass-solid: #f6f7f9;
+  --glass-2: rgba(255, 255, 255, 0.55);
+  --chip: rgba(20, 30, 60, 0.06);
+  --on: rgba(255, 255, 255, 0.75);
+  --side: rgba(255, 255, 255, 0.38);
+  --rule: rgba(20, 30, 60, 0.07);
+  --glass-hi: rgba(255, 255, 255, 0.8);
+  --glass-shadow: 0 18px 46px rgba(60, 70, 110, 0.14), 0 0 0 1px rgba(20, 30, 60, 0.06);
+  --accent: #2f7de1;
+  --alert-ink: #b42318;
+  --alert-wash: rgba(180, 35, 24, 0.1);
+  --eink-paper: #fafaf7;
+  --eink-paper-solid: #fafaf7;
+  --eink-ink: #0b0b0a;
+  --eink-dim: #45443f;
+  --eink-mid: #7c7b76;
+  --eink-track: rgba(11, 11, 10, 0.12);
+  --eink-ghost: rgba(11, 11, 10, 0.04);
+  --eink-grain: 0.06;
+  --eink-grain-blend: multiply;
+  --mix-glow: 0%;
 }
 
 :root[data-theme="dark"] {
@@ -79,9 +108,9 @@
   --panel-sunken: #151618;
   --edge: #2b2d31;
   --edge-strong: #3b3d42;
-  --ink: #ecebe6;
-  --ink-2: #cfcec8;
-  --muted: #a3a19a;
+  --ink: #f1f3f7;
+  --ink-2: #d5d9e0;
+  --muted: #98a0ad;
   --faint: #8e8d86;
   --signal: #ff7a2a;
   --signal-ink: #ff9e63;
@@ -97,13 +126,40 @@
   --lcd-ghost: rgba(194, 245, 211, 0.07);
   --lcd-glow: 0 0 6px rgba(130, 240, 170, 0.32);
   --lcd-grid: rgba(0, 0, 0, 0.35);
-  --mix-1: #6f98ff;
-  --mix-2: #ff7a63;
-  --mix-3: #45c48b;
-  --mix-4: #b18cff;
-  --mix-5: #f2c14e;
-  --mix-6: #3fc2d6;
-  --mix-7: #9aa1a9;
+  --mix-1: #5aa9ff;
+  --mix-2: #ff6b81;
+  --mix-3: #3ddc97;
+  --mix-4: #a78bfa;
+  --mix-5: #fbbf24;
+  --mix-6: #22d3ee;
+  --mix-7: #94a3b8;
+  --base: #17171a;
+  --glow:
+    radial-gradient(820px 600px at 10% -4%, rgba(80, 150, 255, 0.3), transparent 62%),
+    radial-gradient(760px 640px at 96% 14%, rgba(236, 92, 170, 0.24), transparent 60%),
+    radial-gradient(860px 600px at 52% 108%, rgba(150, 110, 255, 0.28), transparent 62%);
+  --glass: rgba(40, 40, 46, 0.42);
+  --glass-solid: #1e1e22;
+  --glass-2: rgba(255, 255, 255, 0.06);
+  --chip: rgba(255, 255, 255, 0.07);
+  --on: rgba(255, 255, 255, 0.1);
+  --side: rgba(30, 30, 34, 0.55);
+  --rule: rgba(255, 255, 255, 0.07);
+  --glass-hi: rgba(255, 255, 255, 0.07);
+  --glass-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  --accent: #5aa9ff;
+  --alert-ink: #ff8a80;
+  --alert-wash: rgba(255, 138, 128, 0.08);
+  --eink-paper: linear-gradient(105deg, #1f2d40 0%, #281f40 45%, #401f40 100%);
+  --eink-paper-solid: #281f40;
+  --eink-ink: #f7f7f9;
+  --eink-dim: #c4c1ca;
+  --eink-mid: #85828b;
+  --eink-track: rgba(247, 247, 249, 0.14);
+  --eink-ghost: rgba(247, 247, 249, 0.05);
+  --eink-grain: 0.45;
+  --eink-grain-blend: soft-light;
+  --mix-glow: 40%;
 }
 
 * {
@@ -118,7 +174,7 @@ body,
 }
 
 body {
-  background: var(--case);
+  background: var(--glow), var(--base);
   color: var(--ink);
   font: 14px/1.5 var(--font-ui);
   -webkit-font-smoothing: antialiased;
@@ -1428,7 +1484,7 @@ mark {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: color-mix(in srgb, var(--case) 55%, var(--modal-scrim));
+  background: color-mix(in srgb, var(--base) 55%, var(--modal-scrim));
   backdrop-filter: blur(2px);
   animation: backdrop-in 180ms var(--ease);
 }

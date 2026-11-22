@@ -1,0 +1,279 @@
+import { describe, expect, it } from "vitest";
+import {
+  allRules,
+  backdrop,
+  contrast,
+  glowCenters,
+  over,
+  paperStops,
+  parseColor,
+  parseRules,
+  radialLayers,
+  themeTokens,
+  token,
+  type CssRule,
+  type Rgba,
+  type Theme,
+} from "./support/css";
+
+// Worst-case surfaces (spec「对比度目标」): translucent layers are composited on
+// the blue glow centre over --base, without saturate().
+interface Surfaces {
+  theme: Theme;
+  colour: (name: string) => Rgba;
+  /** Bare backdrop B: blue glow centre over --base. */
+  B: Rgba;
+  /** Glass panel G = --glass over B. */
+  G: Rgba;
+  /** Sidebar S = --side over B. */
+  S: Rgba;
+  /** Opaque floating surface. */
+  solid: Rgba;
+}
+
+function surfaces(theme: Theme): Surfaces {
+  const colour = (name: string) => parseColor(token(theme, name));
+  const B = backdrop(theme);
+  return {
+    theme,
+    colour,
+    B,
+    G: over(colour("--glass"), B),
+    S: over(colour("--side"), B),
+    solid: colour("--glass-solid"),
+  };
+}
+
+function accentAt(s: Surfaces, alpha: number): Rgba {
+  return { ...s.colour("--accent"), a: alpha };
+}
+
+interface Combo {
+  name: string;
+  threshold: number;
+  themes?: Theme[];
+  pair: (s: Surfaces) => [Rgba, Rgba];
+}
+
+const TEXT = 4.5;
+const GRAPHIC = 3;
+
+const COMBOS: Combo[] = [
+  // Text straight on the glow background (statistics range bar, loading notes, page titles).
+  { name: "--ink on B", threshold: TEXT, pair: (s) => [s.colour("--ink"), s.B] },
+  { name: "--ink-2 on B", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), s.B] },
+  { name: "--ink-2 on chip over B", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--chip"), s.B)] },
+  { name: "--ink on glass-2 over B", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--glass-2"), s.B)] },
+  { name: "--ink on --on over B", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--on"), s.B)] },
+  {
+    name: "--alert-ink on alert-wash over glass-solid",
+    threshold: TEXT,
+    pair: (s) => [s.colour("--alert-ink"), over(s.colour("--alert-wash"), s.solid)],
+  },
+  // Glass panels and the sidebar.
+  { name: "--ink on G", threshold: TEXT, pair: (s) => [s.colour("--ink"), s.G] },
+  { name: "--ink-2 on G", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), s.G] },
+  { name: "--muted on G", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.G] },
+  { name: "--muted on S", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.S] },
+  { name: "--ink-2 on chip over G", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--chip"), s.G)] },
+  { name: "--ink-2 on glass-2 over G", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--glass-2"), s.G)] },
+  // Dark is added in task 5 together with the trade-off 1 re-point.
+  {
+    name: "--muted on glass-2 over G",
+    threshold: TEXT,
+    themes: ["light"],
+    pair: (s) => [s.colour("--muted"), over(s.colour("--glass-2"), s.G)],
+  },
+  { name: "--ink on --on over G", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--on"), s.G)] },
+  { name: "--signal-ink on G", threshold: TEXT, pair: (s) => [s.colour("--signal-ink"), s.G] },
+  { name: "--alert-ink on G", threshold: TEXT, pair: (s) => [s.colour("--alert-ink"), s.G] },
+  {
+    name: "--alert-ink on alert-wash over G",
+    threshold: TEXT,
+    pair: (s) => [s.colour("--alert-ink"), over(s.colour("--alert-wash"), s.G)],
+  },
+  // Accent is a graphic colour (focus ring, selection marks).
+  { name: "--accent on G", threshold: GRAPHIC, pair: (s) => [s.colour("--accent"), s.G] },
+  { name: "--accent on glass-solid", threshold: GRAPHIC, pair: (s) => [s.colour("--accent"), s.solid] },
+  { name: "--ink on accent 30% over G (selection)", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(accentAt(s, 0.3), s.G)] },
+  { name: "--ink on accent 16% over G (mark)", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(accentAt(s, 0.16), s.G)] },
+  // Opaque floating surfaces.
+  { name: "--ink on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink"), s.solid] },
+  { name: "--ink-2 on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), s.solid] },
+  { name: "--muted on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.solid] },
+];
+
+function measure(combo: Combo, s: Surfaces): number {
+  const [fg, bg] = combo.pair(s);
+  return contrast(fg, bg);
+}
+
+const THEMES: Theme[] = ["light", "dark"];
+
+describe.each(THEMES)("contrast in the %s theme", (theme) => {
+  const combos = COMBOS.filter((combo) => !combo.themes || combo.themes.includes(theme));
+
+  it.each(combos.map((combo) => [combo.name, combo] as const))("%s", (_name, combo) => {
+    const ratio = measure(combo, surfaces(theme));
+    expect(ratio, `${theme}: ${combo.name} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(combo.threshold);
+  });
+
+  // Plan「口径」: B is the worst of the three glow centres; --muted on B is too low for
+  // text (trade-off 23), --ink-2 is what text straight on the background uses.
+  it("pins the worst-case backdrop B", () => {
+    const s = surfaces(theme);
+    expect(contrast(s.colour("--muted"), s.B), `${theme}: --muted on B`).toBeCloseTo(theme === "light" ? 4.15 : 4.14, 2);
+    expect(contrast(s.colour("--ink-2"), s.B), `${theme}: --ink-2 on B`).toBeCloseTo(theme === "light" ? 7.86 : 7.71, 2);
+  });
+
+  it.each(["--ink", "--ink-2", "--muted"])("B is the lowest-contrast glow centre for %s", (name) => {
+    const s = surfaces(theme);
+    const base = s.colour("--base");
+    const onB = contrast(s.colour(name), s.B);
+    glowCenters(theme).forEach((centre, index) => {
+      const ratio = contrast(s.colour(name), over(centre, base));
+      expect(ratio, `${theme}: ${name} on glow layer ${index} = ${ratio.toFixed(2)}, on B = ${onB.toFixed(2)}`).toBeGreaterThanOrEqual(onB);
+    });
+  });
+
+  it.each(["--ink", "--ink-2", "--muted"])("%s on glass-solid is not lower than on glass", (name) => {
+    const s = surfaces(theme);
+    const onSolid = contrast(s.colour(name), s.solid);
+    const onGlass = contrast(s.colour(name), s.G);
+    expect(onSolid, `${theme}: ${name} on glass-solid ${onSolid.toFixed(2)} vs on G ${onGlass.toFixed(2)}`).toBeGreaterThanOrEqual(
+      onGlass,
+    );
+  });
+
+  it.each([
+    ["--eink-ink", TEXT],
+    ["--eink-dim", TEXT],
+    ["--eink-mid", GRAPHIC],
+  ] as const)("%s on every paper stop", (name, threshold) => {
+    const ink = parseColor(token(theme, name));
+    paperStops(theme).forEach((stop, index) => {
+      const ratio = contrast(ink, stop);
+      expect(ratio, `${theme}: ${name} on paper stop ${index} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(threshold);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Spec「新 token 取值」, written as the spec writes it.
+
+function normalise(value: string): string {
+  return value
+    .replace(/\s+/g, "")
+    .toLowerCase()
+    .replace(/\d*\.\d+/g, (number) => String(Number(number)).replace(/^0\./, ".").replace(/^-0\./, "-."));
+}
+
+const SPEC_TOKENS: Record<string, [light: string, dark: string]> = {
+  "--base": ["#eceef3", "#17171a"],
+  "--ink": ["#17191d", "#f1f3f7"],
+  "--ink-2": ["#33373e", "#d5d9e0"],
+  "--muted": ["#5a606c", "#98a0ad"],
+  "--glass": ["rgba(255,255,255,.50)", "rgba(40,40,46,.42)"],
+  "--glass-solid": ["#f6f7f9", "#1e1e22"],
+  "--glass-2": ["rgba(255,255,255,.55)", "rgba(255,255,255,.06)"],
+  "--chip": ["rgba(20,30,60,.06)", "rgba(255,255,255,.07)"],
+  "--on": ["rgba(255,255,255,.75)", "rgba(255,255,255,.10)"],
+  "--side": ["rgba(255,255,255,.38)", "rgba(30,30,34,.55)"],
+  "--rule": ["rgba(20,30,60,.07)", "rgba(255,255,255,.07)"],
+  "--glass-hi": ["rgba(255,255,255,.8)", "rgba(255,255,255,.07)"],
+  "--glass-shadow": ["0 18px 46px rgba(60,70,110,.14), 0 0 0 1px rgba(20,30,60,.06)", "0 24px 60px rgba(0,0,0,.35)"],
+  "--accent": ["#2f7de1", "#5aa9ff"],
+  "--alert-ink": ["#b42318", "#ff8a80"],
+  "--alert-wash": ["rgba(180,35,24,.10)", "rgba(255,138,128,.08)"],
+  "--eink-paper": ["#fafaf7", "linear-gradient(105deg, #1f2d40 0%, #281f40 45%, #401f40 100%)"],
+  "--eink-paper-solid": ["#fafaf7", "#281f40"],
+  "--eink-ink": ["#0b0b0a", "#f7f7f9"],
+  "--eink-dim": ["#45443f", "#c4c1ca"],
+  "--eink-mid": ["#7c7b76", "#85828b"],
+  "--eink-track": ["rgba(11,11,10,.12)", "rgba(247,247,249,.14)"],
+  "--eink-ghost": ["rgba(11,11,10,.04)", "rgba(247,247,249,.05)"],
+  "--eink-grain": [".06", ".45"],
+  "--eink-grain-blend": ["multiply", "soft-light"],
+  "--radius-panel": ["16px", "16px"],
+  "--radius-key": ["9px", "9px"],
+  "--radius-screen": ["11px", "11px"],
+  "--radius-dialog": ["16px", "16px"],
+};
+
+const SPEC_MIX: Record<Theme, string> = {
+  light: "#2f7de1 #e2536a #1fa874 #7d5ce0 #d99a0b #0f9fb8 #7b8594",
+  dark: "#5aa9ff #ff6b81 #3ddc97 #a78bfa #fbbf24 #22d3ee #94a3b8",
+};
+
+// Spec「背景光晕层」: same structure in both themes, light positions from the mockup.
+const SPEC_GLOW: Record<Theme, string[]> = {
+  light: [
+    "radial-gradient(820px 600px at 8% -6%, rgba(90,160,255,.34), transparent 62%)",
+    "radial-gradient(760px 640px at 98% 10%, rgba(240,120,190,.26), transparent 60%)",
+    "radial-gradient(860px 600px at 52% 110%, rgba(160,130,255,.30), transparent 62%)",
+  ],
+  dark: [
+    "radial-gradient(820px 600px at 10% -4%, rgba(80,150,255,.30), transparent 62%)",
+    "radial-gradient(760px 640px at 96% 14%, rgba(236,92,170,.24), transparent 60%)",
+    "radial-gradient(860px 600px at 52% 108%, rgba(150,110,255,.28), transparent 62%)",
+  ],
+};
+
+describe("design tokens", () => {
+  it("matches the spec's token table", () => {
+    THEMES.forEach((theme, column) => {
+      const tokens = themeTokens(theme);
+      for (const [name, values] of Object.entries(SPEC_TOKENS)) {
+        expect(normalise(tokens[name] ?? "(missing)"), `${theme} ${name}`).toBe(normalise(values[column]));
+      }
+      SPEC_MIX[theme].split(" ").forEach((hex, index) => {
+        const name = `--mix-${index + 1}`;
+        expect(normalise(tokens[name] ?? "(missing)"), `${theme} ${name}`).toBe(hex);
+      });
+      const glow = radialLayers(tokens["--glow"] ?? "");
+      const expected = SPEC_GLOW[theme].flatMap((layer) => radialLayers(layer));
+      expect(glow.map((layer) => normalise(layer.shape)), `${theme} --glow positions`).toEqual(
+        expected.map((layer) => normalise(layer.shape)),
+      );
+      expect(glow.map((layer) => layer.stops.map(normalise)), `${theme} --glow colours`).toEqual(
+        expected.map((layer) => layer.stops.map(normalise)),
+      );
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plan「口径」: any rule painting --chip or --on also points --muted at --ink-2.
+
+const NO_TEXT = /^\.(toggle|mix-bar|idle-bar|rhythm-track)(::?[\w-]+(\([^)]*\))?)*$/;
+const CHIP_OR_ON = /var\(\s*--(chip|on)\s*[,)]/;
+
+function missingMutedRepoint(rules: CssRule[]): string[] {
+  return rules
+    .filter((rule) =>
+      ["background", "background-color"].some((property) => CHIP_OR_ON.test(rule.declarations[property] ?? "")),
+    )
+    .filter((rule) => !rule.selectors.every((selector) => NO_TEXT.test(selector)))
+    .filter((rule) => (rule.declarations["--muted"] ?? "").replace(/\s+/g, "") !== "var(--ink-2)")
+    .map((rule) => [...rule.atRules, rule.selector].join(" "));
+}
+
+describe("surfaces that lower --muted", () => {
+  it("re-points --muted on chip and on surfaces", () => {
+    expect(missingMutedRepoint(allRules())).toEqual([]);
+  });
+
+  it("the guard catches a chip rule without the re-point and allows the text-free list", () => {
+    const { rules } = parseRules(`
+      .a { background: var(--chip); }
+      .b:hover { background-color: var(--on); --muted: var(--ink-2); }
+      @media (max-width: 900px) { .c { background: linear-gradient(var(--on), var(--on)); } }
+      .toggle, .toggle:hover, .mix-bar::after { background: var(--chip); }
+      .toggle, .row { background: var(--chip); }
+      .d { background: var(--on-strong, red); }
+      .e { background-color: var(--chip); }
+    `);
+
+    expect(missingMutedRepoint(rules)).toEqual([".a", "@media (max-width: 900px) .c", ".toggle, .row", ".e"]);
+  });
+});

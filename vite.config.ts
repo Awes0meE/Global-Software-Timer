@@ -13,5 +13,8 @@ export default defineConfig({
     environment: "jsdom",
     exclude: [...configDefaults.exclude, ".worktrees/**"],
     setupFiles: ["./src/test-setup.ts"],
+    // Vitest turns CSS imports into empty strings by default; the CSS tests
+    // read the source through `?raw`, so only those requests are processed.
+    css: { include: [/\.css\?raw$/] },
   },
 });
