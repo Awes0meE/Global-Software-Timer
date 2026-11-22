@@ -92,6 +92,7 @@ pub fn run() {
             commands::get_software_page_summary,
             commands::get_background_page_summary,
             commands::get_statistics_summary,
+            commands::get_timeline_summary,
             commands::get_achievements_summary,
             commands::run_tracker_scan_once,
             commands::add_focused_software_identities,

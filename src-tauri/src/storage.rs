@@ -1994,6 +1994,68 @@ impl Store {
         self.min_usage_date("SELECT MIN(usage_date) FROM daily_software_runtime_usage")
     }
 
+    /// The segments dated `date`, ordered by `start_utc, id`.
+    pub fn timeline_segments_for_date(&self, date: NaiveDate) -> StoreResult<Vec<TimelineSegment>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, usage_date, start_utc, end_utc, credited_seconds, focus_identity_key,
+                    is_active, start_reason
+             FROM timeline_segments
+             WHERE usage_date = ?1
+             ORDER BY start_utc, id",
+        )?;
+        let rows = stmt.query_map(params![date.to_string()], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, i64>(4)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, bool>(6)?,
+                row.get::<_, String>(7)?,
+            ))
+        })?;
+        rows.map(|row| {
+            let (
+                id,
+                usage_date,
+                start,
+                end,
+                credited_seconds,
+                focus_identity_key,
+                is_active,
+                start_reason,
+            ) = row?;
+            Ok(TimelineSegment {
+                id,
+                usage_date: parse_usage_date(&usage_date)?,
+                start: parse_utc(&start)?,
+                end: parse_utc(&end)?,
+                credited_seconds,
+                focus_identity_key,
+                is_active,
+                start_reason,
+            })
+        })
+        .collect()
+    }
+
+    /// The date and start of the first segment ever written, if any.
+    pub fn first_timeline_segment(&self) -> StoreResult<Option<(NaiveDate, DateTime<Utc>)>> {
+        let first = self
+            .conn
+            .query_row(
+                "SELECT usage_date, start_utc FROM timeline_segments
+                 ORDER BY usage_date, start_utc LIMIT 1",
+                [],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()?;
+        first
+            .map(|(date, start)| Ok((parse_usage_date(&date)?, parse_utc(&start)?)))
+            .transpose()
+    }
+
     fn min_usage_date(&self, sql: &str) -> StoreResult<Option<NaiveDate>> {
         let value = self
             .conn
@@ -2306,6 +2368,19 @@ pub struct BackgroundUsage {
     pub peak_memory_bytes: i64,
     pub peak_process_count: i64,
     pub last_seen_at: String,
+}
+
+/// One `timeline_segments` row.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TimelineSegment {
+    pub id: i64,
+    pub usage_date: NaiveDate,
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
+    pub credited_seconds: i64,
+    pub focus_identity_key: Option<String>,
+    pub is_active: bool,
+    pub start_reason: String,
 }
 
 #[derive(Debug, Clone)]

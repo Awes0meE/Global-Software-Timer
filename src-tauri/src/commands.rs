@@ -4,7 +4,7 @@ use crate::domain::{AppRuntimeStatus, AppUsageSummary, DailySystemUsage, Softwar
 use crate::native_icon::icon_url;
 use crate::statistics::{self, DateRange, SoftwareDate};
 use crate::storage::{BackgroundUsage, Store, StoreError};
-use chrono::{DateTime, Duration, Local, NaiveDate, NaiveTime, TimeZone, Utc};
+use chrono::{DateTime, Duration, Local, NaiveDate, NaiveTime, SecondsFormat, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use tauri::{AppHandle, Manager, State};
@@ -19,6 +19,7 @@ const DEFAULT_DURATION_FORMAT: DurationFormat = DurationFormat::DecimalHours;
 const DEFAULT_THEME: ThemePreference = ThemePreference::System;
 const STATISTICS_INVALID_RANGE: &str = "statistics_invalid_range";
 const ACHIEVEMENTS_INVALID_HEATMAP_DAYS: &str = "achievements_invalid_heatmap_days";
+const TIMELINE_INVALID_DATE: &str = "timeline_invalid_date";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DashboardSummary {
@@ -802,6 +803,255 @@ fn parse_local_date(value: &str) -> Option<NaiveDate> {
     NaiveDate::parse_from_str(value, "%Y-%m-%d")
         .ok()
         .filter(|date| date.to_string() == value)
+}
+
+/// One local day of the timeline. Dates are local `YYYY-MM-DD`; instants are
+/// millisecond RFC 3339 ending in `+00:00`, the format the tables store.
+#[derive(Debug, Clone, Serialize)]
+pub struct TimelineSummary {
+    pub date: String,
+    pub day_start: String,
+    pub day_end: String,
+    pub generated_at: String,
+    /// `before_collection`, `collection_started` or `collected`.
+    pub day_status: String,
+    pub collection_started_at: Option<String>,
+    pub first_recorded_date: Option<String>,
+    pub segments: Vec<TimelineSegmentDto>,
+    pub focus_segments: Vec<FocusSegmentDto>,
+    pub active_segments: Vec<ActiveSegmentDto>,
+    pub running: Vec<RunningSoftwareDto>,
+    pub software: Vec<TimelineSoftwareDto>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TimelineSegmentDto {
+    pub start: String,
+    pub end: String,
+    pub seconds: i64,
+    pub focus_identity_key: Option<String>,
+    pub focus_hidden: bool,
+    pub is_active: bool,
+    pub start_reason: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FocusSegmentDto {
+    pub start: String,
+    pub end: String,
+    pub seconds: i64,
+    pub focus_identity_key: Option<String>,
+    pub focus_hidden: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ActiveSegmentDto {
+    pub start: String,
+    pub end: String,
+    pub seconds: i64,
+    pub is_active: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RunningSoftwareDto {
+    pub identity_key: String,
+    pub intervals: Vec<RunningIntervalDto>,
+    pub window_intervals: Vec<WindowIntervalDto>,
+    pub window_seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RunningIntervalDto {
+    pub start: String,
+    pub end: String,
+    pub open: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WindowIntervalDto {
+    pub start: String,
+    pub end: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TimelineSoftwareDto {
+    pub identity_key: String,
+    pub display_name: String,
+    pub icon_url: Option<String>,
+    pub is_hidden: bool,
+}
+
+#[tauri::command(async)]
+pub fn get_timeline_summary(
+    state: State<'_, AppState>,
+    date: String,
+    include_hidden: bool,
+) -> Result<TimelineSummary, String> {
+    let store = crate::app_state::lock_recovering(&state.summary_store);
+    let transaction = store.savepoint().map_err(|error| error.to_string())?;
+    let summary = timeline_summary_from_store(&store, &date, include_hidden, Utc::now())?;
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(summary)
+}
+
+fn timeline_summary_from_store(
+    store: &Store,
+    date: &str,
+    include_hidden: bool,
+    now: DateTime<Utc>,
+) -> Result<TimelineSummary, String> {
+    let date = parse_local_date(date).ok_or_else(|| TIMELINE_INVALID_DATE.to_string())?;
+    timeline_summary_for_date(store, date, include_hidden, now).map_err(|error| error.to_string())
+}
+
+fn timeline_instant(value: DateTime<Utc>) -> String {
+    value.to_rfc3339_opts(SecondsFormat::Millis, false)
+}
+
+/// A stored segment as the summary returns it: hidden focus already masked.
+#[derive(Debug, Clone)]
+struct SummarySegment {
+    id: i64,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    seconds: i64,
+    focus_identity_key: Option<String>,
+    focus_hidden: bool,
+    is_active: bool,
+    start_reason: String,
+}
+
+fn timeline_summary_for_date(
+    store: &Store,
+    date: NaiveDate,
+    include_hidden: bool,
+    now: DateTime<Utc>,
+) -> Result<TimelineSummary, StoreError> {
+    let (day_start, day_end) = local_date_bounds_in(date, &Local);
+    let first_segment = store.first_timeline_segment()?;
+    let day_status = match first_segment {
+        Some((first_date, _)) if date > first_date => "collected",
+        Some((first_date, _)) if date == first_date => "collection_started",
+        _ => "before_collection",
+    };
+    let hidden: HashSet<String> = store.hidden_software_identity_keys()?.into_iter().collect();
+    // Segments are returned whole: one written under another time zone may
+    // reach past this day's bounds, and clipping it would break the totals.
+    let segments: Vec<SummarySegment> = store
+        .timeline_segments_for_date(date)?
+        .into_iter()
+        .map(|segment| {
+            let focus_hidden = !include_hidden
+                && segment
+                    .focus_identity_key
+                    .as_ref()
+                    .is_some_and(|key| hidden.contains(key));
+            SummarySegment {
+                id: segment.id,
+                start: segment.start,
+                end: segment.end,
+                seconds: segment.credited_seconds,
+                focus_identity_key: segment.focus_identity_key.filter(|_| !focus_hidden),
+                focus_hidden,
+                is_active: segment.is_active,
+                start_reason: segment.start_reason,
+            }
+        })
+        .collect();
+    let mut by_id = segments.clone();
+    by_id.sort_by_key(|segment| segment.id);
+
+    let mut software_keys: Vec<String> = segments
+        .iter()
+        .filter_map(|segment| segment.focus_identity_key.clone())
+        .collect();
+    software_keys.sort();
+    software_keys.dedup();
+    let labels = SoftwareLabels(store.software_identity_labels()?);
+    let software = software_keys
+        .into_iter()
+        .map(|identity_key| TimelineSoftwareDto {
+            display_name: labels.display_name(&identity_key),
+            icon_url: labels.icon_url(&identity_key),
+            is_hidden: hidden.contains(&identity_key),
+            identity_key,
+        })
+        .collect();
+
+    Ok(TimelineSummary {
+        date: date.to_string(),
+        day_start: timeline_instant(day_start),
+        day_end: timeline_instant(day_end),
+        generated_at: timeline_instant(now),
+        day_status: day_status.to_string(),
+        collection_started_at: first_segment.map(|(_, start)| timeline_instant(start)),
+        first_recorded_date: store.data_start_date()?.map(|date| date.to_string()),
+        segments: segments
+            .iter()
+            .map(|segment| TimelineSegmentDto {
+                start: timeline_instant(segment.start),
+                end: timeline_instant(segment.end),
+                seconds: segment.seconds,
+                focus_identity_key: segment.focus_identity_key.clone(),
+                focus_hidden: segment.focus_hidden,
+                is_active: segment.is_active,
+                start_reason: segment.start_reason.clone(),
+            })
+            .collect(),
+        focus_segments: merge_focus_segments(&by_id),
+        active_segments: merge_active_segments(&by_id),
+        running: Vec::new(),
+        software,
+    })
+}
+
+/// Folds rows into the row before them by id when `joins` says so, then
+/// orders the groups by start and first id. Returns (first row, end, seconds).
+fn merge_segments(
+    by_id: &[SummarySegment],
+    joins: impl Fn(&SummarySegment, &SummarySegment) -> bool,
+) -> Vec<(&SummarySegment, DateTime<Utc>, i64)> {
+    let mut groups: Vec<(&SummarySegment, DateTime<Utc>, i64)> = Vec::new();
+    for segment in by_id {
+        match groups.last_mut() {
+            Some((first, end, seconds)) if joins(first, segment) => {
+                *end = segment.end;
+                *seconds += segment.seconds;
+            }
+            _ => groups.push((segment, segment.end, segment.seconds)),
+        }
+    }
+    groups.sort_by_key(|(first, _, _)| (first.start, first.id));
+    groups
+}
+
+/// The focus band: an activity change keeps the focus, so it joins the row before.
+fn merge_focus_segments(by_id: &[SummarySegment]) -> Vec<FocusSegmentDto> {
+    merge_segments(by_id, |_, next| next.start_reason == "activity_changed")
+        .into_iter()
+        .map(|(first, end, seconds)| FocusSegmentDto {
+            start: timeline_instant(first.start),
+            end: timeline_instant(end),
+            seconds,
+            focus_identity_key: first.focus_identity_key.clone(),
+            focus_hidden: first.focus_hidden,
+        })
+        .collect()
+}
+
+/// The active band: a focus change that keeps the activity state joins the row before.
+fn merge_active_segments(by_id: &[SummarySegment]) -> Vec<ActiveSegmentDto> {
+    merge_segments(by_id, |first, next| {
+        next.start_reason == "focus_changed" && next.is_active == first.is_active
+    })
+    .into_iter()
+    .map(|(first, end, seconds)| ActiveSegmentDto {
+        start: timeline_instant(first.start),
+        end: timeline_instant(end),
+        seconds,
+        is_active: first.is_active,
+    })
+    .collect()
 }
 
 /// Hidden identities to leave out, or none when hidden software is included.
@@ -2191,5 +2441,353 @@ mod local_date_bounds_tests {
             local_date_bounds_in(date, &west),
             (utc("2026-06-05T05:00:00Z"), utc("2026-06-06T05:00:00Z"))
         );
+    }
+}
+
+#[cfg(test)]
+mod timeline_command_tests {
+    use super::{local_date_bounds_in, timeline_summary_from_store, TimelineSummary};
+    use crate::storage::Store;
+    use chrono::{DateTime, Duration, Local, NaiveDate, SecondsFormat, TimeZone, Utc};
+    use tempfile::NamedTempFile;
+
+    fn migrated_store() -> (NamedTempFile, Store) {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+        (db_file, store)
+    }
+
+    /// `(app_id, identity_key)` for a fixture app.
+    fn software(store: &Store, process_name: &str) -> (i64, String) {
+        let app_id = store
+            .upsert_app(
+                process_name,
+                &format!(r"X:\Fixtures\{process_name}"),
+                process_name,
+            )
+            .expect("app")
+            .id;
+        let identity_key = store
+            .upsert_software_identity_for_app(app_id)
+            .expect("identity")
+            .identity_key;
+        (app_id, identity_key)
+    }
+
+    fn day(day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 6, day).unwrap()
+    }
+
+    /// `minutes` after the local start of `date`.
+    fn at(date: NaiveDate, minutes: i64) -> DateTime<Utc> {
+        local_date_bounds_in(date, &Local).0 + Duration::minutes(minutes)
+    }
+
+    fn ms(value: DateTime<Utc>) -> String {
+        value.to_rfc3339_opts(SecondsFormat::Millis, false)
+    }
+
+    fn now() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 6, 20, 12, 0, 0).unwrap()
+    }
+
+    /// A segment on `date` from `start` for `minutes`, both in minutes.
+    fn segment(
+        store: &Store,
+        date: NaiveDate,
+        start: i64,
+        minutes: i64,
+        focus: Option<&str>,
+        is_active: bool,
+        reason: &str,
+    ) {
+        store
+            .insert_timeline_segment(
+                date,
+                at(date, start),
+                at(date, start + minutes),
+                minutes * 60,
+                focus,
+                is_active,
+                reason,
+            )
+            .expect("segment");
+    }
+
+    fn summary(store: &Store, date: NaiveDate, include_hidden: bool) -> TimelineSummary {
+        timeline_summary_from_store(store, &date.to_string(), include_hidden, now())
+            .expect("summary")
+    }
+
+    #[test]
+    fn timeline_summary_rejects_invalid_dates_and_handles_an_empty_database() {
+        let (_db, store) = migrated_store();
+        for invalid in ["2026-6-5", "2026-02-30", "+12026-06-05", ""] {
+            assert_eq!(
+                timeline_summary_from_store(&store, invalid, false, now()).unwrap_err(),
+                "timeline_invalid_date",
+                "{invalid:?}"
+            );
+        }
+        let empty = summary(&store, day(5), false);
+        let (start, end) = local_date_bounds_in(day(5), &Local);
+        assert_eq!(empty.date, "2026-06-05");
+        assert_eq!((empty.day_start, empty.day_end), (ms(start), ms(end)));
+        assert_eq!(empty.generated_at, ms(now()));
+        assert_eq!(empty.day_status, "before_collection");
+        assert_eq!(empty.collection_started_at, None);
+        assert_eq!(empty.first_recorded_date, None);
+        assert!(empty.segments.is_empty());
+        assert!(empty.focus_segments.is_empty());
+        assert!(empty.active_segments.is_empty());
+        assert!(empty.running.is_empty());
+        assert!(empty.software.is_empty());
+    }
+
+    #[test]
+    fn timeline_summary_reports_day_status_and_collection_start() {
+        let (_db, store) = migrated_store();
+        store
+            .increment_daily_system_usage(day(1), 10, 5, 10)
+            .expect("system usage");
+        // Written out of order: the first segment is found by date and start, not by id.
+        segment(&store, day(7), 0, 5, None, true, "tracker_started");
+        segment(&store, day(5), 90, 5, None, true, "tracker_started");
+        segment(&store, day(5), 60, 5, None, true, "clock_rollback");
+
+        let statuses: Vec<String> = [4, 5, 6, 7]
+            .into_iter()
+            .map(|d| summary(&store, day(d), false).day_status)
+            .collect();
+        assert_eq!(
+            statuses,
+            [
+                "before_collection",
+                "collection_started",
+                "collected",
+                "collected"
+            ]
+        );
+        let collected = summary(&store, day(6), false);
+        assert!(collected.segments.is_empty());
+        assert_eq!(collected.collection_started_at, Some(ms(at(day(5), 60))));
+        assert_eq!(collected.first_recorded_date.as_deref(), Some("2026-06-01"));
+    }
+
+    type FocusShape = (String, String, i64, Option<String>);
+
+    fn focus_shape(result: &TimelineSummary) -> Vec<FocusShape> {
+        result
+            .focus_segments
+            .iter()
+            .map(|s| {
+                (
+                    s.start.clone(),
+                    s.end.clone(),
+                    s.seconds,
+                    s.focus_identity_key.clone(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn timeline_summary_merges_focus_and_active_bands() {
+        let (_db, store) = migrated_store();
+        let a = software(&store, "a.exe").1;
+        let b = software(&store, "b.exe").1;
+        let c = software(&store, "c.exe").1;
+        let d = day(5);
+        segment(&store, d, 0, 10, Some(&a), true, "tracker_started");
+        segment(&store, d, 10, 10, Some(&a), false, "activity_changed");
+        segment(&store, d, 20, 10, Some(&b), false, "focus_changed");
+        segment(&store, d, 30, 10, Some(&c), true, "focus_changed");
+        segment(&store, d, 40, 10, Some(&c), false, "activity_changed");
+
+        let result = summary(&store, d, false);
+        assert_eq!(
+            focus_shape(&result),
+            vec![
+                (ms(at(d, 0)), ms(at(d, 20)), 1200, Some(a.clone())),
+                (ms(at(d, 20)), ms(at(d, 30)), 600, Some(b.clone())),
+                (ms(at(d, 30)), ms(at(d, 50)), 1200, Some(c.clone())),
+            ]
+        );
+        let active: Vec<_> = result
+            .active_segments
+            .iter()
+            .map(|s| (s.start.clone(), s.end.clone(), s.seconds, s.is_active))
+            .collect();
+        assert_eq!(
+            active,
+            vec![
+                (ms(at(d, 0)), ms(at(d, 10)), 600, true),
+                (ms(at(d, 10)), ms(at(d, 30)), 1200, false),
+                (ms(at(d, 30)), ms(at(d, 40)), 600, true),
+                (ms(at(d, 40)), ms(at(d, 50)), 600, false),
+            ]
+        );
+
+        // After a rollback the row before by start is not the true predecessor:
+        // B's activity change (by id) joins B's rollback row, not A's row.
+        let e = day(6);
+        segment(&store, e, 30, 10, Some(&a), true, "tracker_started");
+        segment(&store, e, 28, 5, Some(&b), true, "clock_rollback");
+        segment(&store, e, 33, 5, Some(&b), false, "activity_changed");
+        let result = summary(&store, e, false);
+        let starts: Vec<_> = result.segments.iter().map(|s| s.start.clone()).collect();
+        assert_eq!(starts, [ms(at(e, 28)), ms(at(e, 30)), ms(at(e, 33))]);
+        assert_eq!(
+            focus_shape(&result),
+            vec![
+                (ms(at(e, 28)), ms(at(e, 38)), 600, Some(b.clone())),
+                (ms(at(e, 30)), ms(at(e, 40)), 600, Some(a.clone())),
+            ]
+        );
+        // B's rollback row has A's activity state but is not a focus change.
+        assert_eq!(
+            active_shape(&result),
+            vec![
+                (ms(at(e, 28)), ms(at(e, 33)), 300, true),
+                (ms(at(e, 30)), ms(at(e, 40)), 600, true),
+                (ms(at(e, 33)), ms(at(e, 38)), 300, false),
+            ]
+        );
+
+        // Rows opened by a break keep their own group even when focus and
+        // activity match the row before.
+        let f = day(7);
+        segment(&store, f, 0, 10, Some(&a), true, "tracker_started");
+        segment(&store, f, 20, 10, Some(&a), true, "scan_gap");
+        segment(&store, f, 30, 5, Some(&a), false, "activity_changed");
+        segment(&store, f, 35, 5, Some(&b), false, "focus_changed");
+        segment(&store, f, 40, 5, Some(&b), false, "day_changed");
+        let result = summary(&store, f, false);
+        assert_eq!(
+            focus_shape(&result),
+            vec![
+                (ms(at(f, 0)), ms(at(f, 10)), 600, Some(a.clone())),
+                (ms(at(f, 20)), ms(at(f, 35)), 900, Some(a)),
+                (ms(at(f, 35)), ms(at(f, 40)), 300, Some(b.clone())),
+                (ms(at(f, 40)), ms(at(f, 45)), 300, Some(b)),
+            ]
+        );
+        assert_eq!(
+            active_shape(&result),
+            vec![
+                (ms(at(f, 0)), ms(at(f, 10)), 600, true),
+                (ms(at(f, 20)), ms(at(f, 30)), 600, true),
+                (ms(at(f, 30)), ms(at(f, 40)), 600, false),
+                (ms(at(f, 40)), ms(at(f, 45)), 300, false),
+            ]
+        );
+    }
+
+    fn active_shape(result: &TimelineSummary) -> Vec<(String, String, i64, bool)> {
+        result
+            .active_segments
+            .iter()
+            .map(|s| (s.start.clone(), s.end.clone(), s.seconds, s.is_active))
+            .collect()
+    }
+
+    #[test]
+    fn timeline_summary_returns_segments_past_the_day_bounds_whole() {
+        let (_db, store) = migrated_store();
+        let d = day(5);
+        // Written under another time zone: starts before this day's local start.
+        segment(&store, d, -30, 40, None, true, "tracker_started");
+        let result = summary(&store, d, false);
+        let whole = (ms(at(d, -30)), ms(at(d, 10)), 2400);
+        let segment = &result.segments[0];
+        assert_eq!(
+            (segment.start.clone(), segment.end.clone(), segment.seconds),
+            whole
+        );
+        assert_eq!(
+            focus_shape(&result),
+            vec![(whole.0.clone(), whole.1.clone(), whole.2, None)]
+        );
+        assert_eq!(
+            active_shape(&result),
+            vec![(whole.0, whole.1, whole.2, true)]
+        );
+    }
+
+    #[test]
+    fn timeline_summary_masks_hidden_focus_without_changing_totals() {
+        let (_db, store) = migrated_store();
+        let a = software(&store, "a.exe").1;
+        let b = software(&store, "b.exe").1;
+        let d = day(5);
+        segment(&store, d, 0, 10, Some(&a), true, "tracker_started");
+        segment(&store, d, 10, 10, Some(&b), true, "focus_changed");
+        segment(&store, d, 20, 10, None, true, "focus_changed");
+        store
+            .add_hidden_software_identities(&[a.clone()])
+            .expect("hide");
+
+        let masked = summary(&store, d, false);
+        let rows: Vec<_> = masked
+            .segments
+            .iter()
+            .map(|s| (s.focus_identity_key.clone(), s.focus_hidden, s.seconds))
+            .collect();
+        assert_eq!(
+            rows,
+            vec![
+                (None, true, 600),
+                (Some(b.clone()), false, 600),
+                (None, false, 600)
+            ]
+        );
+        let focus: Vec<_> = masked
+            .focus_segments
+            .iter()
+            .map(|s| (s.focus_identity_key.clone(), s.focus_hidden))
+            .collect();
+        assert_eq!(
+            focus,
+            vec![(None, true), (Some(b.clone()), false), (None, false)]
+        );
+        let software: Vec<_> = masked
+            .software
+            .iter()
+            .map(|s| s.identity_key.clone())
+            .collect();
+        assert_eq!(software, [b.clone()]);
+
+        let full = summary(&store, d, true);
+        assert_eq!(
+            full.segments.iter().map(|s| s.seconds).sum::<i64>(),
+            masked.segments.iter().map(|s| s.seconds).sum::<i64>()
+        );
+        assert!(full.segments.iter().all(|s| !s.focus_hidden));
+        assert!(full.focus_segments.iter().all(|s| !s.focus_hidden));
+        assert_eq!(
+            full.segments[0].focus_identity_key.as_deref(),
+            Some(a.as_str())
+        );
+        let software: Vec<_> = full
+            .software
+            .iter()
+            .map(|s| (s.identity_key.clone(), s.display_name.clone(), s.is_hidden))
+            .collect();
+        let mut expected = vec![(a, "a".to_string(), true), (b, "b".to_string(), false)];
+        expected.sort();
+        assert_eq!(software, expected);
+    }
+
+    #[test]
+    fn timeline_summary_runs_on_a_read_only_connection() {
+        let (db, store) = migrated_store();
+        segment(&store, day(5), 0, 10, None, true, "tracker_started");
+        let reader = Store::open_read_only(db.path()).expect("read-only");
+        let transaction = reader.savepoint().expect("savepoint");
+        let result = summary(&reader, day(5), false);
+        transaction.commit().expect("commit");
+        assert_eq!(result.segments.len(), 1);
+        assert_eq!(result.day_status, "collection_started");
     }
 }
