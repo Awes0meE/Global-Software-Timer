@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.1 - 2026-11-22
 
 - Recorded a local timeline of focus and activity segments, and of when each software had a window, in the new `timeline_segments` and `timeline_window_spans` tables (schema version 3); nothing in the UI changes yet.
 - Databases upgraded to schema 3 cannot be opened by v0.3.0 or earlier.

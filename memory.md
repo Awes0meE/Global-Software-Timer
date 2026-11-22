@@ -14,7 +14,7 @@ Last updated: 2026-11-22
 - App mark: a skeuomorphic wall clock (steel bezel, ivory dial, 10:10 hands, orange second hand). `scripts/brand/build-clock-mark.py` writes `src/assets/gst-clock.svg` and `gst-clock-small.svg`; `scripts/brand/build-icons.py` rasterises them into `src-tauri/icons/` (also the tray icon) with headless Edge and Pillow.
 - Theme: 跟随系统 / 浅色 / 深色, default follows Windows. Stored as `ui.theme` in SQLite `app_settings`; the native title bar follows through the window `setTheme` permission; `localStorage` key `gst.theme` only caches the last choice to avoid a first-frame flash.
 - Default Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`. The 2026-06-06 duration-format setting adds an optional concrete-minute display such as `8小时35分钟`.
-- Latest published release: `v0.3.0` (2026-11-22); publication is gated by complete Windows checks and installer builds.
+- Latest published release: `v0.3.1` (2026-11-22); publication is gated by complete Windows checks and installer builds.
 - v0.1.2 adds a Settings page with startup-at-login and close-window behavior controls.
 - Startup at login defaults to enabled in v0.1.2, uses the current-user autostart mechanism, and does not require administrator permission.
 - First window close still asks whether to exit or minimize to tray; the choice is saved automatically and can be changed later in Settings.
@@ -24,6 +24,7 @@ Last updated: 2026-11-22
 - Hidden add/remove changes refresh the default dashboard summaries immediately so hidden software leaves the overview without waiting for the normal polling interval.
 - `特别关注` and `隐藏软件列表` are mutually exclusive. If abnormal data creates a conflict, hidden wins as the defensive fallback.
 - v0.1.3 software-page active time means the software identity has Windows foreground focus. It is separate from the overview page's current keyboard/mouse active-time semantics.
+- v0.3.1 records a local timeline (schema 3) for the future `时间轴` page; the UI is unchanged. Scope and rules: the v0.3.1 entry in `AGENTS.md`; binding decisions: `docs/superpowers/specs/2026-11-22-timeline-data-collection-design.md`. A v0.3.1 database cannot be opened by v0.3.0 or earlier.
 - v0.3.0 adds the `统计` and `成就` pages. Scope and rules: the v0.3.0 entry in `AGENTS.md`; binding decisions: `docs/superpowers/specs/2026-11-21-statistics-and-achievements-design.md`; metric definitions: `docs/CURRENT_STATE.md`.
 
 ## Technical Decisions
@@ -71,6 +72,7 @@ Last updated: 2026-11-22
 
 ## Current Repository State
 
+- Version `0.3.1` adds timeline data collection (`timeline_segments`, `timeline_window_spans`) and the unused read-only `get_timeline_summary` command, developed on branch `feat/timeline-segments` (worktree `.worktrees/timeline-segments`) and fast-forwarded into main. It moves the database to schema 3. Next steps: v0.4.0 Mica glass and e-ink redesign, then the v0.5.0 `时间轴` page (specs dated 2026-11-22 under `docs/superpowers/specs/`).
 - Version `0.3.0` adds the `统计` and `成就` pages, developed on branch `feat/statistics-and-achievements` (worktree `.worktrees/statistics-brainstorm`, rebased onto main `4a365f4` = v0.2.4). It retains schema 2.
 - Version `0.2.4` adds the 已发现软件 noise filter, the icon pipeline (largest embedded size scaled to 96px, `gsticon` protocol, disk cache under `%LOCALAPPDATA%\com.globalsoftwaretimer.app\icons`, described in `PRIVACY.md`), 后台 column sorting, the 今日活跃 help popover fix and `serde_with` 3.21.0. It retains schema 2.
 - Version `0.2.3` updates helper filtering, most-used ranking, short CPU times, font loading and NSIS shortcut icons. It retains schema 2.
@@ -90,6 +92,7 @@ Last updated: 2026-11-22
 
 ## Release State
 
+- `v0.3.1` (2026-11-22): local timeline data collection (focus and activity segments, window spans), schema 3; no UI change.
 - `v0.3.0` (2026-11-22): the `统计` and `成就` pages, the header date button limited to `概览` and `后台`, statistics icons through the `gsticon` protocol.
 - `v0.2.4` (2026-11-21): sharp icons with a local disk cache, stricter discovered-software noise filter (also anything run from Downloads), 后台 column sorting, active-time popover fix, `serde_with` advisory fix.
 - `v0.2.3` (2026-11-21): default-hidden vendor helpers, most-used from today's active time, short CPU times on the `后台` page, LCD font preload, NSIS hook that refreshes shortcut icons after in-place upgrades.
