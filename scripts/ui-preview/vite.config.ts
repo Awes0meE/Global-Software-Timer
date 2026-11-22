@@ -1,5 +1,5 @@
-// Browser-only UI preview with synthetic data: `npm run preview:ui`, then open http://localhost:1421.
-// Query options: ?theme=light|dark, ?format=hm, ?empty.
+// Browser-only UI preview with synthetic data: `npm run preview:ui`, then open http://localhost:1421 (in a worktree use `npm run preview:ui -- --port <n> --strictPort` so it does not fight main for 1421).
+// Query options: ?theme=light|dark, ?page=software|background|statistics|achievements|settings, ?format=hm, ?empty, ?dialog=add.
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
