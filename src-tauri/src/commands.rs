@@ -3,10 +3,10 @@ use crate::background::BackgroundProcessGroup;
 use crate::domain::{AppRuntimeStatus, AppUsageSummary, DailySystemUsage, SoftwarePageRow};
 use crate::native_icon::icon_url;
 use crate::statistics::{self, DateRange, SoftwareDate};
-use crate::storage::{BackgroundUsage, Store, StoreError};
+use crate::storage::{BackgroundUsage, SessionInterval, Store, StoreError, TimelineWindowSpan};
 use chrono::{DateTime, Duration, Local, NaiveDate, NaiveTime, SecondsFormat, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use tauri::{AppHandle, Manager, State};
 
 const CLOSE_BEHAVIOR_SETTING_KEY: &str = "window.close_behavior";
@@ -961,9 +961,20 @@ fn timeline_summary_for_date(
     let mut by_id = segments.clone();
     by_id.sort_by_key(|segment| segment.id);
 
+    let mut running = running_software(
+        store.session_intervals_overlapping(day_start, day_end)?,
+        store.timeline_window_spans_for_date(date)?,
+        &store.identity_keys_with_tracked_member()?,
+        (day_start, day_end),
+    );
+    if !include_hidden {
+        running.retain(|entry| !hidden.contains(&entry.identity_key));
+    }
+
     let mut software_keys: Vec<String> = segments
         .iter()
         .filter_map(|segment| segment.focus_identity_key.clone())
+        .chain(running.iter().map(|entry| entry.identity_key.clone()))
         .collect();
     software_keys.sort();
     software_keys.dedup();
@@ -1000,9 +1011,119 @@ fn timeline_summary_for_date(
             .collect(),
         focus_segments: merge_focus_segments(&by_id),
         active_segments: merge_active_segments(&by_id),
-        running: Vec::new(),
+        running,
         software,
     })
+}
+
+/// Window spans this close together are one stretch: rows of merged versions
+/// overlap, and consecutive rows meet within a fraction of a second.
+const WINDOW_SPAN_JOIN_TOLERANCE: Duration = Duration::seconds(1);
+
+/// Per identity, in key order: its sessions clipped to the day and unioned,
+/// and its window spans unioned then clipped. `window_seconds` sums the spans'
+/// credit unclipped, so it matches the day's `foreground_seconds`. Window spans
+/// of identities without a tracked member app are left out, like their sessions.
+fn running_software(
+    sessions: Vec<SessionInterval>,
+    spans: Vec<TimelineWindowSpan>,
+    tracked: &HashSet<String>,
+    (day_start, day_end): (DateTime<Utc>, DateTime<Utc>),
+) -> Vec<RunningSoftwareDto> {
+    let mut by_identity: BTreeMap<String, (Vec<SessionInterval>, Vec<TimelineWindowSpan>)> =
+        BTreeMap::new();
+    for session in sessions {
+        by_identity
+            .entry(session.identity_key.clone())
+            .or_default()
+            .0
+            .push(session);
+    }
+    for span in spans {
+        if tracked.contains(&span.identity_key) {
+            by_identity
+                .entry(span.identity_key.clone())
+                .or_default()
+                .1
+                .push(span);
+        }
+    }
+    by_identity
+        .into_iter()
+        .map(|(identity_key, (sessions, spans))| RunningSoftwareDto {
+            intervals: session_union(sessions, day_start, day_end),
+            window_seconds: spans.iter().map(|span| span.credited_seconds).sum(),
+            window_intervals: window_union(spans, day_start, day_end),
+            identity_key,
+        })
+        // A session that only touched the day's start leaves nothing to show.
+        .filter(|entry| !entry.intervals.is_empty() || entry.window_seconds > 0)
+        .collect()
+}
+
+/// Clips each session to the day, drops closed ones left empty (one that ended
+/// exactly at the day's start), keeps an open one even at zero length, and
+/// unions the rest; a union is open when any of its sessions is.
+fn session_union(
+    sessions: Vec<SessionInterval>,
+    day_start: DateTime<Utc>,
+    day_end: DateTime<Utc>,
+) -> Vec<RunningIntervalDto> {
+    let mut clipped: Vec<(DateTime<Utc>, DateTime<Utc>, bool)> = sessions
+        .into_iter()
+        .filter_map(|session| {
+            let start = session.start.max(day_start);
+            let end = session.end.min(day_end).max(start);
+            (end > start || session.open).then_some((start, end, session.open))
+        })
+        .collect();
+    clipped.sort_by_key(|(start, _, _)| *start);
+    let mut union: Vec<(DateTime<Utc>, DateTime<Utc>, bool)> = Vec::new();
+    for (start, end, open) in clipped {
+        match union.last_mut() {
+            Some((_, last_end, last_open)) if start <= *last_end => {
+                *last_end = (*last_end).max(end);
+                *last_open |= open;
+            }
+            _ => union.push((start, end, open)),
+        }
+    }
+    union
+        .into_iter()
+        .map(|(start, end, open)| RunningIntervalDto {
+            start: timeline_instant(start),
+            end: timeline_instant(end),
+            open,
+        })
+        .collect()
+}
+
+/// Unions window spans that overlap or nearly meet, then clips them to the day.
+fn window_union(
+    mut spans: Vec<TimelineWindowSpan>,
+    day_start: DateTime<Utc>,
+    day_end: DateTime<Utc>,
+) -> Vec<WindowIntervalDto> {
+    spans.sort_by_key(|span| (span.start, span.id));
+    let mut union: Vec<(DateTime<Utc>, DateTime<Utc>)> = Vec::new();
+    for span in spans {
+        match union.last_mut() {
+            Some((_, last_end)) if span.start <= *last_end + WINDOW_SPAN_JOIN_TOLERANCE => {
+                *last_end = (*last_end).max(span.end);
+            }
+            _ => union.push((span.start, span.end)),
+        }
+    }
+    union
+        .into_iter()
+        .filter_map(|(start, end)| {
+            let (start, end) = (start.max(day_start), end.min(day_end));
+            (end > start).then(|| WindowIntervalDto {
+                start: timeline_instant(start),
+                end: timeline_instant(end),
+            })
+        })
+        .collect()
 }
 
 /// Folds rows into the row before them by id when `joins` says so, then
@@ -2789,5 +2910,409 @@ mod timeline_command_tests {
         transaction.commit().expect("commit");
         assert_eq!(result.segments.len(), 1);
         assert_eq!(result.day_status, "collection_started");
+    }
+
+    /// A usage session; `end: None` leaves it open at `heartbeat`.
+    fn session(
+        store: &Store,
+        app_id: i64,
+        start: DateTime<Utc>,
+        end: Option<DateTime<Utc>>,
+        heartbeat: DateTime<Utc>,
+    ) {
+        let id = store.start_session(app_id, start).expect("session");
+        store.heartbeat_session(id, heartbeat).expect("heartbeat");
+        if let Some(end) = end {
+            store
+                .close_session(id, end, "process_closed", false)
+                .expect("close");
+        }
+    }
+
+    fn hide_app(db: &NamedTempFile, app_id: i64) {
+        rusqlite::Connection::open(db.path())
+            .expect("raw open")
+            .execute("UPDATE apps SET is_hidden = 1 WHERE id = ?1", [app_id])
+            .expect("hide app");
+    }
+
+    /// `(app_id, identity_key)` for a version of one packaged app.
+    fn packaged(store: &Store, version: &str) -> (i64, String) {
+        let app_id = store
+            .upsert_app(
+                "TestApp.exe",
+                &format!(
+                    r"C:\Program Files\WindowsApps\Test.App_{version}_x64__publisher\TestApp.exe"
+                ),
+                "TestApp",
+            )
+            .expect("app")
+            .id;
+        let identity_key = store
+            .upsert_software_identity_for_app(app_id)
+            .expect("identity")
+            .identity_key;
+        (app_id, identity_key)
+    }
+
+    fn windows_notepad(store: &Store) -> (i64, String) {
+        let app_id = store
+            .upsert_app("notepad.exe", r"C:\Windows\System32\notepad.exe", "Notepad")
+            .expect("app")
+            .id;
+        let identity_key = store
+            .upsert_software_identity_for_app(app_id)
+            .expect("identity")
+            .identity_key;
+        (app_id, identity_key)
+    }
+
+    type IntervalShape = (String, String, bool);
+
+    fn running_shape(result: &TimelineSummary) -> Vec<(String, Vec<IntervalShape>)> {
+        result
+            .running
+            .iter()
+            .map(|entry| {
+                (
+                    entry.identity_key.clone(),
+                    entry
+                        .intervals
+                        .iter()
+                        .map(|i| (i.start.clone(), i.end.clone(), i.open))
+                        .collect(),
+                )
+            })
+            .collect()
+    }
+
+    fn window_shape(result: &TimelineSummary, identity_key: &str) -> (Vec<(String, String)>, i64) {
+        let entry = result
+            .running
+            .iter()
+            .find(|entry| entry.identity_key == identity_key)
+            .expect("running entry");
+        (
+            entry
+                .window_intervals
+                .iter()
+                .map(|i| (i.start.clone(), i.end.clone()))
+                .collect(),
+            entry.window_seconds,
+        )
+    }
+
+    #[test]
+    fn timeline_summary_running_intervals_cover_overlapping_sessions() {
+        let (db, store) = migrated_store();
+        let d = day(5);
+        let (a_app, a) = software(&store, "a.exe");
+        let (b_app, b) = software(&store, "b.exe");
+        let (c1_app, c) = packaged(&store, "1.0.0.0");
+        let (c2_app, c2) = packaged(&store, "2.0.0.0");
+        assert_eq!(c, c2, "versions share one identity");
+        let (e_app, _) = software(&store, "e.exe");
+        let (f_app, _) = software(&store, "f.exe");
+        let (g_app, _) = software(&store, "g.exe");
+        let (k_app, k) = software(&store, "k.exe");
+        let (m_app, m) = software(&store, "m.exe");
+        let (notepad_app, _) = windows_notepad(&store);
+        let (hidden_app, _) = software(&store, "h.exe");
+        hide_app(&db, hidden_app);
+        let day_end = local_date_bounds_in(d, &Local).1;
+
+        // Yesterday 22:00 to today 02:00: clipped to the day's start.
+        session(
+            &store,
+            a_app,
+            at(day(4), 22 * 60),
+            Some(at(d, 120)),
+            at(d, 120),
+        );
+        // Started three days ago and still open: ends at its heartbeat.
+        session(&store, b_app, at(day(2), 600), None, at(d, 600));
+        // One identity, two versions. An open session that neither starts
+        // last nor ends last makes its union open; a session inside another
+        // does not shorten it; a disjoint pair stays apart, and sessions that
+        // touch join.
+        session(&store, c1_app, at(d, 480), None, at(d, 560));
+        session(&store, c2_app, at(d, 490), Some(at(d, 500)), at(d, 500));
+        session(&store, c2_app, at(d, 510), Some(at(d, 620)), at(d, 620));
+        session(&store, c2_app, at(d, 700), Some(at(d, 720)), at(d, 720));
+        session(&store, c1_app, at(d, 720), Some(at(d, 730)), at(d, 730));
+        // Ends exactly at the day's start: nothing left after clipping.
+        session(&store, e_app, at(day(4), 1380), Some(at(d, 0)), at(d, 0));
+        // Fetched by the widened text filter but outside the day: one opened
+        // the next morning, one last seen the evening before. Both still open.
+        session(&store, f_app, at(day(6), 540), None, at(day(6), 600));
+        session(&store, g_app, at(day(4), 600), None, at(day(4), 700));
+        // Runs past the day's end: closed (its last heartbeat came earlier),
+        // and open with a heartbeat after midnight. Both clip to the day's end.
+        session(
+            &store,
+            k_app,
+            at(d, 1380),
+            Some(at(day(6), 60)),
+            at(d, 1430),
+        );
+        session(&store, m_app, at(d, 1400), None, at(day(6), 30));
+        // Filtered like the overview: a Windows program and a hidden app.
+        session(&store, notepad_app, at(d, 60), Some(at(d, 90)), at(d, 90));
+        session(&store, hidden_app, at(d, 60), Some(at(d, 90)), at(d, 90));
+
+        let result = summary(&store, d, false);
+        let mut expected = vec![
+            (a.clone(), vec![(ms(at(d, 0)), ms(at(d, 120)), false)]),
+            (b.clone(), vec![(ms(at(d, 0)), ms(at(d, 600)), true)]),
+            (
+                c.clone(),
+                vec![
+                    (ms(at(d, 480)), ms(at(d, 620)), true),
+                    (ms(at(d, 700)), ms(at(d, 730)), false),
+                ],
+            ),
+            (k.clone(), vec![(ms(at(d, 1380)), ms(day_end), false)]),
+            (m.clone(), vec![(ms(at(d, 1400)), ms(day_end), true)]),
+        ];
+        expected.sort();
+        assert_eq!(running_shape(&result), expected);
+        assert!(result
+            .running
+            .iter()
+            .all(|entry| entry.window_intervals.is_empty() && entry.window_seconds == 0));
+        let software: Vec<_> = result
+            .software
+            .iter()
+            .map(|s| s.identity_key.clone())
+            .collect();
+        let mut expected_software = vec![a, b, c, k, m];
+        expected_software.sort();
+        assert_eq!(software, expected_software);
+    }
+
+    #[test]
+    fn timeline_summary_running_open_session_just_started_keeps_a_zero_length_interval() {
+        let (_db, store) = migrated_store();
+        let d = day(5);
+        let (app, key) = software(&store, "a.exe");
+        session(&store, app, at(d, 60), None, at(d, 60));
+        let result = summary(&store, d, false);
+        assert_eq!(
+            running_shape(&result),
+            vec![(key, vec![(ms(at(d, 60)), ms(at(d, 60)), true)])]
+        );
+    }
+
+    #[test]
+    fn timeline_summary_drops_hidden_running_entries_unless_included() {
+        let (_db, store) = migrated_store();
+        let d = day(5);
+        let (a_app, a) = software(&store, "a.exe");
+        let (b_app, b) = software(&store, "b.exe");
+        session(&store, a_app, at(d, 60), Some(at(d, 120)), at(d, 120));
+        session(&store, b_app, at(d, 60), Some(at(d, 120)), at(d, 120));
+        for key in [&a, &b] {
+            store
+                .insert_timeline_window_span(d, key, at(d, 60), at(d, 90), 1800, "tracker_started")
+                .expect("span");
+        }
+        store
+            .add_hidden_software_identities(&[a.clone()])
+            .expect("hide");
+
+        let masked = summary(&store, d, false);
+        let keys: Vec<_> = masked
+            .running
+            .iter()
+            .map(|e| e.identity_key.clone())
+            .collect();
+        assert_eq!(keys, [b.clone()]);
+        assert!(masked.software.iter().all(|s| s.identity_key != a));
+
+        let full = summary(&store, d, true);
+        let mut keys: Vec<_> = full
+            .running
+            .iter()
+            .map(|e| e.identity_key.clone())
+            .collect();
+        keys.sort();
+        let mut expected = vec![a.clone(), b];
+        expected.sort();
+        assert_eq!(keys, expected);
+        assert_eq!(
+            window_shape(&full, &a),
+            (vec![(ms(at(d, 60)), ms(at(d, 90)))], 1800)
+        );
+        assert!(full
+            .software
+            .iter()
+            .any(|s| s.identity_key == a && s.is_hidden));
+    }
+
+    struct OneSnapshot(Vec<crate::process_source::ProcessSnapshot>);
+
+    impl crate::process_source::ProcessSource for OneSnapshot {
+        fn snapshot(&mut self) -> Vec<crate::process_source::ProcessSnapshot> {
+            self.0.clone()
+        }
+    }
+
+    struct Awake;
+
+    impl crate::activity::ActivitySource for Awake {
+        fn idle_duration(&self) -> std::time::Duration {
+            std::time::Duration::ZERO
+        }
+    }
+
+    #[test]
+    fn timeline_summary_window_intervals_union_and_match_foreground_seconds() {
+        let (db, store) = migrated_store();
+        let d = day(5);
+        let code = crate::process_source::ProcessSnapshot {
+            pid: 42,
+            process_name: "Code.exe".to_string(),
+            executable_path: r"D:\Apps\Code\Code.exe".to_string(),
+            has_visible_window: true,
+            ..Default::default()
+        };
+        let mut tracker = crate::tracker::Tracker::new(store, OneSnapshot(vec![code]));
+        for k in 0..3 {
+            crate::tracker::run_tracker_tick(
+                &mut tracker,
+                &Awake,
+                (at(d, 720) + Duration::seconds(5 * k)).with_timezone(&Local),
+                std::time::Duration::from_secs(5),
+                std::time::Duration::from_secs(300),
+            )
+            .expect("tick");
+        }
+        let store = tracker.store();
+        let raw = rusqlite::Connection::open(db.path()).expect("raw open");
+        let (code_key, foreground): (String, i64) = raw
+            .query_row(
+                "SELECT identity_key, foreground_seconds FROM daily_software_runtime_usage
+                 WHERE usage_date = ?1 AND foreground_seconds > 0",
+                [d.to_string()],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .expect("foreground row");
+        assert_eq!(foreground, 15);
+
+        let x = software(store, "x.exe").1;
+        let ms_after = |minutes: i64, millis: i64| at(d, minutes) + Duration::milliseconds(millis);
+        let (day_start, day_end) = local_date_bounds_in(d, &Local);
+        let millis = Duration::milliseconds;
+        for (date, start, end, seconds) in [
+            // Two versions' rows overlap.
+            (d, at(d, 780), at(d, 790), 600),
+            (d, at(d, 785), at(d, 800), 900),
+            // Half a second after the last one ends: still one interval.
+            (d, ms_after(800, 500), at(d, 810), 569),
+            // A second and a half later: a new interval...
+            (d, ms_after(810, 1_500), at(d, 820), 598),
+            // ...which a row exactly one second later joins.
+            (d, ms_after(820, 1_000), at(d, 825), 299),
+            // Union, then clip: these meet within a second across the day's
+            // start, so the day's interval starts at the day's start.
+            (d, at(d, -10), day_start - millis(500), 599),
+            (d, day_start + millis(300), at(d, 5), 300),
+            // Runs past the day's end (another time zone): clipped there.
+            (
+                d,
+                day_end - Duration::minutes(5),
+                day_end + Duration::minutes(5),
+                600,
+            ),
+            // Dated the day before (another time zone) though it lies in this day.
+            (day(4), at(d, 840), at(d, 850), 600),
+        ] {
+            store
+                .insert_timeline_window_span(date, &x, start, end, seconds, "window_opened")
+                .expect("span");
+        }
+        // Identities whose apps are all filtered show no window time either...
+        let (y_app, y) = software(store, "y.exe");
+        hide_app(&db, y_app);
+        let (_, notepad) = windows_notepad(store);
+        for key in [&y, &notepad] {
+            store
+                .insert_timeline_window_span(d, key, at(d, 900), at(d, 910), 600, "window_opened")
+                .expect("span");
+        }
+        // ...but one tracked member app is enough to keep them.
+        let (hidden_version, package) = packaged(store, "1.0.0.0");
+        let (_, same_package) = packaged(store, "2.0.0.0");
+        assert_eq!(package, same_package);
+        hide_app(&db, hidden_version);
+        store
+            .insert_timeline_window_span(d, &package, at(d, 900), at(d, 910), 600, "window_opened")
+            .expect("span");
+        let result = summary(store, d, false);
+        assert_eq!(result.day_status, "collection_started");
+        let (code_windows, code_seconds) = window_shape(&result, &code_key);
+        assert_eq!(code_seconds, foreground);
+        assert_eq!(
+            code_windows,
+            vec![(
+                ms(at(d, 720) - Duration::seconds(5)),
+                ms(at(d, 720) + Duration::seconds(10))
+            )]
+        );
+        assert_eq!(
+            window_shape(&result, &x),
+            (
+                vec![
+                    (ms(day_start), ms(at(d, 5))),
+                    (ms(at(d, 780)), ms(at(d, 810))),
+                    (ms(ms_after(810, 1_500)), ms(at(d, 825))),
+                    (ms(day_end - Duration::minutes(5)), ms(day_end)),
+                ],
+                600 + 900 + 569 + 598 + 299 + 599 + 300 + 600
+            )
+        );
+        assert_eq!(
+            window_shape(&result, &package),
+            (vec![(ms(at(d, 900)), ms(at(d, 910)))], 600)
+        );
+        assert!(result
+            .running
+            .iter()
+            .all(|entry| entry.identity_key != y && entry.identity_key != notepad));
+    }
+
+    #[test]
+    fn timeline_summary_before_collection_has_no_window_record() {
+        let (_db, store) = migrated_store();
+        let (app, key) = software(&store, "a.exe");
+        // Collection starts on day 5; day 3 only has a session.
+        store
+            .insert_timeline_segment(
+                day(5),
+                at(day(5), 0),
+                at(day(5), 5),
+                300,
+                None,
+                true,
+                "tracker_started",
+            )
+            .expect("segment");
+        session(
+            &store,
+            app,
+            at(day(3), 600),
+            Some(at(day(3), 660)),
+            at(day(3), 660),
+        );
+        let result = summary(&store, day(3), false);
+        assert_eq!(result.day_status, "before_collection");
+        assert_eq!(
+            running_shape(&result),
+            vec![(
+                key.clone(),
+                vec![(ms(at(day(3), 600)), ms(at(day(3), 660)), false)]
+            )]
+        );
+        assert_eq!(window_shape(&result, &key), (vec![], 0));
     }
 }

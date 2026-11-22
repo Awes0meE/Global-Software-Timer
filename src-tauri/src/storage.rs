@@ -2056,6 +2056,116 @@ impl Store {
             .transpose()
     }
 
+    /// The window spans dated `date`, ordered by `start_utc, id`.
+    pub fn timeline_window_spans_for_date(
+        &self,
+        date: NaiveDate,
+    ) -> StoreResult<Vec<TimelineWindowSpan>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, identity_key, start_utc, end_utc, credited_seconds
+             FROM timeline_window_spans
+             WHERE usage_date = ?1
+             ORDER BY start_utc, id",
+        )?;
+        let rows = stmt.query_map(params![date.to_string()], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, i64>(4)?,
+            ))
+        })?;
+        rows.map(|row| {
+            let (id, identity_key, start, end, credited_seconds) = row?;
+            Ok(TimelineWindowSpan {
+                id,
+                identity_key,
+                start: parse_utc(&start)?,
+                end: parse_utc(&end)?,
+                credited_seconds,
+            })
+        })
+        .collect()
+    }
+
+    /// Sessions overlapping `[start_utc, end_utc)`: started before `end_utc`
+    /// and ended (or last seen, if open) at or after `start_utc`. Skips apps
+    /// marked hidden and apps the current classifier does not track, like the
+    /// overview's software list.
+    pub fn session_intervals_overlapping(
+        &self,
+        start_utc: DateTime<Utc>,
+        end_utc: DateTime<Utc>,
+    ) -> StoreResult<Vec<SessionInterval>> {
+        // Session timestamps have variable-length fractional seconds, so text
+        // comparison is only a coarse filter widened by a day on each side; the
+        // exact overlap is checked on parsed timestamps below. Tray apps keep one
+        // session for days, so filtering on the start alone would miss them.
+        let coarse_start = (start_utc.date_naive() - chrono::Duration::days(1)).to_string();
+        let coarse_end = (end_utc.date_naive() + chrono::Duration::days(2)).to_string();
+        let mut stmt = self.conn.prepare(
+            "SELECT m.identity_key, a.process_name, a.executable_path,
+                    s.started_at, s.ended_at, s.last_heartbeat_at
+             FROM usage_sessions s
+             JOIN apps a ON a.id = s.app_id
+             JOIN software_identity_members m ON m.app_id = s.app_id
+             WHERE a.is_hidden = 0
+               AND s.started_at < ?2
+               AND COALESCE(s.ended_at, s.last_heartbeat_at) >= ?1
+             ORDER BY s.id",
+        )?;
+        let mut rows = stmt.query(params![coarse_start, coarse_end])?;
+        let mut intervals = Vec::new();
+        while let Some(row) = rows.next()? {
+            let process_name: String = row.get(1)?;
+            let executable_path: String = row.get(2)?;
+            if !matches!(
+                classify_process(&process_name, &executable_path),
+                Classification::Tracked { .. }
+            ) {
+                continue;
+            }
+            let start = parse_utc(&row.get::<_, String>(3)?)?;
+            let ended_at: Option<String> = row.get(4)?;
+            let open = ended_at.is_none();
+            let end = parse_utc(&ended_at.unwrap_or(row.get::<_, String>(5)?))?;
+            if start < end_utc && end >= start_utc {
+                intervals.push(SessionInterval {
+                    identity_key: row.get(0)?,
+                    start,
+                    end,
+                    open,
+                });
+            }
+        }
+        Ok(intervals)
+    }
+
+    /// Identities with at least one member app that is not marked hidden and
+    /// that the current classifier tracks.
+    pub fn identity_keys_with_tracked_member(&self) -> StoreResult<HashSet<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT m.identity_key, a.process_name, a.executable_path
+             FROM software_identity_members m
+             JOIN apps a ON a.id = m.app_id
+             WHERE a.is_hidden = 0",
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut keys = HashSet::new();
+        while let Some(row) = rows.next()? {
+            let process_name: String = row.get(1)?;
+            let executable_path: String = row.get(2)?;
+            if matches!(
+                classify_process(&process_name, &executable_path),
+                Classification::Tracked { .. }
+            ) {
+                keys.insert(row.get(0)?);
+            }
+        }
+        Ok(keys)
+    }
+
     fn min_usage_date(&self, sql: &str) -> StoreResult<Option<NaiveDate>> {
         let value = self
             .conn
@@ -2381,6 +2491,26 @@ pub struct TimelineSegment {
     pub focus_identity_key: Option<String>,
     pub is_active: bool,
     pub start_reason: String,
+}
+
+/// One `timeline_window_spans` row.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TimelineWindowSpan {
+    pub id: i64,
+    pub identity_key: String,
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
+    pub credited_seconds: i64,
+}
+
+/// A usage session as a time range of its software identity. An open session
+/// ends at its last heartbeat.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SessionInterval {
+    pub identity_key: String,
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
+    pub open: bool,
 }
 
 #[derive(Debug, Clone)]
