@@ -123,6 +123,12 @@ v0.3.0 additionally includes:
 - Hidden software stays out of both pages' software-level figures unless their `包含隐藏软件` switch is on.
 - The header single-day date button appears only on `概览` and `后台`.
 
+v0.3.1 additionally includes:
+
+- Timeline data collection: `timeline_segments` (focus identity and active state per credited stretch) and `timeline_window_spans` (when each software identity had a taskbar window), written in the tracker tick's transaction (SQLite schema 3). Kept permanently; no backfill, cleanup or export.
+- Hidden software is still recorded; hiding only affects display. The read-only `get_timeline_summary` command exists but no page calls it until v0.5.0.
+- Keep `PRIVACY.md` in step with any change to what these tables store. Binding decisions: `docs/superpowers/specs/2026-11-22-timeline-data-collection-design.md`.
+
 v0.1 excludes:
 
 - macOS implementation.

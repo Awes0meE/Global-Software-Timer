@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Recorded a local timeline of focus and activity segments, and of when each software had a window, in the new `timeline_segments` and `timeline_window_spans` tables (schema version 3); nothing in the UI changes yet.
+- Databases upgraded to schema 3 cannot be opened by v0.3.0 or earlier.
+
 ## v0.3.0 - 2026-11-22
 
 - Opened the `统计` page. Pick 近 7 天 (default), 本周, 本月, 近 30 天, 今年 or a custom range of up to 366 days; every total is compared with the previous range of the same length.

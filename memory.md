@@ -40,6 +40,7 @@ Last updated: 2026-11-22
 - The overview LCD `最常用` (v0.2.3) is the app with the most active time today, falling back to today's runtime; the ledger still sorts by all-time runtime.
 - WPS suite components are grouped as `WPS Office` for usage summaries, including `wps.exe`, `et.exe`, `wpp.exe`, and `wpspdf.exe`; live status for merged rows is taken from the highest-priority status across all grouped app ids. WPS grouped rows use the main `wps.exe` sibling path for icon lookup, even when the visible component is `wpspdf.exe`, `et.exe`, or `wpp.exe`.
 - Statistics and achievements are computed in `src-tauri/src/statistics.rs` from read-only range queries in `storage.rs` and exposed as `get_statistics_summary` / `get_achievements_summary`. They read existing daily-summary and session tables only and change neither schema 2 nor tracking. The ignored test `real_database_statistics_acceptance` in `commands.rs` prints both summaries and their timings for a disposable database snapshot (`GST_BENCH_DB`).
+- Timeline data (v0.3.1, schema 3): `timeline_segments` (focus identity key and active state per credited stretch) and `timeline_window_spans` (when each identity had a taskbar window) are written in the same tracker savepoint as the daily summaries, from the same per-local-date chunks. An in-memory cursor decides whether a chunk extends the last row or opens a new one with a start reason; it is never persisted, so a restart always opens new rows. The read-only `get_timeline_summary` command is registered but unused until the v0.5.0 page. The four equalities with the daily summaries are listed in `docs/CURRENT_STATE.md`; the ignored test `real_database_timeline_acceptance` checks a schema 2 -> 3 migration on a disposable copy.
 - Active time: v0.1 tracks daily machine-level active time using keyboard/mouse idle state.
 - App settings are stored locally in the existing SQLite `app_settings` table, including `window.close_behavior`, `startup.autostart_enabled`, the `ui.duration_format` display preference, and the `ui.theme` preference.
 - Current software-page focus attribution is part of v0.1.3. Future additional privacy-sensitive window/workspace features must be explicit and opt-in; do not describe existing foreground-PID attribution as an unimplemented future feature.
@@ -51,6 +52,7 @@ Last updated: 2026-11-22
 - v0.1.3 does not record window titles, document names, webpage titles, keystrokes, mouse coordinates, file contents, browser history, or cloud data.
 - v0.1.3 does not upload data or require an account.
 - Since v0.1.5 GST also records, for the `后台` page, background processes' executable name and path, daily running time, CPU time, peak memory and process count. `PRIVACY.md` is the current public statement.
+- Since v0.3.1 GST also keeps a local timeline: per stretch of recorded time, the focused software identity and whether the computer was active, and per identity the stretches with a taskbar window (existence only, no titles). Kept permanently, never uploaded.
 
 ## Product Strategy
 
@@ -65,7 +67,7 @@ Last updated: 2026-11-22
 - The `软件` page can later add Excel-style sorting or simple sort controls for managed and discovered lists, such as add time, last opened time, or usage time. v0.1.3 keeps simple defaults: managed lists newest-added first and discovered software last-opened descending. The `后台` table sorts by column header since v0.2.4; reuse that pattern.
 - A future software details drawer can show richer per-software history and analytics. v0.1.3 intentionally omits drawers so the first page stays dense and stable.
 - A future add flow may offer manual `.exe` selection for software GST has not discovered yet. v0.1.3 intentionally uses the discovered software directory because it is friendlier for non-technical users.
-- `统计` / `成就` follow-ups: the 星期 × 小时 habit chart waits for half-hour data and the heatmap day click waits for the `时间轴` page; see `docs/CURRENT_STATE.md`.
+- `统计` / `成就` follow-ups: the 星期 × 小时 habit chart can be derived from timeline segments from the collection start (v0.3.1) onward, and the heatmap day click waits for the `时间轴` page (v0.5.0); see `docs/CURRENT_STATE.md`.
 
 ## Current Repository State
 

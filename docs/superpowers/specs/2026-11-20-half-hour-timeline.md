@@ -1,6 +1,6 @@
 # 半小时时间轴设计草案
 
-状态：已被取代（2026-11-22）。改为按「段」记录，见 `2026-11-22-timeline-data-collection-design.md`（v0.3.1）和 `2026-11-22-timeline-page-design.md`（v0.5.0）。下文保留作历史记录。
+状态：已被取代（2026-11-22）。改为按「段」记录，见 [`2026-11-22-timeline-data-collection-design.md`](./2026-11-22-timeline-data-collection-design.md)（v0.3.1）和 [`2026-11-22-timeline-page-design.md`](./2026-11-22-timeline-page-design.md)（v0.5.0）。下文保留作历史记录。
 
 ## 要回答的问题
 
