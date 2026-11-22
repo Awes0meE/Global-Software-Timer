@@ -529,6 +529,12 @@ pub fn get_app_settings(state: State<'_, AppState>) -> Result<AppSettings, Strin
     app_settings_from_store(tracker.store()).map_err(|error| error.to_string())
 }
 
+/// Read-only: whether Windows transparency effects are on. Not stored.
+#[tauri::command(async)]
+pub fn get_transparency_effects_enabled() -> bool {
+    crate::appearance::transparency_effects_enabled()
+}
+
 #[tauri::command(async)]
 pub fn get_close_behavior_preference(state: State<'_, AppState>) -> Result<Option<String>, String> {
     let tracker = crate::app_state::lock_tracker(&state.tracker);

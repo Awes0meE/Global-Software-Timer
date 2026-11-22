@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod app_state;
+pub mod appearance;
 pub mod background;
 pub mod classifier;
 pub mod commands;
@@ -100,6 +101,7 @@ pub fn run() {
             commands::add_hidden_software_identities,
             commands::remove_hidden_software_identity,
             commands::get_app_settings,
+            commands::get_transparency_effects_enabled,
             commands::get_close_behavior_preference,
             commands::set_autostart_preference,
             commands::set_close_behavior_preference,

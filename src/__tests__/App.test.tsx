@@ -1953,4 +1953,25 @@ describe("App", () => {
       remember: false,
     });
   });
+
+  it("asks Windows whether transparency effects are on", async () => {
+    render(<App />);
+
+    expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
+    await waitFor(() => expect(mockInvoke).toHaveBeenCalledWith("get_transparency_effects_enabled"));
+  });
+
+  it("still marks the timeline entry as unavailable", async () => {
+    const { container } = render(<App />);
+
+    expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
+    const timeline = Array.from(container.querySelectorAll<HTMLButtonElement>(".side-nav button")).find(
+      (button) => button.querySelector("span")?.textContent === "时间轴",
+    );
+    expect(timeline).toBeDefined();
+    expect(timeline).toHaveAttribute("aria-disabled", "true");
+    const badge = timeline?.querySelector("em");
+    expect(badge?.textContent).toBe("未开放");
+    expect(badge).toHaveAttribute("aria-hidden", "true");
+  });
 });

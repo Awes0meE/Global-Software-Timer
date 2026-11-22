@@ -75,6 +75,8 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
       return undefined as T;
     case "get_close_behavior_preference":
       return settings.close_behavior as T;
+    case "get_transparency_effects_enabled":
+      return (params.get("glass") !== "off") as T;
     case "apply_window_close_choice":
       return undefined as T;
     default:

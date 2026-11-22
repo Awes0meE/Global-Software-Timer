@@ -39,6 +39,7 @@ import { RecentActivity } from "./components/RecentActivity";
 import { TodayMix } from "./components/TodayMix";
 import { TodayReadout } from "./components/TodayReadout";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
+import { startTransparencyWatch } from "./glass";
 import { applyThemePreference, readCachedThemePreference } from "./theme";
 import { startVisiblePolling } from "./visiblePolling";
 
@@ -210,6 +211,7 @@ export default function App() {
   }, []);
 
   useEffect(() => applyThemePreference(theme), [theme]);
+  useEffect(() => startTransparencyWatch(), []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;

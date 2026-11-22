@@ -246,6 +246,11 @@ export async function removeHiddenSoftwareIdentity(identityKey: string): Promise
   return invoke("remove_hidden_software_identity", { identityKey });
 }
 
+/** Read-only: whether Windows "Transparency effects" is on. Nothing is stored. */
+export async function getTransparencyEffectsEnabled(): Promise<boolean> {
+  return invoke<boolean>("get_transparency_effects_enabled");
+}
+
 export async function getAppSettings(): Promise<AppSettings> {
   const settings = (await invoke<Partial<AppSettings> | null>("get_app_settings")) ?? {};
   const durationFormat = normalizeDurationFormat(settings.duration_format);

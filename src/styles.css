@@ -162,6 +162,36 @@
   --mix-glow: 40%;
 }
 
+/* Glass switch: panels and the sidebar draw through these, never --glass / --side directly. */
+:root {
+  --glass-surface: var(--glass);
+  --side-surface: var(--side);
+  --glass-filter: blur(30px) saturate(1.4);
+}
+
+/* Opaque panels, glow kept: Windows transparency off, reduced transparency, or no blur support. */
+:root[data-glass="off"] {
+  --glass-surface: var(--glass-solid);
+  --side-surface: var(--glass-solid);
+  --glass-filter: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-surface: var(--glass-solid);
+    --side-surface: var(--glass-solid);
+    --glass-filter: none;
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  :root {
+    --glass-surface: var(--glass-solid);
+    --side-surface: var(--glass-solid);
+    --glass-filter: none;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -1916,6 +1946,68 @@ mark {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Contrast themes: system colours only; glow and screen texture go, focus uses an outline. */
+@media (forced-colors: active) {
+  body {
+    background: Canvas;
+  }
+
+  .sidebar,
+  .panel,
+  .readout,
+  .software-panel,
+  .lcd,
+  .dialog,
+  .add-software-dialog {
+    background: Canvas;
+    color: CanvasText;
+    border: 1px solid CanvasText;
+  }
+
+  .lcd::before,
+  .lcd::after {
+    display: none;
+  }
+
+  /* A switched-off toggle is drawn only with shadows and fills, which forced colours remove. An inset
+     outline keeps the track visible without changing its box; :focus-visible below still wins. */
+  .toggle {
+    outline: 1px solid ButtonText;
+    outline-offset: -1px;
+  }
+
+  .toggle-knob {
+    forced-color-adjust: none;
+    background: ButtonText;
+  }
+
+  :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .nav-key.is-active,
+  .segmented-option.is-selected {
+    outline: 1px solid Highlight;
+  }
+
+  /* Focus must stay stronger than the selected marker above, which outranks plain :focus-visible. */
+  :is(.nav-key.is-active, .segmented-option.is-selected):focus-visible {
+    outline-width: 2px;
+    outline-offset: 2px;
+  }
+
+  .toggle.is-on {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+
+  /* forced-color-adjust is inherited, so the knob needs the theme's own pair colour to stay visible. */
+  .toggle.is-on .toggle-knob {
+    background: HighlightText;
   }
 }
 
