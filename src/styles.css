@@ -50,7 +50,7 @@
   --mix-5: #d99a0b;
   --mix-6: #0f9fb8;
   --mix-7: #7b8594;
-  --focus: 0 0 0 2px var(--panel-raised), 0 0 0 4px var(--signal);
+  --focus: 0 0 0 2px var(--glass-solid), 0 0 0 4px var(--accent);
   --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
   --font-num: Bahnschrift, "Segoe UI Variable Display", "Segoe UI", sans-serif;
   --font-pixel: "GST Pixel", "Microsoft YaHei UI", monospace;
@@ -229,8 +229,8 @@ p {
 }
 
 ::selection {
-  background: var(--signal);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: inherit;
 }
 
 :focus-visible {
@@ -256,7 +256,7 @@ p {
   z-index: 20;
   padding: 8px 12px;
   border-radius: var(--radius-key);
-  background: var(--panel-raised);
+  background: var(--glass-solid);
   box-shadow: 0 2px 8px var(--shade-deep);
 }
 
@@ -277,13 +277,15 @@ p {
 }
 
 .sidebar {
+  position: relative;
+  z-index: 4; /* its tooltips reach over the glass panels */
   display: flex;
   flex-direction: column;
   min-height: 0;
   padding: 20px 14px 16px;
-  background: var(--panel);
+  background: var(--side-surface);
   border-right: 1px solid var(--edge);
-  box-shadow: inset -1px 0 0 var(--highlight);
+  backdrop-filter: var(--glass-filter);
 }
 
 .brand {
@@ -291,8 +293,7 @@ p {
   align-items: center;
   gap: 12px;
   padding: 0 6px 20px;
-  border-bottom: 1px solid var(--edge);
-  box-shadow: 0 1px 0 var(--highlight);
+  border-bottom: 1px solid var(--rule);
 }
 
 .brand-mark {
@@ -346,36 +347,40 @@ p {
   transition: background-color 160ms var(--ease), box-shadow 160ms var(--ease), color 160ms var(--ease);
 }
 
-.nav-key:not([aria-disabled="true"]) {
-  background: var(--panel-raised);
-  box-shadow:
-    inset 0 1px 0 var(--highlight),
-    0 0 0 1px var(--edge),
-    0 1px 1px var(--shade);
-}
-
 .nav-key:not([aria-disabled="true"]):hover {
-  background: color-mix(in srgb, var(--panel-raised) 55%, var(--panel));
+  --muted: var(--ink-2);
+  background: var(--chip);
 }
 
-.nav-key:not([aria-disabled="true"]):active,
-.nav-key.is-active {
+.nav-key:not([aria-disabled="true"]):active {
+  --muted: var(--ink-2);
+  background: var(--on);
+}
+
+.nav-key.is-active,
+.nav-key.is-active:hover {
+  --muted: var(--ink-2);
   color: var(--ink);
   font-weight: 600;
-  background: var(--panel-sunken);
+  background: var(--on);
   box-shadow:
-    inset 0 2px 3px var(--shade-deep),
-    inset 0 0 0 1px color-mix(in srgb, var(--ink) 38%, transparent);
-  transform: translateY(1px);
+    inset 3px 0 0 var(--accent),
+    inset 0 0 0 1px var(--edge),
+    0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+/* The current item draws its own shadows, which would hide the global focus ring. */
+.nav-key.is-active:focus-visible {
+  box-shadow:
+    inset 3px 0 0 var(--accent),
+    inset 0 0 0 1px var(--edge),
+    var(--focus),
+    0 4px 14px rgba(0, 0, 0, 0.08);
 }
 
 .nav-key[aria-disabled="true"] {
-  color: var(--faint);
+  color: var(--muted);
   cursor: default;
-}
-
-.nav-key[aria-disabled="true"]:hover {
-  background: transparent;
 }
 
 .nav-key em {
@@ -383,7 +388,7 @@ p {
   padding: 0 5px;
   border: 1px solid var(--edge-strong);
   border-radius: var(--radius-tag);
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--type-label);
   font-style: normal;
   line-height: 17px;
@@ -394,8 +399,7 @@ p {
   gap: 6px;
   margin-top: auto;
   padding: 14px 8px 0;
-  border-top: 1px solid var(--edge);
-  box-shadow: inset 0 1px 0 var(--highlight);
+  border-top: 1px solid var(--rule);
   color: var(--muted);
   font-size: 12px;
 }
@@ -432,6 +436,7 @@ p {
 }
 
 .page-header h2 {
+  font-family: "Segoe UI Variable Display", var(--font-ui);
   font-size: 22px;
   font-weight: 650;
   letter-spacing: 0.01em;
@@ -455,45 +460,43 @@ p {
   padding: 0 12px;
   border: 0;
   border-radius: var(--radius-key);
-  background: var(--panel-raised);
+  background: var(--glass-2);
   color: var(--ink-2);
   font-size: var(--type-small);
   white-space: nowrap;
-  box-shadow:
-    inset 0 1px 0 var(--highlight),
-    0 0 0 1px var(--edge),
-    0 1px 2px var(--shade);
-  transition: transform 120ms var(--ease), box-shadow 120ms var(--ease), background-color 120ms var(--ease);
+  box-shadow: inset 0 0 0 1px var(--edge);
+  transition: box-shadow 120ms var(--ease), background-color 120ms var(--ease);
 }
 
 .header-button:hover,
 .button:hover:not(:disabled),
 .text-action:hover {
-  background: var(--panel);
+  --muted: var(--ink-2);
+  background: var(--on);
 }
 
 .header-button:active,
-.button:active:not(:disabled),
+.button:active:not(:disabled, .button-primary),
 .text-action:active {
-  transform: translateY(1px);
-  box-shadow: inset 0 1px 2px var(--shade), 0 0 0 1px var(--edge);
+  --muted: var(--ink-2);
+  background: var(--chip);
 }
 
 .header-button[aria-disabled="true"],
 .panel-link[aria-disabled="true"] {
   background: transparent;
-  color: var(--faint);
+  color: var(--muted);
   cursor: default;
-  box-shadow: inset 0 0 0 1px var(--edge);
 }
 
+/* Hovering or pressing an unavailable button changes nothing, so its label keeps the plain --muted. */
 .header-button[aria-disabled="true"]:hover {
+  --muted: inherit;
   background: transparent;
 }
 
-.header-button[aria-disabled="true"]:active,
-.panel-link[aria-disabled="true"]:active {
-  transform: none;
+.header-button[aria-disabled="true"]:active {
+  --muted: inherit;
 }
 
 .date-control {
@@ -503,17 +506,23 @@ p {
 .button-primary,
 .panel-add-button {
   background: var(--ink);
-  color: var(--panel-raised);
+  color: var(--glass-solid);
   font-weight: 600;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 0 0 1px color-mix(in srgb, var(--ink) 80%, #000),
-    0 1px 2px var(--shade-deep);
+  box-shadow: none;
 }
 
 .button-primary:hover:not(:disabled),
 .panel-add-button:hover {
-  background: color-mix(in srgb, var(--ink) 86%, var(--panel));
+  background: color-mix(in srgb, var(--ink) 86%, var(--glass-solid));
+}
+
+/* The button rules above set their own box-shadow, which would hide the global focus ring. */
+:is(.header-button, .button, .panel-link, .text-action):focus-visible {
+  box-shadow: inset 0 0 0 1px var(--edge), var(--focus);
+}
+
+:is(.button-primary, .panel-add-button):focus-visible {
+  box-shadow: var(--focus);
 }
 
 .button:disabled {
@@ -539,13 +548,12 @@ p {
   height: 8px;
   border-radius: 50%;
   background: var(--lamp-off);
-  box-shadow: inset 0 1px 1px var(--shade-deep);
 }
 
 .lamp.is-lit,
 .status-badge.running .lamp {
   background: var(--signal);
-  box-shadow: 0 0 0 3px var(--signal-wash), 0 0 9px var(--signal);
+  box-shadow: 0 0 0 3px var(--signal-wash), 0 0 8px var(--signal);
 }
 
 .status-badge.background .lamp {
@@ -607,7 +615,6 @@ p {
   font-size: 15px;
   font-weight: 650;
   letter-spacing: 0.02em;
-  text-shadow: 0 1px 0 var(--highlight);
 }
 
 .panel-count {
@@ -633,7 +640,6 @@ p {
   height: 26px;
   padding: 0 9px;
   font-size: 12px;
-  box-shadow: 0 0 0 1px var(--edge);
   background: transparent;
 }
 
@@ -1142,7 +1148,7 @@ p {
   padding: 5px 9px;
   border-radius: var(--radius-key);
   background: var(--ink);
-  color: var(--panel);
+  color: var(--glass-solid);
   font-size: 12px;
   white-space: nowrap;
   transform: translateX(-50%);
@@ -1233,11 +1239,6 @@ p {
   border: 0;
   border-radius: var(--radius-key);
   font-size: var(--type-small);
-}
-
-.panel-add-button:active,
-.button-primary:active:not(:disabled) {
-  transform: translateY(1px);
 }
 
 .text-action {
