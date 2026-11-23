@@ -1629,6 +1629,11 @@ mark {
   display: inline-flex;
 }
 
+/* Beside a panel title the ? sits 6px away, as beside 隐藏软件列表. */
+.panel-head h2 + .active-help {
+  margin-left: -4px;
+}
+
 .active-help-button {
   display: grid;
   place-items: center;
@@ -2520,11 +2525,6 @@ mark {
   color: var(--eink-ink);
   font-size: var(--background-reading-size);
   font-weight: 400;
-}
-
-/* The ? help sits 6px from the title, as beside 隐藏软件列表. */
-.background-page .panel-head .active-help {
-  margin-left: -4px;
 }
 
 .background-table {

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ActiveTimeHelpPopover, HelpPopover } from "../components/ActiveTimeHelpPopover";
+import { allRules } from "./support/css";
 
 function rect(left: number, top: number, width: number, height: number): DOMRect {
   return {
@@ -131,5 +132,36 @@ describe("HelpPopover", () => {
     const popover = openHelp(rect(width - 20, 100, 16, 16), "start");
 
     expect(popover.style.left).toBe(`${width - 280 - 8}px`);
+  });
+});
+
+// The ? sits 6px from its title on every page, as beside 隐藏软件列表 (.software-panel-title): one shared rule
+// takes 4px off .panel-head's 10px gap, and no page spaces it on its own.
+describe("help button spacing", () => {
+  const topLevel = (selector: string): Record<string, string> =>
+    Object.assign(
+      {},
+      ...allRules()
+        .filter((rule) => rule.atRules.length === 0 && rule.selectors.includes(selector))
+        .map((rule) => rule.declarations),
+    );
+
+  it("sits 6px from a panel title on every page", () => {
+    const px = (value: string | undefined) => Number.parseFloat(value ?? "NaN");
+    const shared = ".panel-head h2 + .active-help";
+    expect(px(topLevel(".panel-head").gap) + px(topLevel(shared)["margin-left"])).toBe(px(topLevel(".software-panel-title").gap));
+    const ownSpacing = allRules().flatMap((rule) =>
+      rule.selectors
+        .filter((selector) => /\.active-help$/.test(selector) && selector !== shared && "margin-left" in rule.declarations)
+        .map((selector) => `${rule.file}: ${selector}`),
+    );
+    expect(ownSpacing).toEqual([]);
+    const headGaps = allRules().flatMap((rule) =>
+      rule.selectors
+        .filter((selector) => /\.panel-head$/.test(selector) && selector !== ".panel-head")
+        .filter(() => ["gap", "column-gap"].some((property) => property in rule.declarations))
+        .map((selector) => `${rule.file}: ${selector}`),
+    );
+    expect(headGaps).toEqual([]);
   });
 });
