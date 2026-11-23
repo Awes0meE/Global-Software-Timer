@@ -232,6 +232,27 @@ describe("forced colors", () => {
     expect(normalize(declarationsFor(selector, FORCED)[property] ?? ""), selector).toBe("1px solid CanvasText");
   });
 
+  // v0.4.1 variant B: the raised-key gradient is theme paint, so contrast themes lay the heads on plain Canvas
+  // (the key lines are box-shadows, which forced colours drop). The forced rule comes after the rule it repaints.
+  it.each([".focused-table-head", ".background-table th"])("lays the sticky head %s on Canvas", (selector) => {
+    expect(declarationsFor(selector, FORCED).background, selector).toBe("Canvas");
+    const painting = (atRules: string[]) =>
+      rulesFor(selector, atRules)
+        .filter((rule) => "background" in rule.declarations)
+        .map((rule) => rules.indexOf(rule));
+    expect(Math.min(...painting(FORCED)), selector).toBeGreaterThan(Math.max(...painting([])));
+    expect(declarationsFor(`${selector}::after`, FORCED).display, selector).toBe("none");
+  });
+
+  // The key's bottom hairline is a box-shadow as well, so the first 特别关注 row's top rule, hidden under the
+  // key outside contrast themes, comes back; the forced rule comes after the one that hides it.
+  it("brings back the rule under the 特别关注 head in forced colours", () => {
+    const selector = ".focused-table-head + .focused-table-row";
+    expect(declarationsFor(selector)["border-top-color"]).toBe("transparent");
+    expect(declarationsFor(selector, FORCED)["border-top-color"]).toBe("CanvasText");
+    expect(rules.indexOf(rulesFor(selector, FORCED)[0])).toBeGreaterThan(rules.indexOf(rulesFor(selector)[0]));
+  });
+
   // Forced colours drop the box-shadow lines of reached plates but keep the unlit plates' dashed inset outline,
   // so reached plates (and the 6666-hour one in Highlight) get inset outlines that leave the box alone.
   it.each([

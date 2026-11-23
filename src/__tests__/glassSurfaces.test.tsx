@@ -90,11 +90,13 @@ describe("glass panel edge (decision 2A)", () => {
     },
   );
 
-  // Sticky heads are positioned and opaque, so they paint over the outline and must redraw the edge.
+  // Sticky heads are positioned and opaque, so they paint over the outline and must redraw the edge,
+  // ahead of the raised-key lines (v0.4.1 variant B).
+  const KEY = "inset 0 1px 0 var(--head-hi), inset 0 -1px 0 var(--head-rule)";
   it.each([
-    [".focused-table-head", "inset 1px 0 0 var(--edge), inset -1px 0 0 var(--edge)"],
-    [".background-table th:first-child", "inset 1px 0 0 var(--edge)"],
-    [".background-table th:last-child", "inset -1px 0 0 var(--edge)"],
+    [".focused-table-head", `inset 1px 0 0 var(--edge), inset -1px 0 0 var(--edge), ${KEY}`],
+    [".background-table th:first-child", `inset 1px 0 0 var(--edge), ${KEY}`],
+    [".background-table th:last-child", `inset -1px 0 0 var(--edge), ${KEY}`],
   ])("%s redraws the panel edge it covers", (selector, shadow) => {
     expect(normalize(topLevel(selector)["box-shadow"]), selector).toBe(shadow);
   });
@@ -141,9 +143,10 @@ describe("software and background pages, dialogs", () => {
   const SIGNAL = "var(--" + "signal";
 
   // Trade-off 6: the rows scroll under the sticky heads, so the heads must not be translucent.
-  // Decision E-B (2026-11-23) moved them from --glass-solid to --head-solid, its slightly lifted twin.
+  // Decision E-B (2026-11-23) moved them from --glass-solid to --head-solid, its slightly lifted twin;
+  // v0.4.1 variant B lays the opaque top-lit --head-fill over it.
   it.each([".focused-table-head", ".background-table th"])("%s is opaque", (selector) => {
-    expect(topLevel(selector).background, selector).toBe("var(--head-solid)");
+    expect(normalize(topLevel(selector).background), selector).toBe("var(--head-fill), var(--head-solid)");
   });
 
   // Plan「口径」浮层: dialogs and the help bubble float over the glass, so they are opaque too.
@@ -248,9 +251,55 @@ describe("sticky table heads (decision E-B)", () => {
     expect(parseColor(token("light", "--head-solid"))).toEqual(parseColor(token("light", "--glass-solid")));
   });
 
-  it("--head-solid is the panel's average dark colour, a step above --glass-solid", () => {
-    expect(parseColor(token("dark", "--head-solid"))).toEqual({ r: 33, g: 32, b: 39, a: 1 });
+  // v0.4.1 variant B (raised key strip, user 2026-11-24): in the dark theme the old #212027 head read as
+  // near-black, so it now sits one key step above the panel.
+  it("--head-solid is a key step above --glass-solid in the dark theme", () => {
+    expect(parseColor(token("dark", "--head-solid"))).toEqual({ r: 42, g: 42, b: 49, a: 1 });
     expect(parseColor(token("dark", "--glass-solid"))).toEqual({ r: 30, g: 30, b: 34, a: 1 });
+  });
+
+  it.each([
+    ["light", "--head-fill", "linear-gradient(to bottom, #fcfcfd, #f1f3f6)"],
+    ["dark", "--head-fill", "linear-gradient(to bottom, #2e2e36, #27272e)"],
+    ["light", "--head-hi", "rgba(255, 255, 255, 0.9)"],
+    ["dark", "--head-hi", "rgba(255, 255, 255, 0.07)"],
+    ["light", "--head-rule", "rgba(20, 30, 60, 0.1)"],
+    ["dark", "--head-rule", "rgba(0, 0, 0, 0.45)"],
+    ["light", "--head-drop", "rgba(20, 30, 60, 0.12)"],
+    ["dark", "--head-drop", "rgba(0, 0, 0, 0.35)"],
+  ] as const)("%s %s is the approved raised-key value", (theme, name, value) => {
+    expect(normalize(themeTokens(theme)[name])).toBe(value);
+  });
+
+  it("draws the middle 后台 head cells with the key lines and no panel edge", () => {
+    expect(normalize(topLevel(".background-table th")["box-shadow"])).toBe(
+      "inset 0 1px 0 var(--head-hi), inset 0 -1px 0 var(--head-rule)",
+    );
+  });
+
+  // Per-cell drop shadows tapered at every 后台 head cell's sides (gaps under the head, seams over the
+  // neighbours), so the drop is a full-width strip under each head, 1px in from the panel's sides.
+  it("drops the heads onto the rows with a seamless strip, not a box-shadow", () => {
+    for (const selector of [".focused-table-head", ".background-table th"]) {
+      expect(normalize(topLevel(selector)["box-shadow"]), selector).not.toContain("--head-drop");
+      const strip = topLevel(`${selector}::after`);
+      expect(strip.content, selector).toBe('""');
+      expect(strip.position, selector).toBe("absolute");
+      expect(strip.top, selector).toBe("100%");
+      expect(strip["pointer-events"], selector).toBe("none");
+      expect(normalize(strip.background), selector).toBe("linear-gradient(to bottom, var(--head-drop), transparent)");
+    }
+    expect(topLevel(".background-table th::after").left).toBe("0");
+    expect(topLevel(".background-table th::after").right).toBe("0");
+    expect(topLevel(".background-table th:first-child::after").left).toBe("1px");
+    expect(topLevel(".background-table th:last-child::after").right).toBe("1px");
+    expect(topLevel(".focused-table-head::after").left).toBe("1px");
+    expect(topLevel(".focused-table-head::after").right).toBe("1px");
+  });
+
+  // The key's own bottom hairline replaces the first row's top rule, so the two do not double up.
+  it("hides the first 特别关注 row's top rule under the key", () => {
+    expect(topLevel(".focused-table-head + .focused-table-row")["border-top-color"]).toBe("transparent");
   });
 });
 

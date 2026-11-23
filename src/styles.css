@@ -60,6 +60,13 @@
   --glass: rgba(255, 255, 255, 0.5);
   --glass-solid: #f6f7f9;
   --head-solid: var(--glass-solid);
+  /* Sticky table heads as a raised key strip (v0.4.1 variant B): an opaque top-lit fill, a 1px top
+     highlight, a hairline bottom edge and a short soft drop onto the rows (the --head-drop colour fading out),
+     like the slide switch's knob. */
+  --head-fill: linear-gradient(to bottom, #fcfcfd, #f1f3f6);
+  --head-hi: rgba(255, 255, 255, 0.9);
+  --head-rule: rgba(20, 30, 60, 0.1);
+  --head-drop: rgba(20, 30, 60, 0.12);
   --glass-2: rgba(255, 255, 255, 0.55);
   --chip: rgba(20, 30, 60, 0.06);
   --on: rgba(255, 255, 255, 0.75);
@@ -138,7 +145,11 @@
     radial-gradient(860px 600px at 52% 108%, rgba(150, 110, 255, 0.28), transparent 62%);
   --glass: rgba(40, 40, 46, 0.42);
   --glass-solid: #1e1e22;
-  --head-solid: #212027;
+  --head-solid: #2a2a31;
+  --head-fill: linear-gradient(to bottom, #2e2e36, #27272e);
+  --head-hi: rgba(255, 255, 255, 0.07);
+  --head-rule: rgba(0, 0, 0, 0.45);
+  --head-drop: rgba(0, 0, 0, 0.35);
   --glass-2: rgba(255, 255, 255, 0.06);
   --chip: rgba(255, 255, 255, 0.07);
   --on: rgba(255, 255, 255, 0.1);
@@ -1424,13 +1435,20 @@ main > p[role="status"] {
   top: 0;
   z-index: 2;
   min-height: 32px;
-  background: var(--head-solid);
+  background: var(--head-fill), var(--head-solid);
   color: var(--muted);
   font-size: 12px;
   letter-spacing: 0.04em;
   /* A sticky, opaque head paints over the panel's inset outline, so it redraws the edge (decision 2A); that
-     shows while its scroller is focused, otherwise the scroller's side clip lets the outline through. */
-  box-shadow: inset 1px 0 0 var(--edge), inset -1px 0 0 var(--edge);
+     shows while its scroller is focused, otherwise the scroller's side clip lets the outline through. The
+     raised-key lines follow. */
+  box-shadow: inset 1px 0 0 var(--edge), inset -1px 0 0 var(--edge), inset 0 1px 0 var(--head-hi),
+    inset 0 -1px 0 var(--head-rule);
+}
+
+/* The key's own bottom hairline stands in for the first row's top rule. */
+.focused-table-head + .focused-table-row {
+  border-top-color: transparent;
 }
 
 .focused-table-head > span:not(.software-remove-slot) {
@@ -2467,20 +2485,65 @@ mark {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--head-solid);
+  background: var(--head-fill), var(--head-solid);
   color: var(--muted);
   font-size: var(--type-label);
   font-weight: 600;
+  box-shadow: inset 0 1px 0 var(--head-hi), inset 0 -1px 0 var(--head-rule);
 }
 
 /* The sticky, opaque end cells paint over the panel's inset outline, so they redraw the edge (decision 2A).
    That shows while the scroller drops its side clip on focus; otherwise the clip lets the outline through. */
 .background-table th:first-child {
-  box-shadow: inset 1px 0 0 var(--edge);
+  box-shadow: inset 1px 0 0 var(--edge), inset 0 1px 0 var(--head-hi), inset 0 -1px 0 var(--head-rule);
 }
 
 .background-table th:last-child {
-  box-shadow: inset -1px 0 0 var(--edge);
+  box-shadow: inset -1px 0 0 var(--edge), inset 0 1px 0 var(--head-hi), inset 0 -1px 0 var(--head-rule);
+}
+
+/* The key's soft drop onto the rows. A strip under each head rather than a box-shadow: per-cell shadows taper
+   at every cell's sides, which left gaps between the 后台 head cells and seams over their neighbours. It
+   stops 1px short of the panel's sides, so a focused scroller's redrawn edge stays whole. */
+.focused-table-head::after,
+.background-table th::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: linear-gradient(to bottom, var(--head-drop), transparent);
+  pointer-events: none;
+}
+
+.focused-table-head::after,
+.background-table th:first-child::after {
+  left: 1px;
+}
+
+.focused-table-head::after,
+.background-table th:last-child::after {
+  right: 1px;
+}
+
+/* Contrast themes: the raised-key gradient and drop are theme paint, so both sticky heads lie on plain Canvas
+   with no drop (the key lines are shadows, which forced colours drop). Here, after the rules it repaints. */
+@media (forced-colors: active) {
+  .focused-table-head,
+  .background-table th {
+    background: Canvas;
+  }
+
+  .focused-table-head::after,
+  .background-table th::after {
+    display: none;
+  }
+
+  /* The key's bottom hairline is a shadow too, so the first row's top rule comes back. */
+  .focused-table-head + .focused-table-row {
+    border-top-color: CanvasText;
+  }
 }
 
 .background-table .sort-button {

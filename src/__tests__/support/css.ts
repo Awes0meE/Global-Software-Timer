@@ -518,7 +518,12 @@ export function backdrop(theme: Theme): Rgba {
 
 /** `--eink-paper` as colours: itself, or each stop of its linear-gradient. */
 export function paperStops(theme: Theme): Rgba[] {
-  const paper = token(theme, "--eink-paper");
+  return fillStops(theme, "--eink-paper");
+}
+
+/** A fill token as colours: itself, or each stop of its linear-gradient. */
+export function fillStops(theme: Theme, name: string): Rgba[] {
+  const paper = token(theme, name);
   const args = callArgs(paper, "linear-gradient");
   if (args === null) {
     return [parseColor(paper)];

@@ -3,6 +3,7 @@ import {
   allRules,
   backdrop,
   contrast,
+  fillStops,
   glowCenters,
   over,
   paperStops,
@@ -227,6 +228,16 @@ describe.each(THEMES)("contrast in the %s theme", (theme) => {
     );
   });
 
+  // v0.4.1 variant B: the sticky heads are a top-lit --head-fill key over --head-solid, so their labels
+  // clear the text target on every stop of the fill, not only on the solid colour beneath it.
+  it.each(["--muted", "--ink"])("%s on every sticky head fill stop", (name) => {
+    const text = parseColor(token(theme, name));
+    fillStops(theme, "--head-fill").forEach((stop, index) => {
+      const ratio = contrast(text, stop);
+      expect(ratio, `${theme}: ${name} on head fill stop ${index} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(TEXT);
+    });
+  });
+
   it.each([
     ["--eink-ink", TEXT],
     ["--eink-dim", TEXT],
@@ -285,7 +296,8 @@ const SPEC_TOKENS: Record<string, [light: string, dark: string]> = {
   "--muted": ["#5a606c", "#98a0ad"],
   "--glass": ["rgba(255,255,255,.50)", "rgba(40,40,46,.42)"],
   "--glass-solid": ["#f6f7f9", "#1e1e22"],
-  "--head-solid": ["var(--glass-solid)", "#212027"],
+  // v0.4.1 variant B (user, 2026-11-24): the dark head moved off near-black to a key step above the panel.
+  "--head-solid": ["var(--glass-solid)", "#2a2a31"],
   "--glass-2": ["rgba(255,255,255,.55)", "rgba(255,255,255,.06)"],
   "--chip": ["rgba(20,30,60,.06)", "rgba(255,255,255,.07)"],
   "--on": ["rgba(255,255,255,.75)", "rgba(255,255,255,.10)"],
