@@ -50,6 +50,7 @@
 | `--ink` / `--ink-2` / `--muted` | `#17191d` / `#33373e` / `#5a606c`（样稿 `#626875` 在侧栏上不到 4.5:1，见对比度表） | `#f1f3f7` / `#d5d9e0` / `#98a0ad` |
 | `--glass` | `rgba(255,255,255,.50)` | `rgba(40,40,46,.42)` |
 | `--glass-solid`（回退用） | `#f6f7f9` | `#1e1e22` |
+| `--head-solid`（吸顶表头，2026-11-23 用户确认） | 同 `--glass-solid` | `#212027`（面板平均色，比 `--glass-solid` 略亮） |
 | `--glass-2` / `--chip` / `--on` | `rgba(255,255,255,.55)` / `rgba(20,30,60,.06)` / `rgba(255,255,255,.75)` | `rgba(255,255,255,.06)` / `rgba(255,255,255,.07)` / `rgba(255,255,255,.10)` |
 | `--side`（侧栏） | `rgba(255,255,255,.38)` | `rgba(30,30,34,.55)` |
 | `--edge` / `--rule` | `rgba(255,255,255,.75)` / `rgba(20,30,60,.07)` | `rgba(255,255,255,.11)` / `rgba(255,255,255,.07)` |
@@ -82,7 +83,7 @@ box-shadow: var(--glass-shadow), inset 0 2px 0 var(--glass-hi);
 backdrop-filter: blur(30px) saturate(1.4);
 ```
 
-2026-11-23 用户看过对比图后确认：边线由 `border: 1px solid var(--edge)` 改为内收的 `outline`，不占盒子，面板外框和内容位置都与 v0.3.1 一致（`border` 版实测：自适应高度的面板各高 2px，各页面板外框偏移 0.5–8px，统计最多 8、成就 6、概览 4、后台 2、设置 0.5）；`outline` 盖住最上面一行，所以高光由 1px 改为 2px，顶边仍是「边线 + 一行高光」。`outline` 画在面板的定位子元素之下，吸顶的不透明表头用内阴影补画左右边线。强制颜色模式下面板用 `outline: 1px solid CanvasText`。
+2026-11-23 用户看过对比图后确认：边线由 `border: 1px solid var(--edge)` 改为内收的 `outline`，不占盒子，面板外框和内容位置都与 v0.3.1 一致（`border` 版实测：自适应高度的面板各高 2px，各页面板外框偏移 0.5–8px，统计最多 8、成就 6、概览 4、后台 2、设置 0.5）；`outline` 盖住最上面一行，所以高光由 1px 改为 2px，顶边仍是「边线 + 一行高光」。`outline` 画在面板的定位子元素之下，吸顶的不透明表头用内阴影补画左右边线。吸顶表头（软件页特别关注表、后台表）的底色用 `--head-solid`：浅色等于 `--glass-solid`，深色是略亮的中性色 `#212027`，接近玻璃面板的平均色，不再比面板暗一截（2026-11-23 用户看过对比图后确认）。强制颜色模式下面板用 `outline: 1px solid CanvasText`。
 
 | 规则 | 值 |
 | --- | --- |
@@ -90,7 +91,7 @@ backdrop-filter: blur(30px) saturate(1.4);
 | 嵌套 | 不允许：面板里的子板、按钮、分段选择器、表格行、提示卡只用半透明填充，不再模糊 |
 | 页头按钮 | `--glass-2` + `--edge`，圆角 9px，不加模糊（样稿给按钮加了 `blur(20px)`，这里去掉，省一层合成）。未开放的日期、导出、更多（`aria-disabled`）同样保留 `--glass-2` + `--edge`，文字 `--ink-2`，悬停和按下不改外观（2026-11-23 用户确认） |
 | 面板内控件 | 面板里的「更多」「查看名单」（`.panel-link`）、「编辑」（`.text-action`）和普通 `.button`：`--glass-2` 底 + 1px `--edge-strong` 线，两个主题相同；主按钮和「添加」仍是深色按键（2026-11-23 用户确认） |
-| 对话框 | `--glass-solid` 不透明面板，圆角 16px；`.modal-backdrop` 保留现有 `blur(2px)`（styles.css:1432） |
+| 对话框 | `--glass-solid` 不透明面板，圆角 16px；`.modal-backdrop` 保留现有 `blur(2px)`（styles.css:1432）。次要按钮（「取消」「退出软件」）和添加软件对话框的搜索框加 1px `--edge-strong` 线，填充不变（按钮 `--glass-2`，搜索框 `--chip`），键盘焦点时焦点环叠在线外（2026-11-23 用户确认） |
 | 模糊半径 | 统一 30px，不按组件调 |
 
 光晕是平滑的径向渐变，模糊前后几乎一样，玻璃感主要来自半透明、饱和度和描边。所以性能不达标时，去掉 `backdrop-filter`、只留半透明，外观差别很小，这就是性能回退。
@@ -108,7 +109,7 @@ backdrop-filter: blur(30px) saturate(1.4);
 | Windows「透明效果」关闭 | 启动时、以及窗口重新可见时，读 `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\EnableTransparency`（DWORD，0 = 关）。用一个新的只读命令返回布尔值，前端据此设 `data-glass`。只读注册表，不落库；`Win32_System_Registry` 已启用，tray_icons.rs:86 起有同类 HKCU 读取 |
 | `@media (prefers-reduced-transparency: reduce)` | 同上；WebView2 是否支持要实测，所以不能只靠它 |
 | `@supports not (backdrop-filter: blur(1px))` | 同上 |
-| `@media (forced-colors: active)` | 面板用系统色 `Canvas`/`CanvasText`；光晕、颗粒、残影都去掉 |
+| `@media (forced-colors: active)` | 面板用系统色 `Canvas`/`CanvasText`；光晕、颗粒、残影都去掉。墨水屏 `.lcd` 的系统色边线用 `border`（读数面板高 2px）还是内收 `outline`（不改布局），2026-11-23 仍未定，留给计划任务 10 |
 | Windows 10 | 不单独分支，CSS 和 Win11 一样；只需要在 Win10 上验收 |
 | 低功耗 / 低端机 | 不自动检测，跟随「透明效果」开关 |
 
@@ -156,9 +157,9 @@ v0.5.0 回放表盘的刻度沿用这三条刻线规则。样稿的表盘只有 
 | 走纸记录仪 TrendRecorder（StatisticsPage.css:242–383） | `.paper` = `--panel-raised`，金属滚轴，旋钮色笔臂 | `.paper` 改用墨水屏纸面、颗粒和内凹边；针柱和文字改用 `--eink-*`；滚轴改成平的 `--eink-mid` 细条；笔臂 `--eink-mid`；`.pen-lamp` 信号橙保留（正在记录） |
 | 里程碑铭牌 MilestoneShelf（AchievementsPage.css:476–541） | 螺钉、凸起/凹槽 | `--glass-2` 子板，去掉螺钉；未点亮为虚线 `--edge` + `--muted`；6666 达成后用 `--accent` 描边 |
 | 今日分布 `.mix-plate`（958–978） | 唯一允许 mix 色的带框色板 | `--glass-2` 子板；深色下色条加 `0 0 12px` 同色 40% 微光 |
-| 开关 `.toggle` / `.toggle-knob`（1680–1717） | 金属旋钮 + 信号橙灯 | 白色圆钮 + 柔和投影；开启态轨道 `--accent` |
+| 开关 `.toggle` / `.toggle-knob`（1680–1717） | 金属旋钮 + 信号橙灯 | 白色圆钮 + 柔和投影；开启态轨道 `--accent`（2026-11-23：用户要求所有开关改成有立体感、像真的在拨动滑块，方案待用户从立体样稿里选定，见计划任务 7「开关将重做」；新方案仍须满足开启态轨道对背景 ≥ 3:1、深色开启态圆钮对轨道 ≥ 3:1。选定前保持现值） |
 | 分段选择器 `.segmented`（1737–1746）与统计/成就的同类控件 | 凸起选中项 | 轨道 `--chip`，选中项 `--on` + `--edge` |
-| 对话框 `.dialog`（1436） | 机壳面板 | `--glass-solid`，圆角 16px |
+| 对话框 `.dialog`（1436） | 机壳面板 | `--glass-solid`，圆角 16px；次要按钮和搜索框 1px `--edge-strong` 线（2026-11-23） |
 | 刻字效果（`text-shadow: 0 1px 0 var(--highlight)`：styles.css:524，AchievementsPage.css:48、555、601） | 刻字 | 删除；随刻字和液晶发光一起失效的 `text-shadow: none` 覆盖（styles.css:659，AchievementsPage.css:171、295、321）一起删 |
 | 深色选择器覆盖（styles.css:614、640、734、759、763；ach 236、241） | 液晶专用 | 随液晶配方一起删除或改写 |
 
