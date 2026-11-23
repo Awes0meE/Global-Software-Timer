@@ -1,8 +1,8 @@
 # Privacy
 
-Global Software Timer v0.4.0 is local-first.
+Global Software Timer v0.4.1 is local-first.
 
-## What v0.4.0 records
+## What v0.4.1 records
 
 - Application executable identity
 - User-facing application name
@@ -19,7 +19,7 @@ Global Software Timer v0.4.0 is local-first.
 
 To tell windowed, tray and background apps apart, GST reads window styles and class names, process command lines (checked in memory for helper flags such as `--type=`, never stored), and the executable paths Windows lists under `HKCU\Control Panel\NotifyIconSettings`. It does not read window titles or tray icon tooltips.
 
-## What v0.4.0 does not record
+## What v0.4.1 does not record
 
 - Window titles
 - Document names
@@ -55,12 +55,12 @@ Since v0.3.1, GST also keeps a local timeline of when recorded time happened, no
 
 ## Network
 
-v0.4.0 does not upload usage data or require an account.
+v0.4.1 does not upload usage data or require an account.
 
 ## Permissions
 
-v0.4.0 runs as a normal user-space app and does not request administrator permission by default.
+v0.4.1 runs as a normal user-space app and does not request administrator permission by default.
 
 GST reads the Windows "Transparency effects" setting only to decide how panels look; it is not stored.
 
-Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.4.0, can be turned off in Settings, and does not require administrator permission.
+Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.4.1, can be turned off in Settings, and does not require administrator permission.

@@ -14,7 +14,7 @@ Last updated: 2026-11-24
 - App mark: a skeuomorphic wall clock (steel bezel, ivory dial, 10:10 hands, orange second hand). `scripts/brand/build-clock-mark.py` writes `src/assets/gst-clock.svg` and `gst-clock-small.svg`; `scripts/brand/build-icons.py` rasterises them into `src-tauri/icons/` (also the tray icon) with headless Edge and Pillow.
 - Theme: 跟随系统 / 浅色 / 深色, default follows Windows. Stored as `ui.theme` in SQLite `app_settings`; the native title bar follows through the window `setTheme` permission; `localStorage` key `gst.theme` only caches the last choice to avoid a first-frame flash.
 - Default Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`. The 2026-06-06 duration-format setting adds an optional concrete-minute display such as `8小时35分钟`.
-- Latest published release: `v0.4.0` (2026-11-24); publication is gated by complete Windows checks and installer builds.
+- Latest published release: `v0.4.1` (2026-11-24); publication is gated by complete Windows checks and installer builds.
 - v0.1.2 adds a Settings page with startup-at-login and close-window behavior controls.
 - Startup at login defaults to enabled in v0.1.2, uses the current-user autostart mechanism, and does not require administrator permission.
 - First window close still asks whether to exit or minimize to tray; the choice is saved automatically and can be changed later in Settings.
@@ -74,6 +74,7 @@ Last updated: 2026-11-24
 
 ## Current Repository State
 
+- Version `0.4.1` polishes the v0.4.0 look from user feedback, developed on branch `fix/v0.4.1-polish` (worktree `.worktrees/v041-polish`) and fast-forwarded into main: a raised nav key and raised table-head strips, the 后台 six-reading e-ink strip, even heatmap months with a bottom reading strip, explanatory small print replaced by ? help bubbles (隐藏软件列表, 后台进程, 开着没用, 作息) and the README metrics table, 作息 moved after 每日趋势, flat 今日分布 segments without the dark glow. Frontend only; schema 3, no tracking or metric change.
 - Version `0.4.0` replaces the v0.2 desk-instrument look with the Mica glass shell and e-ink screens, adds the read-only `get_transparency_effects_enabled` command and the read-only `usage_date` field in `get_dashboard_summary`, developed on branch `feat/glass-eink-redesign` (worktree `.worktrees/glass-eink`) and fast-forwarded into main. It retains schema 3; no tracking or metric change. Installed-app acceptance (transparency off, contrast themes, Windows 10, display scaling, drag/resize and idle CPU) is done after release and recorded in `docs/CURRENT_STATE.md`. Next step: the v0.5.0 `时间轴` page.
 - Version `0.3.1` adds timeline data collection (`timeline_segments`, `timeline_window_spans`) and the unused read-only `get_timeline_summary` command, developed on branch `feat/timeline-segments` (worktree `.worktrees/timeline-segments`) and fast-forwarded into main. It moves the database to schema 3. Next steps: v0.4.0 Mica glass and e-ink redesign, then the v0.5.0 `时间轴` page (specs dated 2026-11-22 under `docs/superpowers/specs/`).
 - Version `0.3.0` adds the `统计` and `成就` pages, developed on branch `feat/statistics-and-achievements` (worktree `.worktrees/statistics-brainstorm`, rebased onto main `4a365f4` = v0.2.4). It retains schema 2.
@@ -95,6 +96,7 @@ Last updated: 2026-11-24
 
 ## Release State
 
+- `v0.4.1` (2026-11-24): polish of the glass and e-ink UI: raised nav key and table heads, 后台 e-ink strip of six readings, even heatmap months with a bottom reading strip, small print moved to ? help bubbles and the README, 作息 after 每日趋势, flat 今日分布 segments; schema 3, no data or metric change.
 - `v0.4.0` (2026-11-24): Mica-like glass shell with e-ink readouts in both themes, 96 dial ticks, readout ghost, opaque panels when Windows transparency effects are off, signal orange only for what is happening now; schema 3, no data or metric change.
 - `v0.3.1` (2026-11-22): local timeline data collection (focus and activity segments, window spans), schema 3; no UI change.
 - `v0.3.0` (2026-11-22): the `统计` and `成就` pages, the header date button limited to `概览` and `后台`, statistics icons through the `gsticon` protocol.

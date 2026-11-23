@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.1 - 2026-11-24
+
+- The selected sidebar item is now a raised key instead of a side bar, and the sticky heads of the 特别关注 and 后台 tables are a raised key strip that no longer sinks into near-black in the dark theme.
+- The 后台 summary is now an e-ink strip of six pixel readings: 正在后台运行, 进程, 当前合计 CPU, 当前合计内存, 今日 CPU 时间 and 今日出现, all from data the page already had.
+- The achievements heatmap gives every month the same width, and its streak and range readings and legend move to a strip along the bottom of the screen.
+- Removed the explanatory small print across the app: under the overview readings and the 今日分布 total, on the 后台, 统计 and 成就 pages, and under each row of the hidden software list. Where an explanation is still needed, a ? bubble beside the title now holds it (隐藏软件列表, 后台进程, 开着没用, 作息); the counting rules for the 统计 and 成就 figures are in the README metrics table.
+- The 统计 page now shows 作息 right after 每日趋势, and 会话 last.
+- The 今日分布 bar segments are drawn flat without the dark-theme glow, so bright and dark segments are the same height. This reverses the v0.4.0 design decision to give each segment a glow of its own colour in the dark theme.
+- The 每日趋势 recorder loses the roller strips at both ends; the 今日活跃 legend key now matches the dial's inner ring.
+- In the light theme, software icons get a thin outline that follows each icon instead of a grey well, so white icons stay visible.
+- Fixes: the heatmap's row rule runs the full width when the last row of months is short; pixel readings on the 后台 strip and the heatmap stay sharp at 125% display scaling and their labels are no longer clipped; contrast themes drop the raised key's sheen, rule the 后台 head off from its rows and drop the light icon outline. Data, schema and metrics are unchanged.
+
 ## v0.4.0 - 2026-11-24
 
 - Redesigned the whole app as a Mica-like glass shell with matte e-ink screens for the readouts, in both light and dark themes. Nothing about the data, metrics or layout changes.
