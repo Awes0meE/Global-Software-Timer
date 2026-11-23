@@ -637,7 +637,7 @@ describe("App", () => {
     expect(screen.getByText("35分钟")).toBeInTheDocument();
   });
 
-  it("shows the approved hidden row secondary copy", async () => {
+  it("explains hidden software in a help bubble instead of a line under every row", async () => {
     mockInvoke.mockImplementation((command) => {
       if (command === "get_software_page_summary") {
         return Promise.resolve({
@@ -674,9 +674,19 @@ describe("App", () => {
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "软件" }));
 
-    expect(await screen.findByText("概览隐藏 · 不参与排行 · 仍正常记录")).toBeInTheDocument();
-    expect(screen.getByText("已隐藏")).toBeInTheDocument();
+    expect(await screen.findByText("已隐藏")).toBeInTheDocument();
+    expect(screen.getByText("BitDock")).toBeInTheDocument();
     expect(screen.queryByText("BitDock.exe")).not.toBeInTheDocument();
+    expect(screen.queryByText(/不参与排行/)).not.toBeInTheDocument();
+
+    const hiddenPanel = screen.getByRole("region", { name: "隐藏软件列表" });
+    const help = within(hiddenPanel).getByRole("button", { name: "什么是隐藏软件" });
+    expect(help.closest(".software-panel-head")).not.toBeNull();
+    fireEvent.click(help);
+    const bubble = screen.getByRole("dialog", { name: "什么是隐藏软件？" });
+    expect(bubble).toHaveTextContent("仍照常记录");
+    fireEvent.click(help);
+    expect(screen.queryByRole("dialog", { name: "什么是隐藏软件？" })).not.toBeInTheDocument();
   });
 
   it("keeps discovered search quiet when no rows match", async () => {

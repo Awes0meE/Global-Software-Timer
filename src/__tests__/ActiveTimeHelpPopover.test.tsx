@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ActiveTimeHelpPopover } from "../components/ActiveTimeHelpPopover";
+import { ActiveTimeHelpPopover, HelpPopover } from "../components/ActiveTimeHelpPopover";
 
 function rect(left: number, top: number, width: number, height: number): DOMRect {
   return {
@@ -72,5 +72,64 @@ describe("ActiveTimeHelpPopover", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("closes on a second click of its button", () => {
+    openInClippingContainer(rect(600, 100, 16, 16));
+    const button = screen.getByRole("button", { name: "什么是活跃时长" });
+    expect(button).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.pointerDown(button);
+    fireEvent.click(button);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(button).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("HelpPopover", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  function openHelp(buttonRect: DOMRect, align?: "start" | "end") {
+    render(
+      <HelpPopover label="什么是示例" title="什么是示例？" align={align}>
+        <p>示例说明。</p>
+      </HelpPopover>,
+    );
+    const button = screen.getByRole("button", { name: "什么是示例" });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this === button) return buttonRect;
+      if (this.classList.contains("active-help-popover")) return rect(0, 0, 280, 120);
+      return rect(0, 0, 0, 0);
+    });
+    fireEvent.click(button);
+    return screen.getByRole("dialog", { name: "什么是示例？" });
+  }
+
+  it("shows its own title and explanation in the shared bubble", () => {
+    const popover = openHelp(rect(600, 100, 16, 16));
+
+    expect(popover).toHaveClass("active-help-popover");
+    expect(popover).toHaveTextContent("什么是示例？");
+    expect(popover).toHaveTextContent("示例说明。");
+    expect(screen.getByRole("button", { name: "什么是示例" })).toHaveClass("active-help-button");
+  });
+
+  it("can grow rightwards from a title near the left edge of a panel", () => {
+    const popover = openHelp(rect(300, 100, 16, 16), "start");
+
+    expect(popover.style.top).toBe("124px");
+    expect(popover.style.left).toBe(`${300 - 8}px`);
+  });
+
+  it("still stays inside the window when growing rightwards", () => {
+    const width = document.documentElement.clientWidth || window.innerWidth;
+    const popover = openHelp(rect(width - 20, 100, 16, 16), "start");
+
+    expect(popover.style.left).toBe(`${width - 280 - 8}px`);
   });
 });

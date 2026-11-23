@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 const GAP = 8;
@@ -9,14 +9,19 @@ interface Position {
   left: number;
 }
 
-// The help sits in a sticky table header inside scroll and container-query
-// boxes, which clip or trap an absolutely positioned bubble. Render it on
-// document.body and keep it inside the window instead.
-function placePopover(button: DOMRect, popover: DOMRect): Position {
+type Align = "start" | "end";
+
+// The help sits in sticky table headers and panel heads inside scroll and
+// container-query boxes, which clip or trap an absolutely positioned bubble.
+// Render it on document.body and keep it inside the window instead. "end"
+// lines the bubble's right edge up with the button; "start" lets it grow
+// rightwards from a title near a panel's left edge.
+function placePopover(button: DOMRect, popover: DOMRect, align: Align): Position {
   const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
   const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
   const maxLeft = Math.max(EDGE, viewportWidth - popover.width - EDGE);
-  const left = Math.min(Math.max(button.right + GAP - popover.width, EDGE), maxLeft);
+  const preferred = align === "start" ? button.left - GAP : button.right + GAP - popover.width;
+  const left = Math.min(Math.max(preferred, EDGE), maxLeft);
   const below = button.bottom + GAP;
   const above = button.top - GAP - popover.height;
   const fitsBelow = below + popover.height <= viewportHeight - EDGE;
@@ -24,7 +29,17 @@ function placePopover(button: DOMRect, popover: DOMRect): Position {
   return { top, left };
 }
 
-export function ActiveTimeHelpPopover() {
+interface HelpPopoverProps {
+  /** The ? button's accessible name. */
+  label: string;
+  /** The bubble's heading, also its accessible name. */
+  title: string;
+  children: ReactNode;
+  align?: Align;
+}
+
+/** A ? button that opens a short explanation; a second click, Escape or a click outside closes it. */
+export function HelpPopover({ label, title, children, align = "end" }: HelpPopoverProps) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<Position | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -44,6 +59,7 @@ export function ActiveTimeHelpPopover() {
         placePopover(
           buttonRef.current.getBoundingClientRect(),
           popoverRef.current.getBoundingClientRect(),
+          align,
         ),
       );
     };
@@ -56,7 +72,7 @@ export function ActiveTimeHelpPopover() {
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [open]);
+  }, [open, align]);
 
   useEffect(() => {
     if (!open) {
@@ -94,7 +110,7 @@ export function ActiveTimeHelpPopover() {
         ref={buttonRef}
         className="active-help-button"
         type="button"
-        aria-label="什么是活跃时长"
+        aria-label={label}
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
@@ -106,7 +122,7 @@ export function ActiveTimeHelpPopover() {
               ref={popoverRef}
               className="active-help-popover"
               role="dialog"
-              aria-label="什么是活跃时长？"
+              aria-label={title}
               style={{
                 position: "fixed",
                 top: `${position?.top ?? 0}px`,
@@ -114,13 +130,21 @@ export function ActiveTimeHelpPopover() {
                 visibility: position ? "visible" : "hidden",
               }}
             >
-              <strong>什么是活跃时长？</strong>
-              <p>运行时长表示软件被 GST 记录为正在运行的时间。</p>
-              <p>活跃时长表示这个软件窗口真正获得 Windows 焦点的时间。</p>
+              <strong>{title}</strong>
+              {children}
             </div>,
             document.body,
           )
         : null}
     </span>
+  );
+}
+
+export function ActiveTimeHelpPopover() {
+  return (
+    <HelpPopover label="什么是活跃时长" title="什么是活跃时长？">
+      <p>运行时长表示软件被 GST 记录为正在运行的时间。</p>
+      <p>活跃时长表示这个软件窗口真正获得 Windows 焦点的时间。</p>
+    </HelpPopover>
   );
 }

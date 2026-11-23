@@ -1290,6 +1290,14 @@ main > p[role="status"] {
   padding: 12px 14px 10px 18px;
 }
 
+/* The title and its ? help sit together; the actions keep their margin-left: auto. */
+.software-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .software-panel-actions {
   display: flex;
   gap: 8px;

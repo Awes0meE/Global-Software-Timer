@@ -3,7 +3,7 @@ import { Plus } from "lucide-react";
 import type { DurationFormat, SoftwarePageRow } from "../api";
 import { formatDurationZh } from "../i18n";
 import { formatLastOpenedAt, highlightDisplayName, rankSoftwareRows } from "../softwareSearch";
-import { ActiveTimeHelpPopover } from "./ActiveTimeHelpPopover";
+import { ActiveTimeHelpPopover, HelpPopover } from "./ActiveTimeHelpPopover";
 import { SoftwareIcon } from "./SoftwareIcon";
 
 const loadingTitle = "正在读取软件列表";
@@ -112,7 +112,10 @@ function ManagedSoftwarePanel({
       aria-labelledby={`${kind}-software-title`}
     >
       <div className="software-panel-head">
-        <h2 id={`${kind}-software-title`}>{title}</h2>
+        <div className="software-panel-title">
+          <h2 id={`${kind}-software-title`}>{title}</h2>
+          {kind === "hidden" ? <HiddenSoftwareHelp /> : null}
+        </div>
         <div className="software-panel-actions">
           {rows.length > 0 ? (
             <button
@@ -206,6 +209,15 @@ function FocusedSoftwareTable({
   );
 }
 
+function HiddenSoftwareHelp() {
+  return (
+    <HelpPopover label="什么是隐藏软件" title="什么是隐藏软件？" align="start">
+      <p>隐藏的软件不出现在概览的排行和今日分布里，统计、成就页的软件榜单默认也不列出它。</p>
+      <p>GST 仍照常记录它的时长；从列表移除后，历史时长会重新显示。</p>
+    </HelpPopover>
+  );
+}
+
 function HiddenSoftwareList({
   rows,
   editing,
@@ -225,7 +237,6 @@ function HiddenSoftwareList({
               <SoftwareIcon app={row} size="sm" />
               <span>
                 <strong>{row.display_name}</strong>
-                <small>概览隐藏 · 不参与排行 · 仍正常记录</small>
               </span>
             </div>
             <span className="software-mark software-mark-hidden">已隐藏</span>
