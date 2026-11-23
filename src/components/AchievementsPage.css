@@ -48,7 +48,6 @@
   font-size: 15px;
   font-weight: 650;
   letter-spacing: 0.02em;
-  text-shadow: 0 1px 0 var(--highlight);
 }
 
 .ach-readout-head .segmented {
@@ -342,12 +341,11 @@
   gap: 14px;
   min-height: 32px;
   padding: 0 6px 0 8px;
-  color: var(--muted);
+  color: var(--ink-2);
   font-size: var(--type-label);
 }
 
 .ach-scope strong {
-  color: var(--ink-2);
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -357,11 +355,6 @@
   min-width: 16px;
   height: 1px;
   background: var(--edge-strong);
-  box-shadow: 0 1px 0 var(--highlight);
-}
-
-.ach-scope #ach-include-hidden-label {
-  color: var(--ink-2);
 }
 
 /* ---------- Personal records ---------- */
@@ -388,7 +381,6 @@
 
 .ach-record + .ach-record {
   border-left: 1px solid var(--rule);
-  box-shadow: inset 1px 0 0 var(--highlight);
 }
 
 .ach-record-copy {
@@ -477,7 +469,6 @@
 }
 
 .ach-plate {
-  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto 1fr;
@@ -493,55 +484,21 @@
 }
 
 .ach-plate.is-reached {
-  background: linear-gradient(180deg, var(--panel-raised), color-mix(in srgb, var(--panel-raised) 70%, var(--panel)));
-  box-shadow:
-    inset 0 1px 0 var(--highlight),
-    0 0 0 1px var(--edge-strong),
-    0 1px 2px var(--shade),
-    0 2px 0 -1px var(--shade);
+  background: var(--glass-2);
+  box-shadow: inset 0 0 0 1px var(--edge);
 }
 
+/* The light --edge vanishes on glass, so unlit plates use a dashed --edge-strong line (trade-off 7). */
 .ach-plate.is-slot {
-  background: var(--panel-sunken);
-  box-shadow:
-    inset 0 2px 5px var(--shade-deep),
-    inset 0 0 0 1px var(--edge),
-    0 1px 0 var(--highlight);
+  background: transparent;
+  box-shadow: none;
+  border: 1px dashed var(--edge-strong);
 }
 
-/* 终极成就：达成后才换成信号橙描边。 */
+/* 终极成就：达成后才换成强调色描边。 */
 .ach-plate.is-reached.is-ultimate {
-  box-shadow:
-    inset 0 1px 0 var(--highlight),
-    0 0 0 1.5px var(--signal),
-    0 1px 2px var(--shade),
-    0 2px 0 -1px var(--shade);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
 }
-
-.ach-screw {
-  position: absolute;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, var(--knob-top), var(--knob-middle) 55%, var(--knob-base));
-  box-shadow: 0 0 0 1px var(--edge-strong);
-}
-
-.ach-screw::after {
-  content: "";
-  position: absolute;
-  left: 1px;
-  right: 1px;
-  top: 2.5px;
-  height: 1px;
-  background: var(--edge-strong);
-  transform: rotate(-35deg);
-}
-
-.ach-screw.tl { left: 6px; top: 6px; }
-.ach-screw.tr { right: 6px; top: 6px; }
-.ach-screw.bl { left: 6px; bottom: 6px; }
-.ach-screw.br { right: 6px; bottom: 6px; }
 
 .ach-plate-tier {
   display: flex;
@@ -555,7 +512,6 @@
   font: 600 24px/1 var(--font-num);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
-  text-shadow: 0 1px 0 var(--highlight);
 }
 
 .ach-plate-tier small {
@@ -575,14 +531,13 @@
 }
 
 .ach-plate.is-slot .ach-plate-tier b {
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .ach-plate-rule {
   height: 1px;
   margin: 0 2px;
   background: var(--edge-strong);
-  box-shadow: 0 1px 0 var(--highlight);
 }
 
 .ach-plate.is-slot .ach-plate-rule {
@@ -595,13 +550,11 @@
   gap: 8px;
   height: auto;
   background: none;
-  box-shadow: none;
   opacity: 1;
   color: var(--muted);
   font-size: var(--type-label);
   font-weight: 600;
   letter-spacing: 0.18em;
-  text-shadow: 0 1px 0 var(--highlight);
 }
 
 .ach-plate-rule.is-titled::before,
@@ -610,7 +563,6 @@
   flex: 1;
   height: 1px;
   background: var(--edge-strong);
-  box-shadow: 0 1px 0 var(--highlight);
   opacity: 0.6;
 }
 
@@ -782,7 +734,7 @@
 
 .ach-coming-names i {
   margin: 0 8px;
-  color: var(--faint);
+  color: var(--muted);
   font-style: normal;
 }
 

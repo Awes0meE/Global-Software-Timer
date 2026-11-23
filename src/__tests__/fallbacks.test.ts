@@ -138,4 +138,15 @@ describe("forced colors", () => {
   ])("keeps the panel edge beside the sticky head %s", (selector, property) => {
     expect(normalize(declarationsFor(selector, FORCED)[property] ?? ""), selector).toBe("1px solid CanvasText");
   });
+
+  // Forced colours drop the box-shadow lines of reached plates but keep the unlit plates' dashed border,
+  // so reached plates (and the 6666-hour one in Highlight) get inset outlines that leave the box alone.
+  it.each([
+    [".ach-plate.is-reached", "1px solid CanvasText", "-1px"],
+    [".ach-plate.is-reached.is-ultimate", "2px solid Highlight", "-2px"],
+  ])("outlines the milestone plate %s", (selector, outline, offset) => {
+    const declarations = declarationsFor(selector, FORCED);
+    expect(normalize(declarations.outline ?? ""), selector).toBe(outline);
+    expect(declarations["outline-offset"], selector).toBe(offset);
+  });
 });

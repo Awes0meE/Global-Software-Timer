@@ -378,6 +378,89 @@ describe("statistics range bar and ledgers", () => {
   });
 });
 
+// Plan task 9: the achievements page outside the heatmap, and the milestone plates.
+describe("achievement records, milestone plates and comings", () => {
+  // Built from pieces so a repo-wide search for the tokens finds only real uses.
+  const RETIRED = ["highlight", "knob-", "faint", "panel)", "panel-raised", "panel-sunken", "shade", "signal"].map(
+    (name) => "var(--" + name,
+  );
+  const achievementRules = () => allRules().filter((rule) => rule.file.includes("AchievementsPage"));
+
+  it("leaves no engraving, knob, faint, recess, shade or signal tokens in the achievements stylesheet", () => {
+    for (const rule of achievementRules()) {
+      const text = Object.values(rule.declarations).join(" ");
+      for (const name of RETIRED) expect(text, rule.selectors.join(", ")).not.toContain(name);
+    }
+  });
+
+  // Spec 迁移表「刻字效果」.
+  it.each([".ach-readout-head h2", ".ach-plate-tier b", ".ach-plate .ach-plate-rule.is-titled"])(
+    "%s has no engraved text shadow",
+    (selector) => {
+      expect(topLevel(selector)["text-shadow"], selector).toBeUndefined();
+    },
+  );
+
+  it.each([
+    ".ach-scope-rule",
+    ".ach-plate-rule",
+    ".ach-plate .ach-plate-rule.is-titled",
+    ".ach-plate-rule.is-titled::before",
+    ".ach-record + .ach-record",
+  ])("%s draws its rule without a highlight shadow", (selector) => {
+    expect(topLevel(selector)["box-shadow"], selector).toBeUndefined();
+  });
+
+  // Plan「口径」: the scope strip sits straight on the glow background, where --muted is too faint.
+  it("labels the scope strip in --ink-2", () => {
+    expect(topLevel(".ach-scope").color).toBe("var(--ink-2)");
+  });
+
+  // Spec 迁移表「里程碑铭牌」: a --glass-2 sub-plate, without the raised bevel or shadows.
+  it("lays reached plates on --glass-2 with an --edge line", () => {
+    const declarations = topLevel(".ach-plate.is-reached");
+    expect(declarations.background).toBe("var(--glass-2)");
+    expect(normalize(declarations["box-shadow"])).toBe("inset 0 0 0 1px var(--edge)");
+  });
+
+  // Trade-off 7: the light --edge is invisible on glass, so unlit plates use a dashed --edge-strong.
+  it("draws unlit plates as a dashed --edge-strong outline", () => {
+    const declarations = topLevel(".ach-plate.is-slot");
+    expect(declarations.background).toBe("transparent");
+    expect(declarations["box-shadow"]).toBe("none");
+    expect(normalize(declarations.border)).toBe("1px dashed var(--edge-strong)");
+    expect(topLevel(".ach-plate.is-slot .ach-plate-tier b").color).toBe("var(--muted)");
+  });
+
+  // Spec 已定 2: the 6666-hour plate takes the accent outline once reached.
+  it("outlines the reached 6666-hour plate in the accent", () => {
+    expect(normalize(topLevel(".ach-plate.is-reached.is-ultimate")["box-shadow"])).toBe(
+      "inset 0 0 0 1.5px var(--accent)",
+    );
+  });
+
+  it("has no screw rules", () => {
+    expect(achievementRules().filter((rule) => rule.selectors.some((selector) => selector.includes(".ach-screw")))).toEqual(
+      [],
+    );
+  });
+
+  it("separates the coming names with --muted dots", () => {
+    expect(topLevel(".ach-coming-names i").color).toBe("var(--muted)");
+  });
+
+  // 查看名单 is the only enabled .panel-link; under decision 3C it looks like a key, so it reacts like one.
+  it("gives enabled panel links the key hover and press fills", () => {
+    const hover = topLevel('.panel-link:not([aria-disabled="true"]):hover');
+    expect(hover.background).toBe("var(--on)");
+    expect(hover["--muted"]).toBe("var(--ink-2)");
+
+    const active = topLevel('.panel-link:not([aria-disabled="true"]):active');
+    expect(active.background).toBe("var(--chip)");
+    expect(active["--muted"]).toBe("var(--ink-2)");
+  });
+});
+
 describe("glass layers on every page", () => {
   beforeEach(() => {
     // Pin the synthetic day (it scales with the wall clock) to the visual baseline's moment.

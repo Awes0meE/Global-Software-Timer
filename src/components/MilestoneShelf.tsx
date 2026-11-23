@@ -144,14 +144,6 @@ function MilestonePlate({
 
   return (
     <div className={classes.join(" ")} role="group" aria-label={`${tier} 小时`}>
-      {reached ? (
-        <>
-          <i className="ach-screw tl" aria-hidden="true" />
-          <i className="ach-screw tr" aria-hidden="true" />
-          <i className="ach-screw bl" aria-hidden="true" />
-          <i className="ach-screw br" aria-hidden="true" />
-        </>
-      ) : null}
       <div className="ach-plate-tier">
         <b>{tier}</b>
         <small>小时</small>

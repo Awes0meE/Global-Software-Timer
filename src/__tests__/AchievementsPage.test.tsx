@@ -333,6 +333,15 @@ describe("AchievementsPage", () => {
     expect(within(ultimate).getByText("终极成就")).toBeInTheDocument();
   });
 
+  // Spec 迁移表「里程碑铭牌」: glass sub-plates without screws.
+  it("draws reached milestone plates without screws", async () => {
+    invoke.mockResolvedValue(summary());
+    await renderPage();
+
+    expect(document.querySelectorAll(".ach-plate.is-reached").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll(".ach-screw")).toHaveLength(0);
+  });
+
   it("shows personal records and comings and goings", async () => {
     invoke.mockResolvedValue(summary());
     await renderPage();

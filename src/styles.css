@@ -472,6 +472,7 @@ p {
 
 .header-button:hover,
 .button:hover:not(:disabled),
+.panel-link:not([aria-disabled="true"]):hover,
 .text-action:hover {
   --muted: var(--ink-2);
   background: var(--on);
@@ -479,6 +480,7 @@ p {
 
 .header-button:active,
 .button:active:not(:disabled, .button-primary),
+.panel-link:not([aria-disabled="true"]):active,
 .text-action:active {
   --muted: var(--ink-2);
   background: var(--chip);
@@ -2051,6 +2053,18 @@ mark {
 
   .background-table th:last-child {
     border-right: 1px solid CanvasText;
+  }
+
+  /* Reached milestone plates draw their lines with box-shadow, which forced colours drop, while unlit
+     plates keep their dashed border; inset outlines keep the reached ones framed without moving them. */
+  .ach-plate.is-reached {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
+  .ach-plate.is-reached.is-ultimate {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
   }
 
   .lcd::before,
