@@ -2233,6 +2233,15 @@ mark {
     outline-offset: -1px;
   }
 
+  /* The search boxes and the 特别关注 / 已隐藏 tags draw their only edge with box-shadow on border 0; the same
+     inset outline keeps them boxed without a size change. :focus-visible below wins on the search boxes. */
+  .discovered-search,
+  .add-software-search,
+  .software-mark {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
   /* An unavailable button's edge matches its GrayText label; an aria-disabled one can still take focus. */
   :is(.header-button, .button, .panel-link, .text-action, .panel-add-button):is(:disabled, [aria-disabled="true"]):not(:focus-visible) {
     outline-color: GrayText;

@@ -247,6 +247,21 @@ describe("forced colors", () => {
       );
     expect(restyling).toEqual([]);
   });
+
+  // Task 16 acceptance: the search boxes and the 特别关注 / 已隐藏 tags draw their edge with box-shadow on
+  // border 0, which forced colours drop; an inset outline draws it without changing the box. It sits before
+  // the plain :focus-visible rule of the same specificity, so the 2px Highlight ring still wins on focus.
+  it.each([".discovered-search", ".add-software-search", ".software-mark"])(
+    "outlines %s, whose only edge is a shadow, inside its box",
+    (selector) => {
+      const declarations = declarationsFor(selector, FORCED);
+      expect(normalize(declarations.outline ?? ""), selector).toBe("1px solid CanvasText");
+      expect(declarations["outline-offset"], selector).toBe("-1px");
+      const forced = rules.filter((rule) => rule.atRules.length === 1 && normalize(rule.atRules[0]) === FORCED[0]);
+      const at = (wanted: string) => forced.findIndex((rule) => rule.selectors.includes(wanted));
+      expect(at(selector), selector).toBeLessThan(at(":focus-visible"));
+    },
+  );
 });
 
 // Plan task 16 (验收 7): forced colours leave SVG fill / stroke and opted-out paint as authored, so the e-ink
