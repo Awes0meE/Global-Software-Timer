@@ -769,8 +769,9 @@ main > p[role="status"] {
   background: var(--eink-ink);
 }
 
+/* The key is a swatch of the inner ring (.lcd-ring-active), so it takes the ring's fill. */
 .lcd-key-active {
-  background: repeating-linear-gradient(90deg, var(--eink-ink) 0 2px, transparent 2px 3px);
+  background: var(--eink-mid);
 }
 
 .lcd-value {
@@ -2220,7 +2221,8 @@ mark {
     stroke: CanvasText;
   }
 
-  /* The legend keys are a fill and a stripe, which forced colours would drop; same 12x6 boxes. */
+  /* The legend keys are fills, which forced colours would drop; same 12x6 boxes. Both rings turn
+     CanvasText here, so the 今日活跃 key becomes a stripe to keep the two keys apart. */
   .lcd-key {
     forced-color-adjust: none;
     background: CanvasText;

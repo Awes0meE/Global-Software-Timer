@@ -69,7 +69,7 @@ describe("TodayReadout", () => {
     expect(screen.getByText("今日活跃 42分钟")).toBeInTheDocument();
   });
 
-  // The forced-colours rules opt `.lcd-key` out and paint the striped key through `.lcd-key-active`.
+  // The forced-colours rules opt `.lcd-key` out and paint the 今日活跃 key (striped there) through `.lcd-key-active`.
   it("marks both legend keys as .lcd-key", () => {
     const { container } = render(<TodayReadout summary={summaryWith(null)} now={now} />);
 

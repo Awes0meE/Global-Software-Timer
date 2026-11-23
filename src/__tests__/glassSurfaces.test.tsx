@@ -656,13 +656,13 @@ describe("e-ink screen", () => {
     );
   });
 
-  it("prints labels and notes in --eink-dim and the legend keys in --eink-ink", () => {
+  it("prints labels and notes in --eink-dim and the legend keys in their rings' inks", () => {
     expect(topLevel(".lcd-label").color).toBe("var(--eink-dim)");
     expect(topLevel(".lcd-note").color).toBe("var(--eink-dim)");
-    expect(topLevel(".lcd-key").background).toBe("var(--eink-ink)");
-    expect(normalize(topLevel(".lcd-key-active").background)).toBe(
-      "repeating-linear-gradient(90deg, var(--eink-ink) 0 2px, transparent 2px 3px)",
-    );
+    // Each key is a solid swatch of the ring it names: 今日记录 the outer ring, 今日活跃 the inner one.
+    expect(topLevel(".lcd-key").background).toBe(topLevel(".lcd-ring-recorded path.is-lit").fill);
+    expect(topLevel(".lcd-key-active").background).toBe(topLevel(".lcd-ring-active path.is-lit").fill);
+    expect(topLevel(".lcd-key-active").background).toBe("var(--eink-mid)");
   });
 
   it("half-desaturates every image on the screen, without blending", () => {
