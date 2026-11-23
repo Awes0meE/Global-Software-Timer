@@ -1,11 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.4.0 - 2026-11-24
 
 - Redesigned the whole app as a Mica-like glass shell with matte e-ink screens for the readouts, in both light and dark themes. Nothing about the data, metrics or layout changes.
-- The overview dial gains 96 quarter-hour ticks; the two large overview readouts keep a faint ghost of the previous value.
-- Panels turn opaque when Windows transparency effects are off, when reduced transparency is requested, or when blur is unsupported; high-contrast themes keep text and focus rings visible.
-- Signal orange now marks only what is happening now; selection and focus use a blue accent, and errors use their own red.
+- The overview dial gains 96 quarter-hour ticks; the two large overview readouts keep a faint ghost of the previous value; the ghost clears when the day changes or a reading drops.
+- Panels turn opaque when Windows transparency effects are off (applied the next time the window is shown), when reduced transparency is requested, or when blur is unsupported; high-contrast themes keep text and focus rings visible. GST reads the Windows transparency effects setting only to choose how panels look; it is not stored.
+- Signal orange now marks only what is happening now; selection and focus use a blue accent, and errors and warnings use their own red.
 
 ## v0.3.1 - 2026-11-22
 

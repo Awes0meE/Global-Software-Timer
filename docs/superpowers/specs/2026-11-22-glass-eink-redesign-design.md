@@ -1,6 +1,6 @@
 # 云母玻璃 + 墨水屏全局视觉改版设计草案
 
-状态：已实现，待发布；产品决定已确认（2026-11-22），对应版本 v0.4.0。前一版是 `2026-11-22-timeline-data-collection-design.md`（v0.3.1，只加逐段采集），后一版是 `2026-11-22-timeline-page-design.md`（v0.5.0，时间轴页直接按本规格的视觉来做）。
+状态：已随 v0.4.0 发布；产品决定已确认（2026-11-22），对应版本 v0.4.0。前一版是 `2026-11-22-timeline-data-collection-design.md`（v0.3.1，只加逐段采集），后一版是 `2026-11-22-timeline-page-design.md`（v0.5.0，时间轴页直接按本规格的视觉来做）。
 
 样稿都在仓库外，不入库（里面有第三方图标）：`F:\XJTLU\科研_DIY\Global_Software_Timer\local-mockups-2026-11-22-timeline\`。其中 `overview-glass.html?theme=light|dark&screen=eink` 是定稿配色，`style-sketch.html?style=glass` 是玻璃风格参照，`eink-dark-picker.html` 是深色墨水屏挑色页。下文标「样稿值」的数值都取自这些文件。
 
