@@ -769,6 +769,59 @@ describe("e-ink screen", () => {
     }
   });
 
+  // The pixel font is drawn on a 12px grid, so a reading is crisp only when each font pixel spans a whole number
+  // of physical pixels: size × dppx / 12 must be an integer at 100%, 125% and 150%, wide and narrow.
+  describe("secondary readings on whole physical pixels", () => {
+    const holds = (prelude: string, width: number, dppx: number) =>
+      normalize(prelude)
+        .replace(/^@media /, "")
+        .split(" and ")
+        .every((feature) => {
+          const maxWidth = /^\(max-width: (\d+)px\)$/.exec(feature);
+          if (maxWidth) return width <= Number(maxWidth[1]);
+          const resolution = /^\(resolution: ([\d.]+)dppx\)$/.exec(feature);
+          if (resolution) return dppx === Number(resolution[1]);
+          return false;
+        });
+    /** The cascaded value of `property` on `selector` (same specificity, so source order decides). */
+    const cascaded = (selector: string, property: string, width: number, dppx: number) => {
+      let value: string | undefined;
+      for (const rule of allRules()) {
+        if (!rule.selectors.includes(selector) || !(property in rule.declarations)) continue;
+        if (rule.atRules.every((prelude) => holds(prelude, width, dppx))) value = rule.declarations[property];
+      }
+      return value;
+    };
+
+    it.each([
+      [".lcd.ach-dial", "--pixel-display-size"],
+      [".background-summary", "--background-reading-size"],
+    ])("sizes %s on the pixel grid", (selector, property) => {
+      for (const width of [1440, 1180]) {
+        for (const dppx of [1, 1.25, 1.5]) {
+          const size = Number.parseFloat(cascaded(selector, property, width, dppx) ?? "NaN");
+          const perFontPixel = (size * dppx) / 12;
+          expect(Math.abs(perFontPixel - Math.round(perFontPixel)), `${width}px at ${dppx}dppx: ${size}px`).toBeLessThan(1e-9);
+        }
+      }
+    });
+
+    // The sizes above only hold if every digit rule reads them.
+    it.each([
+      [".ach-dial .lcd-value b", "line-height", "--pixel-display-size"],
+      [".ach-dial-stat", "font-size", "--pixel-display-size"],
+      [".ach-dial-stat", "line-height", "--pixel-display-size"],
+      [".background-reading b", "font-size", "--background-reading-size"],
+      [".background-reading > p", "line-height", "--background-reading-size"],
+    ])("sets %s %s from %s everywhere", (selector, property, token) => {
+      const values = allRules()
+        .filter((rule) => rule.selectors.includes(selector) && property in rule.declarations)
+        .map((rule) => rule.declarations[property]);
+      expect(values.length).toBeGreaterThan(0);
+      for (const value of values) expect(value).toBe(`var(${token})`);
+    });
+  });
+
   // Spec「字体」: GST Pixel only on the screen.
   it("keeps the pixel font on the screen", () => {
     const users = allRules().filter((rule) => Object.values(rule.declarations).some((value) => value.includes("var(--font-pixel)")));

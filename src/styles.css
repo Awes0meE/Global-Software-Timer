@@ -2694,16 +2694,17 @@ mark {
   padding: 0;
 }
 
+/* Narrow windows: 24px digits, 2 and 3 physical pixels per font pixel at 100% and 150%; 28.8px gives 3 at 125%. */
 @media (max-width: 1200px) {
+  .background-summary {
+    --background-reading-size: 24px;
+  }
+
   .background-reading {
     padding: 0 10px;
   }
+}
 
-  .background-reading > p {
-    line-height: 24px;
-  }
-
-  .background-reading b {
-    font-size: 24px;
-  }
+@media (max-width: 1200px) and (resolution: 1.25dppx) {
+  .background-summary { --background-reading-size: 28.8px; }
 }

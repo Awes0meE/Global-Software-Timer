@@ -68,6 +68,11 @@
   padding: 18px 40px 16px;
 }
 
+/* The 24px readings span 2 and 3 physical pixels per font pixel at 100% and 150%; at 125% 28.8px gives 3. */
+@media (resolution: 1.25dppx) {
+  .lcd.ach-dial { --pixel-display-size: 28.8px; }
+}
+
 .lcd.ach-dial.is-compact {
   --ach-cell: 10px;
 }
@@ -283,7 +288,7 @@
 }
 
 .ach-dial .lcd-value b {
-  line-height: 24px;
+  line-height: var(--pixel-display-size);
 }
 
 .ach-dial .lcd-value small {
@@ -297,8 +302,8 @@
   flex-wrap: nowrap;
   align-items: baseline;
   gap: 0 4px;
-  font-size: 24px;
-  line-height: 24px;
+  font-size: var(--pixel-display-size);
+  line-height: var(--pixel-display-size);
   white-space: nowrap;
 }
 
