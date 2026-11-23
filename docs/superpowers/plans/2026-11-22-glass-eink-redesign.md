@@ -607,14 +607,14 @@ export function startTransparencyWatch(read: () => Promise<unknown> = getTranspa
 - `.software-panel.is-editing .text-action`、`.software-remove-button`、`.active-help-button` 自己的 `box-shadow` 盖住了焦点环 → 任务 6 改这几条规则时一并恢复。
 - 分段选择器选中项的焦点环被选中态盖住 → 任务 7。
 - 走纸记录仪的 `.rule-minor`、`.rule-day` 暂时用 `--edge-strong` → 任务 14 改用 `--eink-track`。
-- 滚动区和滚动条的直角露出面板 16px 圆角 → 任务 16 验收时处理。
+- 滚动区和滚动条的直角露出面板 16px 圆角 → 任务 16 验收时处理。**任务 16 已处理（强制颜色下）：** 收尾在面板底部的滚动区用 `clip-path` 裁到面板描边内侧和圆角（顶边 -1px 不裁），中间的名单只裁两侧，聚焦时去掉裁剪、照常画外侧焦点环。**普通模式的直角未处理**（细滚动条、行悬停底色；改了就动普通模式像素）→ 待协调方 / 用户决定。
 - 导航 `:active` 按任务 4 Step 2 用 `--on`；取舍 10 里「`:active` 只换底色（`--chip`）」只指页头按钮和次按钮。
 - `.ach-readout` 加了 `overflow: clip`：玻璃滤镜让 `.readout` 成为热力图里隐藏表格的包含块，表格不认 `height: 1px`，不裁掉就会多出一整段可滚动的空白。
 - 胶囊圆角（样稿 `999px`，现用 `--radius-key`）保持不变。
-- 吸顶表头 `.focused-table-head`、`.background-table th` 现在用内阴影补画面板左右边线（取舍 11）→ 任务 6 把它们换成 `--glass-solid`（决策 E-B 后底色为 `--head-solid`，见取舍 6）时保留这几条 `box-shadow`，并在 Step 6 用 2x 深色放大截图确认表头行的边线连续。强制颜色下 `box-shadow` 被置为 `none`，不透明表头仍盖住面板的 `CanvasText` 边线 → 同样在任务 6 处理（例如只在 forced-colors 块里给表头两端加 `border-inline: 1px solid CanvasText`，内容移 ≤ 1px），任务 16 Step 3 复查。
+- 吸顶表头 `.focused-table-head`、`.background-table th` 现在用内阴影补画面板左右边线（取舍 11）→ 任务 6 把它们换成 `--glass-solid`（决策 E-B 后底色为 `--head-solid`，见取舍 6）时保留这几条 `box-shadow`，并在 Step 6 用 2x 深色放大截图确认表头行的边线连续。强制颜色下 `box-shadow` 被置为 `none`，不透明表头仍盖住面板的 `CanvasText` 边线 → 同样在任务 6 处理（例如只在 forced-colors 块里给表头两端加 `border-inline: 1px solid CanvasText`，内容移 ≤ 1px），任务 16 Step 3 复查。**任务 16 已复查：** 边线连续；未聚焦时滚动区的两侧裁剪裁掉表头两端的 `border`、露出面板描边，聚焦时由这条 `border` 画边。
 - 强制颜色下 `.lcd` 的 `border: 1px solid CanvasText`（任务 3 起）让自适应高度的 `.readout` 高 2px，概览、成就页下方面板和元素下移 2px → 任务 10 改 `.lcd` 时一并改成 `outline: 1px solid CanvasText; outline-offset: -1px`（`fallbacks.test.ts` 里 `.lcd` 的 border 断言要相应改）。**用户已确认（2026-11-23，看过对比图）：G-B 内收描边**——强制颜色块里 `.lcd` 不再用 `border`，并进面板的 `outline` 规则（`outline: 1px solid CanvasText; outline-offset: -1px`），自适应高度的 `.readout` 保持 v0.3.1 的高度（概览 232、成就 347，下方第一块面板在 y 315 / 462）；用户同意 `fallbacks.test.ts` 把 `.lcd` 从「`border: 1px solid CanvasText`」一组移到「无 `border`、内收 `outline`」一组。任务 10 实现；任务 14 给 `.paper` 用同样的内收 `outline`。
 - 成就页「查看名单」是唯一可用的 `.panel-link`，决策 3C 后它像按键，却没有 `:hover` / `:active`（v0.3.1 也没有）→ 任务 9 在 hover 规则里加 `.panel-link:not([aria-disabled="true"])`（`--on`、`--muted: var(--ink-2)`），active 规则里同样加（`--chip`）。
-- 强制颜色下按钮的 `--glass-2` 底和内阴影边线都会消失，页头「导出」「更多」和面板内「更多」「编辑」「查看名单」只剩文字（一直如此，不是本任务引入）→ 任务 16 验收 7 时在 forced-colors 块里加 `:is(.header-button, .button, .panel-link, .text-action) { outline: 1px solid ButtonText; outline-offset: -1px; }`（同 `.toggle` 的做法）。
+- 强制颜色下按钮的 `--glass-2` 底和内阴影边线都会消失，页头「导出」「更多」和面板内「更多」「编辑」「查看名单」只剩文字（一直如此，不是本任务引入）→ 任务 16 验收 7 时在 forced-colors 块里加 `:is(.header-button, .button, .panel-link, .text-action) { outline: 1px solid ButtonText; outline-offset: -1px; }`（同 `.toggle` 的做法）。**任务 16 已处理：** 另加 `.panel-add-button`、`.active-help-button`、`.software-remove-button`；不可用（`:disabled` / `aria-disabled`，未聚焦）时边线为 `GrayText`。
 
 提交：`feat(ui): apply the glass panel recipe to every page and restyle the overview`
 
@@ -768,8 +768,8 @@ export function startTransparencyWatch(read: () => Promise<unknown> = getTranspa
 
 **任务 10 遗留到后续任务（2026-11-23）：**
 
-- 强制颜色下表盘容量环仍是绿色：SVG 的 `fill` 用 token，强制颜色不改它 → 任务 11 换墨色后，任务 16 Step 3 确认表盘在强制颜色下看得清（必要时在 forced-colors 块里给 `.lcd-ring path`、`.lcd-tick` 等用系统色）。指针 `.lcd-dial-now` 也在这一项里：强制颜色下表盘纸面变成 `Canvas`，指针描边仍是 `--eink-dial-paper`（深色是 `#293244` 的一圈石板灰边，取舍 3 R-2 的「描边等于纸面」在这里不成立），浅色的 `#0b0b0a` 填充在黑底上看不见、只剩 `#fafaf7` 描边（R-2 之前就如此）→ 例如描边 `Canvas`、填充 `CanvasText`。
-- 强制颜色下「今日记录」「今日活跃」前的图例色块消失（底色被置为 `Canvas`，条纹渐变也被去掉；v0.3.1 同样如此）→ 任务 16 验收 7 时在 forced-colors 块里给 `.lcd-key`、`.lcd-key-active` 用 `CanvasText`（或 `forced-color-adjust: none`），12×6 的盒子不变。
+- 强制颜色下表盘容量环仍是绿色：SVG 的 `fill` 用 token，强制颜色不改它 → 任务 11 换墨色后，任务 16 Step 3 确认表盘在强制颜色下看得清（必要时在 forced-colors 块里给 `.lcd-ring path`、`.lcd-tick` 等用系统色）。指针 `.lcd-dial-now` 也在这一项里：强制颜色下表盘纸面变成 `Canvas`，指针描边仍是 `--eink-dial-paper`（深色是 `#293244` 的一圈石板灰边，取舍 3 R-2 的「描边等于纸面」在这里不成立），浅色的 `#0b0b0a` 填充在黑底上看不见、只剩 `#fafaf7` 描边（R-2 之前就如此）→ 例如描边 `Canvas`、填充 `CanvasText`。**任务 16 已处理：** `.lcd-dial` 内墨色 token 换成系统色（指针 `CanvasText` 填充、`Canvas` 描边；走过的刻线 `CanvasText`、未走过 `GrayText`；指针附近的让位保留），未亮的环段为空心 `GrayText` 轨道；0/6/12/18 时缺口处相邻 1px 描边并成约 3px 一条，可读。
+- 强制颜色下「今日记录」「今日活跃」前的图例色块消失（底色被置为 `Canvas`，条纹渐变也被去掉；v0.3.1 同样如此）→ 任务 16 验收 7 时在 forced-colors 块里给 `.lcd-key`、`.lcd-key-active` 用 `CanvasText`（或 `forced-color-adjust: none`），12×6 的盒子不变。**任务 16 已处理**（两者都用，条纹保留）。
 
 提交：`feat(ui): replace the LCD recipe with an e-ink screen`
 
@@ -917,7 +917,7 @@ function Ticks({ minutesToday }: { minutesToday: number }) {
 
 **任务 13 遗留到后续任务（2026-11-23）：**
 
-- 强制颜色下热力图的格子全部消失：`.ach-cell` 各级墨色、l0 的内阴影描边、无记录点和图例色块都是 `background` / `box-shadow`，强制颜色把底色置为 `Canvas`、去掉阴影，只剩今日的实线 `outline` 和未到日子的虚线 `outline`（改墨色前后逐像素相同，不是本任务引入）→ 任务 16 Step 3 / 验收 7 时在 forced-colors 块里处理（例如 `.ach-cell` 用 `forced-color-adjust: none` 加系统色分级，或给有记录的格子画 `CanvasText` 轮廓），格子盒子不变。
+- 强制颜色下热力图的格子全部消失：`.ach-cell` 各级墨色、l0 的内阴影描边、无记录点和图例色块都是 `background` / `box-shadow`，强制颜色把底色置为 `Canvas`、去掉阴影，只剩今日的实线 `outline` 和未到日子的虚线 `outline`（改墨色前后逐像素相同，不是本任务引入）→ 任务 16 Step 3 / 验收 7 时在 forced-colors 块里处理（例如 `.ach-cell` 用 `forced-color-adjust: none` 加系统色分级，或给有记录的格子画 `CanvasText` 轮廓），格子盒子不变。**任务 16 已处理：** `.ach-cell` 用 `forced-color-adjust: none`、墨色为 `CanvasText`，各级、未到、今日描边和图例照常；l0 加内收 `GrayText` 边，无记录点改 `GrayText`。
 
 提交：`feat(ui): print the achievements heatmap in e-ink`
 
@@ -957,7 +957,7 @@ function Ticks({ minutesToday }: { minutesToday: number }) {
 - 实现时补充：`glassSurfaces.test.tsx` 新增「statistics recorder on e-ink paper」一组（纸面共用 `.lcd` 屏面三条规则、`.paper > .recorder-svg` 层级、槽和滚轴、Step 3 墨色表逐行、`.pen-lamp` 不变、字体不变、记录仪规则只引用 `--eink-*` / `--font-*` / `--radius-*` 且无深色专用规则）；任务 10 写的「keeps the paper paint apart from the readout grid」断言按 Step 1 从 `[[".lcd"]]` 改为 `[[".lcd", ".paper"]]`（选择器扩展的直接结果，测试注释原本就写明任务 14 会加 `.paper`）。`fallbacks.test.ts` 把 `.paper` 加进「draws panels in system colours」「insets the outline …」的选择器列表（G-B），另一条只确认 `.paper` 的 forced-colors 规则都和 `.lcd` 共用；同时断言 `.trend-tip` 的 `z-index`（3）高于 `.paper > .recorder-svg`（1），悬停卡也在纸面里。`.recorder` 去掉槽的底色和阴影后 `border-radius` 不再起作用，一并删掉；`.paper` 自己只留 `min-width: 0`（`position`、`overflow` 由共用屏面规则给）。两处都不改像素。
 - 深色渐变纸面上，比率描线的空心圆点 `.trace-dot` 按 Step 3 填 `--eink-paper-solid`（`#281f40`，渐变中间色），左端蓝调纸面（约 `#23293f`）和右端品红纸面（约 `#371d3c`）上会显出一点色差（2x 才看得出；浅色 `#fafaf7` 上一致）。和取舍 3 R-2 的指针描边是同一类问题，但 Step 3 定了这个值 → **待用户决定**，任务 16 收尾时处理（例如 `fill: none`、按纸面取样的 token，或略亮于纸面的填充）。
 - 无记录日的虚线框 `.gap`（`--eink-mid` 70% `color-mix`，Step 3 定的值，v0.3.1 同样是 70% `--muted`）在纸面上只有 2.47:1（浅色）、2.54–2.71:1（深色三个渐变停点），低于口径的图形 3:1；`contrast.test` 只守了满强度 `--eink-mid` → 任务 16 对比度复查时一并决定（记为可接受的偏差：虚线、辅助信息；或改值，改值要先问协调方）。
-- 强制颜色下浅色主题的走纸记录仪几乎看不见：纸面变成 `Canvas`（对比度主题常为黑底），SVG 的 `fill` / `stroke` 仍是浅色主题的墨色（`--eink-ink` `#0b0b0a`、`--eink-dim` `#45443f`），针柱、刻度字和日期在黑底上看不清；深色主题的墨色是浅色，看得清。改纸面前（`--ink` 系墨色在 `Canvas` 上）同样如此，不是本任务引入；本任务只加了 `CanvasText` 内收边线和去掉颗粒、哑光层 → 和表盘一起在任务 16 Step 3 / 验收 7 处理（例如 forced-colors 块里给记录仪的 SVG 类用 `CanvasText` / `GrayText`，`.pen-lamp` 用 `Highlight`）。
+- 强制颜色下浅色主题的走纸记录仪几乎看不见：纸面变成 `Canvas`（对比度主题常为黑底），SVG 的 `fill` / `stroke` 仍是浅色主题的墨色（`--eink-ink` `#0b0b0a`、`--eink-dim` `#45443f`），针柱、刻度字和日期在黑底上看不清；深色主题的墨色是浅色，看得清。改纸面前（`--ink` 系墨色在 `Canvas` 上）同样如此，不是本任务引入；本任务只加了 `CanvasText` 内收边线和去掉颗粒、哑光层 → 和表盘一起在任务 16 Step 3 / 验收 7 处理（例如 forced-colors 块里给记录仪的 SVG 类用 `CanvasText` / `GrayText`，`.pen-lamp` 用 `Highlight`）。**任务 16 已处理：** 按此办，图例 `.key-*` 跟随纸面墨色，悬停卡加 `CanvasText` 内收边；「开着没用」的计量条和图例也改用系统色。
 
 提交：`feat(ui): print the statistics recorder on e-ink paper`
 
@@ -1031,6 +1031,8 @@ rg "var\(--signal" src
 - [ ] **Step 5：帧率（性能验收第 1、4 行）。** `probe.mjs frames --headed --trace <scratch json> --size 1440x900`：软件页 `.discovered-scroll`、统计页 `.stats-page`；两主题；`--cpu 1` 和 `--cpu 4`；`?glass=off` 再各跑一遍。标准按 trace 的帧（合成器实际呈现的帧，`backdrop-filter` 的开销主要在这里）判断：`over50ms = 0`、`avgFps ≥ 55`；4× 降速 `avgFps ≥ 30`；rAF 结果和 `loafOver50ms` 一起列出作对照，两者不一致时以 trace 为准。挑一份 trace（浅色、统计页、1×）在 DevTools Performance 面板打开看一眼，确认 probe 的统计与面板显示一致（规格的原始方法）。同时列出任务 1 的 v0.3.1 基线。不达标时按规格：先在 `:root` 把 `--glass-filter` 设为 `none` 重测；仍不达标就停下找用户。
 - [ ] **Step 6：** 结果（通过与否、帧率、对比度数字）记在 scratchpad 的验收笔记里，任务 19 写进 `docs/CURRENT_STATE.md`；不入库截图。
 - [ ] **Step 7：** 有修复就跑 `npm.cmd run check`、走审查关口、按问题分别提交 `fix(ui): <具体问题>`；没有修复则本任务无提交。
+
+**任务 16 Step 3 强制颜色补充（2026-11-23）：** 除上面各「遗留」里的项外，强制颜色下原本也会消失的指示灯（灭 `GrayText` 点、前台 / 记录中 `Highlight` 点且不呼吸、托盘 `Highlight` 圈、后台 `CanvasText` 圈）和今日分布色段与色块（保留身份色、去光晕、加 `CanvasText` 内收边；身份色是色条和列表唯一的对应关系，这是判断，用户可否决）一并改了。接受、未改：走纸滚轴（装饰）在强制颜色下消失；比率描线和活跃针柱同为 `CanvasText`，相交处只剩空心圆点（示例数据不相交）；聚焦的滚动区里滚动条直角露出；特别关注表若横向溢出、而行数不满面板，底部横向滚动条两端会被圆角裁掉一点（示例数据不溢出）。
 
 ---
 
