@@ -98,7 +98,6 @@ describe("BackgroundPage", () => {
     expect(await screen.findByText("59分钟")).toBeInTheDocument();
     view.rerender(<BackgroundPage durationFormat="decimal_hours" />);
     expect(screen.getByText("1.0小时")).toBeInTheDocument();
-    expect(screen.getByRole("table")).toHaveAccessibleDescription(/已退出的进程显示今日峰值/);
   });
 
   it("sorts by a clicked column, high to low first, then low to high", async () => {
@@ -258,6 +257,27 @@ describe("BackgroundPage", () => {
     expect(memory.querySelector("small")).toHaveTextContent("MB");
     expect(memory).toHaveTextContent("当前合计内存64MB");
     expect(overview).not.toHaveTextContent(/Windows|子进程|排序/);
+  });
+
+  it("explains background processes and the memory column in a help bubble beside the title", async () => {
+    invoke.mockResolvedValue(summary);
+    const user = userEvent.setup();
+    await act(async () => {
+      render(<BackgroundPage />);
+    });
+
+    expect(screen.queryByText(/已退出的进程显示今日峰值/)).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).not.toHaveAttribute("aria-describedby");
+    const title = screen.getByRole("heading", { name: "后台进程" });
+    const help = screen.getByRole("button", { name: "什么是后台进程" });
+    expect(title.nextElementSibling).toContainElement(help);
+
+    await user.click(help);
+    const bubble = screen.getByRole("dialog", { name: "什么是后台进程？" });
+    expect(bubble).toHaveTextContent("没有窗口、也不在托盘里的第三方程序");
+    expect(bubble).toHaveTextContent("内存显示当前占用，已退出的进程显示今日峰值。");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   // Border colours are forced in contrast themes, so the dotted ink rules turn CanvasText on their own;

@@ -2507,6 +2507,11 @@ mark {
   font-weight: 400;
 }
 
+/* The ? help sits 6px from the title, as beside 隐藏软件列表. */
+.background-page .panel-head .active-help {
+  margin-left: -4px;
+}
+
 .background-table {
   width: 100%;
   border-spacing: 0;
@@ -2642,12 +2647,6 @@ mark {
 .background-table td:nth-child(n+2):nth-child(-n+6) {
   font-family: var(--font-num);
   font-size: var(--type-table-number);
-}
-
-.memory-note {
-  margin-inline-start: auto;
-  color: var(--muted);
-  font-size: var(--type-label);
 }
 
 .lcd-midnight-mark {
