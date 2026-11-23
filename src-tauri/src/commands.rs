@@ -26,6 +26,8 @@ pub struct DashboardSummary {
     pub last_scan_succeeded: Option<bool>,
     pub product_title: String,
     pub locale: String,
+    /// The local calendar date ("YYYY-MM-DD") the today readings below belong to.
+    pub usage_date: String,
     pub most_used: Option<AppUsageRow>,
     pub recorded_today_seconds: i64,
     pub active_today_seconds: i64,
@@ -709,6 +711,7 @@ fn dashboard_summary_from_store(
         last_scan_succeeded,
         product_title: "全局软件计时器".to_string(),
         locale: "zh-CN".to_string(),
+        usage_date: usage_date.format("%Y-%m-%d").to_string(),
         most_used: most_used_today(&apps),
         recorded_today_seconds: daily_usage
             .as_ref()
@@ -1657,13 +1660,13 @@ mod most_used_tests {
 #[cfg(test)]
 mod tests {
     use super::{
-        app_settings_from_store, dashboard_summary_from_store, save_duration_format_preference,
-        save_theme_preference, software_list_command_error, CloseBehavior, DurationFormat,
-        ThemePreference,
+        app_settings_from_store, dashboard_summary_from_store, local_date_start_utc,
+        save_duration_format_preference, save_theme_preference, software_list_command_error,
+        CloseBehavior, DurationFormat, ThemePreference,
     };
     use crate::domain::AppRuntimeStatus;
     use crate::storage::{Store, StoreError};
-    use chrono::{TimeZone, Utc};
+    use chrono::{Duration, NaiveDate, TimeZone, Utc};
     use std::collections::HashMap;
     use tempfile::NamedTempFile;
 
@@ -1964,6 +1967,8 @@ mod tests {
 
         assert_eq!(summary.product_title, "全局软件计时器");
         assert_eq!(summary.locale, "zh-CN");
+        // The date whose daily row the readings come from, as the 300 below shows.
+        assert_eq!(summary.usage_date, "2026-05-29");
         assert_eq!(summary.recorded_today_seconds, 300);
         assert_eq!(summary.active_today_seconds, 120);
         assert_eq!(summary.apps.len(), 1);
@@ -1977,6 +1982,36 @@ mod tests {
             .as_deref()
             .is_some_and(|url| url.contains(crate::native_icon::URI_SCHEME) && url.len() < 64));
         assert_eq!(summary.apps[0].status, AppRuntimeStatus::Closed);
+    }
+
+    #[test]
+    fn dashboard_summary_names_the_local_date_its_today_readings_belong_to() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+        let yesterday = NaiveDate::from_ymd_opt(2026, 11, 22).unwrap();
+        let today = NaiveDate::from_ymd_opt(2026, 11, 23).unwrap();
+        store
+            .increment_daily_system_usage(yesterday, 3600, 3600, 3600)
+            .expect("yesterday");
+        store
+            .increment_daily_system_usage(today, 600, 300, 600)
+            .expect("today");
+        // The local start of 2026-11-23 (DST-safe), so the date holds in any time zone.
+        let day_start = local_date_start_utc(today);
+
+        let summary = dashboard_summary_from_store(
+            &store,
+            day_start,
+            day_start + Duration::minutes(30),
+            &HashMap::new(),
+            Some(true),
+        )
+        .expect("summary");
+
+        assert_eq!(summary.usage_date, "2026-11-23");
+        assert_eq!(summary.recorded_today_seconds, 600);
+        assert_eq!(summary.active_today_seconds, 300);
     }
 
     #[test]

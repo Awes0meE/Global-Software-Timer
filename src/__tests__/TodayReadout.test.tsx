@@ -23,6 +23,7 @@ function summaryWith(mostUsed: AppUsageRow | null): DashboardSummary {
     last_scan_succeeded: true,
     product_title: "全局软件计时器",
     locale: "zh-CN",
+    usage_date: "2026-11-22",
     most_used: mostUsed,
     recorded_today_seconds: 4 * 3600,
     active_today_seconds: 3600,
@@ -80,12 +81,27 @@ describe("TodayReadout", () => {
   });
 });
 
-function readings(recorded: number, active: number): DashboardSummary {
-  return { ...summaryWith(null), recorded_today_seconds: recorded, active_today_seconds: active };
+function readings(recorded: number, active: number, usageDate = "2026-11-22"): DashboardSummary {
+  return {
+    ...summaryWith(null),
+    usage_date: usageDate,
+    recorded_today_seconds: recorded,
+    active_today_seconds: active,
+  };
 }
 
-function readout(recorded: number, active: number, durationFormat: DurationFormat = "decimal_hours") {
-  return <TodayReadout summary={readings(recorded, active)} durationFormat={durationFormat} now={now} />;
+function readout(
+  recorded: number,
+  active: number,
+  durationFormat: DurationFormat = "decimal_hours",
+  usageDate = "2026-11-22",
+) {
+  return <TodayReadout summary={readings(recorded, active, usageDate)} durationFormat={durationFormat} now={now} />;
+}
+
+/** The shown (not ghost) number of a cell. */
+function shownValue(label: "今日记录" | "今日活跃"): string | null {
+  return cell(label).querySelector(".lcd-value:not(.lcd-ghost) > span:not(.lcd-ghost) b")?.textContent ?? null;
 }
 
 function cell(label: "今日记录" | "今日活跃"): HTMLElement {
@@ -254,6 +270,73 @@ describe("TodayReadout ghost", () => {
 
     expect(cell("今日记录").querySelector(".lcd-ghost")).toBeNull();
     expect(ghostParts("今日活跃")).toEqual([["1.0", "小时"]]);
+  });
+
+  // The summary names the calendar date its readings belong to; a ghost never crosses a date change,
+  // also when the readings rose across midnight while the window sat in the tray (no polling).
+  describe("across a date change", () => {
+    const yesterday = "2026-11-22";
+    const today = "2026-11-23";
+
+    it("keeps the ghost within the same date", () => {
+      const { rerender } = render(readout(3600, 3600, "decimal_hours", yesterday));
+      rerender(readout(3960, 3600, "decimal_hours", yesterday));
+
+      expect(ghostParts("今日记录")).toEqual([["1.0", "小时"]]);
+    });
+
+    it("draws no ghost when the readings rose across midnight while hidden", () => {
+      const { container, rerender } = render(readout(3600, 3600, "decimal_hours", yesterday));
+      rerender(readout(7 * 3600, 7 * 3600, "decimal_hours", today));
+
+      expect(container.querySelector(".lcd-ghost")).toBeNull();
+      expect(shownValue("今日记录")).toBe("7.0");
+      expect(shownValue("今日活跃")).toBe("7.0");
+    });
+
+    it("draws no ghost when the date changed while the overview was not shown", () => {
+      const first = render(readout(3600, 3600, "decimal_hours", yesterday));
+      first.unmount();
+
+      const again = render(readout(7 * 3600, 7 * 3600, "decimal_hours", today));
+      expect(again.container.querySelector(".lcd-ghost")).toBeNull();
+      expect(shownValue("今日记录")).toBe("7.0");
+    });
+
+    it("leaves today's first reading behind the next one", () => {
+      const { rerender } = render(readout(3600, 3600, "decimal_hours", yesterday));
+      rerender(readout(7 * 3600, 7 * 3600, "decimal_hours", today));
+      rerender(readout(7 * 3600 + 360, 7 * 3600, "decimal_hours", today));
+
+      expect(ghostParts("今日记录")).toEqual([["7.0", "小时"]]);
+      expect(ghostParts("今日活跃")).toEqual([]);
+    });
+
+    it("drops yesterday's ghost when the date changes but the shown text does not", () => {
+      const { rerender } = render(readout(0, 3600, "decimal_hours", yesterday));
+      rerender(readout(360, 3600, "decimal_hours", yesterday));
+      expect(ghostParts("今日记录")).toEqual([["0.0", "小时"]]);
+
+      // 0.1 on both days, and the seconds did not shrink either.
+      rerender(readout(360, 3600, "decimal_hours", today));
+      expect(cell("今日记录").querySelector(".lcd-ghost")).toBeNull();
+      expect(shownValue("今日记录")).toBe("0.1");
+
+      rerender(readout(720, 3600, "decimal_hours", today));
+      expect(ghostParts("今日记录")).toEqual([["0.1", "小时"]]);
+    });
+
+    it("remembers a date change once under StrictMode", () => {
+      const strict = (recorded: number, usageDate: string) => (
+        <StrictMode>{readout(recorded, 3600, "decimal_hours", usageDate)}</StrictMode>
+      );
+      const { container, rerender } = render(strict(3600, yesterday));
+      rerender(strict(3960, yesterday));
+      rerender(strict(7 * 3600, today));
+      rerender(strict(7 * 3600, today));
+
+      expect(container.querySelector(".lcd-ghost")).toBeNull();
+    });
   });
 
   it("remembers each change once under StrictMode", () => {

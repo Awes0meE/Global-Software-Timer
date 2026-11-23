@@ -96,6 +96,7 @@ export function dashboardSummary(hidden: Set<string>): DashboardSummary {
     last_scan_succeeded: true,
     product_title: "全局软件计时器",
     locale: "zh-CN",
+    usage_date: dateOf(todayNumber()),
     most_used: apps[0] ?? null,
     recorded_today_seconds: DEMO_RECORDED_TODAY * k,
     active_today_seconds: DEMO_ACTIVE_TODAY * k,

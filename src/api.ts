@@ -25,6 +25,8 @@ export interface DashboardSummary {
   last_scan_succeeded: boolean | null;
   product_title: string;
   locale: string;
+  /** The local calendar date ("YYYY-MM-DD") the today readings belong to. */
+  usage_date: string;
   most_used: AppUsageRow | null;
   recorded_today_seconds: number;
   active_today_seconds: number;

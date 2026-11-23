@@ -11,8 +11,8 @@ interface Props {
 }
 
 export function TodayReadout({ summary, durationFormat = "decimal_hours", now = new Date() }: Props) {
-  const recorded = useShownReading("recorded", summary.recorded_today_seconds, durationFormat);
-  const active = useShownReading("active", summary.active_today_seconds, durationFormat);
+  const recorded = useShownReading("recorded", summary.recorded_today_seconds, durationFormat, summary.usage_date);
+  const active = useShownReading("active", summary.active_today_seconds, durationFormat, summary.usage_date);
 
   return (
     <section className="readout" aria-label="今日总览">
@@ -70,6 +70,8 @@ type Reading = "recorded" | "active";
 
 interface Shown {
   format: DurationFormat;
+  /** The summary's usage_date: the local calendar date the shown reading belongs to. */
+  usageDate: string;
   /** The seconds the shown text was formatted from, to tell a shrink from a rise. */
   seconds: number;
   text: string;
@@ -89,17 +91,20 @@ export function forgetShownReadings() {
 }
 
 /**
- * `last` moved on to the reading shown now; the same object when the shown text has not changed and
- * the reading has not shrunk. A smaller reading (in seconds, even with the same text) leaves no ghost:
- * today's readings only shrink at day rollover, so the first smaller reading after midnight drops
- * yesterday's ghost. A rollover the readings do not shrink across is not noticed.
+ * `last` moved on to the reading shown now; the same object when the shown text, the format and the
+ * date have not changed and the reading has not shrunk. A reading of another date leaves no ghost,
+ * even with the same text: the summary names the date its readings belong to, so a day rollover is
+ * seen also when the window sat hidden in the tray or on another page across midnight. A smaller
+ * reading (in seconds, even with the same text) leaves no ghost either.
  */
-function nextShown(last: Shown | undefined, seconds: number, format: DurationFormat): Shown {
+function nextShown(last: Shown | undefined, seconds: number, format: DurationFormat, usageDate: string): Shown {
   const text = formatDurationZh(seconds, format);
-  const kept = last !== undefined && last.format === format && seconds >= last.seconds;
+  const kept =
+    last !== undefined && last.format === format && last.usageDate === usageDate && seconds >= last.seconds;
   if (kept && last.text === text) return last;
   return {
     format,
+    usageDate,
     seconds,
     text,
     parts: formatDurationPartsZh(seconds, format),
@@ -109,13 +114,15 @@ function nextShown(last: Shown | undefined, seconds: number, format: DurationFor
 
 /**
  * The reading shown now and, for the e-ink ghost, the one shown before it in this window; `previous`
- * is null until the shown text changes, again after the duration format changes, and when the reading
- * shrank (day rollover). Moved on during render, so each change is remembered once, also under
- * StrictMode.
+ * is null until the shown text changes, again after the duration format or the date (`usageDate`, from
+ * the summary, never the render-time clock) changes, and when the reading shrank. Moved on during
+ * render, so each change is remembered once, also under StrictMode.
  */
-function useShownReading(reading: Reading, seconds: number, format: DurationFormat): Shown {
-  const [shown, setShown] = useState<Shown>(() => nextShown(shownInWindow.get(reading), seconds, format));
-  const current = nextShown(shown, seconds, format);
+function useShownReading(reading: Reading, seconds: number, format: DurationFormat, usageDate: string): Shown {
+  const [shown, setShown] = useState<Shown>(() =>
+    nextShown(shownInWindow.get(reading), seconds, format, usageDate),
+  );
+  const current = nextShown(shown, seconds, format, usageDate);
   if (current !== shown) setShown(current);
 
   useEffect(() => {

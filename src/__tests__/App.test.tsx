@@ -95,6 +95,7 @@ describe("App", () => {
         last_scan_succeeded: true,
         product_title: "全局软件计时器",
         locale: "zh-CN",
+        usage_date: "2026-11-22",
         most_used: null,
         recorded_today_seconds: 0,
         active_today_seconds: 0,
