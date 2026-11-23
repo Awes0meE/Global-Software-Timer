@@ -1,8 +1,9 @@
 /*
- * GST desktop instrument.
- * One world: an aluminium (light) or graphite (dark) instrument case, a recessed
- * dot-matrix LCD for today's readings, engraved labels, keycap navigation and
- * indicator lamps. Signal orange is reserved for what is happening now.
+ * GST glass instrument.
+ * One world: a Mica-like glass shell (light or dark) floating over a soft glow, with
+ * matte e-ink screens set into it for today's readings. Glass is light and see-through;
+ * e-ink is quiet and does not glow. Signal orange is reserved for what is happening now;
+ * the accent colour marks selection and focus.
  */
 
 @font-face {
@@ -14,13 +15,6 @@
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
-  --knob-top: #fff;
-  --knob-middle: #d9dadc;
-  --knob-base: #b4b7ba;
-  --case: #dcdee1;
-  --panel: #e9eaec;
-  --panel-raised: #f4f5f6;
-  --panel-sunken: #e1e3e6;
   --edge: rgba(255, 255, 255, 0.75);
   --edge-strong: rgba(20, 30, 60, 0.18);
   --ink: #17191d;
@@ -31,18 +25,10 @@
   --signal-ink: #b23f00;
   --signal-wash: rgba(255, 106, 19, 0.12);
   --lamp-off: #b3b7bd;
-  --highlight: rgba(255, 255, 255, 0.85);
   --shade: rgba(28, 34, 42, 0.12);
   --shade-deep: rgba(28, 34, 42, 0.22);
   --modal-scrim: rgb(0 0 0 / 45%);
   --icon-well: #767d85;
-  --lcd: #c0cabc;
-  --lcd-deep: #aeb9ab;
-  --lcd-ink: #17211a;
-  --lcd-dim: #3c483f;
-  --lcd-ghost: rgba(23, 33, 26, 0.08);
-  --lcd-glow: 1px 1px 0 rgba(23, 33, 26, 0.12);
-  --lcd-grid: rgba(23, 33, 26, 0.05);
   --mix-1: #2f7de1;
   --mix-2: #e2536a;
   --mix-3: #1fa874;
@@ -63,7 +49,6 @@
   --radius-tag: 4px;
   --radius-dialog: 16px;
   --radius-pill: 999px;
-  --radius-case: 10px;
   --radius-key: 9px;
   --radius-panel: 16px;
   --radius-screen: 11px;
@@ -116,13 +101,6 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --knob-top: #e7e8ea;
-  --knob-middle: #a9acb0;
-  --knob-base: #7d8085;
-  --case: #111214;
-  --panel: #1a1b1e;
-  --panel-raised: #222327;
-  --panel-sunken: #151618;
   --edge: rgba(255, 255, 255, 0.11);
   --edge-strong: rgba(255, 255, 255, 0.18);
   --ink: #f1f3f7;
@@ -133,16 +111,8 @@
   --signal-ink: #ff9e63;
   --signal-wash: rgba(255, 122, 42, 0.14);
   --lamp-off: #3a3c41;
-  --highlight: rgba(255, 255, 255, 0.055);
   --shade: var(--modal-scrim);
   --shade-deep: rgba(0, 0, 0, 0.6);
-  --lcd: #0a110d;
-  --lcd-deep: #050906;
-  --lcd-ink: #c2f5d3;
-  --lcd-dim: #79a58b;
-  --lcd-ghost: rgba(194, 245, 211, 0.07);
-  --lcd-glow: 0 0 6px rgba(130, 240, 170, 0.32);
-  --lcd-grid: rgba(0, 0, 0, 0.35);
   --mix-1: #5aa9ff;
   --mix-2: #ff6b81;
   --mix-3: #3ddc97;

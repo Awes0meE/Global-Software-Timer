@@ -1001,6 +1001,15 @@ rg "var\(--signal" src
 - [ ] **Step 6：视觉检查**：全套截图快速过一遍，确认删 token 没把任何东西变成透明或黑色。
 - [ ] **Step 7：审查关口。**
 
+**任务 15 实现时补充（2026-11-23）：**
+
+- 旧 token 测试在 Step 1 的 8 个模式之外多查 `--lcd` 和 `--panel` 本身（后面不跟字母、数字或 `-`）：规格命令里的 `--lcd-`、`var\(--panel[,)]` 抓不到 `--lcd:`、`--panel:` 这两个定义，`--panel-gutter`、`--panel-gap` 不受影响。`import.meta.glob` 本来就不返回导入它的文件，测试断言了这一点，旧 token 扫描仍按 Step 1 显式排除本文件。
+- 信号橙一条除了规则选择器，还查 `@keyframes` 的内容（解析器不把关键帧当规则），引用 `var(--signal` 的关键帧只能是 `lamp-breathe`。深色选择器一条按精确集合断言：所有带 `data-theme` 的选择器只有两个 token 块、取舍 1 那一条和浅色图标底座。
+- 防别名绕过白名单（审查补充）：token 块里没有任何值引用 `var(--signal`、`var(--font-pixel)`；引用 `var(--shade` 的 token 只能是开关的 `--tg-*`（取舍 24，现在一个也没有）。像素字一条另查字体名字面量：除 `--font-pixel` 的定义和 `@font-face` 外，没有规则直接写 `"GST Pixel"`。SVG 文字类一条另断言每个组件里解析出的 `<text` 数等于源码里 `<text` 标签数，读不出类名的写法（`className={cls}`、属性里带 `>`）会直接失败。
+- 遗留到任务 19（代码注释）：`src/styles.css` 的分节注释 `/* ---------- LCD readout ---------- */`（类名仍是 `.lcd`，可改成「e-ink readout」）、`src/components/AchievementsPage.css` 的 `/* Engraved scale: … */`（旧世界的「刻印」说法）。本任务按文件范围只改文件头。
+- Step 2 时只有 9 条旧 token 断言失败，命中全部是两个 token 块里的定义；其余守卫（模糊、信号橙、keyframes、像素字、深色选择器、`--faint`、`--eink-mid`、投影）写好就通过，前面任务已经迁移干净，Step 3 没有要补的引用。`--faint` 现在没有任何引用，按 Step 3 保留。
+- `index.html` 的 STORY 一行里「read today on the LCD」也改成「e-ink screen」（同在 16–27 行）。
+
 提交：`refactor(ui): remove the instrument-case and LCD tokens`
 
 ---
