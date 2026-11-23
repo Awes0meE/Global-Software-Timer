@@ -725,55 +725,46 @@ main > p[role="status"] {
 }
 
 .lcd {
-  position: relative;
   display: grid;
   grid-template-columns: auto minmax(150px, 1fr) minmax(150px, 1fr) minmax(200px, 1.25fr);
   align-items: center;
   gap: 8px 26px;
   min-height: 208px;
   padding: 12px 28px 12px 18px;
-  overflow: hidden;
-  border-radius: var(--radius-key);
-  background:
-    radial-gradient(120% 140% at 30% 0%, color-mix(in srgb, var(--lcd) 80%, #fff 20%) 0%, transparent 55%),
-    linear-gradient(180deg, var(--lcd) 0%, var(--lcd-deep) 100%);
-  color: var(--lcd-ink);
   font-family: var(--font-pixel);
-  text-shadow: var(--lcd-glow);
+}
+
+/* E-ink screen: matte paper, printed ink, no glow. */
+.lcd {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-screen);
+  background: var(--eink-paper);
+  color: var(--eink-ink);
   box-shadow:
-    inset 0 2px 7px rgba(0, 0, 0, 0.32),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.28),
-    0 1px 0 var(--highlight);
+    inset 0 1px 3px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.1),
+    0 1px 0 var(--glass-hi);
 }
 
-:root[data-theme="dark"] .lcd {
-  background:
-    radial-gradient(90% 120% at 50% 40%, #0f1a14 0%, transparent 70%),
-    linear-gradient(180deg, var(--lcd) 0%, var(--lcd-deep) 100%);
-}
-
-/* The dot-matrix of a real display, and the glass reflection above it. */
+/* Paper grain. */
 .lcd::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image:
-    linear-gradient(var(--lcd-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--lcd-grid) 1px, transparent 1px);
-  background-size: 3px 3px;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0'/></filter><rect width='220' height='220' filter='url(%23n)'/></svg>");
+  opacity: var(--eink-grain);
+  mix-blend-mode: var(--eink-grain-blend);
 }
 
+/* Matte finish. */
 .lcd::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(168deg, var(--highlight) 0%, rgba(255, 255, 255, 0) 38%);
-}
-
-:root[data-theme="dark"] .lcd::after {
-  background: linear-gradient(168deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 40%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 30%, rgba(0, 0, 0, 0.015));
 }
 
 .lcd > * {
@@ -788,17 +779,11 @@ main > p[role="status"] {
   min-width: 0;
 }
 
-.lcd-label,
-.lcd-note,
-.lcd-dial-clock span {
-  text-shadow: none;
-}
-
 .lcd-label {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--lcd-dim);
+  color: var(--eink-dim);
   font-size: 12px;
   line-height: 12px;
 }
@@ -806,11 +791,11 @@ main > p[role="status"] {
 .lcd-key {
   width: 12px;
   height: 6px;
-  background: var(--lcd-ink);
+  background: var(--eink-ink);
 }
 
 .lcd-key-active {
-  background: repeating-linear-gradient(90deg, var(--lcd-ink) 0 2px, transparent 2px 3px);
+  background: repeating-linear-gradient(90deg, var(--eink-ink) 0 2px, transparent 2px 3px);
 }
 
 .lcd-value {
@@ -825,7 +810,7 @@ main > p[role="status"] {
 
 .lcd-value b {
   font-weight: 400;
-  font-size: var(--lcd-display-size, 60px);
+  font-size: var(--pixel-display-size, 60px);
   line-height: 1;
 }
 
@@ -836,7 +821,7 @@ main > p[role="status"] {
 }
 
 .lcd-note {
-  color: var(--lcd-dim);
+  color: var(--eink-dim);
   font-size: 12px;
   line-height: 12px;
 }
@@ -859,16 +844,9 @@ main > p[role="status"] {
   white-space: nowrap;
 }
 
-/* Icons on the LCD are printed in the display's own ink. */
-.lcd-most .software-icon {
-  filter: grayscale(1) contrast(1.15);
-  mix-blend-mode: multiply;
-  opacity: 0.85;
-}
-
-:root[data-theme="dark"] .lcd-most .software-icon {
-  filter: grayscale(1) brightness(1.1) sepia(1) hue-rotate(80deg) saturate(1.6);
-  mix-blend-mode: screen;
+/* Images on the screen are printed half desaturated. */
+.lcd img {
+  filter: grayscale(0.55) saturate(0.7) contrast(1.05);
 }
 
 .lcd-dial {
@@ -2001,10 +1979,10 @@ mark {
 /* ---------- Responsive ---------- */
 
 @media (resolution: 1.25dppx) {
-  .lcd { --lcd-display-size: 57.6px; } /* six physical pixels per font pixel */
+  .lcd { --pixel-display-size: 57.6px; } /* six physical pixels per font pixel */
 }
 @media (resolution: 1.5dppx) {
-  .lcd { --lcd-display-size: 64px; } /* eight physical pixels per font pixel */
+  .lcd { --pixel-display-size: 64px; } /* eight physical pixels per font pixel */
 }
 
 @media (max-width: 1320px) {
@@ -2020,7 +1998,7 @@ mark {
     align-items: center;
     column-gap: 16px;
     padding-top: 14px;
-    border-top: 1px dashed color-mix(in srgb, var(--lcd-dim) 45%, transparent);
+    border-top: 1px dashed color-mix(in srgb, var(--eink-dim) 45%, transparent);
   }
 
   .lcd-dial {
@@ -2117,17 +2095,19 @@ mark {
   }
 
   .sidebar,
-  .lcd,
   .dialog,
   .add-software-dialog {
     border: 1px solid CanvasText;
   }
 
-  /* Glass panels keep their inset outline, so their content does not move. */
+  /* Glass panels and the e-ink screen draw an inset outline, so neither the readout's height nor
+     any content moves. */
   .panel,
   .readout,
-  .software-panel {
+  .software-panel,
+  .lcd {
     outline: 1px solid CanvasText;
+    outline-offset: -1px;
   }
 
   /* The opaque sticky heads cover that outline and forced colours drop the shadow that redraws it,

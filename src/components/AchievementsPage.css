@@ -59,7 +59,7 @@
   --ach-cell: 18px;
   --ach-gap: 4px;
   --ach-rule: 2px dotted color-mix(in srgb, var(--lcd-ink) 22%, transparent);
-  --lcd-display-size: 48px;
+  --pixel-display-size: 48px;
   grid-template-columns: minmax(0, 1fr) var(--ach-readout-width);
   align-items: stretch;
   gap: 0 26px;

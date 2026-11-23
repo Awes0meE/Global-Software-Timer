@@ -582,6 +582,144 @@ describe("achievement records, milestone plates and comings", () => {
   });
 });
 
+// Plan task 10: the e-ink screen recipe (spec「墨水屏配方」) on the overview readout, the settings
+// screen and the achievements readout. The dial and the heatmap keep their own inks until tasks 11 and 13.
+describe("e-ink screen", () => {
+  // Built from pieces so a repo-wide search for the retired tokens finds only real uses.
+  const OLD_SIZE = "--" + "lcd-display-size";
+  const OLD_INK = "var(--" + "lcd";
+  const DARK = ':root[data-theme="dark"] ';
+  const styleRules = () => allRules().filter((rule) => rule.file.includes("styles.css"));
+  // The screen surface, its text and its icons; the dial is task 11.
+  const isScreenSelector = (selector: string) => /^\.lcd(?![\w-])|^\.lcd-(?!ring|dial|midnight)/.test(selector);
+
+  it("lays the screen on matte paper in printed ink, without a glow", () => {
+    const declarations = topLevel(".lcd");
+    expect(declarations.background).toBe("var(--eink-paper)");
+    expect(declarations.color).toBe("var(--eink-ink)");
+    expect(declarations["border-radius"]).toBe("var(--radius-screen)");
+    expect(declarations["font-family"]).toBe("var(--font-pixel)");
+    expect(normalize(declarations["box-shadow"])).toBe(
+      "inset 0 1px 3px rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(0, 0, 0, 0.1), 0 1px 0 var(--glass-hi)",
+    );
+    expect(declarations["text-shadow"]).toBeUndefined();
+  });
+
+  // Task 14 adds .paper to the paint rules, so they carry no grid layout.
+  it("keeps the paper paint apart from the readout grid", () => {
+    const paint = styleRules().filter(
+      (rule) => rule.atRules.length === 0 && rule.declarations.background === "var(--eink-paper)",
+    );
+    expect(paint.map((rule) => rule.selectors)).toEqual([[".lcd"]]);
+    for (const property of ["display", "grid-template-columns", "gap", "min-height", "padding"]) {
+      expect(paint[0].declarations[property], property).toBeUndefined();
+    }
+  });
+
+  it("covers the paper with fractal-noise grain instead of the dot matrix", () => {
+    const declarations = topLevel(".lcd::before");
+    expect(declarations.content).toBe('""');
+    expect(declarations.position).toBe("absolute");
+    expect(declarations.inset).toBe("0");
+    expect(declarations["pointer-events"]).toBe("none");
+    expect(declarations.opacity).toBe("var(--eink-grain)");
+    expect(declarations["mix-blend-mode"]).toBe("var(--eink-grain-blend)");
+    expect(declarations["background-size"]).toBeUndefined();
+    expect(declarations["background-image"]).toBeUndefined();
+
+    const grain = normalize(declarations.background);
+    expect(grain).toMatch(/^url\("data:image\/svg\+xml;utf8,<svg /);
+    for (const part of [
+      "width='220' height='220'",
+      "<feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/>",
+      "<feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/>",
+      "filter='url(%23n)'",
+    ]) {
+      expect(grain).toContain(part);
+    }
+    // A raw '#' would end the data URL.
+    expect(grain).not.toContain("#");
+  });
+
+  it("dulls the paper with a matte wash instead of the glass reflection", () => {
+    const declarations = topLevel(".lcd::after");
+    expect(declarations.content).toBe('""');
+    expect(declarations.position).toBe("absolute");
+    expect(declarations.inset).toBe("0");
+    expect(declarations["pointer-events"]).toBe("none");
+    expect(normalize(declarations.background)).toBe(
+      "linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 30%, rgba(0, 0, 0, 0.015))",
+    );
+  });
+
+  it("prints labels and notes in --eink-dim and the legend keys in --eink-ink", () => {
+    expect(topLevel(".lcd-label").color).toBe("var(--eink-dim)");
+    expect(topLevel(".lcd-note").color).toBe("var(--eink-dim)");
+    expect(topLevel(".lcd-key").background).toBe("var(--eink-ink)");
+    expect(normalize(topLevel(".lcd-key-active").background)).toBe(
+      "repeating-linear-gradient(90deg, var(--eink-ink) 0 2px, transparent 2px 3px)",
+    );
+  });
+
+  it("half-desaturates every image on the screen, without blending", () => {
+    const declarations = topLevel(".lcd img");
+    expect(normalize(declarations.filter)).toBe("grayscale(0.55) saturate(0.7) contrast(1.05)");
+    expect(declarations["mix-blend-mode"]).toBeUndefined();
+    expect(declarations.opacity).toBeUndefined();
+    const old = allRules().filter((rule) => rule.selectors.some((selector) => selector.endsWith(".lcd-most .software-icon")));
+    expect(old.map((rule) => rule.selectors.join(", "))).toEqual([]);
+  });
+
+  it("dashes the narrow layout's divider in --eink-dim", () => {
+    expect(normalize(inMedia("@media (max-width: 1320px)", ".lcd-cell-most")["border-top"])).toBe(
+      "1px dashed color-mix(in srgb, var(--eink-dim) 45%, transparent)",
+    );
+  });
+
+  it("uses one recipe in both themes, with no glow or LCD ink on the screen", () => {
+    for (const rule of styleRules()) {
+      const screen = rule.selectors.filter(isScreenSelector);
+      if (screen.length === 0) continue;
+      const label = `${rule.atRules.join(" ")} ${screen.join(", ")}`;
+      expect(rule.declarations["text-shadow"], label).toBeUndefined();
+      expect(Object.values(rule.declarations).join(" "), label).not.toContain(OLD_INK);
+    }
+    const darkScreen = allRules().flatMap((rule) =>
+      rule.selectors.filter((selector) => selector.startsWith(DARK) && isScreenSelector(selector.slice(DARK.length))),
+    );
+    expect(darkScreen).toEqual([]);
+  });
+
+  // Spec Token 架构: the pixel display size is renamed, its per-dppx values unchanged.
+  it("sizes the pixel digits with --pixel-display-size", () => {
+    expect(topLevel(".lcd-value b")["font-size"]).toBe("var(--pixel-display-size, 60px)");
+    expect(inMedia("@media (resolution: 1.25dppx)", ".lcd")["--pixel-display-size"]).toBe("57.6px");
+    expect(inMedia("@media (resolution: 1.5dppx)", ".lcd")["--pixel-display-size"]).toBe("64px");
+    expect(topLevel(".lcd.ach-dial")["--pixel-display-size"]).toBe("48px");
+    for (const rule of allRules()) {
+      const text = Object.entries(rule.declarations).flat().join(" ");
+      expect(text, rule.selectors.join(", ")).not.toContain(OLD_SIZE);
+    }
+  });
+
+  // Spec「字体」: GST Pixel only on the screen.
+  it("keeps the pixel font on the screen", () => {
+    const users = allRules().filter((rule) => Object.values(rule.declarations).some((value) => value.includes("var(--font-pixel)")));
+    expect(users.length).toBeGreaterThan(0);
+    for (const rule of users) {
+      for (const selector of rule.selectors) expect(selector).toMatch(/^\.lcd/);
+    }
+  });
+
+  // Spec 迁移表「设置页」: the settings screen only takes the shared paper (no ghost).
+  it("lets the settings screen inherit the paper", () => {
+    const declarations = topLevel(".settings-lcd");
+    for (const property of ["background", "color", "box-shadow", "border-radius"]) {
+      expect(declarations[property], property).toBeUndefined();
+    }
+  });
+});
+
 describe("glass layers on every page", () => {
   beforeEach(() => {
     // Pin the synthetic day (it scales with the wall clock) to the visual baseline's moment.

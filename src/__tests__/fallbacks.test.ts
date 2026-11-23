@@ -154,14 +154,23 @@ describe("forced colors", () => {
       expect(declarations.background, selector).toBe("Canvas");
       expect(declarations.color, selector).toBe("CanvasText");
     }
-    for (const selector of [".sidebar", ".lcd", ".dialog", ".add-software-dialog"]) {
+    for (const selector of [".sidebar", ".dialog", ".add-software-dialog"]) {
       expect(normalize(declarationsFor(selector, FORCED).border ?? ""), selector).toBe("1px solid CanvasText");
     }
-    // Glass panels keep their inset outline (decision 2A), so a border would move their content.
-    for (const selector of [".panel", ".readout", ".software-panel"]) {
+    // Glass panels keep their inset outline (decision 2A), so a border would move their content. The
+    // e-ink screen takes the same inset outline (decision G-B), so the readout keeps its v0.3.1 height.
+    for (const selector of [".panel", ".readout", ".software-panel", ".lcd"]) {
       const declarations = declarationsFor(selector, FORCED);
       expect(declarations.border, selector).toBeUndefined();
       expect(normalize(declarations.outline ?? ""), selector).toBe("1px solid CanvasText");
+    }
+  });
+
+  // One forced-colours rule sets the -1px offset for the panels and the screen alike; the screen is
+  // the one selector with no outline outside that block.
+  it("insets the outline of the glass panels and the e-ink screen (decisions 2A, G-B)", () => {
+    for (const selector of [".panel", ".readout", ".software-panel", ".lcd"]) {
+      expect(declarationsFor(selector, FORCED)["outline-offset"], selector).toBe("-1px");
     }
   });
 
