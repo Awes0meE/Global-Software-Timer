@@ -9,6 +9,7 @@ import type {
 } from "../api";
 import { formatDurationPartsZh } from "../i18n";
 import { splitWeekdayWeekend } from "../statisticsRange";
+import { HelpPopover } from "./ActiveTimeHelpPopover";
 import { SoftwareIcon } from "./SoftwareIcon";
 
 const DAY_SECONDS = 24 * 3600;
@@ -146,6 +147,11 @@ function IdleOpenPanel({ rows, durationFormat }: { rows: IdleOpenRow[]; duration
     <section className="panel stats-panel idle-panel" aria-labelledby="stats-idle-title">
       <header className="panel-head">
         <h2 id="stats-idle-title">开着没用</h2>
+        <HelpPopover label="开着没用怎么算" title="开着没用怎么算？" align="start">
+          <p>区间内窗口开着不少于 5 小时、焦点却不到窗口时间 5% 的软件才上榜。</p>
+          <p>托盘和后台时间不算。</p>
+          <p>条长按本榜最长的窗口时长。</p>
+        </HelpPopover>
       </header>
       {rows.length === 0 ? (
         <div className="empty-state stats-empty">
@@ -258,6 +264,15 @@ function RhythmPanel({ summary, durationFormat }: LedgerProps) {
     <section className="panel stats-panel" aria-labelledby="stats-rhythm-title">
       <header className="panel-head">
         <h2 id="stats-rhythm-title">作息</h2>
+        <HelpPopover label="作息怎么算" title="作息怎么算？" align="start">
+          <p>
+            这段时间共 {summary.days_count} 天，有记录 {recordedDays.length} 天。
+          </p>
+          <p>工作日、周末日均活跃按全部工作日、周末日平均，没有记录的日子也算。</p>
+          <p>日均开机时长只按有记录的日子算。</p>
+          <p>最早、最晚记录取各天的中位时间。</p>
+          <p>条长满格为 24 小时。</p>
+        </HelpPopover>
       </header>
       <div className="rhythm-grid">
         <RhythmCell

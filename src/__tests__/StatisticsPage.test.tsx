@@ -489,6 +489,33 @@ describe("StatisticsPage", () => {
     expect(emptyIdle).not.toHaveTextContent("才上榜");
   });
 
+  it("explains 开着没用's listing rule in its help bubble", async () => {
+    invoke.mockResolvedValue(summary());
+    await renderPage();
+
+    const idle = screen.getByRole("region", { name: "开着没用" });
+    fireEvent.click(within(idle).getByRole("button", { name: "开着没用怎么算" }));
+    const bubble = screen.getByRole("dialog", { name: "开着没用怎么算？" });
+    expect(bubble).toHaveTextContent("不少于 5 小时");
+    expect(bubble).toHaveTextContent("不到窗口时间 5%");
+    expect(bubble).toHaveTextContent("托盘和后台");
+    expect(bubble).toHaveTextContent("最长的窗口时长");
+  });
+
+  it("explains 作息's averaging in its help bubble with the range's day counts", async () => {
+    invoke.mockResolvedValue(summary());
+    await renderPage();
+
+    const rhythm = screen.getByRole("region", { name: "作息" });
+    fireEvent.click(within(rhythm).getByRole("button", { name: "作息怎么算" }));
+    const bubble = screen.getByRole("dialog", { name: "作息怎么算？" });
+    expect(bubble).toHaveTextContent("共 7 天，有记录 5 天");
+    expect(bubble).toHaveTextContent("没有记录的日子也算");
+    expect(bubble).toHaveTextContent("只按有记录的日子");
+    expect(bubble).toHaveTextContent("中位");
+    expect(bubble).toHaveTextContent("24 小时");
+  });
+
   it("lists idle-open software and says so when there is none", async () => {
     invoke.mockResolvedValue(summary());
     await renderPage();
