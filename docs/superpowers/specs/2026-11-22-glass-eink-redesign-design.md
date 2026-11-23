@@ -33,7 +33,7 @@
 | 凹槽 | `--panel-sunken` | `--chip`（浅色填充，不再画内阴影） |
 | 描边 | `--edge`、`--edge-strong` | 名字保留，值改成半透明；新增 `--rule`（表格分隔线） |
 | 焦点环间隔色 | `--focus` 里的 `--panel-raised`（styles.css:53） | `--glass-solid` |
-| 刻字光影 | `--highlight` | `--glass-hi`（上沿高光）；面板投影改用 `--glass-shadow`。`--shade`、`--shade-deep` 名字保留，只作少量投影的颜色（跳转链接、开关圆钮） |
+| 刻字光影 | `--highlight` | `--glass-hi`（上沿高光）；面板投影改用 `--glass-shadow`。`--shade`、`--shade-deep` 名字保留，只作少量投影的颜色（跳转链接、开关圆钮；2026-11-23 起开关圆钮的抬起投影改用 `--tg-lift*`，见计划任务 7 与取舍 24） |
 | 旋钮 | `--knob-top/-middle/-base` | 删除 |
 | 液晶 | `--lcd`、`--lcd-deep`、`--lcd-ink`、`--lcd-dim`、`--lcd-ghost`、`--lcd-glow`、`--lcd-grid` | 删除，换成 `--eink-*` |
 | 选中态 | （无，现用信号橙） | `--accent`、`--on`（当前导航项底色） |
@@ -157,7 +157,7 @@ v0.5.0 回放表盘的刻度沿用这三条刻线规则。样稿的表盘只有 
 | 走纸记录仪 TrendRecorder（StatisticsPage.css:242–383） | `.paper` = `--panel-raised`，金属滚轴，旋钮色笔臂 | `.paper` 改用墨水屏纸面、颗粒和内凹边；针柱和文字改用 `--eink-*`；滚轴改成平的 `--eink-mid` 细条；笔臂 `--eink-mid`；`.pen-lamp` 信号橙保留（正在记录） |
 | 里程碑铭牌 MilestoneShelf（AchievementsPage.css:476–541） | 螺钉、凸起/凹槽 | `--glass-2` 子板，去掉螺钉；未点亮为虚线 `--edge` + `--muted`；6666 达成后用 `--accent` 描边 |
 | 今日分布 `.mix-plate`（958–978） | 唯一允许 mix 色的带框色板 | `--glass-2` 子板；深色下色条加 `0 0 12px` 同色 40% 微光 |
-| 开关 `.toggle` / `.toggle-knob`（1680–1717） | 金属旋钮 + 信号橙灯 | 白色圆钮 + 柔和投影；开启态轨道 `--accent`（2026-11-23：用户要求所有开关改成有立体感、像真的在拨动滑块，方案待用户从立体样稿里选定，见计划任务 7「开关将重做」；新方案仍须满足开启态轨道对背景 ≥ 3:1、深色开启态圆钮对轨道 ≥ 3:1。选定前保持现值） |
+| 开关 `.toggle` / `.toggle-knob`（1680–1717） | 金属旋钮 + 信号橙灯 | 立体滑块（2026-11-23 用户选定 V1 凹槽 + 圆钮、L1 淡描边、S1 球面拨杆，取值见计划任务 7「用户已确认」）：凹下去的 `--chip` 轨道（开启 `--accent`）带内阴影和 1px 描边（关闭 `--edge-strong`，浅色开启态更深的强调色边），22px 左上受光的球面圆钮带钮边、抬起投影和高光点，滑动略过冲、按下拉长；开启态轨道对背景 ≥ 3:1、深色开启态圆钮外圈对轨道 ≥ 3:1；关闭态淡描边低于 3:1 是用户接受的偏差 |
 | 分段选择器 `.segmented`（1737–1746）与统计/成就的同类控件 | 凸起选中项 | 轨道 `--chip`，选中项 `--on` + `--edge` |
 | 对话框 `.dialog`（1436） | 机壳面板 | `--glass-solid`，圆角 16px；次要按钮和搜索框 1px `--edge-strong` 线（2026-11-23） |
 | 刻字效果（`text-shadow: 0 1px 0 var(--highlight)`：styles.css:524，AchievementsPage.css:48、555、601） | 刻字 | 删除；随刻字和液晶发光一起失效的 `text-shadow: none` 覆盖（styles.css:659，AchievementsPage.css:171、295、321）一起删 |
@@ -186,7 +186,7 @@ DESIGN.md 原来的「mix 色只出现在今日分布色板」（DESIGN.md:132�
 
 ## 动效
 
-不新增 keyframes，也不新增过渡。现有的 `lamp-breathe`、`backdrop-in`、`dialog-in` 和 120–220ms 的过渡保留。残影不做动画。全局 `prefers-reduced-motion` 规则（styles.css:1856–1864）不变。
+不新增 keyframes，也不新增过渡。现有的 `lamp-breathe`、`backdrop-in`、`dialog-in` 和 120–220ms 的过渡保留。残影不做动画。全局 `prefers-reduced-motion` 规则（styles.css:1856–1864）不变。开关立体滑块除外（计划任务 7、取舍 24，2026-11-23 用户确认，要像真的拨动滑块）：圆钮 `transform 240ms` 略过冲、`width` / `box-shadow 150ms`，轨道 `background-color` / `box-shadow 220ms`；减少动态时同一块里另把圆钮改成不过冲的 `var(--ease)`、按下不拉长。
 
 ## 对比度目标
 
