@@ -607,7 +607,7 @@ export function startTransparencyWatch(read: () => Promise<unknown> = getTranspa
 - `.software-panel.is-editing .text-action`、`.software-remove-button`、`.active-help-button` 自己的 `box-shadow` 盖住了焦点环 → 任务 6 改这几条规则时一并恢复。
 - 分段选择器选中项的焦点环被选中态盖住 → 任务 7。
 - 走纸记录仪的 `.rule-minor`、`.rule-day` 暂时用 `--edge-strong` → 任务 14 改用 `--eink-track`。
-- 滚动区和滚动条的直角露出面板 16px 圆角 → 任务 16 验收时处理。**任务 16 已处理（强制颜色下）：** 收尾在面板底部的滚动区用 `clip-path` 裁到面板描边内侧和圆角（顶边 -1px 不裁），中间的名单只裁两侧，聚焦时去掉裁剪、照常画外侧焦点环。**普通模式的直角未处理**（细滚动条、行悬停底色；改了就动普通模式像素）→ 待协调方 / 用户决定。
+- 滚动区和滚动条的直角露出面板 16px 圆角 → 任务 16 验收时处理。**任务 16 已处理（强制颜色下）：** 收尾在面板底部的滚动区用 `clip-path` 裁到面板描边内侧和圆角（顶边 -1px 不裁），中间的名单只裁两侧，聚焦时去掉裁剪、照常画外侧焦点环。**用户已确认（2026-11-24，看过对比图）：普通模式也裁**——同一条裁剪和聚焦例外移出强制颜色块，两种模式共用（`aa817e8`）；强制颜色块只留中间名单的两侧裁剪，聚焦时不裁。行数不满面板的短列表也被裁：末行悬停底色的下角变圆，后台表末行分隔线不画。
 - 导航 `:active` 按任务 4 Step 2 用 `--on`；取舍 10 里「`:active` 只换底色（`--chip`）」只指页头按钮和次按钮。
 - `.ach-readout` 加了 `overflow: clip`：玻璃滤镜让 `.readout` 成为热力图里隐藏表格的包含块，表格不认 `height: 1px`，不裁掉就会多出一整段可滚动的空白。
 - 胶囊圆角（样稿 `999px`，现用 `--radius-key`）保持不变。
@@ -1031,7 +1031,7 @@ rg "var\(--signal" src
 - [ ] **Step 2：布局（验收 4「窄窗口无横向滚动」、「不改布局」）。** `probe.mjs layout --time 22:01`，普通、`&empty`、`&format=hm` 三组各 6 页 × 两主题 × 两尺寸：横向溢出全为 `false`（`hm` 读数更长、窄窗口最容易溢出，重点看）；与任务 1 基线比，`.sidebar`、`.panel`、`.readout`、`.software-panel` 外框完全一致，内容元素差 ≤ 1px（口径表「布局」，超出的逐个说明原因）。
 - [ ] **Step 3：模拟。** `--media forced-colors=active`（两主题，6 页）：文字、焦点环（`--eval` 聚焦一个导航项和一个开关）都看得见（验收 7 预览近似）。`--media prefers-reduced-transparency=reduce`：面板不透明、光晕保留（若该 Edge 版本不支持这项模拟，报告并以 `?glass=off` 代替）。`--scale 1.25`、`--scale 1.5`：概览和成就页像素读数边缘清晰（验收 9 预览近似）。
 - [ ] **Step 4：对比度（验收 5）。** `npx.cmd vitest run src/__tests__/contrast.test.ts` 的实算值抄进会话报告（只有数字），与规格表逐行对照；差异 > 0.2 的说明原因。
-- [ ] **Step 5：帧率（性能验收第 1、4 行）。** `probe.mjs frames --headed --trace <scratch json> --size 1440x900`：软件页 `.discovered-scroll`、统计页 `.stats-page`；两主题；`--cpu 1` 和 `--cpu 4`；`?glass=off` 再各跑一遍。标准按 trace 的帧（合成器实际呈现的帧，`backdrop-filter` 的开销主要在这里）判断：`over50ms = 0`、`avgFps ≥ 55`；4× 降速 `avgFps ≥ 30`；rAF 结果和 `loafOver50ms` 一起列出作对照，两者不一致时以 trace 为准。挑一份 trace（浅色、统计页、1×）在 DevTools Performance 面板打开看一眼，确认 probe 的统计与面板显示一致（规格的原始方法）。同时列出任务 1 的 v0.3.1 基线。不达标时按规格：先在 `:root` 把 `--glass-filter` 设为 `none` 重测；仍不达标就停下找用户。
+- [ ] **Step 5：帧率（性能验收第 1、4 行）。** `probe.mjs frames --headed --trace <scratch json> --size 1440x900`：软件页 `.discovered-scroll`、统计页 `.stats-page`；两主题；`--cpu 1` 和 `--cpu 4`；`?glass=off` 再各跑一遍。标准按 trace 的帧（合成器实际呈现的帧，`backdrop-filter` 的开销主要在这里）判断：`over50ms = 0`、`avgFps ≥ 55`；4× 降速 `avgFps ≥ 30`；rAF 结果和 `loafOver50ms` 一起列出作对照，两者不一致时以 trace 为准。挑一份 trace（浅色、统计页、1×）在 DevTools Performance 面板打开看一眼，确认 probe 的统计与面板显示一致（规格的原始方法）。同时列出任务 1 的 v0.3.1 基线。不达标时按规格：先在 `:root` 把 `--glass-filter` 设为 `none` 重测；仍不达标就停下找用户。**补充（2026-11-24）：** `.discovered-scroll` 的帧率必须在普通模式的面板底部裁剪（`aa817e8`，圆角 `clip-path`）之后测；帧率尚未测，只在用户不用电脑时跑。
 - [ ] **Step 6：** 结果（通过与否、帧率、对比度数字）记在 scratchpad 的验收笔记里，任务 19 写进 `docs/CURRENT_STATE.md`；不入库截图。
 - [ ] **Step 7：** 有修复就跑 `npm.cmd run check`、走审查关口、按问题分别提交 `fix(ui): <具体问题>`；没有修复则本任务无提交。
 
