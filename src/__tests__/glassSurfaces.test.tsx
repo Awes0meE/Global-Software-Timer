@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { allRules } from "./support/css";
+import { allRules, parseColor, token } from "./support/css";
 
 // The whole app runs on the browser preview's synthetic data.
 vi.mock("@tauri-apps/api/core", () => import("../../scripts/ui-preview/tauri-core"));
@@ -118,8 +118,9 @@ describe("software and background pages, dialogs", () => {
   const SIGNAL = "var(--" + "signal";
 
   // Trade-off 6: the rows scroll under the sticky heads, so the heads must not be translucent.
+  // Decision E-B (2026-11-23) moved them from --glass-solid to --head-solid, its slightly lifted twin.
   it.each([".focused-table-head", ".background-table th"])("%s is opaque", (selector) => {
-    expect(topLevel(selector).background, selector).toBe("var(--glass-solid)");
+    expect(topLevel(selector).background, selector).toBe("var(--head-solid)");
   });
 
   // Plan「口径」浮层: dialogs and the help bubble float over the glass, so they are opaque too.
@@ -169,6 +170,51 @@ describe("software and background pages, dialogs", () => {
   // The inset accent outline is the sort button's whole focus mark; the global ring would double it.
   it("draws one focus mark on the background table's sort buttons", () => {
     expect(topLevel(".background-table .sort-button:focus-visible")["box-shadow"]).toBe("none");
+  });
+});
+
+// Round-2 decisions confirmed by the user on 2026-11-23 after comparing rendered options.
+describe("dialog secondary controls (decision D-A)", () => {
+  const SECONDARY = ":is(.dialog, .add-software-dialog) .button:not(.button-primary)";
+  const LINE = "inset 0 0 0 1px var(--edge-strong)";
+
+  it.each([SECONDARY, ".add-software-search"])("%s draws the 1px --edge-strong line", (selector) => {
+    expect(normalize(topLevel(selector)["box-shadow"]), selector).toBe(LINE);
+  });
+
+  it.each([SECONDARY, ".add-software-search"])("%s keeps the line under the focus ring", (selector) => {
+    expect(normalize(topLevel(`${selector}:focus-visible`)["box-shadow"]), selector).toBe(`${LINE}, var(--focus)`);
+  });
+
+  it("keeps the fills: --glass-2 keys, the --chip search box", () => {
+    expect(topLevel(SECONDARY).background).toBeUndefined();
+    expect(topLevel(".button").background).toBe("var(--glass-2)");
+    expect(normalize(topLevel(".add-software-search").background)).toMatch(/, var\(--chip\)$/);
+  });
+
+  // One declaration per state, so the line does not depend on which rule comes later.
+  it("sets the add dialog search box's line in exactly one rule per state", () => {
+    const lines = allRules()
+      .filter((rule) => rule.atRules.length === 0 && rule.declarations["box-shadow"] !== undefined)
+      .filter((rule) => rule.selectors.some((s) => s.startsWith(".add-software-search")))
+      .map((rule) => normalize(rule.declarations["box-shadow"]));
+    expect(lines).toEqual([LINE, `${LINE}, var(--focus)`]);
+  });
+
+  it("leaves the software page's own search box on its --edge line", () => {
+    expect(normalize(topLevel(".discovered-search")["box-shadow"])).toBe("inset 0 0 0 1px var(--edge)");
+    expect(normalize(topLevel(".discovered-search:focus-visible")["box-shadow"])).toBe("var(--focus)");
+  });
+});
+
+describe("sticky table heads (decision E-B)", () => {
+  it("--head-solid equals --glass-solid in the light theme", () => {
+    expect(parseColor(token("light", "--head-solid"))).toEqual(parseColor(token("light", "--glass-solid")));
+  });
+
+  it("--head-solid is the panel's average dark colour, a step above --glass-solid", () => {
+    expect(parseColor(token("dark", "--head-solid"))).toEqual({ r: 33, g: 32, b: 39, a: 1 });
+    expect(parseColor(token("dark", "--glass-solid"))).toEqual({ r: 30, g: 30, b: 34, a: 1 });
   });
 });
 

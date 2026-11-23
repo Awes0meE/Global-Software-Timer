@@ -127,6 +127,9 @@ const COMBOS: Combo[] = [
   { name: "--ink on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink"), s.solid] },
   { name: "--ink-2 on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), s.solid] },
   { name: "--muted on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.solid] },
+  // Sticky table heads on --head-solid (decision E-B, 2026-11-23): --muted labels, --ink when sorted.
+  { name: "--muted on head-solid", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.colour("--head-solid")] },
+  { name: "--ink on head-solid", threshold: TEXT, pair: (s) => [s.colour("--ink"), s.colour("--head-solid")] },
   // The add-software dialog (task 6): its error line, search hits and the selected row's path.
   { name: "--alert-ink on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--alert-ink"), s.solid] },
   {
@@ -213,6 +216,7 @@ const SPEC_TOKENS: Record<string, [light: string, dark: string]> = {
   "--muted": ["#5a606c", "#98a0ad"],
   "--glass": ["rgba(255,255,255,.50)", "rgba(40,40,46,.42)"],
   "--glass-solid": ["#f6f7f9", "#1e1e22"],
+  "--head-solid": ["var(--glass-solid)", "#212027"],
   "--glass-2": ["rgba(255,255,255,.55)", "rgba(255,255,255,.06)"],
   "--chip": ["rgba(20,30,60,.06)", "rgba(255,255,255,.07)"],
   "--on": ["rgba(255,255,255,.75)", "rgba(255,255,255,.10)"],
