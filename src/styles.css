@@ -95,6 +95,19 @@
   --tg-lift: 0 1px 1px rgba(20, 30, 60, 0.3), 0 2px 5px rgba(20, 30, 60, 0.22);
   --tg-lift-hover: 0 1px 1px rgba(20, 30, 60, 0.3), 0 3px 7px rgba(20, 30, 60, 0.28);
   --tg-lift-press: 0 0.5px 1px rgba(20, 30, 60, 0.34), 0 1px 2px rgba(20, 30, 60, 0.16);
+  /* Raised nav key (.nav-key.is-active): face, top sheen, rim, lit top and dark bottom edges, lift;
+     and the flat outline a hovered key gets. */
+  --nk-fill: rgba(255, 255, 255, 0.92);
+  --nk-sheen:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(to top, rgba(20, 30, 60, 0.045), rgba(20, 30, 60, 0) 45%);
+  --nk-rim: rgba(20, 30, 60, 0.12);
+  --nk-hi: #ffffff;
+  --nk-lo: rgba(20, 30, 60, 0.07);
+  --nk-lift: 0 1px 1px rgba(20, 30, 60, 0.14), 0 3px 9px rgba(20, 30, 60, 0.11);
+  --nk-lift-press: 0 0.5px 1px rgba(20, 30, 60, 0.16);
+  --nk-hover-fill: rgba(255, 255, 255, 0.42);
+  --nk-hover-rim: rgba(20, 30, 60, 0.07);
 }
 
 :root[data-theme="dark"] {
@@ -157,6 +170,17 @@
   --tg-lift: 0 1px 1px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.45);
   --tg-lift-hover: 0 1px 1px rgba(0, 0, 0, 0.55), 0 3px 8px rgba(0, 0, 0, 0.55);
   --tg-lift-press: 0 0.5px 1px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.35);
+  --nk-fill: rgba(255, 255, 255, 0.1);
+  --nk-sheen:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(to top, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0) 45%);
+  --nk-rim: rgba(0, 0, 0, 0.42);
+  --nk-hi: rgba(255, 255, 255, 0.16);
+  --nk-lo: rgba(0, 0, 0, 0.25);
+  --nk-lift: 0 1px 1px rgba(0, 0, 0, 0.5), 0 3px 9px rgba(0, 0, 0, 0.38);
+  --nk-lift-press: 0 0.5px 1px rgba(0, 0, 0, 0.55);
+  --nk-hover-fill: rgba(255, 255, 255, 0.05);
+  --nk-hover-rim: rgba(255, 255, 255, 0.06);
 }
 
 /* Glass switch: panels and the sidebar draw through these, never --glass / --side directly. */
@@ -329,6 +353,9 @@ p {
 }
 
 .nav-key {
+  --nav-fill: transparent;
+  --nav-sheen: none;
+  --nav-shadow: 0 0 transparent;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -344,35 +371,48 @@ p {
   transition: background-color 160ms var(--ease), box-shadow 160ms var(--ease), color 160ms var(--ease);
 }
 
+/* The states below only set --nav-fill / --nav-sheen / --nav-shadow; this one rule paints them. */
+.nav-key:not([aria-disabled="true"]),
+.nav-key.is-active {
+  background-color: var(--nav-fill);
+  background-image: var(--nav-sheen);
+  box-shadow: var(--nav-shadow);
+}
+
 .nav-key:not([aria-disabled="true"]):hover {
   --muted: var(--ink-2);
-  background: var(--chip);
+  --nav-fill: var(--nk-hover-fill);
+  --nav-shadow: 0 0 0 1px var(--nk-hover-rim);
 }
 
 .nav-key:not([aria-disabled="true"]):active {
   --muted: var(--ink-2);
-  background: var(--on);
+  --nav-fill: var(--chip);
+  --nav-shadow: 0 0 0 1px var(--nk-hover-rim), inset 0 1px 2px var(--nk-lo);
 }
 
+/* The current page stands up off the sidebar like the toggle knob; a press pushes it in. */
 .nav-key.is-active,
 .nav-key.is-active:hover {
   --muted: var(--ink-2);
+  --nav-fill: var(--nk-fill);
+  --nav-sheen: var(--nk-sheen);
+  --nav-shadow: 0 0 0 1px var(--nk-rim), inset 0 1px 0 var(--nk-hi), inset 0 -1px 0 var(--nk-lo), var(--nk-lift);
   color: var(--ink);
   font-weight: 600;
-  background: var(--on);
-  box-shadow:
-    inset 3px 0 0 var(--accent),
-    inset 0 0 0 1px var(--edge),
-    0 4px 14px rgba(0, 0, 0, 0.08);
 }
 
-/* The current item draws its own shadows, which would hide the global focus ring. */
-.nav-key.is-active:focus-visible {
-  box-shadow:
-    inset 3px 0 0 var(--accent),
-    inset 0 0 0 1px var(--edge),
-    var(--focus),
-    0 4px 14px rgba(0, 0, 0, 0.08);
+.nav-key.is-active:active {
+  --nav-shadow: 0 0 0 1px var(--nk-rim), inset 0 1px 2px var(--nk-lo), var(--nk-lift-press);
+}
+
+.nav-key.is-active svg {
+  color: var(--accent);
+}
+
+/* The state shadows outrank the global focus ring, so it is appended to them. */
+.nav-key:not([aria-disabled="true"]):focus-visible {
+  box-shadow: var(--nav-shadow), var(--focus);
 }
 
 .nav-key[aria-disabled="true"] {
@@ -2307,6 +2347,11 @@ mark {
   :focus-visible {
     outline: 2px solid Highlight;
     outline-offset: 2px;
+  }
+
+  /* The raised key's shadows go by themselves; its sheen is a gradient. */
+  .nav-key {
+    background-image: none;
   }
 
   .nav-key.is-active,

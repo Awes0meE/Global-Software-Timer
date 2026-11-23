@@ -1044,3 +1044,96 @@ describe("today distribution bar", () => {
     expect(themeTokens("dark")["--mix-glow"]).toBeUndefined();
   });
 });
+
+// v0.4.1 (variant A, user-approved): the current page is a raised key like the toggle knob, not a flat
+// --on fill with a 3px --accent side bar. States only set --nav-fill / --nav-sheen / --nav-shadow; one
+// rule paints them, so the focus ring can be appended to whatever the state draws.
+describe("sidebar nav keys", () => {
+  const ENABLED = '.nav-key:not([aria-disabled="true"])';
+  const navRules = () => allRules().filter((rule) => rule.selectors.some((selector) => /\.nav-key(?![\w-])/.test(selector)));
+  /** Rules that style the key itself (no descendant part). */
+  const keyRules = () => navRules().filter((rule) => rule.selectors.every((selector) => /^\.nav-key(?![\w-])\S*$/.test(selector)));
+
+  it("draws no side bar and uses the accent only on the current page's icon", () => {
+    for (const rule of navRules()) {
+      const where = `${rule.atRules.join(" ")} ${rule.selector}`;
+      expect(normalize(rule.declarations["box-shadow"]), where).not.toMatch(/inset -?\d+px 0 0/);
+      const usesAccent = Object.values(rule.declarations).some((value) => value.includes("--accent"));
+      expect(usesAccent ? rule.selector : "", where).toBe(usesAccent ? ".nav-key.is-active svg" : "");
+    }
+    expect(topLevel(".nav-key.is-active svg").color).toBe("var(--accent)");
+  });
+
+  it("keeps the key box and never moves it in any state", () => {
+    const key = topLevel(".nav-key");
+    expect(key.height).toBe("44px");
+    expect(key.padding).toBe("0 12px");
+    expect(key.border).toBe("0");
+    expect(key["border-radius"]).toBe("var(--radius-key)");
+    for (const rule of keyRules().filter((rule) => rule.selector !== ".nav-key")) {
+      for (const property of ["height", "padding", "margin", "border", "border-width", "transform", "translate", "top"]) {
+        expect(rule.declarations[property], `${rule.selector} ${property}`).toBeUndefined();
+      }
+    }
+  });
+
+  it("paints every enabled key and the current one from the state variables", () => {
+    const paint = allRules().find(
+      (rule) =>
+        rule.atRules.length === 0 &&
+        rule.selectors.length === 2 &&
+        rule.selectors.includes(ENABLED) &&
+        rule.selectors.includes(".nav-key.is-active"),
+    );
+    expect(paint?.declarations["background-color"]).toBe("var(--nav-fill)");
+    expect(paint?.declarations["background-image"]).toBe("var(--nav-sheen)");
+    expect(paint?.declarations["box-shadow"]).toBe("var(--nav-shadow)");
+
+    const rest = topLevel(".nav-key");
+    expect(rest["--nav-fill"]).toBe("transparent");
+    expect(rest["--nav-sheen"]).toBe("none");
+  });
+
+  it("raises the current key with a rim, lit top, dark bottom and a lift, both at rest and hovered", () => {
+    for (const selector of [".nav-key.is-active", ".nav-key.is-active:hover"]) {
+      const declarations = topLevel(selector);
+      expect(declarations["--nav-fill"], selector).toBe("var(--nk-fill)");
+      expect(declarations["--nav-sheen"], selector).toBe("var(--nk-sheen)");
+      expect(normalize(declarations["--nav-shadow"]), selector).toBe(
+        "0 0 0 1px var(--nk-rim), inset 0 1px 0 var(--nk-hi), inset 0 -1px 0 var(--nk-lo), var(--nk-lift)",
+      );
+      expect(declarations.color, selector).toBe("var(--ink)");
+      expect(declarations["--muted"], selector).toBe("var(--ink-2)");
+    }
+  });
+
+  it("pushes a pressed key in", () => {
+    expect(normalize(topLevel(".nav-key.is-active:active")["--nav-shadow"])).toBe(
+      "0 0 0 1px var(--nk-rim), inset 0 1px 2px var(--nk-lo), var(--nk-lift-press)",
+    );
+    const press = topLevel(`${ENABLED}:active`);
+    expect(press["--nav-fill"]).toBe("var(--chip)");
+    expect(normalize(press["--nav-shadow"])).toBe("0 0 0 1px var(--nk-hover-rim), inset 0 1px 2px var(--nk-lo)");
+    expect(press["--muted"]).toBe("var(--ink-2)");
+  });
+
+  it("outlines a hovered key flat and faint", () => {
+    const hover = topLevel(`${ENABLED}:hover`);
+    expect(hover["--nav-fill"]).toBe("var(--nk-hover-fill)");
+    expect(normalize(hover["--nav-shadow"])).toBe("0 0 0 1px var(--nk-hover-rim)");
+    expect(hover["--muted"]).toBe("var(--ink-2)");
+  });
+
+  it("appends the focus ring to the state's own shadows", () => {
+    expect(normalize(topLevel(`${ENABLED}:focus-visible`)["box-shadow"])).toBe("var(--nav-shadow), var(--focus)");
+    expect(topLevel(".nav-key.is-active:focus-visible")["box-shadow"]).toBeUndefined();
+  });
+
+  it.each(["light", "dark"] as const)("defines every key token in the %s theme", (theme) => {
+    const tokens = themeTokens(theme);
+    for (const name of ["--nk-fill", "--nk-sheen", "--nk-rim", "--nk-hi", "--nk-lo", "--nk-lift", "--nk-lift-press", "--nk-hover-fill", "--nk-hover-rim"]) {
+      expect(tokens[name], `${theme} ${name}`).toBeDefined();
+    }
+    expect(parseColor(resolve("var(--nk-fill)", tokens)).a).toBeGreaterThan(0);
+  });
+});

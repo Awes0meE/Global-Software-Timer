@@ -101,6 +101,22 @@ const COMBOS: Combo[] = [
     pair: (s) => [subPlateMuted(s), over(s.colour("--glass-2"), s.G)],
   },
   { name: "--ink on --on over G", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--on"), s.G)] },
+  // Sidebar nav keys (v0.4.1 raised key): the current page's label and accent icon on the key face,
+  // hovered and pressed labels, over the glass sidebar and over the opaque one (glass off).
+  { name: "--ink on nav key over S", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--nk-fill"), s.S)] },
+  { name: "--ink on nav key over glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--nk-fill"), s.solid)] },
+  { name: "--accent on nav key over S", threshold: GRAPHIC, pair: (s) => [s.colour("--accent"), over(s.colour("--nk-fill"), s.S)] },
+  {
+    name: "--accent on nav key over glass-solid",
+    threshold: GRAPHIC,
+    pair: (s) => [s.colour("--accent"), over(s.colour("--nk-fill"), s.solid)],
+  },
+  {
+    name: "--ink-2 on hovered nav key over S",
+    threshold: TEXT,
+    pair: (s) => [s.colour("--ink-2"), over(s.colour("--nk-hover-fill"), s.S)],
+  },
+  { name: "--ink-2 on chip over S (pressed nav key)", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--chip"), s.S)] },
   { name: "--signal-ink on G", threshold: TEXT, pair: (s) => [s.colour("--signal-ink"), s.G] },
   { name: "--alert-ink on G", threshold: TEXT, pair: (s) => [s.colour("--alert-ink"), s.G] },
   {

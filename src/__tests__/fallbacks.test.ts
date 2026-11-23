@@ -92,6 +92,11 @@ describe("forced colors", () => {
     }
   });
 
+  // Forced colours drop the raised key's shadows; its sheen is a gradient, so it goes explicitly.
+  it("drops the nav keys' sheen", () => {
+    expect(declarationsFor(".nav-key", FORCED)["background-image"]).toBe("none");
+  });
+
   it("keeps focus on a marked item thicker than the marker", () => {
     const declarations = declarationsFor(":is(.nav-key.is-active, .segmented-option.is-selected):focus-visible", FORCED);
     expect(declarations["outline-width"]).toBe("2px");
