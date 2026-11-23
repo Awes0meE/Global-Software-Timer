@@ -4,7 +4,7 @@
 
 **状态：** 待执行。
 
-**目标：** 把全 app 从「铝 / 石墨机壳 + 点阵液晶」换成「云母玻璃外壳 + 墨水屏读数」：浅色、深色两套 token 重写，`body` 画一次背景光晕，侧栏和页面顶层面板用半透明玻璃（同屏最多 6 个模糊层、不嵌套），读数屏换成哑光墨水屏（像素字体保留，加颗粒、残影和 96 条刻线）。加一个只读命令读取 Windows「透明效果」开关，关掉时退回不透明面板。不加功能，不改数据、schema、口径、文案、布局和字号。
+**目标：** 把全 app 从「铝 / 石墨机壳 + 点阵液晶」换成「云母玻璃外壳 + 墨水屏读数」：浅色、深色两套 token 重写，`body` 画一次背景光晕，侧栏和页面顶层面板用半透明玻璃（同屏最多 6 个模糊层、不嵌套），读数屏换成哑光墨水屏（像素字体保留，加颗粒、残影和 96 条刻线）。加一个只读命令读取 Windows「透明效果」开关，关掉时退回不透明面板；概览数据多带一个只读字段 `usage_date`，残影按日期清（任务 12、取舍 14，2026-11-23 用户确认）。不加功能，不改数据、schema、口径、文案、布局和字号。
 
 **规格（唯一依据，产品决定已定）：** [`docs/superpowers/specs/2026-11-22-glass-eink-redesign-design.md`](../specs/2026-11-22-glass-eink-redesign-design.md)。本计划里的「验收 N」指该规格「验收标准」的第 N 条（1–11）；「迁移表」指「组件迁移表」。下一版规格 `2026-11-22-timeline-page-design.md`（v0.5.0）只作背景：时间轴页沿用本版的 token 和表盘刻线规则，本计划不实现它。
 
@@ -79,7 +79,7 @@ npm.cmd run check                                    # 发布脚本回归、vite
 | 警示色 | `.warning`、`.dialog-error`、`.stats-range-error`、`.software-remove-button` 用 `--alert-ink` / `--alert-wash` | 已定 3 |
 | mix 色 | `--mix-1…7` 是软件身份色；本版仍只有 TodayMix 用，分配规则（按列表顺序循环）不改；深色色条加 `0 0 12px` 同色 40% 微光 | mix 色 |
 | 像素字 | `--font-pixel` 只出现在以 `.lcd` 开头的选择器里；主读数 60 / 57.6 / 64px（1 / 1.25 / 1.5 dppx），成就页 48px；token 名 `--pixel-display-size` | 字体、墨水屏配方 |
-| 残影 | 只在概览「今日记录」「今日活跃」两个大号读数后面；内容是本窗口里上一次**显示的**读数，结构与主读数相同（同样的 `<b>` 数字 + `<small>` 单位、同样的 flex / baseline / gap / 换行），整体向右下偏 2px，`--eink-ghost`，`aria-hidden`，文字放在 `data-text` 属性里用 `::before` 画出（DOM 里没有文本节点）；没变过不画；读数变小时（按秒数判断，只会在跨天时发生）不画，跨天后读数一变小就去掉昨天的残影（2026-11-23 用户确认）；不认日期，见规格已知限制；不做动画 | 墨水屏配方 |
+| 残影 | 只在概览「今日记录」「今日活跃」两个大号读数后面；内容是本窗口里上一次**显示的**读数，结构与主读数相同（同样的 `<b>` 数字 + `<small>` 单位、同样的 flex / baseline / gap / 换行），整体向右下偏 2px，`--eink-ghost`，`aria-hidden`，文字放在 `data-text` 属性里用 `::before` 画出（DOM 里没有文本节点）；没变过不画；概览数据带上统计日期（`usage_date`），日期变了就不画，窗口藏在托盘或停在别的页面时跨天也一样（2026-11-23 用户确认）；同一天里读数变小时（按秒数判断）也不画；不做动画 | 墨水屏配方 |
 | 刻线 | 96 条，每 15 分钟一条，整点 24 条更长；`minutesToday = getHours() × 60 + getMinutes()`（整数，秒数舍去，沿用 `LcdDial.tsx:58` 现有写法）；第 i 条在 `i × 15 < minutesToday` 时算走过（00:00:30 → 0 条，12:00 → 48 条，23:59 → 96 条）；离指针 ±5°（20 分钟）内的 2–3 条另加 `is-near-now`，走过的画成本色 50% + 淡轨，指针描边 `--eink-dial-paper`（取舍 3，2026-11-23 用户确认 P-b + R-2） | 表盘墨色规则 |
 | 对比度阈值 | 文字 4.5:1；读数屏 ≥ 24px 像素字 3:1；图形（刻度、焦点环、强调色）3:1。半透明底按「蓝光晕中心 ∘ `--base`」最坏情况合成，不计 `saturate`；三种底都要算：直接的背景 `B`、玻璃 `G = over(--glass, B)`、侧栏 `S = over(--side, B)`，外加 `--glass-solid` | 对比度目标 |
 | 布局 | 不改布局、字号、页面结构。`.sidebar`、`.panel`、`.readout`、`.software-panel` 自身的外框位置和尺寸与 v0.3.1 **完全一致**；面板边线是内收的 `outline`（决策 2A，取舍 11），不占盒子，面板里的内容位置也不变（实测 0px），验收容差 ≤ 1px。（历史：原先按规格配方用 1px `border`，以为外框不变、内容各边内缩 1px；实测外框也会动，已被 2A 取代，见取舍 25） | 目标与范围 |
@@ -108,7 +108,7 @@ npm.cmd run check                                    # 发布脚本回归、vite
 11. **描边画法。** 面板原按规格配方用 `border: 1px solid var(--edge)`（已被决策 2A 取代，见下）；按钮、分段选中项、导航当前项这类固定高度的控件用 `inset 0 0 0 1px` 阴影画同色描边，不改盒子尺寸。**用户已确认（2026-11-23，看过对比图）：面板改用决策 2A**——`border: 0; outline: 1px solid var(--edge); outline-offset: -1px;`，外框和内容位置都与 v0.3.1 一致（实测 0px 位移）；`outline` 盖住了面板最上面一行的 `inset 0 1px 0 var(--glass-hi)` 高光，所以高光改成 `inset 0 2px 0 var(--glass-hi)`，顶边仍是「边线 + 一行高光」（边线那一行叠在高光上，深色下顶边比两侧边线略亮，1x 下几乎看不出，接受）；forced-colors 下面板用 `outline: 1px solid CanvasText`，不加 `border`。内收 `outline` 画在面板的定位子元素之下：吸顶、不透明的 `.focused-table-head` 和 `.background-table th` 会盖住面板左右边线，所以它们用内阴影补画同色边线（`.focused-table-head { box-shadow: inset 1px 0 0 var(--edge), inset -1px 0 0 var(--edge); }`，`th:first-child` / `th:last-child` 各补一侧），不改盒子。**面板内控件用决策 3C**：`.panel`、`.software-panel`、`.readout` 里的 `.panel-link`（更多、查看名单）、`.text-action`（编辑）和普通 `.button`（不含 `.button-primary`、`.panel-add-button`）用 `--glass-2` 底 + `inset 0 0 0 1px var(--edge-strong)`，两个主题相同，焦点环叠在这条线外面。**用户已确认（2026-11-23，看过对比图）：对话框用决策 D-A**——对话框是不透明的 `--glass-solid`，`--edge` 线在上面太淡（浅色 取消 / 退出软件 边线对对话框底只有 1.06:1，搜索框 1.03:1），所以对话框的次要按钮（添加软件对话框的「取消」、关闭对话框的「退出软件」：`:is(.dialog, .add-software-dialog) .button:not(.button-primary)`）和添加软件对话框的搜索框 `.add-software-search` 也用 3C 的线 `inset 0 0 0 1px var(--edge-strong)`（线叠在填充上、对对话框底 `--glass-solid`：浅色 1.39 / 1.61:1，深色 2.12 / 2.18:1）；填充不变（按钮 `--glass-2`，搜索框 `--chip`）；键盘焦点时线和 `--focus` 叠在一起。这几个选择器直接并进 3C 的两条规则（静止、`:focus-visible`），搜索框的线只在那里声明一次，共用的搜索框规则里只有 `.discovered-search` 带 `--edge` 线，不依赖规则先后。软件页面板里的 `.discovered-search` 不变（仍是 `--edge` 线）。
 12. **侧栏层级。** 侧栏有了 `backdrop-filter` 就成为层叠上下文，「时间轴 未开放」提示气泡（向右伸进正文区）会被后面的玻璃面板盖住。做法：`.sidebar { position: relative; z-index: 4; }`（页头是 3）。任务 4 用 probe 聚焦该按钮截图确认。
 13. **mix 色微光会被裁掉。** `.mix-bar` 现在 `overflow: hidden`，色段的外发光看不见。做法：去掉 `overflow: hidden`，首尾色段各自带圆角；色段颜色另写进 CSS 变量 `--mix-color`（TodayMix 内联 style 多一个属性），微光强度用主题 token `--mix-glow`（浅色 `0%`、深色 `40%`），这样不需要深色选择器。
-14. **残影的范围、比较对象和画法。** 迁移表只给 TodayReadout 写了「残影」，设置页明确「无残影」；成就页的大号读数在切换范围时换的是另一个量，画上一次的值会误导，所以不加。变没变看格式化后显示的文字（`8.8` 变 `8.9` 才算变），变大还是变小看秒数（见本条末尾），切换时长格式时清空残影，避免新旧格式叠在一起。残影复用主读数的结构（`formatDurationPartsZh` 拆出的 `<b>` / `<small>`，同一套 `.lcd-value` 样式），所以单位字号、基线、间距、`format=hm` 的两组数字和换行都和上一次的读数一模一样，只是整体偏 2px；文字写在 `data-text` 里由 `::before` 画出，不产生文本节点，不和 `getByText` 撞车。**用户已确认（2026-11-23）：残影只加在概览的两个读数上。** **用户已确认（2026-11-23）：读数变小时不画残影。** 今日读数只有跨天时才会变小，所以跨天后读数一变小就去掉昨天的残影；变小按秒数判断（显示文字背后的原值），显示文字没变、秒数变小也算；跨天时不在概览页、回来后读数变小也一样没有残影；变小之后再往上变，照常留下变小后的那个值。这条规则不认日期：窗口隐藏到托盘或停在别的页面时跨过零点，回来时今天的读数如果已经超过上一次显示的值，残影仍是昨天的读数（记入规格已知限制）。
+14. **残影的范围、比较对象和画法。** 迁移表只给 TodayReadout 写了「残影」，设置页明确「无残影」；成就页的大号读数在切换范围时换的是另一个量，画上一次的值会误导，所以不加。变没变看格式化后显示的文字（`8.8` 变 `8.9` 才算变），变大还是变小看秒数（见本条末尾），切换时长格式时清空残影，避免新旧格式叠在一起。残影复用主读数的结构（`formatDurationPartsZh` 拆出的 `<b>` / `<small>`，同一套 `.lcd-value` 样式），所以单位字号、基线、间距、`format=hm` 的两组数字和换行都和上一次的读数一模一样，只是整体偏 2px；文字写在 `data-text` 里由 `::before` 画出，不产生文本节点，不和 `getByText` 撞车。**用户已确认（2026-11-23）：残影只加在概览的两个读数上。** **用户已确认（2026-11-23）：读数变小时不画残影。** 今日读数只有跨天时才会变小，所以跨天后读数一变小就去掉昨天的残影；变小按秒数判断（显示文字背后的原值），显示文字没变、秒数变小也算；跨天时不在概览页、回来后读数变小也一样没有残影；变小之后再往上变，照常留下变小后的那个值。**用户已确认（2026-11-23，「要，按日期清」）：残影也按日期清。** 只看变小会漏掉一种跨天：窗口隐藏到托盘（隐藏时不轮询）或停在别的页面时跨过零点，回来时今天的读数可能已经超过上一次显示的值（如 1.0 → 7.0），残影就还是昨天的。所以 `get_dashboard_summary` 的结果加一个只读字段 `usage_date`（今日读数所属的本地日期 `YYYY-MM-DD`，就是后端本来就用来查当天数据的那个日期），不改 schema，也不多采集数据；TodayReadout 记住上一次显示时的日期，日期不同就不画残影，显示文字相同也一样。日期只取后端返回的数据，不用前端渲染时的时钟：那样会把一份还没刷新的昨天数据标成今天。
 15. **走纸记录仪只改颜色和纸面。** 迁移表只说「针柱和文字改用 `--eink-*`」，字体不改（仍是 `--font-num` / `--font-ui`；像素字体只「允许」在屏内用，不是必须，改字体还会改标签宽度和 `TrendRecorder` 的避让计算）。`.recorder` 槽去掉凹槽底色和内阴影，保留 `padding` 和三列网格；滚轴变成 3px 宽的 `--eink-mid` 细条，仍占原来的 14px 列。
 16. **`--radius-case` 的去处。** 面板 → `--radius-panel`（16px）；`.software-icon-lg`（44px 图标）→ `--radius-screen`（11px，最接近原来的 10px）；`.lcd` 原来用 `--radius-key` → `--radius-screen`。
 17. **屏上图标。** 规格的去色滤镜用在 `.lcd img`（同时覆盖「最常用」图标和设置页屏里的时钟标志），去掉原来的 `mix-blend-mode`、`opacity: 0.85` 和深色的 `sepia + hue-rotate`。浅色 `--icon-well` 图标底座不变。
@@ -832,9 +832,9 @@ function Ticks({ minutesToday }: { minutesToday: number }) {
 
 ## 任务 12：读数残影
 
-**文件：** `src/components/TodayReadout.tsx`、`src/styles.css`（`.lcd-value` 681–701、forced-colors 块）、`src/__tests__/TodayReadout.test.tsx`（新增用例）、`src/__tests__/fallbacks.test.ts`（新增断言）、`scripts/ui-preview/tauri-core.ts`（`?tick`）、`scripts/ui-preview/vite.config.ts`（注释）、`scripts/ui-preview/probe.mjs`（`layout` 的残影对齐检查）
+**文件：** `src/components/TodayReadout.tsx`、`src/styles.css`（`.lcd-value` 681–701、forced-colors 块）、`src/__tests__/TodayReadout.test.tsx`（新增用例）、`src/__tests__/fallbacks.test.ts`（新增断言）、`scripts/ui-preview/tauri-core.ts`（`?tick`）、`scripts/ui-preview/vite.config.ts`（注释）、`scripts/ui-preview/probe.mjs`（`layout` 的残影对齐检查）；按日期清残影（2026-11-23 补充）：`src-tauri/src/commands.rs`（`DashboardSummary` 加 `usage_date` 及测试）、`src/api.ts`（`usage_date`）、`scripts/ui-preview/mock-data.ts`（`usage_date` 取本地当天）、`src/__tests__/App.test.tsx`（默认概览数据补 `usage_date`）。`get_dashboard_summary` 的结果多一个只读字段 `usage_date`，不改 schema。
 
-**对应规格：** 墨水屏配方「残影」；回退表 forced-colors 行（残影去掉）；已知限制（只记得本窗口的上一次值；读数变小不画残影，不认日期）；取舍 14。
+**对应规格：** 墨水屏配方「残影」；回退表 forced-colors 行（残影去掉）；已知限制（只记得本窗口的上一次值；日期变了或读数变小都不画残影）；取舍 14。
 
 - [ ] **Step 1：写失败测试**（`TodayReadout.test.tsx` 新增）：
   - 首次渲染没有 `.lcd-ghost`。
@@ -848,10 +848,13 @@ function Ticks({ minutesToday }: { minutesToday: number }) {
   - 跨天发生在离开概览期间：以 `9.6 * 3600` 渲染后卸载，再以 `0.1 * 3600` 渲染新的 TodayReadout → 没有 `.lcd-ghost`。
   - 显示文字没变的变小：今日记录从 `0` 变到 `360`（残影 `0.0`），再变到 `300`（仍显示 `0.1`）→ 没有 `.lcd-ghost`；再变到 `720` → 残影的 `b` 是 `data-text="0.1"`。
   - 两格各自判断：同一次 `rerender` 里今日记录从 `9.6 * 3600` 变到 `0.1 * 3600`、今日活跃从 `1.0 * 3600` 变到 `1.1 * 3600` → 今日记录没有残影，今日活跃的残影是 `data-text="1.0"`。
+  - 按日期清（2026-11-23 补充，测试数据的 `usage_date` 默认 `2026-11-22`）：同一天 `1.0` → `1.1` 小时 → 残影 `1.0`（照旧）；藏在托盘跨天：`2026-11-22` 两格 `1.0` 小时，`rerender` 成 `2026-11-23` 两格 `7.0` 小时 → 两格都没有残影，主读数 `7.0`；离开概览跨天：`2026-11-22` 的 `1.0` 渲染后卸载，再以 `2026-11-23` 的 `7.0` 渲染 → 没有残影；跨天后 `2026-11-23` 里 `7.0` → `7.1` → 残影 `7.0`（今日活跃没变，没有残影）；日期变了但显示文字一样（两天都是 `0.1`）→ 没有残影，昨天的残影也去掉；StrictMode 下跨天也只记一次。
+  - Rust（`commands.rs`）：`dashboard_summary_reads_sessions_and_daily_system_usage` 断言 `usage_date == "2026-05-29"`；新增 `dashboard_summary_names_the_local_date_its_today_readings_belong_to`，以本地 `2026-11-23` 零点为当天起点，断言 `usage_date == "2026-11-23"`，读数取的是当天的行、不是前一天的。
   - `fallbacks.test.ts` 新增：`@media (forced-colors: active)` 里 `.lcd-ghost` 为 `display: none`。
 - [ ] **Step 2：确认失败**：`npx.cmd vitest run src/__tests__/TodayReadout.test.tsx src/__tests__/fallbacks.test.ts`。
 - [ ] **Step 3：实现。**
-  - 小 hook（写在 `TodayReadout.tsx` 里）：`usePreviousShown(seconds: number, format: DurationFormat): DurationPart[] | null`，用格式化后的文字（`formatDurationZh(seconds, format)`）判断「显示变没变」，记住上一次不同时的 `formatDurationPartsZh(seconds, format)` 结果（存 parts，不只存字符串）；`format` 变化时返回 `null` 并重新开始；读数变小（按秒数，显示文字没变也算）时也返回 `null`。用 `useState` 在渲染期比较（React 文档的「存储上一次 props」写法），StrictMode 下不重复记。
+  - 小 hook（写在 `TodayReadout.tsx` 里，实际实现为 `useShownReading(reading, seconds, format, usageDate): Shown`，原计划写作 `usePreviousShown(seconds, format)`；`usageDate` 见下一条）：用格式化后的文字（`formatDurationZh(seconds, format)`）判断「显示变没变」，记住上一次不同时的 `formatDurationPartsZh(seconds, format)` 结果（存 parts，不只存字符串）；`format` 变化时返回 `null` 并重新开始；读数变小（按秒数，显示文字没变也算）时也返回 `null`。用 `useState` 在渲染期比较（React 文档的「存储上一次 props」写法），StrictMode 下不重复记；记录的是本窗口里每格上一次显示的读数。
+  - 按日期清（2026-11-23 补充）：后端 `DashboardSummary` 加 `usage_date: String`（`dashboard_summary_from_store` 里本来就有的本地日期，格式 `YYYY-MM-DD`），`src/api.ts` 同步；预览的 `mock-data.ts` 用（可被 `probe --date` 改写的）本地当天。`useShownReading` 多收一个 `usageDate`（只取自 `summary.usage_date`，不用渲染时的时钟），记住的读数带上日期；只有格式相同、日期相同、秒数不变小时才保留残影，否则 `previous` 为 `null`；日期变了而显示文字不变时也换成新对象、不带残影；什么都没变时返回同一个对象（StrictMode 安全）。
   - `LcdValue` 接收 `ghost: DurationPart[] | null`：有值时在 `.lcd-value` 里先渲染
 
 ```tsx
