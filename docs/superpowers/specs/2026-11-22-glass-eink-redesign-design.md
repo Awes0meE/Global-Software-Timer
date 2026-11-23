@@ -50,7 +50,7 @@
 | `--ink` / `--ink-2` / `--muted` | `#17191d` / `#33373e` / `#5a606c`（样稿 `#626875` 在侧栏上不到 4.5:1，见对比度表） | `#f1f3f7` / `#d5d9e0` / `#98a0ad` |
 | `--glass` | `rgba(255,255,255,.50)` | `rgba(40,40,46,.42)` |
 | `--glass-solid`（回退用） | `#f6f7f9` | `#1e1e22` |
-| `--head-solid`（吸顶表头，2026-11-23 用户确认） | 同 `--glass-solid` | `#212027`（面板平均色，比 `--glass-solid` 略亮） |
+| `--head-solid`（吸顶表头，2026-11-23 用户确认） | 同 `--glass-solid` | `#212027`（面板平均色，比 `--glass-solid` 略亮；不透明回退下比面板亮 1.03:1，2026-11-23 用户看过对比图后确认保留） |
 | `--glass-2` / `--chip` / `--on` | `rgba(255,255,255,.55)` / `rgba(20,30,60,.06)` / `rgba(255,255,255,.75)` | `rgba(255,255,255,.06)` / `rgba(255,255,255,.07)` / `rgba(255,255,255,.10)` |
 | `--side`（侧栏） | `rgba(255,255,255,.38)` | `rgba(30,30,34,.55)` |
 | `--edge` / `--rule` | `rgba(255,255,255,.75)` / `rgba(20,30,60,.07)` | `rgba(255,255,255,.11)` / `rgba(255,255,255,.07)` |
@@ -110,7 +110,7 @@ backdrop-filter: blur(30px) saturate(1.4);
 | Windows「透明效果」关闭 | 启动时、以及窗口重新可见时，读 `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\EnableTransparency`（DWORD，0 = 关）。用一个新的只读命令返回布尔值，前端据此设 `data-glass`。只读注册表，不落库；`Win32_System_Registry` 已启用，tray_icons.rs:86 起有同类 HKCU 读取 |
 | `@media (prefers-reduced-transparency: reduce)` | 同上；WebView2 是否支持要实测，所以不能只靠它 |
 | `@supports not (backdrop-filter: blur(1px))` | 同上 |
-| `@media (forced-colors: active)` | 面板用系统色 `Canvas`/`CanvasText`；光晕、颗粒、残影都去掉。墨水屏 `.lcd`（任务 14 起含走纸 `.paper`）和面板一样用内收的 `outline: 1px solid CanvasText`，不加 `border`，读数面板保持 v0.3.1 的高度、不改布局（决策 G-B，2026-11-23 用户看过对比图后确认） |
+| `@media (forced-colors: active)` | 面板用系统色 `Canvas`/`CanvasText`；光晕、颗粒、残影都去掉。墨水屏 `.lcd`（任务 14 起含走纸 `.paper`）和面板一样用内收的 `outline: 1px solid CanvasText`，不加 `border`，读数面板保持 v0.3.1 的高度、不改布局（决策 G-B，2026-11-23 用户看过对比图后确认）。只靠 `box-shadow` 画边的控件（按钮、开关、搜索框、状态标签、已点亮铭牌）同样加内收 `outline`，盒子不变；未点亮铭牌保留虚线内收边；今日分布色段和色块保留软件身份色，加 `CanvasText` 内收边（2026-11-23 用户确认） |
 | Windows 10 | 不单独分支，CSS 和 Win11 一样；只需要在 Win10 上验收 |
 | 低功耗 / 低端机 | 不自动检测，跟随「透明效果」开关 |
 
@@ -157,7 +157,7 @@ v0.5.0 回放表盘的刻度沿用这三条刻线规则。样稿的表盘只有 
 | 设置页 `.lcd.settings-lcd`（App.tsx:614–630；styles 1598–1611） | 液晶栏 | 墨水屏配方（无残影） |
 | 成就热力图 ActivityHeatmap（`.lcd.ach-dial`，AchievementsPage.css:55–318） | `--lcd-ink` 9/44/70/100% 分级，深色 l3 发光 | 同样的分级改用 `--eink-ink`，删除 l3 发光；刻线 `--ach-rule` 改用 `--eink-ink` 22% |
 | 走纸记录仪 TrendRecorder（StatisticsPage.css:242–383） | `.paper` = `--panel-raised`，金属滚轴，旋钮色笔臂 | `.paper` 改用墨水屏纸面、颗粒和内凹边；针柱和文字改用 `--eink-*`；滚轴改成平的 `--eink-mid` 细条；笔臂 `--eink-mid`；`.pen-lamp` 信号橙保留（正在记录） |
-| 里程碑铭牌 MilestoneShelf（AchievementsPage.css:476–541） | 螺钉、凸起/凹槽 | `--glass-2` 子板，去掉螺钉；未点亮为虚线 `--edge` + `--muted`；6666 达成后用 `--accent` 描边 |
+| 里程碑铭牌 MilestoneShelf（AchievementsPage.css:476–541） | 螺钉、凸起/凹槽 | `--glass-2` 子板，去掉螺钉；未点亮为内收虚线 `outline: 1px dashed var(--edge-strong)`（`outline-offset: -1px`，不占盒子，内容与已点亮铭牌对齐）+ `--muted`（计划取舍 7，2026-11-23 用户确认）；6666 达成后用 `--accent` 描边 |
 | 今日分布 `.mix-plate`（958–978） | 唯一允许 mix 色的带框色板 | `--glass-2` 子板；深色下色条加 `0 0 12px` 同色 40% 微光 |
 | 开关 `.toggle` / `.toggle-knob`（1680–1717） | 金属旋钮 + 信号橙灯 | 立体滑块（2026-11-23 用户选定 V1 凹槽 + 圆钮、L1 淡描边、S1 球面拨杆，取值见计划任务 7「用户已确认」）：凹下去的 `--chip` 轨道（开启 `--accent`）带内阴影和 1px 描边（关闭 `--edge-strong`，浅色开启态更深的强调色边），22px 左上受光的球面圆钮带钮边、抬起投影和高光点，滑动略过冲、按下拉长；开启态轨道对背景 ≥ 3:1、深色开启态圆钮外圈对轨道 ≥ 3:1；关闭态淡描边低于 3:1 是用户接受的偏差 |
 | 分段选择器 `.segmented`（1737–1746）与统计/成就的同类控件 | 凸起选中项 | 轨道 `--chip`，选中项 `--on` + `--edge` |
