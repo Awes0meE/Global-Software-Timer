@@ -128,31 +128,23 @@ export function BackgroundPage({ durationFormat = "decimal_hours" }: BackgroundP
     );
   }
 
-  const running = summary.rows.filter((row) => row.is_running);
-  const totalCpu = running.reduce((sum, row) => sum + (row.cpu_percent ?? 0), 0);
-  const totalMemory = running.reduce((sum, row) => sum + row.memory_bytes, 0);
-
   return (
     <main className="background-page" id="background-content">
       {fetchError ? <div className="warning" role="alert">无法读取后台进程</div> : null}
 
       <section className="panel background-summary" aria-label="后台概况">
-        <div>
-          <span>正在后台运行</span>
-          <strong>{summary.running_count} 个</strong>
+        <div className="lcd background-strip">
+          {backgroundReadings(summary, durationFormat).map((reading) => (
+            <div className="background-reading" key={reading.label}>
+              <span>{reading.label}</span>
+              <p>
+                {splitReading(reading.value).map((part, index) =>
+                  part.unit ? <small key={index}>{part.text}</small> : <b key={index}>{part.text}</b>,
+                )}
+              </p>
+            </div>
+          ))}
         </div>
-        <div>
-          <span>当前合计 CPU</span>
-          <strong>{formatPercent(totalCpu)}</strong>
-        </div>
-        <div>
-          <span>当前合计内存</span>
-          <strong>{formatBytes(totalMemory)}</strong>
-        </div>
-        <p>
-          这里列出没有窗口、也不在托盘里的第三方程序，默认按今天的 CPU 用量排序，点击表头可切换排序。Windows
-          系统进程不列出；由你正在使用的软件启动的子进程，算在那个软件名下。
-        </p>
       </section>
 
       <section className="panel table-panel" aria-label="后台进程列表">
@@ -258,6 +250,44 @@ function BackgroundRowView({
       </td>
     </tr>
   );
+}
+
+export interface BackgroundReading {
+  label: string;
+  value: string;
+}
+
+/**
+ * The six figures on the summary strip, all derived from the summary the page already polls: what runs
+ * now (software, processes, CPU, memory; running rows only) and what today added up to (CPU time and
+ * software seen, exited rows included).
+ */
+export function backgroundReadings(
+  summary: BackgroundPageSummary,
+  durationFormat: DurationFormat = "decimal_hours",
+): BackgroundReading[] {
+  const running = summary.rows.filter((row) => row.is_running);
+  const sum = (rows: BackgroundRow[], value: (row: BackgroundRow) => number) =>
+    rows.reduce((total, row) => total + value(row), 0);
+  return [
+    { label: "正在后台运行", value: `${summary.running_count} 个` },
+    { label: "进程", value: `${sum(running, (row) => row.process_count)} 个` },
+    { label: "当前合计 CPU", value: formatPercent(sum(running, (row) => row.cpu_percent ?? 0)) },
+    { label: "当前合计内存", value: formatBytes(sum(running, (row) => row.memory_bytes)) },
+    {
+      label: "今日 CPU 时间",
+      value: formatCpuSeconds(sum(summary.rows, (row) => row.today_cpu_seconds), durationFormat),
+    },
+    { label: "今日出现", value: `${summary.rows.length} 个` },
+  ];
+}
+
+/** "64 MB" -> 64 + MB, "2小时1分钟" -> 2 + 小时 + 1 + 分钟: digits print large, units small. */
+export function splitReading(value: string): Array<{ text: string; unit: boolean }> {
+  return (value.replace(/\s+/g, "").match(/<?[\d.]+|[^\d<.]+/g) ?? []).map((text) => ({
+    text,
+    unit: !/^<?[\d.]+$/.test(text),
+  }));
 }
 
 /**

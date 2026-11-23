@@ -2,13 +2,16 @@ import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BackgroundPageSummary } from "../api";
+import { allCss, parseRules } from "./support/css";
 import {
   BackgroundPage,
+  backgroundReadings,
   formatBytes,
   formatCpuSeconds,
   formatPercent,
   nextBackgroundSort,
   sortBackgroundRows,
+  splitReading,
 } from "../components/BackgroundPage";
 
 const invoke = vi.hoisted(() => vi.fn());
@@ -73,8 +76,6 @@ describe("BackgroundPage", () => {
     expect(within(exited as HTMLElement).getByText("<1秒")).toBeInTheDocument();
     expect(within(exited as HTMLElement).getByText("2.0 GB")).toBeInTheDocument();
 
-    const overview = screen.getByRole("region", { name: "后台概况" });
-    expect(within(overview).getByText("1 个")).toBeInTheDocument();
     expect(invoke).toHaveBeenCalledWith("get_background_page_summary");
   });
 
@@ -185,6 +186,94 @@ describe("BackgroundPage", () => {
       expect(formatCpuSeconds(seconds, "hours_minutes")).toBe(hoursMinutes);
     }
     expect(formatCpuSeconds(150)).toBe("2分钟");
+  });
+
+  it("derives the six strip readings from the summary alone", () => {
+    expect(backgroundReadings(summary)).toEqual([
+      { label: "正在后台运行", value: "1 个" },
+      // Only running rows count towards the live figures.
+      { label: "进程", value: "2 个" },
+      { label: "当前合计 CPU", value: "3.3%" },
+      { label: "当前合计内存", value: "64 MB" },
+      // 150s + 0.4s of today's CPU, exited rows included.
+      { label: "今日 CPU 时间", value: "2分钟" },
+      { label: "今日出现", value: "2 个" },
+    ]);
+    const longer = { ...summary, rows: [{ ...summary.rows[0], today_cpu_seconds: 7260 }] };
+    expect(backgroundReadings(longer, "hours_minutes")[4].value).toBe("2小时1分钟");
+    expect(backgroundReadings(longer)[4].value).toBe("2.0小时");
+  });
+
+  it("reads zero while nothing runs and nothing was seen", () => {
+    const values = (input: BackgroundPageSummary) => backgroundReadings(input).map((reading) => reading.value);
+    expect(values({ ...summary, running_count: 0, rows: [] })).toEqual(["0 个", "0 个", "0%", "0 MB", "0秒", "0 个"]);
+    // Exited software still counts as seen today and keeps its CPU time, but adds nothing live.
+    expect(values({ ...summary, running_count: 0, rows: [summary.rows[1]] })).toEqual([
+      "0 个",
+      "0 个",
+      "0%",
+      "0 MB",
+      "<1秒",
+      "1 个",
+    ]);
+  });
+
+  it("splits a reading into pixel digits and small units", () => {
+    expect(splitReading("64 MB")).toEqual([
+      { text: "64", unit: false },
+      { text: "MB", unit: true },
+    ]);
+    expect(splitReading("<0.1%")).toEqual([
+      { text: "<0.1", unit: false },
+      { text: "%", unit: true },
+    ]);
+    expect(splitReading("2小时1分钟").map((part) => part.text)).toEqual(["2", "小时", "1", "分钟"]);
+    expect(splitReading("<1秒")).toEqual([
+      { text: "<1", unit: false },
+      { text: "秒", unit: true },
+    ]);
+  });
+
+  it("prints the summary as one e-ink strip of six readings without small print", async () => {
+    invoke.mockResolvedValue(summary);
+    await act(async () => {
+      render(<BackgroundPage />);
+    });
+
+    const overview = screen.getByRole("region", { name: "后台概况" });
+    const strip = overview.querySelector(".background-strip");
+    // An .lcd screen: the pixel font, and the contrast themes' Canvas reset, outline and no texture.
+    expect(strip).toHaveClass("lcd");
+    const readings = [...overview.querySelectorAll(".background-reading")];
+    expect(readings.map((reading) => reading.querySelector("span")?.textContent)).toEqual([
+      "正在后台运行",
+      "进程",
+      "当前合计 CPU",
+      "当前合计内存",
+      "今日 CPU 时间",
+      "今日出现",
+    ]);
+    const memory = readings[3];
+    expect(memory.querySelector("b")).toHaveTextContent("64");
+    expect(memory.querySelector("small")).toHaveTextContent("MB");
+    expect(memory).toHaveTextContent("当前合计内存64MB");
+    expect(overview).not.toHaveTextContent(/Windows|子进程|排序/);
+  });
+
+  // Border colours are forced in contrast themes, so the dotted ink rules turn CanvasText on their own;
+  // a background-image rule would keep the theme ink and vanish on a dark Canvas.
+  it("draws the strip's dividers as dotted ink borders", () => {
+    const rules = parseRules(allCss()["styles.css"]).rules.filter((rule) =>
+      rule.selectors.some((selector) => selector.includes("background-reading")),
+    );
+    expect(rules.length).toBeGreaterThan(0);
+    const divider = rules.find((rule) => rule.selectors.includes(".background-reading + .background-reading"));
+    expect(divider?.declarations["border-left"]).toMatch(/dotted .*var\(--eink-ink\)/);
+    for (const rule of rules) {
+      for (const [property, value] of Object.entries(rule.declarations)) {
+        expect(`${rule.selector} ${property}: ${value}`).not.toMatch(/background(-image)?: .*gradient/);
+      }
+    }
   });
 
   it("formats small and large values readably", () => {

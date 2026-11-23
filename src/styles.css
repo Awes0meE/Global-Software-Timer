@@ -2446,26 +2446,65 @@ mark {
   min-width: 0;
 }
 
+/* The summary is one e-ink strip (an .lcd screen) of six pixel readings, split by the heatmap's dotted
+   ink rules. Border colours are forced in contrast themes, so the rules turn CanvasText on their own. The
+   panel keeps the 89px of the old three-figure row. */
 .background-summary {
-  display: grid;
+  --background-reading-size: 36px;
   flex: none;
-  grid-template-columns: repeat(3, max-content) minmax(12em, 1fr);
-  align-items: center;
-  gap: var(--panel-gap) clamp(var(--panel-gap), 2vw, 2rem);
-  padding: var(--panel-gap) var(--panel-gutter);
+  min-width: 0;
+  padding: 8px;
 }
 
-.background-summary span,
-.background-summary p {
-  color: var(--muted);
-  font-size: var(--type-small);
+/* At 125% and 150% the digits span 48 physical pixels, a whole number per font pixel, like .lcd's. */
+@media (resolution: 1.25dppx) {
+  .background-summary { --background-reading-size: 38.4px; }
+}
+@media (resolution: 1.5dppx) {
+  .background-summary { --background-reading-size: 32px; }
 }
 
-.background-summary strong {
-  display: block;
-  font-family: var(--font-num);
-  font-size: var(--type-lcd-unit);
-  font-variant-numeric: tabular-nums;
+.lcd.background-strip {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+  height: 73px;
+  min-height: 0;
+  padding: 0 6px;
+}
+
+.background-reading {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-width: 0;
+  height: calc(100% - 20px);
+  padding: 0 18px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.background-reading + .background-reading {
+  border-left: 2px dotted color-mix(in srgb, var(--eink-ink) 22%, transparent);
+}
+
+.background-reading > span,
+.background-reading small {
+  color: var(--eink-dim);
+  font-size: 12px;
+  line-height: 12px;
+}
+
+.background-reading > p {
+  display: flex;
+  align-items: baseline;
+  gap: 0 4px;
+  line-height: var(--background-reading-size);
+}
+
+.background-reading b {
+  color: var(--eink-ink);
+  font-size: var(--background-reading-size);
+  font-weight: 400;
 }
 
 .background-table {
@@ -2642,12 +2681,15 @@ mark {
 }
 
 @media (max-width: 1200px) {
-  .background-summary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px 16px;
+  .background-reading {
+    padding: 0 10px;
   }
 
-  .background-summary p {
-    grid-column: 1 / -1;
+  .background-reading > p {
+    line-height: 24px;
+  }
+
+  .background-reading b {
+    font-size: 24px;
   }
 }
