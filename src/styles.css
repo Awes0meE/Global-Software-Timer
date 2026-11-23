@@ -2204,10 +2204,36 @@ mark {
     background: repeating-linear-gradient(90deg, CanvasText 0 2px, transparent 2px 3px);
   }
 
+  /* 今日分布: the segments and the swatches are each app's identity colour, the only link between the bar
+     and its list, so they keep it (no glow), framed in CanvasText so any colour stays visible on Canvas. */
+  .mix-segment,
+  .mix-row i {
+    forced-color-adjust: none;
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
+  .mix-segment {
+    box-shadow: none;
+  }
+
   /* The date fields follow the app theme's color-scheme, but a contrast theme can pair a light app
      theme with a dark palette; let the calendar icon follow the palette instead. */
   .stats-date {
     color-scheme: light dark;
+  }
+
+  /* Buttons and the round keys are drawn as a fill with an inset-shadow edge (or, for 添加, a solid fill),
+     which forced colours remove; an inset outline (as on the toggle) keeps them visible without changing
+     their box, and follows the round keys' curve. :focus-visible below wins. */
+  :is(.header-button, .button, .panel-link, .text-action, .panel-add-button, .active-help-button, .software-remove-button) {
+    outline: 1px solid ButtonText;
+    outline-offset: -1px;
+  }
+
+  /* An unavailable button's edge matches its GrayText label; an aria-disabled one can still take focus. */
+  :is(.header-button, .button, .panel-link, .text-action, .panel-add-button):is(:disabled, [aria-disabled="true"]):not(:focus-visible) {
+    outline-color: GrayText;
   }
 
   /* A switched-off toggle is drawn only with shadows and fills, which forced colours remove. An inset
@@ -2268,6 +2294,34 @@ mark {
 .status-badge.tray .lamp {
   background: var(--signal-wash);
   box-shadow: inset 0 0 0 2px var(--signal-ink);
+}
+
+/* Contrast themes: the lamps are fills and shadows, which forced colours remove, and in the usage list a
+   lamp is the only mark of an app's state. They keep their own paint in system colours, still apart:
+   off a GrayText dot, foreground (and recording) a Highlight dot, tray a Highlight ring, background a
+   CanvasText ring. Here, after the tray rule above; paint only, the breathing stops. */
+@media (forced-colors: active) {
+  .lamp {
+    forced-color-adjust: none;
+    background: GrayText;
+  }
+
+  .lamp.is-lit,
+  .status-badge.running .lamp {
+    background: Highlight;
+    box-shadow: none;
+    animation: none;
+  }
+
+  .status-badge.tray .lamp {
+    background: Canvas;
+    box-shadow: inset 0 0 0 2px Highlight;
+  }
+
+  .status-badge.background .lamp {
+    background: Canvas;
+    box-shadow: inset 0 0 0 1.5px CanvasText;
+  }
 }
 
 .background-page {

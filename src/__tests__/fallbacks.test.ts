@@ -421,6 +421,66 @@ describe("forced colors: e-ink inks, keys, buttons and scrollers", () => {
     }
   });
 
+  const BUTTONS =
+    ":is(.header-button, .button, .panel-link, .text-action, .panel-add-button, .active-help-button, .software-remove-button)";
+
+  it("outlines the buttons and round keys, whose fill and edge forced colours remove", () => {
+    const declarations = declarationsFor(BUTTONS, FORCED);
+    expect(normalize(declarations.outline ?? "")).toBe("1px solid ButtonText");
+    expect(declarations["outline-offset"]).toBe("-1px");
+    // Before the plain :focus-visible rule of the same specificity, so the focus outline still wins.
+    const forced = forcedTopLevel();
+    const at = (selector: string) => forced.findIndex((rule) => rule.selectors.includes(selector));
+    expect(at(BUTTONS)).toBeGreaterThanOrEqual(0);
+    expect(at(BUTTONS)).toBeLessThan(at(":focus-visible"));
+  });
+
+  // An unavailable button's edge is GrayText, but never over the focus ring (aria-disabled keys take focus).
+  it("draws an unavailable button's edge in GrayText unless it is focused", () => {
+    const disabled =
+      ':is(.header-button, .button, .panel-link, .text-action, .panel-add-button):is(:disabled, [aria-disabled="true"]):not(:focus-visible)';
+    const declarations = declarationsFor(disabled, FORCED);
+    expect(declarations["outline-color"]).toBe("GrayText");
+    expect(Object.keys(declarations)).toEqual(["outline-color"]);
+  });
+
+  // 今日分布: identity colours are the only link between the bar and its list, so they stay, framed.
+  it("keeps the mix segments and swatches in their colours inside a CanvasText frame", () => {
+    for (const selector of [".mix-segment", ".mix-row i"]) {
+      const declarations = declarationsFor(selector, FORCED);
+      expect(declarations["forced-color-adjust"], selector).toBe("none");
+      expect(normalize(declarations.outline ?? ""), selector).toBe("1px solid CanvasText");
+      expect(declarations["outline-offset"], selector).toBe("-1px");
+    }
+    expect(declarationsFor(".mix-segment", FORCED)["box-shadow"]).toBe("none");
+  });
+
+  // The lamps carry state (in the usage list, alone), so each keeps a distinct system-colour mark.
+  it("keeps every lamp state apart in system colours", () => {
+    const lamp = declarationsFor(".lamp", FORCED);
+    expect(lamp["forced-color-adjust"]).toBe("none");
+    expect(lamp.background).toBe("GrayText");
+    const lit = declarationsFor(".lamp.is-lit", FORCED);
+    expect(lit).toEqual(declarationsFor(".status-badge.running .lamp", FORCED));
+    expect(lit.background).toBe("Highlight");
+    expect(lit["box-shadow"]).toBe("none");
+    expect(lit.animation).toBe("none");
+    const tray = declarationsFor(".status-badge.tray .lamp", FORCED);
+    expect(tray.background).toBe("Canvas");
+    expect(normalize(tray["box-shadow"] ?? "")).toBe("inset 0 0 0 2px Highlight");
+    const background = declarationsFor(".status-badge.background .lamp", FORCED);
+    expect(background.background).toBe("Canvas");
+    expect(normalize(background["box-shadow"] ?? "")).toBe("inset 0 0 0 1.5px CanvasText");
+    // Same selector as the normal tray rule, which sits after the main forced block, so it must come later.
+    const index = (forced: boolean) =>
+      rules.findIndex(
+        (rule) =>
+          rule.selectors.includes(".status-badge.tray .lamp") &&
+          (forced ? rule.atRules.length === 1 && normalize(rule.atRules[0]) === FORCED[0] : rule.atRules.length === 0),
+      );
+    expect(index(true)).toBeGreaterThan(index(false));
+  });
+
   it("matches the recorder's avg and gap keys to their GrayText marks and frames the hover card", () => {
     expect(forcedIn("StatisticsPage.css", ".key-avg")["border-top-color"]).toBe("GrayText");
     expect(forcedIn("StatisticsPage.css", ".key-gap")["border-color"]).toBe("GrayText");
