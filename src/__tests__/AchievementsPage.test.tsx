@@ -258,7 +258,9 @@ describe("AchievementsPage", () => {
     expect(within(heatmap).getByText("27")).toBeInTheDocument();
     expect(within(heatmap).getByText("08-23 至 09-18")).toBeInTheDocument();
     expect(within(heatmap).getByText("11-19 至今天")).toBeInTheDocument();
-    expect(heatmap).toHaveTextContent("活跃不到 10 分钟的日子不算在内，免得开机看一眼也被记上");
+    // v0.4.1: the threshold rule lives in README's 指标说明, not on the screen.
+    expect(heatmap).not.toHaveTextContent("不算在内");
+    expect(heatmap).not.toHaveTextContent("免得开机看一眼");
     const legend = heatmap.querySelector(".ach-legend") as HTMLElement;
     expect(legend).toHaveTextContent("没用<1小时<3小时≥3小时未到");
     expect(within(heatmap).getByText("近 90 天里用过")).toBeInTheDocument();
@@ -347,6 +349,11 @@ describe("AchievementsPage", () => {
     await renderPage();
 
     const records = screen.getByRole("region", { name: "个人纪录" });
+    // The labels stand alone, with no faint definitions after them.
+    expect(within(records).getByText("活跃最长的一天")).toBeInTheDocument();
+    expect(within(records).getByText("单个软件单日焦点最长")).toBeInTheDocument();
+    expect(records.querySelector(".ach-record-def")).toBeNull();
+    expect(records).not.toHaveTextContent("无操作");
     expect(within(records).getByText("2026-08-30")).toBeInTheDocument();
     expect(within(records).getByText("12.0")).toBeInTheDocument();
     expect(within(records).getByText("20.4")).toBeInTheDocument();
@@ -354,6 +361,15 @@ describe("AchievementsPage", () => {
     const comings = screen.getByRole("region", { name: "软件来去" });
     expect(within(comings).getByText("FACEIT")).toBeInTheDocument();
     expect(within(comings).getByText("Microsoft Excel")).toBeInTheDocument();
+  });
+
+  it("labels the software scope with its title and switch alone", async () => {
+    invoke.mockResolvedValue(summary());
+    await renderPage();
+
+    const scope = document.querySelector(".ach-scope") as HTMLElement;
+    expect(scope).toHaveTextContent(/^以下按软件统计包含隐藏软件/);
+    expect(document.body).not.toHaveTextContent("不受此开关影响");
   });
 
   it("shows empty copy for comings and goings and rereads with hidden software", async () => {

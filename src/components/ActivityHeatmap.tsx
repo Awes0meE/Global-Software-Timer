@@ -83,7 +83,6 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
   const compact = heatmap.length > COMPACT_MIN_DAYS;
   const rows = Math.max(Math.ceil(months.length / MONTHS_PER_ROW), 1);
   const perRow = compact ? 7 : Math.max(Math.ceil(months.length / rows), 1);
-  const thresholdMinutes = Math.round(threshold / 60);
   const start = heatmap[0]?.date ?? today;
   const end = heatmap[heatmap.length - 1]?.date ?? today;
   const recordNote = !hasNoRecordDays ? "" : recordStart === null ? "，还没有记录" : `，${recordStart} 之前无记录`;
@@ -159,10 +158,6 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
             </div>
           </div>
           <div className="ach-caption ach-rule-top">
-            <span className="lcd-note">
-              <span>活跃不到 {thresholdMinutes} 分钟的日子不算在内，</span>
-              <span>免得开机看一眼也被记上</span>
-            </span>
             <div className="ach-legend" aria-hidden="true">
               <span><i className="ach-cell l0" />没用</span>
               <span><i className="ach-cell l1" />&lt;1小时</span>

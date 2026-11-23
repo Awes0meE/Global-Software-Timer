@@ -293,14 +293,6 @@
   contain: inline-size;
 }
 
-.ach-caption > .lcd-note {
-  line-height: 16px;
-}
-
-.ach-caption > .lcd-note > span {
-  display: inline-block;
-}
-
 .ach-legend {
   display: flex;
   flex-wrap: wrap;
@@ -384,16 +376,6 @@
   letter-spacing: 0.04em;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ach-record-def {
-  margin-left: 6px;
-  color: var(--muted);
-  letter-spacing: 0;
-}
-
-.ach-record-def::before {
-  content: "· ";
 }
 
 .ach-record-value {

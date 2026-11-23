@@ -89,7 +89,6 @@ export function AchievementsPage({ durationFormat = "decimal_hours" }: Achieveme
 
       <div className="ach-scope">
         <strong>以下按软件统计</strong>
-        <span>热力图、连续天数和「活跃最长的一天」按整机活跃，不受此开关影响</span>
         <i className="ach-scope-rule" aria-hidden="true" />
         <span id="ach-include-hidden-label">包含隐藏软件</span>
         <button

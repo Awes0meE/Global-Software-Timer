@@ -22,9 +22,7 @@ export function PersonalRecords({ bestActiveDay, bestSoftwareDay, durationFormat
       <div className="ach-records-row">
         <div className="ach-record">
           <div className="ach-record-copy">
-            <span className="ach-record-label">
-              活跃最长的一天<span className="ach-record-def">活跃不含 5 分钟以上无操作</span>
-            </span>
+            <span className="ach-record-label">活跃最长的一天</span>
             <RecordValue seconds={bestActiveDay?.seconds ?? null} durationFormat={durationFormat} />
           </div>
           <RecordMeta date={bestActiveDay?.date ?? null} />
@@ -32,9 +30,7 @@ export function PersonalRecords({ bestActiveDay, bestSoftwareDay, durationFormat
         <div className="ach-record">
           {bestSoftwareDay ? <SoftwareIcon app={bestSoftwareDay} /> : null}
           <div className="ach-record-copy">
-            <span className="ach-record-label">
-              单个软件单日焦点最长<span className="ach-record-def">焦点含无操作时间</span>
-            </span>
+            <span className="ach-record-label">单个软件单日焦点最长</span>
             <RecordValue
               seconds={bestSoftwareDay?.seconds ?? null}
               durationFormat={durationFormat}
