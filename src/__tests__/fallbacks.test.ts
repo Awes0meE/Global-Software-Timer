@@ -142,6 +142,11 @@ describe("forced colors", () => {
     expect(declarationsFor(".lcd::after", FORCED).display).toBe("none");
   });
 
+  it("drops the readout ghost", () => {
+    // As specific as the ghost's own rule, so the drop does not rest on source order alone.
+    expect(declarationsFor(".lcd-value.lcd-ghost", FORCED).display).toBe("none");
+  });
+
   it("paints the page in Canvas without the glow", () => {
     const background = declarationsFor("body", FORCED).background;
     expect(background).toBe("Canvas");

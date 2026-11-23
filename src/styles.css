@@ -801,6 +801,7 @@ main > p[role="status"] {
 }
 
 .lcd-value {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -808,6 +809,30 @@ main > p[role="status"] {
   min-height: 72px;
   margin-top: 6px;
   white-space: nowrap;
+}
+
+/* The previously shown reading, laid out by the same rules and offset 2px down and right. Its text
+   comes from data-text, so the DOM holds no text nodes for it. No transition. */
+.lcd-value.lcd-ghost {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  z-index: 0;
+  color: var(--eink-ghost);
+  pointer-events: none;
+}
+
+.lcd-ghost b::before,
+.lcd-ghost small::before {
+  content: attr(data-text);
+}
+
+.lcd-value:not(.lcd-ghost) > span:not(.lcd-ghost) {
+  position: relative;
+  z-index: 1;
 }
 
 .lcd-value b {
@@ -2163,7 +2188,8 @@ mark {
   }
 
   .lcd::before,
-  .lcd::after {
+  .lcd::after,
+  .lcd-value.lcd-ghost {
     display: none;
   }
 

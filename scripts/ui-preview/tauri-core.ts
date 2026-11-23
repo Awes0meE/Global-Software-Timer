@@ -24,6 +24,10 @@ const settings: Record<string, unknown> = {
   theme: params.get("theme") ?? "system",
   theme_configured: params.has("theme"),
 };
+// ?tick: each dashboard poll adds another 6 minutes to today's two readings (0, 6, 12, ... minutes), so the
+// shown value changes on every poll and the readout ghost can be seen. Ignored with ?empty.
+const tick = params.has("tick") && !empty;
+let dashboardCalls = 0;
 
 export async function invoke<T>(command: string, args: Record<string, unknown> = {}): Promise<T> {
   await new Promise((resolve) => window.setTimeout(resolve, 60));
@@ -31,8 +35,18 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
   const key = args.identityKey as string | undefined;
 
   switch (command) {
-    case "get_dashboard_summary":
-      return (empty ? { ...dashboardSummary(hidden), apps: [], most_used: null, recorded_today_seconds: 0, active_today_seconds: 0 } : dashboardSummary(hidden)) as T;
+    case "get_dashboard_summary": {
+      if (empty) {
+        return { ...dashboardSummary(hidden), apps: [], most_used: null, recorded_today_seconds: 0, active_today_seconds: 0 } as T;
+      }
+      const summary = dashboardSummary(hidden);
+      const extra = tick ? dashboardCalls++ * 360 : 0;
+      return {
+        ...summary,
+        recorded_today_seconds: summary.recorded_today_seconds + extra,
+        active_today_seconds: summary.active_today_seconds + extra,
+      } as T;
+    }
     case "get_background_page_summary":
       return (empty ? { ...backgroundSummary, running_count: 0, rows: [] } : backgroundSummary) as T;
     case "get_software_page_summary":

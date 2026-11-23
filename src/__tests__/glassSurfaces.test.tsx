@@ -718,6 +718,36 @@ describe("e-ink screen", () => {
       expect(declarations[property], property).toBeUndefined();
     }
   });
+
+  // Spec 墨水屏配方「残影」, plan trade-off 14: the previous reading in --eink-ghost, 2px down and right,
+  // beneath the current one and never animated.
+  it("prints the ghost of the previous reading 2px down and right, beneath the reading", () => {
+    expect(topLevel(".lcd-value").position).toBe("relative");
+
+    const ghost = topLevel(".lcd-value.lcd-ghost");
+    expect(ghost.position).toBe("absolute");
+    expect(ghost.top).toBe("2px");
+    expect(ghost.left).toBe("2px");
+    expect(ghost.width).toBe("100%");
+    expect(ghost.color).toBe("var(--eink-ghost)");
+    expect(ghost["z-index"]).toBe("0");
+    expect(ghost["pointer-events"]).toBe("none");
+
+    expect(topLevel(".lcd-ghost b::before").content).toBe("attr(data-text)");
+    expect(topLevel(".lcd-ghost small::before").content).toBe("attr(data-text)");
+
+    const reading = topLevel(".lcd-value:not(.lcd-ghost) > span:not(.lcd-ghost)");
+    expect(reading.position).toBe("relative");
+    expect(reading["z-index"]).toBe("1");
+
+    for (const rule of allRules()) {
+      if (!rule.selectors.some((selector) => selector.includes(".lcd-ghost"))) continue;
+      const label = `${rule.atRules.join(" ")} ${rule.selector}`;
+      expect(rule.declarations.transition, label).toBeUndefined();
+      expect(rule.declarations.animation, label).toBeUndefined();
+      expect(rule.declarations.color ?? "var(--eink-ghost)", label).toBe("var(--eink-ghost)");
+    }
+  });
 });
 
 describe("glass layers on every page", () => {

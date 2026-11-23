@@ -46,9 +46,17 @@
 // Output         stdout: one line per written file (`shot:`, `layout:`, `trace:`) and `eval:`; for frames the
 //                JSON result comes last. stderr: errors and warnings only. Layout and frames JSON start with the
 //                run info (url, size, date, time, scale; layout also now); compare runs on the other keys.
+// Ghost check    layout also checks every readout ghost (`.lcd-ghost`, e.g. with ?tick and a 6s --eval wait):
+//                its first <b> must sit exactly 2px right of and below the first <b> of the reading it belongs
+//                to, each of its <small> must be as tall as that reading's first <small>, and every ghost <b> and
+//                <small> must be wider than 0 (its ::before text is drawn). Ghosts that are not drawn (forced
+//                colours) are skipped. The result is `ghostAlignment` in the JSON; a misplaced or empty ghost
+//                means exit 4 (after the file is written). The ghost is itself a `.lcd-value`, so with a ghost
+//                on screen `elements[".lcd-value b"]` also lists the ghost's <b> (before the reading's); compare
+//                the reading alone through `ghostAlignment.ghosts[].readingB` or `.lcd-value:not(.lcd-ghost) > span > b`.
 //
 // Exit codes: 0 ok, 1 usage or probe failure (incl. timeout or lost DevTools connection), 2 console errors or
-// exceptions, 3 page not ready in 10s, 130 interrupted.
+// exceptions, 3 page not ready in 10s, 4 readout ghost empty or not aligned (layout), 130 interrupted.
 
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -566,10 +574,39 @@ async function layout(page, options) {
       overflow: main.scrollWidth > main.clientWidth,
     }));
     const documentOverflow = root.scrollWidth > root.clientWidth;
+    const same = (a, b) => Math.abs(a - b) < 0.01;
+    // A ghost that is not drawn (display: none under forced colours) has nothing to align.
+    const drawn = Array.from(document.querySelectorAll(".lcd-value > .lcd-ghost")).filter((ghost) =>
+      ghost.getClientRects().length > 0);
+    const ghosts = drawn.map((ghost) => {
+      const reading = ghost.parentElement;
+      const box = (element) => (element ? element.getBoundingClientRect() : null);
+      const ghostB = box(ghost.querySelector(":scope > span > b"));
+      const readingB = box(reading.querySelector(":scope > span:not(.lcd-ghost) > b"));
+      const readingSmall = box(reading.querySelector(":scope > span:not(.lcd-ghost) > small"));
+      const ghostSmallHeights = Array.from(ghost.querySelectorAll(":scope > span > small"), (small) =>
+        small.getBoundingClientRect().height);
+      // An empty <b> or <small> keeps its place and line height, so only a width shows the text is drawn.
+      const ghostTextWidths = Array.from(ghost.querySelectorAll(":scope > span > b, :scope > span > small"),
+        (element) => element.getBoundingClientRect().width);
+      const drawnText = ghostTextWidths.length > 0 && ghostTextWidths.every((width) => width > 0);
+      const aligned = Boolean(ghostB && readingB && readingSmall && ghostSmallHeights.length) && drawnText &&
+        same(ghostB.left, readingB.left + 2) && same(ghostB.top, readingB.top + 2) &&
+        ghostSmallHeights.every((height) => same(height, readingSmall.height));
+      return {
+        ghostB: ghostB && { left: ghostB.left, top: ghostB.top },
+        readingB: readingB && { left: readingB.left, top: readingB.top },
+        ghostSmallHeights,
+        readingSmallHeight: readingSmall ? readingSmall.height : null,
+        ghostTextWidths,
+        aligned,
+      };
+    });
     return {
       viewport: { width: innerWidth, height: innerHeight, devicePixelRatio },
       now: new Date().toString(),
       elements,
+      ghostAlignment: { count: ghosts.length, aligned: ghosts.every((ghost) => ghost.aligned), ghosts },
       horizontalOverflow: {
         any: documentOverflow || pages.some((item) => item.overflow),
         document: { scrollWidth: root.scrollWidth, clientWidth: root.clientWidth, overflow: documentOverflow },
@@ -579,7 +616,14 @@ async function layout(page, options) {
   })()`);
   const output = { ...runInfo(options), ...result };
   const target = writeOut(options.out, `${JSON.stringify(output, null, 2)}\n`);
-  console.log(`layout: ${target} (horizontal overflow: ${result.horizontalOverflow.any})`);
+  const { ghostAlignment } = result;
+  const ghostNote = ghostAlignment.count
+    ? `, ghosts aligned: ${ghostAlignment.ghosts.filter((ghost) => ghost.aligned).length}/${ghostAlignment.count}`
+    : "";
+  console.log(`layout: ${target} (horizontal overflow: ${result.horizontalOverflow.any}${ghostNote})`);
+  if (!ghostAlignment.aligned) {
+    throw new ProbeExit(4, "a readout ghost is empty or not offset exactly 2px from its reading");
+  }
 }
 
 function summarize(intervals) {
