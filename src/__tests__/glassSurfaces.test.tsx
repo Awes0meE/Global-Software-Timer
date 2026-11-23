@@ -298,6 +298,86 @@ describe("switches and segmented controls", () => {
   });
 });
 
+// Plan task 8: the statistics page outside the paper recorder.
+describe("statistics range bar and ledgers", () => {
+  const SIGNAL = "var(--" + "signal";
+
+  // Trade-off 23: the range bar sits straight on the glow background, where --muted is too faint.
+  it.each([".stats-custom-range", ".stats-range-caption", ".stats-hidden-toggle"])(
+    "%s labels the range bar in --ink-2",
+    (selector) => {
+      expect(topLevel(selector).color, selector).toBe("var(--ink-2)");
+    },
+  );
+
+  it("sets the date fields on --chip with an --edge line and the plain focus ring", () => {
+    const declarations = topLevel(".stats-date");
+    expect(declarations.background).toBe("var(--chip)");
+    expect(declarations["--muted"]).toBe("var(--ink-2)");
+    expect(normalize(declarations["box-shadow"])).toBe("inset 0 0 0 1px var(--edge)");
+    expect(normalize(topLevel(".stats-date:focus-visible")["box-shadow"])).toBe("var(--focus)");
+  });
+
+  // The calendar icon must follow the app theme (theme.ts sets :root's color-scheme), not the OS one.
+  it("lets the date fields inherit the theme's color-scheme", () => {
+    expect(topLevel(".stats-date")["color-scheme"]).toBeUndefined();
+  });
+
+  // Spec「信号橙与强调色」: the range error is an alert, on an opaque wash (trade-off 23).
+  it("shows the range error in the alert colours on an opaque wash", () => {
+    const declarations = topLevel(".stats-range-error");
+    expect(declarations.color).toBe("var(--alert-ink)");
+    expect(normalize(declarations.background)).toBe(
+      "linear-gradient(var(--alert-wash), var(--alert-wash)), var(--glass-solid)",
+    );
+    expect(declarations.padding).toBe("2px 8px");
+    expect(declarations["border-radius"]).toBe("var(--radius-tag)");
+    expect(Object.values(declarations).join(" ")).not.toContain(SIGNAL);
+  });
+
+  it("lays the missing-detail note on --chip without the recess", () => {
+    const declarations = topLevel(".stats-note");
+    expect(declarations.background).toBe("var(--chip)");
+    expect(declarations["--muted"]).toBe("var(--ink-2)");
+    expect(declarations["box-shadow"]).toBeUndefined();
+    expect(topLevel(".stats-note small").color).toBe("var(--ink-2)");
+  });
+
+  it("hovers ledger rows on --chip like the other tables", () => {
+    const declarations = topLevel(".stats-row:not(.stats-head):hover");
+    expect(declarations.background).toBe("var(--chip)");
+    expect(declarations["--muted"]).toBe("var(--ink-2)");
+  });
+
+  // Trade-off 6: heads that do not stick lose their fill and keep the --rule line and --muted text.
+  it("leaves the ledger heads unfilled", () => {
+    expect(topLevel(".stats-head").background).toBeUndefined();
+  });
+
+  it("letters the new-entry tag in --glass-solid", () => {
+    expect(topLevel(".rank-new").color).toBe("var(--glass-solid)");
+  });
+
+  it("lays the idle and rhythm tracks on --chip without the recess", () => {
+    const idle = topLevel(".idle-bar");
+    expect(idle.background).toBe("var(--chip)");
+    expect(idle["box-shadow"]).toBeUndefined();
+
+    const rhythm = topLevel(".rhythm-track");
+    expect(rhythm["background-color"]).toBe("var(--chip)");
+    expect(rhythm.background).toBeUndefined();
+    expect(rhythm["background-image"]).toContain("var(--edge-strong)");
+    expect(rhythm["box-shadow"]).toBeUndefined();
+  });
+
+  // Plan「口径」浮层: the trend hover card floats over the glass; its small shadow stays (trade-off 24).
+  it("floats the trend hover card on --glass-solid", () => {
+    const declarations = topLevel(".trend-tip");
+    expect(declarations.background).toBe("var(--glass-solid)");
+    expect(normalize(declarations["box-shadow"])).toBe("0 0 0 1px var(--edge-strong), 0 4px 10px var(--shade)");
+  });
+});
+
 describe("glass layers on every page", () => {
   beforeEach(() => {
     // Pin the synthetic day (it scales with the wall clock) to the visual baseline's moment.

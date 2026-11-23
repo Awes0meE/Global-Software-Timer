@@ -74,6 +74,8 @@ const COMBOS: Combo[] = [
   { name: "--ink on B", threshold: TEXT, pair: (s) => [s.colour("--ink"), s.B] },
   { name: "--ink-2 on B", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), s.B] },
   { name: "--ink-2 on chip over B", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--chip"), s.B)] },
+  // The statistics range bar's date fields (task 8).
+  { name: "--ink on chip over B", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--chip"), s.B)] },
   { name: "--ink on glass-2 over B", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--glass-2"), s.B)] },
   // Header button labels, including the unavailable ones (decision 1B, 2026-11-23).
   { name: "--ink-2 on glass-2 over B", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--glass-2"), s.B)] },
@@ -127,6 +129,8 @@ const COMBOS: Combo[] = [
   { name: "--ink on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink"), s.solid] },
   { name: "--ink-2 on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), s.solid] },
   { name: "--muted on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.solid] },
+  // The statistics ranking's 新上榜 tag (task 8): --glass-solid letters on an --ink-2 tag.
+  { name: "--glass-solid on ink-2 (rank-new tag)",threshold: TEXT, pair: (s) => [s.solid, s.colour("--ink-2")] },
   // Sticky table heads on --head-solid (decision E-B, 2026-11-23): --muted labels, --ink when sorted.
   { name: "--muted on head-solid", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.colour("--head-solid")] },
   { name: "--ink on head-solid", threshold: TEXT, pair: (s) => [s.colour("--ink"), s.colour("--head-solid")] },

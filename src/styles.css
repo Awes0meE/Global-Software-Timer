@@ -2058,6 +2058,12 @@ mark {
     display: none;
   }
 
+  /* The date fields follow the app theme's color-scheme, but a contrast theme can pair a light app
+     theme with a dark palette; let the calendar icon follow the palette instead. */
+  .stats-date {
+    color-scheme: light dark;
+  }
+
   /* A switched-off toggle is drawn only with shadows and fills, which forced colours remove. An inset
      outline keeps the track visible without changing its box; :focus-visible below still wins. */
   .toggle {

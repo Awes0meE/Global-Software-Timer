@@ -55,6 +55,11 @@ describe("glass switch tokens", () => {
 });
 
 describe("forced colors", () => {
+  // The statistics date fields inherit the app theme's color-scheme outside contrast themes.
+  it("lets the date fields' calendar icon follow the contrast palette", () => {
+    expect(declarationsFor(".stats-date", FORCED)["color-scheme"]).toBe("light dark");
+  });
+
   it("keeps a visible focus outline", () => {
     const outline = declarationsFor(":focus-visible", FORCED).outline;
     expect(outline).toBeDefined();
