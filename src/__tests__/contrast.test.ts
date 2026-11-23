@@ -115,6 +115,18 @@ const COMBOS: Combo[] = [
   { name: "--ink on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink"), s.solid] },
   { name: "--ink-2 on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), s.solid] },
   { name: "--muted on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.solid] },
+  // The add-software dialog (task 6): its error line, search hits and the selected row's path.
+  { name: "--alert-ink on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--alert-ink"), s.solid] },
+  {
+    name: "--ink on accent 16% over glass-solid (mark)",
+    threshold: TEXT,
+    pair: (s) => [s.colour("--ink"), over(accentAt(s, 0.16), s.solid)],
+  },
+  {
+    name: "--muted on accent 14% over glass-solid (selected row)",
+    threshold: TEXT,
+    pair: (s) => [s.colour("--muted"), over(accentAt(s, 0.14), s.solid)],
+  },
 ];
 
 function measure(combo: Combo, s: Surfaces): number {

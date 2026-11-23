@@ -112,6 +112,66 @@ describe("controls inside glass panels (decision 3C)", () => {
   });
 });
 
+// Plan task 6: the software and background pages, the dialogs and the alert colours.
+describe("software and background pages, dialogs", () => {
+  // Built from pieces so a repo-wide search for the token finds only real uses.
+  const SIGNAL = "var(--" + "signal";
+
+  // Trade-off 6: the rows scroll under the sticky heads, so the heads must not be translucent.
+  it.each([".focused-table-head", ".background-table th"])("%s is opaque", (selector) => {
+    expect(topLevel(selector).background, selector).toBe("var(--glass-solid)");
+  });
+
+  // Plan「口径」浮层: dialogs and the help bubble float over the glass, so they are opaque too.
+  it.each([".dialog", ".add-software-dialog", ".active-help-popover"])("%s floats on --glass-solid", (selector) => {
+    expect(topLevel(selector).background, selector).toBe("var(--glass-solid)");
+  });
+
+  // These controls set their own box-shadow, which would otherwise hide the global focus ring.
+  it.each([".software-panel.is-editing .text-action", ".software-remove-button", ".active-help-button"])(
+    "%s keeps its line under the focus ring",
+    (selector) => {
+      const resting = normalize(topLevel(selector)["box-shadow"]);
+      expect(resting, selector).not.toBe("");
+      expect(normalize(topLevel(`${selector}:focus-visible`)["box-shadow"]), selector).toBe(`${resting}, var(--focus)`);
+    },
+  );
+
+  // Spec「信号橙与强调色」and 已定 3: errors, warnings and removal use the alert colours …
+  it.each([".warning", ".dialog-error", ".software-remove-button"])("%s uses the alert colours", (selector) => {
+    const declarations = topLevel(selector);
+    expect(declarations.color, selector).toBe("var(--alert-ink)");
+    expect(Object.values(declarations).join(" "), selector).not.toContain(SIGNAL);
+  });
+
+  // … and search hits, the selected row and the sort control use the accent.
+  it.each([
+    "mark",
+    ".add-software-row.is-selected",
+    ".background-table .sort-button:focus-visible",
+    ".background-table .sort-button.is-active .sort-icon",
+  ])("%s uses the accent", (selector) => {
+    const values = Object.values(topLevel(selector)).join(" ");
+    expect(values, selector).toContain("var(--accent)");
+    expect(values, selector).not.toContain(SIGNAL);
+  });
+
+  // The close dialog's body-text colour must not outrank the error line's alert colour.
+  it("leaves the close dialog's error line in the alert colour", () => {
+    for (const rule of allRules()) {
+      if (rule.atRules.length > 0 || rule.declarations.color === undefined) continue;
+      for (const selector of rule.selectors.filter((s) => s.startsWith(".close-dialog p"))) {
+        expect(selector).toContain(":not(.dialog-error)");
+      }
+    }
+  });
+
+  // The inset accent outline is the sort button's whole focus mark; the global ring would double it.
+  it("draws one focus mark on the background table's sort buttons", () => {
+    expect(topLevel(".background-table .sort-button:focus-visible")["box-shadow"]).toBe("none");
+  });
+});
+
 describe("glass layers on every page", () => {
   beforeEach(() => {
     // Pin the synthetic day (it scales with the wall clock) to the visual baseline's moment.

@@ -116,4 +116,14 @@ describe("forced colors", () => {
       expect(normalize(declarations.outline ?? ""), selector).toBe("1px solid CanvasText");
     }
   });
+
+  // The opaque sticky heads paint over the panel outline, and forced colours drop the box-shadow
+  // that redraws it, so the head draws the edge with a border at its two ends.
+  it.each([
+    [".focused-table-head", "border-inline"],
+    [".background-table th:first-child", "border-left"],
+    [".background-table th:last-child", "border-right"],
+  ])("keeps the panel edge beside the sticky head %s", (selector, property) => {
+    expect(normalize(declarationsFor(selector, FORCED)[property] ?? ""), selector).toBe("1px solid CanvasText");
+  });
 });

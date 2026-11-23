@@ -520,12 +520,13 @@ p {
   cursor: default;
 }
 
+/* Every warning sits straight on the glow, where the wash alone is too faint, so it has an opaque base. */
 .warning {
   padding: 10px 14px;
   border-radius: var(--radius-key);
-  background: var(--signal-wash);
-  color: var(--signal-ink);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--signal) 40%, transparent);
+  background: linear-gradient(var(--alert-wash), var(--alert-wash)), var(--glass-solid);
+  color: var(--alert-ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--alert-ink) 35%, transparent);
   font-weight: 600;
 }
 
@@ -1274,9 +1275,14 @@ main > p[role="status"] {
 }
 
 .software-panel.is-editing .text-action {
-  background: var(--panel-sunken);
+  --muted: var(--ink-2);
+  background: var(--on);
   color: var(--ink);
-  box-shadow: inset 0 2px 3px var(--shade-deep), inset 0 0 0 1px var(--edge-strong);
+  box-shadow: inset 0 0 0 1px var(--edge-strong);
+}
+
+.software-panel.is-editing .text-action:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--edge-strong), var(--focus);
 }
 
 .software-table-scroll,
@@ -1317,7 +1323,7 @@ main > p[role="status"] {
   top: 0;
   z-index: 2;
   min-height: 32px;
-  background: var(--panel-sunken);
+  background: var(--glass-solid);
   color: var(--muted);
   font-size: 12px;
   letter-spacing: 0.04em;
@@ -1354,11 +1360,15 @@ main > p[role="status"] {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--signal-wash);
-  color: var(--signal-ink);
+  background: var(--alert-wash);
+  color: var(--alert-ink);
   font-size: 15px;
   line-height: 1;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--signal) 50%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--alert-ink) 45%, transparent);
+}
+
+.software-remove-button:focus-visible {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--alert-ink) 45%, transparent), var(--focus);
 }
 
 .hidden-software-row {
@@ -1392,6 +1402,7 @@ main > p[role="status"] {
 
 .discovered-search,
 .add-software-search {
+  --muted: var(--ink-2);
   width: 100%;
   height: 36px;
   padding: 0 12px 0 34px;
@@ -1400,18 +1411,18 @@ main > p[role="status"] {
   background:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238c8980' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E")
       11px 50% / 16px no-repeat,
-    var(--panel-sunken);
-  box-shadow: inset 0 1px 3px var(--shade), inset 0 0 0 1px var(--edge);
+    var(--chip);
+  box-shadow: inset 0 0 0 1px var(--edge);
 }
 
 .discovered-search::placeholder,
 .add-software-search::placeholder {
-  color: var(--muted);
+  color: var(--ink-2);
 }
 
 .discovered-search:focus-visible,
 .add-software-search:focus-visible {
-  box-shadow: inset 0 1px 3px var(--shade), var(--focus);
+  box-shadow: var(--focus);
 }
 
 .discovered-row {
@@ -1451,9 +1462,9 @@ main > p[role="status"] {
 
 mark {
   border-radius: var(--radius-tag);
-  background: var(--signal-wash);
-  color: var(--signal-ink);
-  box-shadow: 0 1px 0 var(--signal);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: inherit;
+  box-shadow: 0 1px 0 var(--accent);
 }
 
 .discovered-last-opened,
@@ -1497,10 +1508,14 @@ mark {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--panel-raised);
-  color: var(--muted);
+  background: var(--glass-2);
+  color: var(--ink-2);
   font: 600 var(--type-label) var(--font-num);
   box-shadow: inset 0 0 0 1px var(--edge-strong);
+}
+
+.active-help-button:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--edge-strong), var(--focus);
 }
 
 /* Rendered on document.body with position: fixed; see ActiveTimeHelpPopover. */
@@ -1511,7 +1526,7 @@ mark {
   width: min(280px, calc(100vw - 16px));
   padding: 14px 16px;
   border-radius: var(--radius-key);
-  background: var(--panel-raised);
+  background: var(--glass-solid);
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: var(--type-small);
@@ -1553,9 +1568,8 @@ mark {
 .dialog,
 .add-software-dialog {
   border-radius: var(--radius-dialog);
-  background: var(--panel);
+  background: var(--glass-solid);
   box-shadow:
-    inset 0 1px 0 var(--highlight),
     0 0 0 1px var(--edge-strong),
     0 24px 60px -16px rgba(0, 0, 0, 0.5);
   animation: dialog-in 220ms var(--ease);
@@ -1578,7 +1592,7 @@ mark {
   font-weight: 650;
 }
 
-.close-dialog p {
+.close-dialog p:not(.dialog-error) {
   color: var(--ink-2);
 }
 
@@ -1588,7 +1602,7 @@ mark {
 }
 
 .dialog-error {
-  color: var(--signal-ink);
+  color: var(--alert-ink);
   font-size: var(--type-small);
   font-weight: 600;
 }
@@ -1634,7 +1648,8 @@ mark {
 }
 
 .add-software-close:hover {
-  background: var(--panel-sunken);
+  --muted: var(--ink-2);
+  background: var(--chip);
 }
 
 .add-software-results {
@@ -1658,12 +1673,13 @@ mark {
 }
 
 .add-software-row:hover:not(.is-disabled) {
-  background: var(--panel-raised);
+  --muted: var(--ink-2);
+  background: var(--chip);
 }
 
 .add-software-row.is-selected {
-  background: var(--signal-wash);
-  box-shadow: inset 3px 0 0 -1px var(--signal);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 3px 0 0 -1px var(--accent);
 }
 
 .add-software-row.is-disabled {
@@ -2011,6 +2027,20 @@ mark {
     outline: 1px solid CanvasText;
   }
 
+  /* The opaque sticky heads cover that outline and forced colours drop the shadow that redraws it,
+     so their ends draw the edge as a border instead. */
+  .focused-table-head {
+    border-inline: 1px solid CanvasText;
+  }
+
+  .background-table th:first-child {
+    border-left: 1px solid CanvasText;
+  }
+
+  .background-table th:last-child {
+    border-right: 1px solid CanvasText;
+  }
+
   .lcd::before,
   .lcd::after {
     display: none;
@@ -2112,7 +2142,7 @@ mark {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--panel-sunken);
+  background: var(--glass-solid);
   color: var(--muted);
   font-size: var(--type-label);
   font-weight: 600;
@@ -2160,8 +2190,9 @@ mark {
 }
 
 .background-table .sort-button:focus-visible {
-  outline: 2px solid var(--signal);
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
+  box-shadow: none;
 }
 
 /* The icon keeps its space so hovering never shifts the column. */
@@ -2177,7 +2208,7 @@ mark {
 
 .background-table .sort-button.is-active .sort-icon {
   opacity: 1;
-  color: var(--signal-ink);
+  color: var(--accent);
 }
 
 .background-table td:nth-child(n+2):nth-child(-n+6) {
