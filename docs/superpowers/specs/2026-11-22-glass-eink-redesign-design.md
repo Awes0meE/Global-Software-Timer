@@ -76,16 +76,20 @@
 ## 玻璃面板配方与上限
 
 ```css
-background: var(--glass); border: 1px solid var(--edge); border-radius: var(--radius-panel);
-box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
+background: var(--glass); border: 0; outline: 1px solid var(--edge); outline-offset: -1px;
+border-radius: var(--radius-panel);
+box-shadow: var(--glass-shadow), inset 0 2px 0 var(--glass-hi);
 backdrop-filter: blur(30px) saturate(1.4);
 ```
+
+2026-11-23 用户看过对比图后确认：边线由 `border: 1px solid var(--edge)` 改为内收的 `outline`，不占盒子，面板外框和内容位置都与 v0.3.1 一致（`border` 版实测：自适应高度的面板各高 2px，各页面板外框偏移 0.5–8px，统计最多 8、成就 6、概览 4、后台 2、设置 0.5）；`outline` 盖住最上面一行，所以高光由 1px 改为 2px，顶边仍是「边线 + 一行高光」。`outline` 画在面板的定位子元素之下，吸顶的不透明表头用内阴影补画左右边线。强制颜色模式下面板用 `outline: 1px solid CanvasText`。
 
 | 规则 | 值 |
 | --- | --- |
 | 带 `backdrop-filter` 的元素 | 只有侧栏和页面顶层面板（`.panel`、`.readout` 等），同屏最多 6 个 |
 | 嵌套 | 不允许：面板里的子板、按钮、分段选择器、表格行、提示卡只用半透明填充，不再模糊 |
-| 页头按钮 | `--glass-2` + `--edge`，圆角 9px，不加模糊（样稿给按钮加了 `blur(20px)`，这里去掉，省一层合成） |
+| 页头按钮 | `--glass-2` + `--edge`，圆角 9px，不加模糊（样稿给按钮加了 `blur(20px)`，这里去掉，省一层合成）。未开放的日期、导出、更多（`aria-disabled`）同样保留 `--glass-2` + `--edge`，文字 `--ink-2`，悬停和按下不改外观（2026-11-23 用户确认） |
+| 面板内控件 | 面板里的「更多」「查看名单」（`.panel-link`）、「编辑」（`.text-action`）和普通 `.button`：`--glass-2` 底 + 1px `--edge-strong` 线，两个主题相同；主按钮和「添加」仍是深色按键（2026-11-23 用户确认） |
 | 对话框 | `--glass-solid` 不透明面板，圆角 16px；`.modal-backdrop` 保留现有 `blur(2px)`（styles.css:1432） |
 | 模糊半径 | 统一 30px，不按组件调 |
 
