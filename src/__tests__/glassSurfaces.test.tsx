@@ -172,6 +172,86 @@ describe("software and background pages, dialogs", () => {
   });
 });
 
+// Plan task 7: switches, segmented controls and the settings rows.
+describe("switches and segmented controls", () => {
+  const SIGNAL = "var(--" + "signal";
+
+  // Spec migration table「开关」: a white knob with a soft shadow, the accent track when on.
+  it("draws a switched-off toggle as a chip track with a --muted outline", () => {
+    const declarations = topLevel(".toggle");
+    expect(declarations.background).toBe("var(--chip)");
+    // Trade-off 9: the outline gives the off switch its 3:1 edge on glass.
+    expect(normalize(declarations["box-shadow"])).toBe("inset 0 0 0 1px var(--muted)");
+  });
+
+  it("fills a switched-on toggle with the accent", () => {
+    const declarations = topLevel(".toggle.is-on");
+    expect(declarations.background).toBe("var(--accent)");
+    expect(declarations["box-shadow"]).toBe("none");
+  });
+
+  it("gives the toggle a white knob with a soft shadow", () => {
+    const declarations = topLevel(".toggle-knob");
+    expect(declarations.background).toBe("#fff");
+    expect(normalize(declarations["box-shadow"])).toBe("0 1px 3px var(--shade-deep)");
+  });
+
+  // Trade-off 9: the signal-orange lamp window inside the switch is gone.
+  it("has no lamp window and no signal orange", () => {
+    for (const rule of allRules()) {
+      for (const selector of rule.selectors.filter((s) => s.startsWith(".toggle"))) {
+        expect(selector).not.toContain("::before");
+        expect(Object.values(rule.declarations).join(" "), selector).not.toContain(SIGNAL);
+      }
+    }
+  });
+
+  // Spec migration table「分段选择器」: a --chip track, the selected option on --on with an --edge line.
+  it("lays the segmented track on --chip without the recess", () => {
+    const declarations = topLevel(".segmented");
+    expect(declarations.background).toBe("var(--chip)");
+    expect(declarations["--muted"]).toBe("var(--ink-2)");
+    expect(declarations["box-shadow"]).toBeUndefined();
+  });
+
+  it("labels the options in --ink-2 on the chip track", () => {
+    expect(topLevel(".segmented-option").color).toBe("var(--ink-2)");
+    expect(topLevel(".segmented-option:hover:not(:disabled)").color).toBe("var(--ink)");
+  });
+
+  it("marks the selected option with --on and an --edge line", () => {
+    const declarations = topLevel(".segmented-option.is-selected");
+    expect(declarations.background).toBe("var(--on)");
+    expect(declarations["--muted"]).toBe("var(--ink-2)");
+    expect(declarations.color).toBe("var(--ink)");
+    expect(normalize(declarations["box-shadow"])).toBe("inset 0 0 0 1px var(--edge)");
+  });
+
+  // These controls set their own box-shadow, which would otherwise hide the global focus ring.
+  it.each([
+    [".segmented-option.is-selected", "inset 0 0 0 1px var(--edge), var(--focus)"],
+    [".toggle", "inset 0 0 0 1px var(--muted), var(--focus)"],
+    [".toggle.is-on", "var(--focus)"],
+  ])("%s keeps the focus ring", (selector, shadow) => {
+    expect(normalize(topLevel(`${selector}:focus-visible`)["box-shadow"]), selector).toBe(shadow);
+  });
+
+  // The options sit 2px apart, so a later selected sibling would paint its --on fill over the ring.
+  it("lifts a focused segmented option above its neighbours", () => {
+    const declarations = topLevel(".segmented-option:focus-visible");
+    expect(declarations.position).toBe("relative");
+    expect(declarations["z-index"]).toBe("1");
+  });
+
+  it("sets the settings row icons on --chip without the recess", () => {
+    const declarations = topLevel(".settings-row-icon");
+    expect(declarations.background).toBe("var(--chip)");
+    expect(declarations["--muted"]).toBe("var(--ink-2)");
+    expect(declarations.color).toBe("var(--ink-2)");
+    expect(declarations["box-shadow"]).toBeUndefined();
+  });
+});
+
 describe("glass layers on every page", () => {
   beforeEach(() => {
     // Pin the synthetic day (it scales with the wall clock) to the visual baseline's moment.

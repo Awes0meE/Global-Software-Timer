@@ -111,6 +111,18 @@ const COMBOS: Combo[] = [
   { name: "--accent on glass-solid", threshold: GRAPHIC, pair: (s) => [s.colour("--accent"), s.solid] },
   { name: "--ink on accent 30% over G (selection)", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(accentAt(s, 0.3), s.G)] },
   { name: "--ink on accent 16% over G (mark)", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(accentAt(s, 0.16), s.G)] },
+  // Switched-off toggles (task 7): the track's --muted outline (trade-off 9), in the settings panels (G)
+  // and in the statistics and achievements bars straight on the background (B).
+  {
+    name: "--muted outline on chip over G (switch off)",
+    threshold: GRAPHIC,
+    pair: (s) => [s.colour("--muted"), over(s.colour("--chip"), s.G)],
+  },
+  {
+    name: "--muted outline on chip over B (switch off)",
+    threshold: GRAPHIC,
+    pair: (s) => [s.colour("--muted"), over(s.colour("--chip"), s.B)],
+  },
   // Opaque floating surfaces.
   { name: "--ink on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink"), s.solid] },
   { name: "--ink-2 on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), s.solid] },

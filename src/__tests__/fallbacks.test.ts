@@ -89,6 +89,13 @@ describe("forced colors", () => {
     expect(knob.background).toBe("ButtonText");
   });
 
+  // The switch opts out of forced colours, so its own shadows would still be drawn in theme colours:
+  // the knob's soft shadow and the glass focus ring under the Highlight outline.
+  it("draws the toggle in system colours only", () => {
+    expect(declarationsFor(".toggle-knob", FORCED)["box-shadow"]).toBe("none");
+    expect(declarationsFor(".toggle.is-on:focus-visible", FORCED)["box-shadow"]).toBe("none");
+  });
+
   it("drops the screen texture layers", () => {
     expect(declarationsFor(".lcd::before", FORCED).display).toBe("none");
     expect(declarationsFor(".lcd::after", FORCED).display).toBe("none");

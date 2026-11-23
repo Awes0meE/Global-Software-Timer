@@ -1772,9 +1772,9 @@ mark {
   width: 36px;
   height: 36px;
   border-radius: var(--radius-key);
-  background: var(--panel-sunken);
+  background: var(--chip);
+  --muted: var(--ink-2);
   color: var(--ink-2);
-  box-shadow: inset 0 1px 2px var(--shade), inset 0 0 0 1px var(--edge);
 }
 
 .settings-row-copy {
@@ -1809,7 +1809,7 @@ mark {
   color: var(--ink);
 }
 
-/* A slide switch with a recessed track, a metal knob and a lamp window. */
+/* A slide switch: a chip track with a --muted outline, the accent track when on, a white knob. */
 .toggle {
   position: relative;
   width: 52px;
@@ -1817,27 +1817,23 @@ mark {
   padding: 0;
   border: 0;
   border-radius: var(--radius-pill);
-  background: var(--panel-sunken);
-  box-shadow: inset 0 1px 3px var(--shade-deep), inset 0 0 0 1px var(--edge-strong);
+  background: var(--chip);
+  box-shadow: inset 0 0 0 1px var(--muted);
   transition: background-color 180ms var(--ease);
 }
 
-.toggle::before {
-  content: "";
-  position: absolute;
-  left: 11px;
-  top: 50%;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--lamp-off);
-  transform: translateY(-50%);
-  transition: background-color 180ms var(--ease), box-shadow 180ms var(--ease);
+.toggle.is-on {
+  background: var(--accent);
+  box-shadow: none;
 }
 
-.toggle.is-on::before {
-  background: var(--signal);
-  box-shadow: 0 0 6px var(--signal);
+/* The track's own shadow outranks the global focus ring, so the ring is added back here. */
+.toggle:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--muted), var(--focus);
+}
+
+.toggle.is-on:focus-visible {
+  box-shadow: var(--focus);
 }
 
 .toggle-knob {
@@ -1847,19 +1843,13 @@ mark {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: linear-gradient(160deg, var(--knob-top), var(--knob-middle) 55%, var(--knob-base));
-  box-shadow: 0 1px 2px var(--shade-deep), inset 0 -1px 1px var(--shade);
+  background: #fff;
+  box-shadow: 0 1px 3px var(--shade-deep);
   transition: transform 200ms var(--ease);
 }
 
-
-
 .toggle.is-on .toggle-knob {
   transform: translateX(24px);
-}
-
-.toggle.is-on::before {
-  left: 11px;
 }
 
 .toggle:disabled {
@@ -1872,8 +1862,8 @@ mark {
   gap: 2px;
   padding: 3px;
   border-radius: var(--radius-key);
-  background: var(--panel-sunken);
-  box-shadow: inset 0 1px 3px var(--shade), inset 0 0 0 1px var(--edge);
+  background: var(--chip);
+  --muted: var(--ink-2);
 }
 
 .segmented-option {
@@ -1882,7 +1872,7 @@ mark {
   border: 0;
   border-radius: var(--radius-key);
   background: transparent;
-  color: var(--muted);
+  color: var(--ink-2);
   font-size: var(--type-small);
   transition: background-color 160ms var(--ease), color 160ms var(--ease);
 }
@@ -1891,11 +1881,23 @@ mark {
   color: var(--ink);
 }
 
+/* The options sit 2px apart, so lift the focused one or a later selected sibling covers its ring. */
+.segmented-option:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
 .segmented-option.is-selected {
-  background: var(--panel-raised);
+  background: var(--on);
+  --muted: var(--ink-2);
   color: var(--ink);
   font-weight: 600;
-  box-shadow: inset 0 1px 0 var(--highlight), 0 0 0 1px var(--edge-strong), 0 1px 2px var(--shade);
+  box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+/* The selected option's line outranks the global focus ring, so the ring is added back here. */
+.segmented-option.is-selected:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--edge), var(--focus);
 }
 
 .segmented-option:disabled {
@@ -2056,6 +2058,7 @@ mark {
   .toggle-knob {
     forced-color-adjust: none;
     background: ButtonText;
+    box-shadow: none;
   }
 
   :focus-visible {
@@ -2077,6 +2080,11 @@ mark {
   .toggle.is-on {
     forced-color-adjust: none;
     background: Highlight;
+  }
+
+  /* The switched-on track keeps its own colours, so drop the glass focus ring under the outline. */
+  .toggle.is-on:focus-visible {
+    box-shadow: none;
   }
 
   /* forced-color-adjust is inherited, so the knob needs the theme's own pair colour to stay visible. */
