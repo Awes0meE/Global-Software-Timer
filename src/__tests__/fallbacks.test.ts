@@ -72,6 +72,14 @@ describe("forced colors", () => {
     expect(declarationsFor(".stats-date", FORCED)["color-scheme"]).toBe("light dark");
   });
 
+  // Forced colours do not touch filter, so the light theme's navy icon hairline would be the one theme colour
+  // left on icons in a contrast palette.
+  it("drops the light theme's icon hairline", () => {
+    const selector = ':root[data-theme="light"] .software-icon:has(img:not([hidden]))';
+    expect(declarationsFor(selector)["filter"]).toMatch(/drop-shadow/);
+    expect(declarationsFor(selector, FORCED)["filter"]).toBe("none");
+  });
+
   it("keeps a visible focus outline", () => {
     const outline = declarationsFor(":focus-visible", FORCED).outline;
     expect(outline).toBeDefined();

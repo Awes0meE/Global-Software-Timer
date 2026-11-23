@@ -2233,6 +2233,12 @@ mark {
     background: repeating-linear-gradient(90deg, CanvasText 0 2px, transparent 2px 3px);
   }
 
+  /* Forced colours leave filter as authored, so the light theme's navy icon hairline goes; same selector,
+     later in the sheet. */
+  :root[data-theme="light"] .software-icon:has(img:not([hidden])) {
+    filter: none;
+  }
+
   /* 今日分布: the segments and the swatches are each app's identity colour, the only link between the bar
      and its list, so they keep it, framed in CanvasText so any colour stays visible on Canvas. */
   .mix-segment,

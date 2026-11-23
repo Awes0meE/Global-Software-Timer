@@ -184,7 +184,8 @@ describe("glass and e-ink limits", () => {
   });
 
   // Plan「迁移表：深色选择器覆盖」: dark values live in the token block; the only theme-scoped rules
-  // left are trade-off 1 (--muted on dark sub-plates) and the light icon hairline.
+  // left are trade-off 1 (--muted on dark sub-plates) and the light icon hairline, plus that hairline's
+  // forced-colours reset.
   it("has no dark-theme selector overrides outside the token block", () => {
     const themed = allRules().flatMap((rule) =>
       rule.selectors
@@ -197,6 +198,7 @@ describe("glass and e-ink limits", () => {
         ":root[data-theme=\"dark\"]",
         ':root[data-theme="dark"] :is(.mix-plate, .ach-plate.is-reached)',
         ':root[data-theme="light"] .software-icon:has(img:not([hidden]))',
+        '@media (forced-colors: active) :root[data-theme="light"] .software-icon:has(img:not([hidden]))',
       ].sort(),
     );
   });
