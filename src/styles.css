@@ -2377,8 +2377,10 @@ mark {
     outline-offset: 2px;
   }
 
-  /* The raised key's shadows go by themselves; its sheen is a gradient. */
-  .nav-key {
+  /* The raised key's shadows go by themselves; its sheen is a gradient. Same selectors as the rule that
+     paints it, so this later rule wins. */
+  .nav-key:not([aria-disabled="true"]),
+  .nav-key.is-active {
     background-image: none;
   }
 

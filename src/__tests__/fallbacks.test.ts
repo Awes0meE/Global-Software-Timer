@@ -92,9 +92,23 @@ describe("forced colors", () => {
     }
   });
 
-  // Forced colours drop the raised key's shadows; its sheen is a gradient, so it goes explicitly.
+  // Forced colours drop the raised key's shadows; its sheen is a gradient, so it goes explicitly. A media
+  // query adds no specificity, so the forced rule repeats every selector that paints the sheen and comes later.
   it("drops the nav keys' sheen", () => {
-    expect(declarationsFor(".nav-key", FORCED)["background-image"]).toBe("none");
+    const painting = rules.filter(
+      (rule) =>
+        rule.atRules.length === 0 &&
+        "background-image" in rule.declarations &&
+        rule.selectors.some((selector) => /\.nav-key(?![\w-])/.test(selector)),
+    );
+    expect(painting.length).toBeGreaterThan(0);
+    for (const rule of painting) {
+      for (const selector of rule.selectors) {
+        const forced = rulesFor(selector, FORCED).filter((candidate) => candidate.declarations["background-image"] === "none");
+        expect(forced.length, selector).toBeGreaterThan(0);
+        expect(rules.indexOf(forced[forced.length - 1]), selector).toBeGreaterThan(rules.indexOf(rule));
+      }
+    }
   });
 
   it("keeps focus on a marked item thicker than the marker", () => {
