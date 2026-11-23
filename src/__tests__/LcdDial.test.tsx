@@ -70,6 +70,42 @@ describe("LcdDial ticks", () => {
     }
   });
 
+  it("marks the ticks within ±5° (20 minutes) of the pointer so they yield to it (P-b)", () => {
+    const nearAt = (hours: number, minutes: number) => {
+      const { container } = renderDial(new Date(2026, 10, 22, hours, minutes, 0));
+      const ticks = [...container.querySelectorAll(".lcd-tick")];
+      const near = ticks.flatMap((tick, index) => (tick.classList.contains("is-near-now") ? [index] : []));
+      const past = container.querySelectorAll(".lcd-tick.is-past").length;
+      const pastNear = container.querySelectorAll(".lcd-tick.is-past.is-near-now").length;
+      cleanup();
+      return { near, past, pastNear, total: ticks.length };
+    };
+
+    expect(nearAt(22, 1)).toEqual({ near: [87, 88, 89], past: 89, pastNear: 2, total: 96 });
+    expect(nearAt(22, 8)).toEqual({ near: [88, 89], past: 89, pastNear: 1, total: 96 });
+    // 22:19: the 22:00 hour tick is 4.75° away and still yields (±4.5° left it ~0.5px from the pointer).
+    expect(nearAt(22, 19)).toEqual({ near: [88, 89, 90], past: 90, pastNear: 2, total: 96 });
+    expect(nearAt(22, 21).near).toEqual([89, 90]);
+    expect(nearAt(6, 7)).toEqual({ near: [24, 25], past: 25, pastNear: 1, total: 96 });
+    expect(nearAt(12, 2)).toEqual({ near: [47, 48, 49], past: 49, pastNear: 2, total: 96 });
+    // Wraps around midnight both ways.
+    expect(nearAt(0, 0)).toEqual({ near: [0, 1, 95], past: 0, pastNear: 0, total: 96 });
+    expect(nearAt(23, 59)).toEqual({ near: [0, 1, 95], past: 96, pastNear: 3, total: 96 });
+  });
+
+  it("never lets more than 3 ticks yield and keeps 24 hour ticks, across the first and last hour", () => {
+    // The pattern repeats every 15 minutes; the first and last hour also cover the midnight wrap.
+    const minutes = Array.from({ length: 60 }, (_, index) => [index, 23 * 60 + index]).flat();
+    for (const minute of minutes) {
+      const { container } = renderDial(new Date(2026, 10, 22, Math.floor(minute / 60), minute % 60, 0));
+      const near = container.querySelectorAll(".lcd-tick.is-near-now").length;
+      expect(near, String(minute)).toBeGreaterThanOrEqual(2);
+      expect(near, String(minute)).toBeLessThanOrEqual(3);
+      expect(container.querySelectorAll(".lcd-tick.is-hour")).toHaveLength(24);
+      cleanup();
+    }
+  });
+
   it("draws the pointer last, over the ticks", () => {
     const { container } = renderDial(new Date(2026, 10, 21, 12, 0, 0));
     const svg = container.querySelector("svg");
@@ -102,6 +138,25 @@ describe("LcdDial ink (spec 表盘墨色规则)", () => {
     expect(topLevel(".lcd-dial-clock span").color).toBe("var(--eink-dim)");
   });
 
+  it("draws the past ticks that yield to the pointer half way to the track (P-b, 50%)", () => {
+    expect(topLevel(".lcd-tick.is-past.is-near-now").stroke).toBe(
+      "color-mix(in srgb, var(--eink-mid) 50%, var(--eink-track))",
+    );
+    expect(topLevel(".lcd-tick.is-hour.is-past.is-near-now").stroke).toBe(
+      "color-mix(in srgb, var(--eink-ink) 50%, var(--eink-track))",
+    );
+    // Future ticks near the pointer are already the track; nothing else changes them.
+    const nearRules = allRules().filter((rule) => rule.selectors.some((selector) => selector.includes("is-near-now")));
+    expect(nearRules.flatMap((rule) => rule.selectors).sort()).toEqual([
+      ".lcd-tick.is-hour.is-past.is-near-now",
+      ".lcd-tick.is-past.is-near-now",
+    ]);
+    for (const rule of nearRules) {
+      expect(Object.keys(rule.declarations), rule.selector).toEqual(["stroke"]);
+      expect(rule.atRules, rule.selector).toEqual([]);
+    }
+  });
+
   it("draws ticks 2px and hour ticks 3.4px with butt caps", () => {
     expect(topLevel(".lcd-tick")["stroke-width"]).toBe("2");
     expect(topLevel(".lcd-tick")["stroke-linecap"]).toBe("butt");
@@ -111,7 +166,8 @@ describe("LcdDial ink (spec 表盘墨色规则)", () => {
   it("separates the pointer from the ticks with a paper-coloured stroke behind its fill", () => {
     const pointer = topLevel(".lcd-dial-now");
 
-    expect(pointer.stroke).toBe("var(--eink-paper-solid)");
+    // R-2 (2026-11-23): the paper colour where the dial sits, not the gradient's 45% stop.
+    expect(pointer.stroke).toBe("var(--eink-dial-paper)");
     expect(pointer["stroke-width"]).toBe("1.5");
     expect(pointer["paint-order"]).toBe("stroke");
   });

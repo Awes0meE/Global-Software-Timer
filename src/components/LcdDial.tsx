@@ -14,6 +14,8 @@ const TICK_MINUTES = (24 * 60) / TICKS;
 const TICK_INNER = 81;
 const TICK_OUTER = 89;
 const TICK_OUTER_HOUR = 91;
+/** Ticks within ±5° of the pointer (20 minutes, at most 3 ticks) yield to it so it reads as a clean triangle. */
+const NEAR_NOW_MINUTES = 20;
 
 function point(radius: number, degrees: number): [number, number] {
   const radians = (degrees * Math.PI) / 180;
@@ -55,16 +57,30 @@ function Ring({ lit, outer, inner, className }: { lit: number; outer: number; in
   );
 }
 
-/** 96 quarter-hour ticks outside the rings; the hour ones are longer. Ticks before now are inked. */
+function isNearNow(tickMinutes: number, minutesToday: number): boolean {
+  const distance = Math.abs(tickMinutes - minutesToday) % (24 * 60);
+  return Math.min(distance, 24 * 60 - distance) <= NEAR_NOW_MINUTES;
+}
+
+/**
+ * 96 quarter-hour ticks outside the rings; the hour ones are longer. Ticks before now are inked;
+ * the ones under the pointer are marked so they can be drawn lighter.
+ */
 function Ticks({ minutesToday }: { minutesToday: number }) {
   return (
     <g>
       {Array.from({ length: TICKS }, (_, index) => {
         const isHour = index % 4 === 0;
+        const tickMinutes = index * TICK_MINUTES;
         const degrees = (index / TICKS) * 360;
         const [x1, y1] = point(TICK_INNER, degrees);
         const [x2, y2] = point(isHour ? TICK_OUTER_HOUR : TICK_OUTER, degrees);
-        const className = ["lcd-tick", isHour && "is-hour", index * TICK_MINUTES < minutesToday && "is-past"]
+        const className = [
+          "lcd-tick",
+          isHour && "is-hour",
+          tickMinutes < minutesToday && "is-past",
+          isNearNow(tickMinutes, minutesToday) && "is-near-now",
+        ]
           .filter(Boolean)
           .join(" ");
 

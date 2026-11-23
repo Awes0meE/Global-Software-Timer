@@ -88,6 +88,7 @@
   --alert-wash: rgba(180, 35, 24, 0.1);
   --eink-paper: #fafaf7;
   --eink-paper-solid: #fafaf7;
+  --eink-dial-paper: var(--eink-paper-solid);
   --eink-ink: #0b0b0a;
   --eink-dim: #45443f;
   --eink-mid: #7c7b76;
@@ -169,6 +170,7 @@
   --alert-wash: rgba(255, 138, 128, 0.08);
   --eink-paper: linear-gradient(105deg, #1f2d40 0%, #281f40 45%, #401f40 100%);
   --eink-paper-solid: #281f40;
+  --eink-dial-paper: #293244;
   --eink-ink: #f7f7f9;
   --eink-dim: #c4c1ca;
   --eink-mid: #85828b;
@@ -888,6 +890,15 @@ main > p[role="status"] {
   stroke: var(--eink-ink);
 }
 
+/* Passed ticks under the pointer go half way to the track so the pointer reads as a clean triangle. */
+.lcd-tick.is-past.is-near-now {
+  stroke: color-mix(in srgb, var(--eink-mid) 50%, var(--eink-track));
+}
+
+.lcd-tick.is-hour.is-past.is-near-now {
+  stroke: color-mix(in srgb, var(--eink-ink) 50%, var(--eink-track));
+}
+
 .lcd-dial-hour {
   fill: var(--eink-dim);
   font-family: var(--font-pixel);
@@ -897,7 +908,7 @@ main > p[role="status"] {
 /* The pointer sits on the tick band; a paper-coloured stroke behind its fill keeps it apart. */
 .lcd-dial-now {
   fill: var(--eink-ink);
-  stroke: var(--eink-paper-solid);
+  stroke: var(--eink-dial-paper);
   stroke-width: 1.5;
   paint-order: stroke;
 }

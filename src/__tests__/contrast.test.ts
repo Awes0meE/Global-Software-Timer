@@ -222,6 +222,23 @@ describe.each(THEMES)("contrast in the %s theme", (theme) => {
       expect(ratio, `${theme}: ${name} on paper stop ${index} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(threshold);
     });
   });
+
+  // Plan trade-off 3, P-b (user, 2026-11-23): passed ticks under the pointer are mixed half way to the
+  // track. The hour ticks stay above 3:1 on the dial paper; the minor ones drop to about 2.2 / 2.3:1,
+  // a recorded deviation that comes with the user's choice, so they are pinned rather than held to 3:1.
+  it("pins the passed ticks that yield to the pointer on the dial paper", () => {
+    const tokens = themeTokens(theme);
+    const paper = parseColor(token(theme, "--eink-dial-paper"));
+    const stroke = (selector: string) => {
+      const rule = allRules().find((candidate) => candidate.atRules.length === 0 && candidate.selector === selector);
+      return parseColor(resolve(rule?.declarations.stroke ?? "(missing)", tokens));
+    };
+    const hour = contrast(stroke(".lcd-tick.is-hour.is-past.is-near-now"), paper);
+    const minor = contrast(stroke(".lcd-tick.is-past.is-near-now"), paper);
+
+    expect(hour, `${theme}: yielded hour tick = ${hour.toFixed(2)}`).toBeGreaterThanOrEqual(GRAPHIC);
+    expect(minor, `${theme}: yielded minor tick = ${minor.toFixed(2)}`).toBeCloseTo(theme === "light" ? 2.17 : 2.32, 1);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -257,6 +274,8 @@ const SPEC_TOKENS: Record<string, [light: string, dark: string]> = {
   "--alert-wash": ["rgba(180,35,24,.10)", "rgba(255,138,128,.08)"],
   "--eink-paper": ["#fafaf7", "linear-gradient(105deg, #1f2d40 0%, #281f40 45%, #401f40 100%)"],
   "--eink-paper-solid": ["#fafaf7", "#281f40"],
+  // Plan trade-off 3, R-2 (user, 2026-11-23): the paper behind the dial, for the pointer's rim.
+  "--eink-dial-paper": ["var(--eink-paper-solid)", "#293244"],
   "--eink-ink": ["#0b0b0a", "#f7f7f9"],
   "--eink-dim": ["#45443f", "#c4c1ca"],
   "--eink-mid": ["#7c7b76", "#85828b"],
