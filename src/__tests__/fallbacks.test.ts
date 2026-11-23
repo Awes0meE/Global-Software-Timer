@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allCss, parseRules, type CssRule } from "./support/css";
+import { allCss, allRules, parseRules, type CssRule } from "./support/css";
 
 // Built from pieces so a repo-wide search for the property finds only real uses.
 const BLUR_PROPERTY = "backdrop" + "-filter";
@@ -98,6 +98,42 @@ describe("forced colors", () => {
   // the knob's soft shadow and the glass focus ring under the Highlight outline.
   it("draws the toggle in system colours only", () => {
     expect(declarationsFor(".toggle-knob", FORCED)["box-shadow"]).toBe("none");
+    expect(declarationsFor(".toggle.is-on:focus-visible", FORCED)["box-shadow"]).toBe("none");
+  });
+
+  // The 3D slider (plan task 7, 2026-11-23): the well gradient, the rim and well shadows and the knob's
+  // specular hotspot are theme paint, which the switched-on track and the knob would otherwise keep.
+  it("removes the slider's gradients, shadows and hotspot", () => {
+    const track = declarationsFor(".toggle", FORCED);
+    expect(track["background-image"]).toBe("none");
+    expect(track["box-shadow"]).toBe("none");
+    const onTrack = declarationsFor(".toggle.is-on", FORCED);
+    // The background shorthand also resets the well gradient image.
+    expect(onTrack.background).toBe("Highlight");
+    expect(onTrack["box-shadow"]).toBe("none");
+    expect(declarationsFor(".toggle-knob::after", FORCED).display).toBe("none");
+  });
+
+  // The forced rules above are plain class selectors. A hover, press or focus rule that set paint
+  // directly would outrank them (a hover lift on the knob, the lighter on-track), so those states may
+  // only swap --toggle-* custom properties; just these rules paint the switch. Every stylesheet counts,
+  // and so does any selector whose last compound is the track or the knob (".bar .toggle:hover").
+  it("paints the switch only from rules the forced block outranks", () => {
+    const PAINT = ["background", "background-color", "background-image", "box-shadow"];
+    const SWITCH = /\.toggle(?:-knob)?(?![\w-])/;
+    const lastCompound = (selector: string) => selector.trim().split(/\s*[>+~]\s*|\s+/).pop() ?? "";
+    const painting = allRules()
+      .filter((rule) => !rule.atRules.map(normalize).includes(FORCED[0]))
+      .filter((rule) => PAINT.some((property) => property in rule.declarations))
+      .flatMap((rule) => rule.selectors.filter((selector) => SWITCH.test(lastCompound(selector))));
+    expect([...new Set(painting)].sort()).toEqual(
+      [".toggle", ".toggle-knob", ".toggle-knob::after", ".toggle.is-on", ".toggle:focus-visible"].sort(),
+    );
+    // The switched-on track and the knob opt out of forced colours, so their paint rules have later
+    // forced counterparts of at least their specificity. The off track's focus shadow is removed by the
+    // browser, since the off track keeps forced-color-adjust: auto.
+    expect(declarationsFor(".toggle-knob", FORCED).background).toBe("ButtonText");
+    expect(declarationsFor(".toggle.is-on", FORCED).background).toBe("Highlight");
     expect(declarationsFor(".toggle.is-on:focus-visible", FORCED)["box-shadow"]).toBe("none");
   });
 

@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { allRules, parseColor, token } from "./support/css";
+import { allRules, parseColor, resolve, themeTokens, token } from "./support/css";
 
 // The whole app runs on the browser preview's synthetic data.
 vi.mock("@tauri-apps/api/core", () => import("../../scripts/ui-preview/tauri-core"));
@@ -51,6 +51,29 @@ function topLevel(selector: string): Record<string, string> {
       .filter((rule) => rule.atRules.length === 0 && rule.selectors.includes(selector))
       .map((rule) => rule.declarations),
   );
+}
+
+const REDUCED_MOTION = "@media (prefers-reduced-motion: reduce)";
+
+/** Declarations of every rule directly inside `media` that lists `selector`, merged in source order. */
+function inMedia(media: string, selector: string): Record<string, string> {
+  return Object.assign(
+    {},
+    ...allRules()
+      .filter((rule) => rule.atRules.length === 1 && normalize(rule.atRules[0]) === media && rule.selectors.includes(selector))
+      .map((rule) => rule.declarations),
+  );
+}
+
+/** True when a timing function leaves the 0–1 output range (a cubic-bezier with y1 or y2 outside it). */
+function overshoots(easing: string): boolean {
+  const bezier = /^cubic-bezier\(([^)]*)\)$/.exec(normalize(easing));
+  if (!bezier) {
+    if (["ease", "ease-in", "ease-out", "ease-in-out", "linear"].includes(normalize(easing))) return false;
+    throw new Error(`Unsupported easing ${easing}`);
+  }
+  const [, y1, , y2] = bezier[1].split(",").map(Number);
+  return [y1, y2].some((y) => y < 0 || y > 1);
 }
 
 // Decisions confirmed by the user on 2026-11-23 after comparing rendered options.
@@ -222,24 +245,123 @@ describe("sticky table heads (decision E-B)", () => {
 describe("switches and segmented controls", () => {
   const SIGNAL = "var(--" + "signal";
 
-  // Spec migration table「开关」: a white knob with a soft shadow, the accent track when on.
-  it("draws a switched-off toggle as a chip track with a --muted outline", () => {
+  // Plan task 7「用户已确认（2026-11-23）」: a three-dimensional slider, V1 凹槽 + 圆钮 with the pale
+  // outline L1 and the ball knob S1. Theme values are --tg-* tokens; --toggle-* carry the state.
+  it("recesses the switched-off track: --chip with a faint well gradient and a pale --edge-strong rim", () => {
     const declarations = topLevel(".toggle");
-    expect(declarations.background).toBe("var(--chip)");
-    // Trade-off 9: the outline gives the off switch its 3:1 edge on glass.
-    expect(normalize(declarations["box-shadow"])).toBe("inset 0 0 0 1px var(--muted)");
+    expect(declarations.width).toBe("52px");
+    expect(declarations.height).toBe("28px");
+    expect(declarations["background-color"]).toBe("var(--chip)");
+    expect(normalize(declarations["background-image"])).toBe(
+      "linear-gradient(to bottom, rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.06))",
+    );
+    expect(declarations["--toggle-rim"]).toBe("var(--tg-rim-off)");
+    expect(declarations["--toggle-well"]).toBe("var(--tg-well-off)");
+    expect(normalize(declarations["box-shadow"])).toBe("inset 0 0 0 1px var(--toggle-rim), var(--toggle-well)");
   });
 
-  it("fills a switched-on toggle with the accent", () => {
+  it("fills a switched-on track with the accent inside its darker rim and well", () => {
     const declarations = topLevel(".toggle.is-on");
-    expect(declarations.background).toBe("var(--accent)");
-    expect(declarations["box-shadow"]).toBe("none");
+    expect(declarations["--toggle-fill"]).toBe("var(--accent)");
+    expect(declarations["background-color"]).toBe("var(--toggle-fill)");
+    expect(declarations["--toggle-rim"]).toBe("var(--tg-rim-on)");
+    expect(declarations["--toggle-well"]).toBe("var(--tg-well-on)");
+    expect(declarations["--toggle-ring"]).toBe("var(--tg-knob-rim-on)");
   });
 
-  it("gives the toggle a white knob with a soft shadow", () => {
-    const declarations = topLevel(".toggle-knob");
-    expect(declarations.background).toBe("#fff");
-    expect(normalize(declarations["box-shadow"])).toBe("0 1px 3px var(--shade-deep)");
+  it("lightens the track rim on hover when off and the accent fill when on", () => {
+    expect(topLevel(".toggle:not(.is-on):hover:not(:disabled)")["--toggle-rim"]).toBe("var(--tg-rim-off-hover)");
+    expect(normalize(topLevel(".toggle.is-on:hover:not(:disabled)")["--toggle-fill"])).toBe(
+      "color-mix(in srgb, var(--accent) 90%, #fff)",
+    );
+  });
+
+  // The pale off rims (L1), and the two F-B contrast cues: a darker accent rim on the light on-track,
+  // a dark ring on the dark on-knob.
+  it.each([
+    ["light", "--tg-rim-off", "var(--edge-strong)"],
+    ["dark", "--tg-rim-off", "var(--edge-strong)"],
+    ["light", "--tg-rim-off-hover", "color-mix(in srgb, var(--muted) 45%, transparent)"],
+    ["dark", "--tg-rim-off-hover", "color-mix(in srgb, var(--muted) 45%, transparent)"],
+    ["light", "--tg-rim-on", "color-mix(in srgb, var(--accent) 70%, var(--ink))"],
+    ["dark", "--tg-rim-on", "color-mix(in srgb, var(--accent) 78%, #000)"],
+    ["light", "--tg-knob-rim", "rgba(20, 30, 60, 0.16)"],
+    ["light", "--tg-knob-rim-on", "rgba(20, 30, 60, 0.16)"],
+    ["dark", "--tg-knob-rim", "rgba(0, 0, 0, 0.22)"],
+    ["dark", "--tg-knob-rim-on", "rgba(0, 0, 0, 0.5)"],
+  ] as const)("%s %s is %s", (theme, name, value) => {
+    expect(normalize(themeTokens(theme)[name])).toBe(value);
+  });
+
+  // The S1 ball face lit from the top left, the recessed wells and the knob lifts, as approved.
+  it.each([
+    [
+      "light",
+      "--tg-knob",
+      "linear-gradient(to top, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 24%), " +
+        "radial-gradient(circle at 32% 26%, #ffffff 0%, #f6f7f9 14%, #e3e6ea 40%, #c9ced5 68%, #b8bec7 80%, #b8bec7 100%)",
+    ],
+    [
+      "dark",
+      "--tg-knob",
+      "linear-gradient(to top, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 24%), " +
+        "radial-gradient(circle at 32% 26%, #ffffff 0%, #f6f7f9 14%, #e4e7eb 40%, #cbd0d7 68%, #bcc2ca 80%, #bcc2ca 100%)",
+    ],
+    ["light", "--tg-well-off", "inset 0 2px 3px -1px rgba(20, 30, 60, 0.34), inset 0 -1px 0 rgba(255, 255, 255, 0.75)"],
+    ["dark", "--tg-well-off", "inset 0 2px 3px -1px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.1)"],
+    ["light", "--tg-well-on", "inset 0 2px 3px -1px rgba(8, 30, 80, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.32)"],
+    ["dark", "--tg-well-on", "inset 0 2px 3px -1px rgba(0, 20, 60, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.28)"],
+    ["light", "--tg-lift", "0 1px 1px rgba(20, 30, 60, 0.3), 0 2px 5px rgba(20, 30, 60, 0.22)"],
+    ["dark", "--tg-lift", "0 1px 1px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.45)"],
+    ["light", "--tg-lift-hover", "0 1px 1px rgba(20, 30, 60, 0.3), 0 3px 7px rgba(20, 30, 60, 0.28)"],
+    ["dark", "--tg-lift-hover", "0 1px 1px rgba(0, 0, 0, 0.55), 0 3px 8px rgba(0, 0, 0, 0.55)"],
+    ["light", "--tg-lift-press", "0 0.5px 1px rgba(20, 30, 60, 0.34), 0 1px 2px rgba(20, 30, 60, 0.16)"],
+    ["dark", "--tg-lift-press", "0 0.5px 1px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.35)"],
+  ] as const)("%s %s is the approved value", (theme, name, value) => {
+    expect(normalize(themeTokens(theme)[name])).toBe(value);
+  });
+
+  it("draws the 22px knob with its rim, a state-driven lift and a specular hotspot", () => {
+    const knob = topLevel(".toggle-knob");
+    expect(knob.width).toBe("22px");
+    expect(knob.height).toBe("22px");
+    expect(knob.background).toBe("var(--tg-knob)");
+    expect(normalize(knob["box-shadow"])).toBe("0 0 0 1px var(--toggle-ring), var(--toggle-lift)");
+    expect(topLevel(".toggle")["--toggle-ring"]).toBe("var(--tg-knob-rim)");
+    expect(topLevel(".toggle")["--toggle-lift"]).toBe("var(--tg-lift)");
+    expect(topLevel(".toggle:hover:not(:disabled)")["--toggle-lift"]).toBe("var(--tg-lift-hover)");
+    expect(topLevel(".toggle:active:not(:disabled)")["--toggle-lift"]).toBe("var(--tg-lift-press)");
+    const hotspot = topLevel(".toggle-knob::after");
+    expect(hotspot.content).toBe('""');
+    expect(hotspot.background).toMatch(/^radial-gradient\(/);
+  });
+
+  it("slides the knob with a slight overshoot and fades the track", () => {
+    expect(normalize(topLevel(".toggle-knob").transition)).toBe(
+      "transform 240ms cubic-bezier(0.3, 1.5, 0.5, 1), width 150ms cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 150ms ease-out",
+    );
+    expect(overshoots("cubic-bezier(0.3, 1.5, 0.5, 1)")).toBe(true);
+    expect(normalize(topLevel(".toggle").transition)).toBe("background-color 220ms ease-out, box-shadow 220ms ease-out");
+  });
+
+  it("stretches a pressed knob to 26px toward its travel direction", () => {
+    expect(topLevel(".toggle.is-on .toggle-knob").transform).toBe("translateX(24px)");
+    expect(topLevel(".toggle:active:not(:disabled) .toggle-knob").width).toBe("26px");
+    // 20px + 3px + 26px = 49px, the right end of the resting on knob (3px + 24px + 22px).
+    expect(topLevel(".toggle.is-on:active:not(:disabled) .toggle-knob").transform).toBe("translateX(20px)");
+  });
+
+  it("neither stretches nor overshoots under reduced motion", () => {
+    const reduced = (selector: string) => inMedia(REDUCED_MOTION, selector);
+    expect(reduced(".toggle:active:not(:disabled) .toggle-knob").width).toBe("22px");
+    expect(reduced(".toggle.is-on:active:not(:disabled) .toggle-knob").transform).toBe("translateX(24px)");
+    const easing = reduced(".toggle-knob")["transition-timing-function"];
+    expect(easing).toBeDefined();
+    expect(overshoots(resolve(easing, themeTokens("light")))).toBe(false);
+  });
+
+  it("keeps a disabled switch at half opacity", () => {
+    expect(topLevel(".toggle:disabled").opacity).toBe("0.5");
   });
 
   // Trade-off 9: the signal-orange lamp window inside the switch is gone.
@@ -276,8 +398,7 @@ describe("switches and segmented controls", () => {
   // These controls set their own box-shadow, which would otherwise hide the global focus ring.
   it.each([
     [".segmented-option.is-selected", "inset 0 0 0 1px var(--edge), var(--focus)"],
-    [".toggle", "inset 0 0 0 1px var(--muted), var(--focus)"],
-    [".toggle.is-on", "var(--focus)"],
+    [".toggle", "inset 0 0 0 1px var(--toggle-rim), var(--toggle-well), var(--focus)"],
   ])("%s keeps the focus ring", (selector, shadow) => {
     expect(normalize(topLevel(`${selector}:focus-visible`)["box-shadow"]), selector).toBe(shadow);
   });

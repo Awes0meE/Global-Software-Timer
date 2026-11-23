@@ -113,17 +113,38 @@ const COMBOS: Combo[] = [
   { name: "--accent on glass-solid", threshold: GRAPHIC, pair: (s) => [s.colour("--accent"), s.solid] },
   { name: "--ink on accent 30% over G (selection)", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(accentAt(s, 0.3), s.G)] },
   { name: "--ink on accent 16% over G (mark)", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(accentAt(s, 0.16), s.G)] },
-  // Switched-off toggles (task 7): the track's --muted outline (trade-off 9), in the settings panels (G)
-  // and in the statistics and achievements bars straight on the background (B).
+  // --muted on chip in the settings panels (G) and in the statistics and achievements bars straight on the
+  // background (B). These were the flat switch's off outline (trade-off 9); the 3D slider (task 7,
+  // 2026-11-23) no longer draws one, and the pairs stay as a guard for --muted on --chip.
   {
-    name: "--muted outline on chip over G (switch off)",
+    name: "--muted on chip over G",
     threshold: GRAPHIC,
     pair: (s) => [s.colour("--muted"), over(s.colour("--chip"), s.G)],
   },
   {
-    name: "--muted outline on chip over B (switch off)",
+    name: "--muted on chip over B",
     threshold: GRAPHIC,
     pair: (s) => [s.colour("--muted"), over(s.colour("--chip"), s.B)],
+  },
+  // The 3D slider's F-B cues (task 7, 2026-11-23). Light: the switched-on track's darker accent rim
+  // against the glass panel (settings) and the bare background (statistics, achievements bars).
+  // The switched-off track's pale --edge-strong rim (L1, about 2.6:1 light, 1.6:1 dark) is below 3:1
+  // on purpose: the user chose it over the 3.4–3.9:1 L2 outline, so it is not asserted here.
+  { name: "on-track rim on G (switch on)", threshold: GRAPHIC, themes: ["light"], pair: (s) => [s.colour("--tg-rim-on"), s.G] },
+  { name: "on-track rim on B (switch on)", threshold: GRAPHIC, themes: ["light"], pair: (s) => [s.colour("--tg-rim-on"), s.B] },
+  // Dark: the knob's 1px ring is a box-shadow outside the knob, so it lies over the accent track, at rest
+  // and on the lighter hover fill.
+  {
+    name: "knob ring over the on-track (switch on)",
+    threshold: GRAPHIC,
+    themes: ["dark"],
+    pair: (s) => [s.colour("--tg-knob-rim-on"), s.colour("--accent")],
+  },
+  {
+    name: "knob ring over the hovered on-track (switch on)",
+    threshold: GRAPHIC,
+    themes: ["dark"],
+    pair: (s) => [s.colour("--tg-knob-rim-on"), parseColor(`color-mix(in srgb, ${token(s.theme, "--accent")} 90%, #fff)`)],
   },
   // Opaque floating surfaces.
   { name: "--ink on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink"), s.solid] },

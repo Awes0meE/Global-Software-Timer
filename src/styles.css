@@ -96,6 +96,21 @@
   --eink-grain: 0.06;
   --eink-grain-blend: multiply;
   --mix-glow: 0%;
+  /* 3D slide switch (.toggle): recessed well, track rims, knob rim, ball face and lift. The off rims are
+     the same in both themes and resolve here, not against the switch's ancestors. */
+  --tg-well-off: inset 0 2px 3px -1px rgba(20, 30, 60, 0.34), inset 0 -1px 0 rgba(255, 255, 255, 0.75);
+  --tg-well-on: inset 0 2px 3px -1px rgba(8, 30, 80, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.32);
+  --tg-rim-off: var(--edge-strong);
+  --tg-rim-off-hover: color-mix(in srgb, var(--muted) 45%, transparent);
+  --tg-rim-on: color-mix(in srgb, var(--accent) 70%, var(--ink));
+  --tg-knob-rim: rgba(20, 30, 60, 0.16);
+  --tg-knob-rim-on: rgba(20, 30, 60, 0.16);
+  --tg-knob:
+    linear-gradient(to top, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 24%),
+    radial-gradient(circle at 32% 26%, #ffffff 0%, #f6f7f9 14%, #e3e6ea 40%, #c9ced5 68%, #b8bec7 80%, #b8bec7 100%);
+  --tg-lift: 0 1px 1px rgba(20, 30, 60, 0.3), 0 2px 5px rgba(20, 30, 60, 0.22);
+  --tg-lift-hover: 0 1px 1px rgba(20, 30, 60, 0.3), 0 3px 7px rgba(20, 30, 60, 0.28);
+  --tg-lift-press: 0 0.5px 1px rgba(20, 30, 60, 0.34), 0 1px 2px rgba(20, 30, 60, 0.16);
 }
 
 :root[data-theme="dark"] {
@@ -162,6 +177,17 @@
   --eink-grain: 0.45;
   --eink-grain-blend: soft-light;
   --mix-glow: 40%;
+  --tg-well-off: inset 0 2px 3px -1px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+  --tg-well-on: inset 0 2px 3px -1px rgba(0, 20, 60, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.28);
+  --tg-rim-on: color-mix(in srgb, var(--accent) 78%, #000);
+  --tg-knob-rim: rgba(0, 0, 0, 0.22);
+  --tg-knob-rim-on: rgba(0, 0, 0, 0.5);
+  --tg-knob:
+    linear-gradient(to top, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 24%),
+    radial-gradient(circle at 32% 26%, #ffffff 0%, #f6f7f9 14%, #e4e7eb 40%, #cbd0d7 68%, #bcc2ca 80%, #bcc2ca 100%);
+  --tg-lift: 0 1px 1px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.45);
+  --tg-lift-hover: 0 1px 1px rgba(0, 0, 0, 0.55), 0 3px 8px rgba(0, 0, 0, 0.55);
+  --tg-lift-press: 0 0.5px 1px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 /* Glass switch: panels and the sidebar draw through these, never --glass / --side directly. */
@@ -1821,31 +1847,55 @@ mark {
   color: var(--ink);
 }
 
-/* A slide switch: a chip track with a --muted outline, the accent track when on, a white knob. */
+/* A three-dimensional slide switch (user pick 2026-11-23: V1 凹槽 + 圆钮, pale outline L1, ball knob S1):
+   a recessed --chip track (the accent when on) with an inset well and a 1px rim, pale --edge-strong when
+   off, and a 22px ball knob lit from the top left that lifts off the track and stretches while pressed.
+   Theme values are the --tg-* tokens; the --toggle-* properties carry the state, so hover and press only
+   swap custom properties and the plain forced-colors rules below still win. */
 .toggle {
+  --toggle-rim: var(--tg-rim-off);
+  --toggle-well: var(--tg-well-off);
+  --toggle-ring: var(--tg-knob-rim);
+  --toggle-lift: var(--tg-lift);
   position: relative;
   width: 52px;
   height: 28px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-pill);
-  background: var(--chip);
-  box-shadow: inset 0 0 0 1px var(--muted);
-  transition: background-color 180ms var(--ease);
+  background-color: var(--chip);
+  background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.06));
+  box-shadow: inset 0 0 0 1px var(--toggle-rim), var(--toggle-well);
+  transition: background-color 220ms ease-out, box-shadow 220ms ease-out;
 }
 
 .toggle.is-on {
-  background: var(--accent);
-  box-shadow: none;
+  --toggle-fill: var(--accent);
+  --toggle-rim: var(--tg-rim-on);
+  --toggle-well: var(--tg-well-on);
+  --toggle-ring: var(--tg-knob-rim-on);
+  background-color: var(--toggle-fill);
+}
+
+.toggle:not(.is-on):hover:not(:disabled) {
+  --toggle-rim: var(--tg-rim-off-hover);
+}
+
+.toggle.is-on:hover:not(:disabled) {
+  --toggle-fill: color-mix(in srgb, var(--accent) 90%, #fff);
+}
+
+.toggle:hover:not(:disabled) {
+  --toggle-lift: var(--tg-lift-hover);
+}
+
+.toggle:active:not(:disabled) {
+  --toggle-lift: var(--tg-lift-press);
 }
 
 /* The track's own shadow outranks the global focus ring, so the ring is added back here. */
 .toggle:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--muted), var(--focus);
-}
-
-.toggle.is-on:focus-visible {
-  box-shadow: var(--focus);
+  box-shadow: inset 0 0 0 1px var(--toggle-rim), var(--toggle-well), var(--focus);
 }
 
 .toggle-knob {
@@ -1855,13 +1905,39 @@ mark {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px var(--shade-deep);
-  transition: transform 200ms var(--ease);
+  background: var(--tg-knob);
+  box-shadow: 0 0 0 1px var(--toggle-ring), var(--toggle-lift);
+  transition:
+    transform 240ms cubic-bezier(0.3, 1.5, 0.5, 1),
+    width 150ms cubic-bezier(0.2, 0.8, 0.3, 1),
+    box-shadow 150ms ease-out;
+}
+
+/* Specular hotspot, lit from the top left like the knob's shading. */
+.toggle-knob::after {
+  content: "";
+  position: absolute;
+  top: 14%;
+  left: 17%;
+  width: 36%;
+  height: 28%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.6) 40%, rgba(255, 255, 255, 0) 72%);
+  pointer-events: none;
 }
 
 .toggle.is-on .toggle-knob {
   transform: translateX(24px);
+}
+
+/* A press flattens the knob onto the track and stretches it toward its travel direction; the on knob
+   moves 4px left so its right end stays at 49px. */
+.toggle:active:not(:disabled) .toggle-knob {
+  width: 26px;
+}
+
+.toggle.is-on:active:not(:disabled) .toggle-knob {
+  transform: translateX(20px);
 }
 
 .toggle:disabled {
@@ -2008,6 +2084,19 @@ mark {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+
+  /* Switches: no press stretch and no overshoot. */
+  .toggle-knob {
+    transition-timing-function: var(--ease);
+  }
+
+  .toggle:active:not(:disabled) .toggle-knob {
+    width: 22px;
+  }
+
+  .toggle.is-on:active:not(:disabled) .toggle-knob {
+    transform: translateX(24px);
+  }
 }
 
 /* Contrast themes: system colours only; glow and screen texture go, focus uses an outline. */
@@ -2079,16 +2168,24 @@ mark {
   }
 
   /* A switched-off toggle is drawn only with shadows and fills, which forced colours remove. An inset
-     outline keeps the track visible without changing its box; :focus-visible below still wins. */
+     outline keeps the track visible without changing its box; :focus-visible below still wins. The
+     well gradient and shadows go explicitly, since the switched-on track opts out of forced colours. */
   .toggle {
     outline: 1px solid ButtonText;
     outline-offset: -1px;
+    background-image: none;
+    box-shadow: none;
   }
 
+  /* The knob keeps its own colours to stay visible, so its ball shading, lift and hotspot go here. */
   .toggle-knob {
     forced-color-adjust: none;
     background: ButtonText;
     box-shadow: none;
+  }
+
+  .toggle-knob::after {
+    display: none;
   }
 
   :focus-visible {
@@ -2110,6 +2207,7 @@ mark {
   .toggle.is-on {
     forced-color-adjust: none;
     background: Highlight;
+    box-shadow: none;
   }
 
   /* The switched-on track keeps its own colours, so drop the glass focus ring under the outline. */
