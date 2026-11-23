@@ -1034,6 +1034,11 @@ describe("today distribution bar", () => {
     expect(topLevel(".mix-bar")["align-items"] ?? "stretch").toBe("stretch");
   });
 
+  it("leaves a gap under the total in place of the old caption", () => {
+    expect(topLevel(".mix-total").padding).toBe("0 18px 12px");
+    expect(allRules().filter((rule) => rule.selectors.some((selector) => selector.includes(".mix-caption")))).toEqual([]);
+  });
+
   it("drops the glow token from both themes", () => {
     expect(themeTokens("light")["--mix-glow"]).toBeUndefined();
     expect(themeTokens("dark")["--mix-glow"]).toBeUndefined();

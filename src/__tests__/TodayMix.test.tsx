@@ -66,4 +66,13 @@ describe("TodayMix", () => {
       expect(segment.style.getPropertyValue("--mix-color")).toBe("");
     }
   });
+
+  // v0.4.1: no explanatory line under the total; the plate follows the figure directly.
+  it("puts the bar straight under the total, with no caption", () => {
+    const { container } = render(<TodayMix apps={[appRow(1, 3600, 300)]} />);
+
+    expect(container.querySelector(".mix-caption")).toBeNull();
+    expect(screen.queryByText(/按前台软件拆分/)).not.toBeInTheDocument();
+    expect(container.querySelector(".mix-total")?.nextElementSibling).toHaveClass("mix-plate");
+  });
 });

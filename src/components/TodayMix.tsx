@@ -31,7 +31,6 @@ export function TodayMix({ apps, durationFormat = "decimal_hours" }: Props) {
         </UnavailableTooltip>
       </header>
       <p className="mix-total num">{formatDurationZh(total, durationFormat)}</p>
-      <p className="mix-caption">今日活跃时间按前台软件拆分</p>
       <div className="mix-plate">
         <div className="mix-bar" aria-label="今日使用分布条">
           {rows.map((app, index) => (

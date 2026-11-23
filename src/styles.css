@@ -1086,15 +1086,9 @@ main > p[role="status"] {
 
 /* Software identity colours; the distribution plate is where they appear today. */
 .mix-total {
-  padding: 0 18px;
+  padding: 0 18px 12px;
   font-size: 30px;
   line-height: 1.1;
-}
-
-.mix-caption {
-  padding: 2px 18px 10px;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .mix-plate {
