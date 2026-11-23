@@ -109,7 +109,7 @@ backdrop-filter: blur(30px) saturate(1.4);
 | Windows「透明效果」关闭 | 启动时、以及窗口重新可见时，读 `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\EnableTransparency`（DWORD，0 = 关）。用一个新的只读命令返回布尔值，前端据此设 `data-glass`。只读注册表，不落库；`Win32_System_Registry` 已启用，tray_icons.rs:86 起有同类 HKCU 读取 |
 | `@media (prefers-reduced-transparency: reduce)` | 同上；WebView2 是否支持要实测，所以不能只靠它 |
 | `@supports not (backdrop-filter: blur(1px))` | 同上 |
-| `@media (forced-colors: active)` | 面板用系统色 `Canvas`/`CanvasText`；光晕、颗粒、残影都去掉。墨水屏 `.lcd` 的系统色边线用 `border`（读数面板高 2px）还是内收 `outline`（不改布局），2026-11-23 仍未定，留给计划任务 10 |
+| `@media (forced-colors: active)` | 面板用系统色 `Canvas`/`CanvasText`；光晕、颗粒、残影都去掉。墨水屏 `.lcd`（任务 14 起含走纸 `.paper`）和面板一样用内收的 `outline: 1px solid CanvasText`，不加 `border`，读数面板保持 v0.3.1 的高度、不改布局（决策 G-B，2026-11-23 用户看过对比图后确认） |
 | Windows 10 | 不单独分支，CSS 和 Win11 一样；只需要在 Win10 上验收 |
 | 低功耗 / 低端机 | 不自动检测，跟随「透明效果」开关 |
 

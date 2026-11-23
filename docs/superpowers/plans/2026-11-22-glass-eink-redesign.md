@@ -608,7 +608,7 @@ export function startTransparencyWatch(read: () => Promise<unknown> = getTranspa
 - `.ach-readout` 加了 `overflow: clip`：玻璃滤镜让 `.readout` 成为热力图里隐藏表格的包含块，表格不认 `height: 1px`，不裁掉就会多出一整段可滚动的空白。
 - 胶囊圆角（样稿 `999px`，现用 `--radius-key`）保持不变。
 - 吸顶表头 `.focused-table-head`、`.background-table th` 现在用内阴影补画面板左右边线（取舍 11）→ 任务 6 把它们换成 `--glass-solid`（决策 E-B 后底色为 `--head-solid`，见取舍 6）时保留这几条 `box-shadow`，并在 Step 6 用 2x 深色放大截图确认表头行的边线连续。强制颜色下 `box-shadow` 被置为 `none`，不透明表头仍盖住面板的 `CanvasText` 边线 → 同样在任务 6 处理（例如只在 forced-colors 块里给表头两端加 `border-inline: 1px solid CanvasText`，内容移 ≤ 1px），任务 16 Step 3 复查。
-- 强制颜色下 `.lcd` 的 `border: 1px solid CanvasText`（任务 3 起）让自适应高度的 `.readout` 高 2px，概览、成就页下方面板和元素下移 2px → 任务 10 改 `.lcd` 时一并改成 `outline: 1px solid CanvasText; outline-offset: -1px`（`fallbacks.test.ts` 里 `.lcd` 的 border 断言要相应改，需协调方或用户同意）。2026-11-23 仍未定：用户还没决定，留给任务 10，之前不改。
+- 强制颜色下 `.lcd` 的 `border: 1px solid CanvasText`（任务 3 起）让自适应高度的 `.readout` 高 2px，概览、成就页下方面板和元素下移 2px → 任务 10 改 `.lcd` 时一并改成 `outline: 1px solid CanvasText; outline-offset: -1px`（`fallbacks.test.ts` 里 `.lcd` 的 border 断言要相应改）。**用户已确认（2026-11-23，看过对比图）：G-B 内收描边**——强制颜色块里 `.lcd` 不再用 `border`，并进面板的 `outline` 规则（`outline: 1px solid CanvasText; outline-offset: -1px`），自适应高度的 `.readout` 保持 v0.3.1 的高度（概览 232、成就 347，下方第一块面板在 y 315 / 462）；用户同意 `fallbacks.test.ts` 把 `.lcd` 从「`border: 1px solid CanvasText`」一组移到「无 `border`、内收 `outline`」一组。任务 10 实现；任务 14 给 `.paper` 用同样的内收 `outline`。
 - 成就页「查看名单」是唯一可用的 `.panel-link`，决策 3C 后它像按键，却没有 `:hover` / `:active`（v0.3.1 也没有）→ 任务 9 在 hover 规则里加 `.panel-link:not([aria-disabled="true"])`（`--on`、`--muted: var(--ink-2)`），active 规则里同样加（`--chip`）。
 - 强制颜色下按钮的 `--glass-2` 底和内阴影边线都会消失，页头「导出」「更多」和面板内「更多」「编辑」「查看名单」只剩文字（一直如此，不是本任务引入）→ 任务 16 验收 7 时在 forced-colors 块里加 `:is(.header-button, .button, .panel-link, .text-action) { outline: 1px solid ButtonText; outline-offset: -1px; }`（同 `.toggle` 的做法）。
 
@@ -659,7 +659,7 @@ export function startTransparencyWatch(read: () => Promise<unknown> = getTranspa
   - **F-B 线索与对比度**：两条线索都保留。浅色开启态轨道描边对背景：token 计算对 G 5.23、对 B 4.21（截图取样 4.60 / 4.71）；深色开启态圆钮外圈对轨道：token 计算（钮环叠在 `--accent` 轨道上）3.16，悬停轨道上 3.26（截图取样含投影 4.18）；均 ≥ 3:1，contrast.test 断言。浅色开启态圆钮对轨道（截图取样，含钮边和投影）3.48–3.57（成就 3.48、统计 3.51、设置 3.57），取样点在圆钮受光面；球面暗部终止色 `#b8bec7` 对 `--accent` 只有约 2.2:1，所以这一项不作 3:1 断言（它不是 F-B 线索）。**已接受的偏差**：L1 关闭态描边对背景只有约 2.6:1（浅，截图 2.75 设置 / 2.62–2.57 光晕）和约 1.6:1（深，1.68 / 1.54–1.75），低于取舍 9 原定的 3:1；用户在 L2（浅色约 3.4–3.9:1、深色约 2.9–3.6:1）也摆在面前的情况下选了 L1，所以不改、不加 3:1 断言（contrast.test 里注明原因）；关闭的开关靠凹槽内阴影和圆钮投影成形。
   - **动效**：圆钮 `transform 240ms cubic-bezier(0.3, 1.5, 0.5, 1)`（略过冲，开启时圆钮先冲到约 +1.9px 再回到 24px）、`width 150ms cubic-bezier(0.2, 0.8, 0.3, 1)`、`box-shadow 150ms ease-out`；轨道 `background-color` / `box-shadow 220ms ease-out`。按下时圆钮压低（`--tg-lift-press`）并朝行进方向拉长到 26px：关闭态从左边 3px 向右长，开启态改 `translateX(20px)`，静止时右端仍在 49px（`width` 150ms 与略过冲的 `transform` 240ms 不同步，按下过程中右端会有约 ±0.4px 的晃动，与选定样稿相同，2x 截图看不出）。滑动过冲时圆钮会短暂压到轨道 1px 描边上（开启时右缘最远约 50.9px、关闭时左缘最近约 1.4px，约 2 帧），同样来自选定样稿的缓动；用户若希望圆钮始终不碰描边，需另选较小的过冲（如 `cubic-bezier(0.3, 1.3, 0.5, 1)`）。`prefers-reduced-motion: reduce`：沿用全局那条把所有过渡时长压到 0.01ms 的规则，另在同一块里把圆钮的 `transition-timing-function` 改成 `var(--ease)`（不过冲），按下不拉长（宽 22px、开启态 `translateX(24px)`）。这些过渡和投影是用户要求的（要像真的拨动滑块），列入取舍 24 白名单。
   - **强制颜色**：只用系统色（取舍 18）：关闭 `ButtonText` 轮廓 + `ButtonText` 圆钮，开启 `Highlight` 轨道 + `HighlightText` 圆钮；渐变、阴影、高光点、开启态焦点环下的主题光环全部去掉，不用 `!important`。
-  - 测试：glassSurfaces.test 里任务 7 的扁平开关断言换成上述做法；contrast.test 加两条 F-B 线索；fallbacks.test 原有强制颜色断言不变，另加「去掉渐变、阴影和高光点」「只有强制颜色块压得住的规则给开关上色」两条。G（强制颜色下 `.lcd` 边框让 `.readout` 高 2px）仍待定，本次不动 `.lcd`。
+  - 测试：glassSurfaces.test 里任务 7 的扁平开关断言换成上述做法；contrast.test 加两条 F-B 线索；fallbacks.test 原有强制颜色断言不变，另加「去掉渐变、阴影和高光点」「只有强制颜色块压得住的规则给开关上色」两条。G（强制颜色下 `.lcd` 边框让 `.readout` 高 2px）当时仍待定，本次不动 `.lcd`（后由用户定为 G-B，任务 10 实现，见任务 4、5 遗留）。
 
 提交：`feat(ui): restyle switches and segmented controls with the accent colour`
 
@@ -713,7 +713,7 @@ export function startTransparencyWatch(read: () => Promise<unknown> = getTranspa
 
 ## 任务 10：墨水屏配方（概览读数、设置屏）
 
-**文件：** `src/styles.css`（572–737、1592–1610、1780–1811、forced-colors 块）、`src/components/AchievementsPage.css`（60 行的字号 token）
+**文件：** `src/styles.css`（572–737、1592–1610、1780–1811、forced-colors 块）、`src/components/AchievementsPage.css`（60 行的字号 token）；实现时补充：`src/__tests__/glassSurfaces.test.tsx`（新增用例）、`src/__tests__/fallbacks.test.ts`（决策 G-B）
 
 **对应规格：** 墨水屏配方表（纸面、颗粒、哑光、内凹边、发光、文字、像素字、屏上图标）；迁移表「今日读数」「设置页」；Token 架构（`--pixel-display-size`）；取舍 16、17。
 
@@ -757,9 +757,15 @@ export function startTransparencyWatch(read: () => Promise<unknown> = getTranspa
 - [ ] **Step 3：文字与图标。** `.lcd-label`、`.lcd-note` → `--eink-dim`；`.lcd-key`、`.lcd-key-active` → `--eink-ink`；`.lcd-most .software-icon` 规则换成 `.lcd img { filter: grayscale(0.55) saturate(0.7) contrast(1.05); }`（取舍 17）。1320px 以下 `.lcd-cell-most` 的虚线 → `color-mix(in srgb, var(--eink-dim) 45%, transparent)`。表盘和热力图里的 `--lcd-*` 本任务不动（任务 11、13）。
 - [ ] **Step 4：像素字号改名。** `var(--lcd-display-size, 60px)`（693）→ `var(--pixel-display-size, 60px)`；1780–1785 的两条 `@media (resolution: …)` 改设 `--pixel-display-size`；`AchievementsPage.css:60` 的 `--lcd-display-size: 48px` → `--pixel-display-size: 48px`。
 - [ ] **Step 5：设置屏**（1598–1610）只继承 `.lcd` 屏面，无残影；时钟标志按 Step 3 去色。
+- [ ] **Step 5b：强制颜色下的屏幕边线。** **用户已确认（2026-11-23，看过对比图）：G-B**——forced-colors 块里 `.lcd` 从 `border: 1px solid CanvasText` 那条规则移到面板的 `outline` 规则（`.panel, .readout, .software-panel, .lcd { outline: 1px solid CanvasText; outline-offset: -1px; }`，不加 `border`），`.readout` 保持 v0.3.1 的高度（概览 232、成就 347）。先改 `fallbacks.test.ts`（`.lcd` 移到「无 `border`、内收 `outline`」一组，另断言 `outline-offset: -1px`），确认失败，再改 CSS。视觉检查加 `probe.mjs layout --media forced-colors=active`，与基线比 `.readout` 高度和下方面板位置。
 - [ ] **Step 6：检查**：`npm.cmd run check`（`App.test` 的 17 个 `is-lit`、`AchievementsPage.test` 的 `.lcd.ach-dial` 不受影响）。
 - [ ] **Step 7：视觉检查**：概览、设置、成就 × 两主题 × 两尺寸；对照 `overview-glass.html?screen=eink`：纸色、颗粒强度（浅色几乎看不见、深色明显）、内凹边、无发光、图标半去色。`probe.mjs shot --scale 1.25` 和 `--scale 1.5` 截概览，放大 `.lcd-value b` 看像素字边缘是否清晰（验收 9 的预览近似）。
 - [ ] **Step 8：审查关口。** 墨水屏配方表逐行；`rg "text-shadow" src/styles.css` 不再有液晶相关的。
+
+**任务 10 遗留到后续任务（2026-11-23）：**
+
+- 强制颜色下表盘容量环仍是绿色：SVG 的 `fill` 用 token，强制颜色不改它 → 任务 11 换墨色后，任务 16 Step 3 确认表盘在强制颜色下看得清（必要时在 forced-colors 块里给 `.lcd-ring path`、`.lcd-tick` 等用系统色）。
+- 强制颜色下「今日记录」「今日活跃」前的图例色块消失（底色被置为 `Canvas`，条纹渐变也被去掉；v0.3.1 同样如此）→ 任务 16 验收 7 时在 forced-colors 块里给 `.lcd-key`、`.lcd-key-active` 用 `CanvasText`（或 `forced-color-adjust: none`），12×6 的盒子不变。
 
 提交：`feat(ui): replace the LCD recipe with an e-ink screen`
 
@@ -910,7 +916,7 @@ function Ticks({ minutesToday }: { minutesToday: number }) {
 
 **对应规格：** 迁移表「走纸记录仪」；墨水屏配方（纸面、颗粒、内凹边）；信号橙（`.pen-lamp` 保留）；取舍 15。
 
-- [ ] **Step 1：纸面。** 把任务 10 的屏面三条规则（`.lcd`、`.lcd::before`、`.lcd::after` 的屏面部分）的选择器扩成 `.lcd, .paper`、`.lcd::before, .paper::before`、`.lcd::after, .paper::after`；`.paper` 原来的 `background: var(--panel-raised)` 和四条 `--shade-deep` 内阴影删除。`.paper > .recorder-svg { position: relative; z-index: 1; }`，保证 SVG 和悬停在颗粒、哑光层之上。forced-colors 块两处都扩上 `.paper`：`background: Canvas; color: CanvasText` 那条规则的选择器列表加 `.paper`（深色纸面是 `background-image` 渐变，不显式重置就会留在对比度主题里；任务 5 起 forced-colors 块里 Canvas / CanvasText、`border: 1px solid CanvasText`（侧栏、`.lcd`、对话框）、面板 `outline` 是三条分开的规则）；描边只在内容允许移 1px 时才把 `.paper` 加进 `border` 那条，否则按任务 10 对 `.lcd` 的处理改用内收 `outline`，`.lcd::before, .lcd::after` 扩成 `.lcd::before, .lcd::after, .paper::before, .paper::after { display: none; }`。先在 `fallbacks.test.ts` 加两条断言（`.paper` 在 forced-colors 的 Canvas 规则里且 `background` 为 `Canvas`；`.paper::before`、`.paper::after` 为 `display: none`），确认失败，再改 CSS。
+- [ ] **Step 1：纸面。** 把任务 10 的屏面三条规则（`.lcd`、`.lcd::before`、`.lcd::after` 的屏面部分）的选择器扩成 `.lcd, .paper`、`.lcd::before, .paper::before`、`.lcd::after, .paper::after`；`.paper` 原来的 `background: var(--panel-raised)` 和四条 `--shade-deep` 内阴影删除。`.paper > .recorder-svg { position: relative; z-index: 1; }`，保证 SVG 和悬停在颗粒、哑光层之上。forced-colors 块两处都扩上 `.paper`：`background: Canvas; color: CanvasText` 那条规则的选择器列表加 `.paper`（深色纸面是 `background-image` 渐变，不显式重置就会留在对比度主题里；forced-colors 块里 Canvas / CanvasText、`border: 1px solid CanvasText`（侧栏、对话框）、面板和 `.lcd` 的内收 `outline` 是三条分开的规则）；描边**用户已确认（2026-11-23，看过对比图）：G-B**——和 `.lcd` 一样用内收 `outline`：`.paper` 加进 `.panel, .readout, .software-panel, .lcd` 那条 `outline: 1px solid CanvasText; outline-offset: -1px` 规则，不加 `border`；`.lcd::before, .lcd::after` 扩成 `.lcd::before, .lcd::after, .paper::before, .paper::after { display: none; }`。先在 `fallbacks.test.ts` 加断言（`.paper` 在 forced-colors 的 Canvas 规则里且 `background` 为 `Canvas`；`.paper::before`、`.paper::after` 为 `display: none`；`.paper` 进「无 `border`、内收 `outline`」一组，`outline-offset` 为 `-1px`），确认失败，再改 CSS。
 - [ ] **Step 2：槽和滚轴。** `.recorder`：删 `background` 和 `box-shadow`，`margin`、`padding`、三列网格不变；注释改为 `/* recorder: two thin rollers and an e-ink paper strip */`。`.roller`：`justify-self: center; width: 3px; border-radius: 2px; background: var(--eink-mid); box-shadow: none;`。
 - [ ] **Step 3：纸上墨色**（只改颜色，字体不变）：
 
