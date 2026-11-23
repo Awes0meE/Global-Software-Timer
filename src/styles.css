@@ -80,7 +80,6 @@
   --eink-ghost: rgba(11, 11, 10, 0.04);
   --eink-grain: 0.06;
   --eink-grain-blend: multiply;
-  --mix-glow: 0%;
   /* 3D slide switch (.toggle): recessed well, track rims, knob rim, ball face and lift. The off rims are
      the same in both themes and resolve here, not against the switch's ancestors. */
   --tg-well-off: inset 0 2px 3px -1px rgba(20, 30, 60, 0.34), inset 0 -1px 0 rgba(255, 255, 255, 0.75);
@@ -147,7 +146,6 @@
   --eink-ghost: rgba(247, 247, 249, 0.05);
   --eink-grain: 0.45;
   --eink-grain-blend: soft-light;
-  --mix-glow: 40%;
   --tg-well-off: inset 0 2px 3px -1px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.1);
   --tg-well-on: inset 0 2px 3px -1px rgba(0, 20, 60, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.28);
   --tg-rim-on: color-mix(in srgb, var(--accent) 78%, #000);
@@ -1115,7 +1113,8 @@ main > p[role="status"] {
   --muted: var(--ink-2);
 }
 
-/* No overflow clip, so the segments' glow shows; the end segments carry the rounding instead. */
+/* Flat segments of one height (no glow: an own-colour halo made bright segments look taller in the dark
+   theme); the end segments carry the rounding. */
 .mix-bar {
   display: flex;
   gap: 2px;
@@ -1126,7 +1125,6 @@ main > p[role="status"] {
 
 .mix-segment {
   min-width: 2px;
-  box-shadow: 0 0 12px color-mix(in srgb, var(--mix-color) var(--mix-glow), transparent);
 }
 
 .mix-segment:first-child {
@@ -2234,16 +2232,12 @@ mark {
   }
 
   /* 今日分布: the segments and the swatches are each app's identity colour, the only link between the bar
-     and its list, so they keep it (no glow), framed in CanvasText so any colour stays visible on Canvas. */
+     and its list, so they keep it, framed in CanvasText so any colour stays visible on Canvas. */
   .mix-segment,
   .mix-row i {
     forced-color-adjust: none;
     outline: 1px solid CanvasText;
     outline-offset: -1px;
-  }
-
-  .mix-segment {
-    box-shadow: none;
   }
 
   /* The date fields follow the app theme's color-scheme, but a contrast theme can pair a light app

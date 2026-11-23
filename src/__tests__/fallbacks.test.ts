@@ -544,7 +544,6 @@ describe("forced colors: e-ink inks, keys, buttons and scrollers", () => {
       expect(normalize(declarations.outline ?? ""), selector).toBe("1px solid CanvasText");
       expect(declarations["outline-offset"], selector).toBe("-1px");
     }
-    expect(declarationsFor(".mix-segment", FORCED)["box-shadow"]).toBe("none");
   });
 
   // The lamps carry state (in the usage list, alone), so each keeps a distinct system-colour mark.

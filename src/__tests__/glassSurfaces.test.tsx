@@ -1024,3 +1024,25 @@ describe("glass layers on every page", () => {
     expectWithinLimitAndFlat(container, "设置");
   }, 20000);
 });
+
+// v0.4.1: in the dark theme each segment's own-colour glow hugged its top and bottom edges, so bright
+// segments read 1-2px taller than dim ones. The bar now draws flat segments of one height.
+describe("today distribution bar", () => {
+  it("draws every segment flat, with nothing that changes its edges", () => {
+    const segment = topLevel(".mix-segment");
+    for (const property of ["box-shadow", "filter", "transform", "margin", "border", "outline", "height"]) {
+      expect(segment[property], property).toBeUndefined();
+    }
+    const segmentRules = allRules().filter((rule) => rule.selectors.some((selector) => selector.includes(".mix-segment")));
+    for (const rule of segmentRules) {
+      expect(rule.declarations["box-shadow"], `${rule.atRules.join(" ")} ${rule.selector}`).toBeUndefined();
+    }
+    expect(topLevel(".mix-bar").display).toBe("flex");
+    expect(topLevel(".mix-bar")["align-items"] ?? "stretch").toBe("stretch");
+  });
+
+  it("drops the glow token from both themes", () => {
+    expect(themeTokens("light")["--mix-glow"]).toBeUndefined();
+    expect(themeTokens("dark")["--mix-glow"]).toBeUndefined();
+  });
+});

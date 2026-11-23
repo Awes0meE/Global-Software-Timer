@@ -50,7 +50,7 @@ describe("TodayMix", () => {
     expect(screen.getAllByText("2分钟").length).toBeGreaterThan(0);
   });
 
-  it("hands each bar segment its identity colour for the glow", () => {
+  it("paints each bar segment in its identity colour, with no glow colour left inline", () => {
     const apps = [
       appRow(1, 3600, 300),
       appRow(2, 65, 125),
@@ -60,7 +60,10 @@ describe("TodayMix", () => {
     const segments = container.querySelectorAll<HTMLElement>(".mix-segment");
 
     expect(segments).toHaveLength(2);
-    expect(segments[0].style.getPropertyValue("--mix-color")).toBe("var(--mix-1)");
-    expect(segments[1].style.getPropertyValue("--mix-color")).toBe("var(--mix-2)");
+    expect(segments[0].style.backgroundColor).toBe("var(--mix-1)");
+    expect(segments[1].style.backgroundColor).toBe("var(--mix-2)");
+    for (const segment of segments) {
+      expect(segment.style.getPropertyValue("--mix-color")).toBe("");
+    }
   });
 });
