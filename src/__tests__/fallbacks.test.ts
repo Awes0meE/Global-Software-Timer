@@ -255,7 +255,29 @@ describe("forced colors", () => {
         .filter((rule) => "background" in rule.declarations)
         .map((rule) => rules.indexOf(rule));
     expect(Math.min(...painting(FORCED)), selector).toBeGreaterThan(Math.max(...painting([])));
-    expect(declarationsFor(`${selector}::after`, FORCED).display, selector).toBe("none");
+  });
+
+  it("drops the 特别关注 head's drop strip", () => {
+    expect(declarationsFor(".focused-table-head::after", FORCED).display).toBe("none");
+  });
+
+  // The 后台 rows draw only bottom rules, so nothing marks the head off from the first row once the key's
+  // bottom hairline (a shadow) is gone. Its drop strip turns into that rule: a 1px border inside the head's box
+  // (borders take CanvasText), from end to end, with no theme gradient left.
+  it("turns the 后台 head's drop strip into a CanvasText rule along its bottom", () => {
+    const strip = declarationsFor(".background-table th::after", FORCED);
+    expect(strip.display).toBeUndefined();
+    expect(strip.top).toBe("auto");
+    expect(strip.bottom).toBe("0");
+    expect(strip.height).toBe("0");
+    expect(normalize(strip["border-bottom"] ?? "")).toBe("1px solid CanvasText");
+    expect(strip.background).toBe("none");
+    expect(declarationsFor(".background-table th:first-child::after", FORCED).left).toBe("0");
+    expect(declarationsFor(".background-table th:last-child::after", FORCED).right).toBe("0");
+    for (const selector of [".background-table th::after", ".background-table th:first-child::after"]) {
+      const at = (atRules: string[]) => rulesFor(selector, atRules).map((rule) => rules.indexOf(rule));
+      expect(Math.min(...at(FORCED)), selector).toBeGreaterThan(Math.max(...at([])));
+    }
   });
 
   // The key's bottom hairline is a box-shadow as well, so the first 特别关注 row's top rule, hidden under the

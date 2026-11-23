@@ -2594,9 +2594,26 @@ mark {
     background: Canvas;
   }
 
-  .focused-table-head::after,
-  .background-table th::after {
+  .focused-table-head::after {
     display: none;
+  }
+
+  /* The 后台 rows draw only bottom rules, so the head's drop strip becomes the rule under it: a border (which
+     takes CanvasText) inside the head's box, from end to end. */
+  .background-table th::after {
+    top: auto;
+    bottom: 0;
+    height: 0;
+    border-bottom: 1px solid CanvasText;
+    background: none;
+  }
+
+  .background-table th:first-child::after {
+    left: 0;
+  }
+
+  .background-table th:last-child::after {
+    right: 0;
   }
 
   /* The key's bottom hairline is a shadow too, so the first row's top rule comes back. */
