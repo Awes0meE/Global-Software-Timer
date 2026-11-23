@@ -9,11 +9,18 @@ const CENTER = SIZE / 2;
 const SEGMENTS = 48;
 const SEGMENT_SECONDS = (24 * 3600) / SEGMENTS;
 const GAP_DEGREES = 1.6;
+const TICKS = 96;
+const TICK_MINUTES = (24 * 60) / TICKS;
+const TICK_INNER = 81;
+const TICK_OUTER = 89;
+const TICK_OUTER_HOUR = 91;
 
 function point(radius: number, degrees: number): [number, number] {
   const radians = (degrees * Math.PI) / 180;
   return [CENTER + radius * Math.sin(radians), CENTER - radius * Math.cos(radians)];
 }
+
+const f = (value: number) => value.toFixed(2);
 
 function segmentPath(index: number, outer: number, inner: number): string {
   const start = (index / SEGMENTS) * 360 + GAP_DEGREES / 2;
@@ -22,7 +29,6 @@ function segmentPath(index: number, outer: number, inner: number): string {
   const [x2, y2] = point(outer, end);
   const [x3, y3] = point(inner, end);
   const [x4, y4] = point(inner, start);
-  const f = (value: number) => value.toFixed(2);
 
   return `M${f(x1)} ${f(y1)}A${outer} ${outer} 0 0 1 ${f(x2)} ${f(y2)}L${f(x3)} ${f(y3)}A${inner} ${inner} 0 0 0 ${f(x4)} ${f(y4)}Z`;
 }
@@ -49,10 +55,29 @@ function Ring({ lit, outer, inner, className }: { lit: number; outer: number; in
   );
 }
 
+/** 96 quarter-hour ticks outside the rings; the hour ones are longer. Ticks before now are inked. */
+function Ticks({ minutesToday }: { minutesToday: number }) {
+  return (
+    <g>
+      {Array.from({ length: TICKS }, (_, index) => {
+        const isHour = index % 4 === 0;
+        const degrees = (index / TICKS) * 360;
+        const [x1, y1] = point(TICK_INNER, degrees);
+        const [x2, y2] = point(isHour ? TICK_OUTER_HOUR : TICK_OUTER, degrees);
+        const className = ["lcd-tick", isHour && "is-hour", index * TICK_MINUTES < minutesToday && "is-past"]
+          .filter(Boolean)
+          .join(" ");
+
+        return <line key={index} className={className} x1={f(x1)} y1={f(y1)} x2={f(x2)} y2={f(y2)} />;
+      })}
+    </g>
+  );
+}
+
 /**
- * A segmented LCD capacity gauge: a full ring is 24 hours of time, each segment half an hour.
- * Lit segments count today's totals (they are not a timeline); the pointer marks how much of
- * the day has passed, which is the most either total can reach.
+ * An e-ink capacity dial: a full ring is 24 hours of time, each segment half an hour.
+ * Lit segments count today's totals (they are not a timeline); the 96 ticks outside the rings
+ * and the pointer mark how much of the day has passed, which is the most either total can reach.
  */
 export function LcdDial({ recordedSeconds, activeSeconds, now }: Props) {
   const minutesToday = now.getHours() * 60 + now.getMinutes();
@@ -68,6 +93,7 @@ export function LcdDial({ recordedSeconds, activeSeconds, now }: Props) {
         <Ring className="lcd-ring lcd-ring-recorded" lit={litSegments(recordedSeconds)} outer={78} inner={66} />
         <Ring className="lcd-ring lcd-ring-active" lit={litSegments(activeSeconds)} outer={61} inner={53} />
         <rect className="lcd-midnight-mark" x={CENTER - 1} y="45" width="2" height="8" />
+        <Ticks minutesToday={minutesToday} />
         {[6, 12, 18].map((hour) => {
           const [x, y] = point(41, hour * 15);
           return (
