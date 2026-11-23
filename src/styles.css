@@ -2484,6 +2484,8 @@ mark {
   padding: 0 6px;
 }
 
+/* The box stops 10px short of the strip's edges so the dotted rules are inset. At 125% its label and digits
+   are taller than the box; they overflow centred into that 10px, so only the sides are clipped. */
 .background-reading {
   display: grid;
   align-content: center;
@@ -2491,7 +2493,8 @@ mark {
   min-width: 0;
   height: calc(100% - 20px);
   padding: 0 18px;
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   white-space: nowrap;
 }
 

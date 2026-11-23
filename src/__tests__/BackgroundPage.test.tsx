@@ -296,6 +296,21 @@ describe("BackgroundPage", () => {
     }
   });
 
+  // A reading's label and digits (12px + 8px gap + 38.4px at 125%) are taller than its 53px box, which stops
+  // 10px short of the strip so the dotted rules are inset. Clipping only sideways lets the centred overflow
+  // spill into that 10px instead of cutting the top of the label.
+  it("clips the strip's readings sideways only", () => {
+    const declarations = Object.assign(
+      {},
+      ...parseRules(allCss()["styles.css"]).rules
+        .filter((rule) => rule.atRules.length === 0 && rule.selectors.includes(".background-reading"))
+        .map((rule) => rule.declarations),
+    );
+    expect(declarations.overflow).toBeUndefined();
+    expect(declarations["overflow-x"]).toBe("clip");
+    expect(declarations["overflow-y"]).toBe("visible");
+  });
+
   it("formats small and large values readably", () => {
     expect(formatPercent(0)).toBe("0%");
     expect(formatPercent(0.04)).toBe("<0.1%");
