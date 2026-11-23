@@ -41,11 +41,6 @@ export function StatisticsLedgers({ summary, durationFormat }: LedgerProps) {
         <p className="stats-note">
           <Info size={15} aria-hidden="true" />
           <span>区间内有 {summary.days_without_software_detail} 天无软件明细</span>
-          <small>
-            {summary.software_detail_start_date
-              ? `${summary.software_detail_start_date} 之前只记了总时长，排行、开着没用和会话不含这些天`
-              : "这些天只记了总时长，排行、开着没用和会话不含这些天"}
-          </small>
         </p>
       ) : null}
       <div className="stats-two">
@@ -69,15 +64,10 @@ function NameCell({ row }: { row: { display_name: string; icon_url: string | nul
 }
 
 function RankingPanel({ summary, durationFormat }: LedgerProps) {
-  const comparable = summary.software_comparison_available;
-
   return (
     <section className="panel stats-panel" aria-labelledby="stats-ranking-title">
       <header className="panel-head">
         <h2 id="stats-ranking-title">区间排行</h2>
-        <span className="panel-count">
-          按焦点时长 · {comparable ? `与前 ${summary.days_count} 天比` : "无对比"}
-        </span>
       </header>
       {summary.ranking.length === 0 ? (
         <div className="empty-state stats-empty">
@@ -156,12 +146,10 @@ function IdleOpenPanel({ rows, durationFormat }: { rows: IdleOpenRow[]; duration
     <section className="panel stats-panel idle-panel" aria-labelledby="stats-idle-title">
       <header className="panel-head">
         <h2 id="stats-idle-title">开着没用</h2>
-        <span className="panel-count">只算有窗口的时间</span>
       </header>
       {rows.length === 0 ? (
         <div className="empty-state stats-empty">
           <strong>这段时间没有开着不用的软件</strong>
-          <span>窗口不少于 5 小时、焦点不到 5% 才上榜</span>
         </div>
       ) : (
         <>
@@ -209,7 +197,6 @@ function IdleOpenPanel({ rows, durationFormat }: { rows: IdleOpenRow[]; duration
               <i aria-hidden="true" />
               窗口开着
             </span>
-            条长按本榜最长窗口时长 · 窗口不少于 5 小时、焦点不到 5% 才上榜
           </p>
         </>
       )}
@@ -222,7 +209,6 @@ function SessionsPanel({ rows, durationFormat }: { rows: SessionStatRow[]; durat
     <section className="panel stats-panel" aria-labelledby="stats-sessions-title">
       <header className="panel-head">
         <h2 id="stats-sessions-title">会话</h2>
-        <span className="panel-count">按打开次数</span>
       </header>
       {rows.length === 0 ? (
         <div className="empty-state stats-empty">
@@ -260,7 +246,6 @@ function SessionsPanel({ rows, durationFormat }: { rows: SessionStatRow[]; durat
 function RhythmPanel({ summary, durationFormat }: LedgerProps) {
   const { days } = summary;
   const split = splitWeekdayWeekend(days);
-  const weekendCount = days.filter((day) => isWeekend(day.date)).length;
   const recordedDays = days.filter((day) => day.recorded_seconds > 0);
   const uptimeAverage =
     recordedDays.length === 0
@@ -273,27 +258,21 @@ function RhythmPanel({ summary, durationFormat }: LedgerProps) {
     <section className="panel stats-panel" aria-labelledby="stats-rhythm-title">
       <header className="panel-head">
         <h2 id="stats-rhythm-title">作息</h2>
-        <span className="panel-count">
-          有记录 {recordedDays.length} 天 / 共 {summary.days_count} 天 · 条长满格为 24 小时
-        </span>
       </header>
       <div className="rhythm-grid">
         <RhythmCell
           label="工作日日均活跃"
           seconds={split.weekdayAverageSeconds}
-          note={`${days.length - weekendCount} 个工作日，空白日计入`}
           durationFormat={durationFormat}
         />
         <RhythmCell
           label="周末日均活跃"
           seconds={split.weekendAverageSeconds}
-          note={`${weekendCount} 个周末日，空白日计入`}
           durationFormat={durationFormat}
         />
         <RhythmCell
           label="日均开机时长"
           seconds={uptimeAverage}
-          note={`按有记录的 ${recordedDays.length} 天`}
           durationFormat={durationFormat}
           light
         />
@@ -305,7 +284,6 @@ function RhythmPanel({ summary, durationFormat }: LedgerProps) {
             {lastMedian ?? "—"}
           </span>
           <span className="rhythm-scale" />
-          <span className="rhythm-note">中位时间</span>
         </div>
       </div>
     </section>
@@ -315,13 +293,11 @@ function RhythmPanel({ summary, durationFormat }: LedgerProps) {
 function RhythmCell({
   label,
   seconds,
-  note,
   durationFormat,
   light = false,
 }: {
   label: string;
   seconds: number | null;
-  note: string;
   durationFormat: DurationFormat;
   light?: boolean;
 }) {
@@ -334,7 +310,6 @@ function RhythmCell({
       <span className={`rhythm-track${light ? " is-light" : ""}`} aria-hidden="true">
         <i style={{ width: `${Math.min(100, ((seconds ?? 0) / DAY_SECONDS) * 100)}%` }} />
       </span>
-      <span className="rhythm-note">{note}</span>
     </div>
   );
 }

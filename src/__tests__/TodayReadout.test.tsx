@@ -45,6 +45,19 @@ describe("TodayReadout", () => {
     expect(screen.queryByText(/累计/)).not.toBeInTheDocument();
   });
 
+  // v0.4.1: the two big readings carry no explanatory small print; README's 指标说明 explains them.
+  it("prints no explanation under the recorded and active readings", () => {
+    const { container } = render(<TodayReadout summary={summaryWith(appRow(3 * 3600, 42 * 60))} now={now} />);
+
+    const cells = [...container.querySelectorAll(".lcd-cell:not(.lcd-cell-most)")];
+    expect(cells).toHaveLength(2);
+    for (const cell of cells) {
+      expect(cell.querySelector(".lcd-note")).toBeNull();
+    }
+    expect(container).not.toHaveTextContent("开机时间");
+    expect(container).not.toHaveTextContent("键盘或鼠标");
+  });
+
   it("falls back to today's runtime when the most used app has no active time", () => {
     render(
       <TodayReadout

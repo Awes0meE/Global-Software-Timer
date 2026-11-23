@@ -99,7 +99,7 @@ export function MilestoneShelf({ tiers, milestones, durationFormat }: ShelfProps
       <header className="panel-head">
         <h2 id="ach-milestones-title">里程碑</h2>
         <span className="panel-count">
-          按软件累计焦点时长 · 已点亮 {litCount} / {tiers.length} 档
+          已点亮 {litCount} / {tiers.length} 档
         </span>
       </header>
       <div className="ach-shelf">

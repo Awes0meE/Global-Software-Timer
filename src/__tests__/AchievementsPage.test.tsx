@@ -369,6 +369,18 @@ describe("AchievementsPage", () => {
     expect(within(shelf).getByText(/已点亮 3 \/ 6 档/)).toBeInTheDocument();
   });
 
+  // v0.4.1: the panel heads keep readings only; how they are counted lives in README's 指标说明.
+  it("prints no counting rule on the milestone and comings heads", async () => {
+    invoke.mockResolvedValue(summary());
+    await renderPage();
+
+    const shelfHead = screen.getByRole("region", { name: "里程碑" }).querySelector(".panel-head") as HTMLElement;
+    expect(shelfHead).toHaveTextContent(/^里程碑已点亮 3 \/ 6 档$/);
+    const comings = screen.getByRole("region", { name: "软件来去" });
+    expect(comings.querySelector(".panel-head")).toHaveTextContent(/^软件来去$/);
+    expect(comings.querySelector(".panel-count")).toBeNull();
+  });
+
   it("outlines the 6666-hour plate only once it is reached", async () => {
     invoke.mockResolvedValue(
       summary({

@@ -28,7 +28,6 @@ export function TodayReadout({ summary, durationFormat = "decimal_hours", now = 
             今日记录
           </p>
           <LcdValue reading={recorded} />
-          <p className="lcd-note">GST 记录到的开机时间</p>
         </div>
         <div className="lcd-cell">
           <p className="lcd-label">
@@ -36,7 +35,6 @@ export function TodayReadout({ summary, durationFormat = "decimal_hours", now = 
             今日活跃
           </p>
           <LcdValue reading={active} />
-          <p className="lcd-note">检测到键盘或鼠标操作</p>
         </div>
         <div className="lcd-cell lcd-cell-most">
           <p className="lcd-label">最常用</p>

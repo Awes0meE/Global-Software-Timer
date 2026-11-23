@@ -802,6 +802,12 @@ main > p[role="status"] {
   min-width: 0;
 }
 
+/* The two readings have no note line under them; keep their labels level with 最常用's, which
+   has one (12px line + 4px gap). Dropped once 最常用 moves to its own row. */
+.readout .lcd-cell:not(.lcd-cell-most) {
+  padding-bottom: 16px;
+}
+
 .lcd-label {
   display: flex;
   align-items: center;
@@ -2096,6 +2102,10 @@ mark {
   .overview-page .lcd {
     grid-template-columns: auto minmax(140px, 1fr) minmax(140px, 1fr);
     row-gap: 16px;
+  }
+
+  .readout .lcd-cell:not(.lcd-cell-most) {
+    padding-bottom: 0;
   }
 
   .lcd-cell-most {

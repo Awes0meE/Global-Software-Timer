@@ -118,7 +118,6 @@ export function AchievementsPage({ durationFormat = "decimal_hours" }: Achieveme
       <section className="panel ach-comings" aria-labelledby="ach-comings-title">
         <header className="panel-head">
           <h2 id="ach-comings-title">软件来去</h2>
-          <span className="panel-count">近 30 天 · 按有窗口的日子</span>
         </header>
         <ComingRow title="新面孔" rows={summary.new_software} emptyText="近 30 天没有新出现的软件" />
         <ComingRow title="30 天未打开" rows={summary.dormant_software} emptyText="没有 30 天未打开的软件" />

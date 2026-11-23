@@ -420,12 +420,6 @@
   color: var(--muted);
 }
 
-.stats-note small {
-  margin-left: 6px;
-  color: var(--ink-2);
-  font-size: 12px;
-}
-
 .stats-two {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
@@ -578,10 +572,6 @@
   font-size: 13px;
 }
 
-.stats-empty span {
-  font-size: 12px;
-}
-
 .idle-rows {
   align-self: start;
 }
@@ -715,15 +705,6 @@
 
 .rhythm-track.is-light i {
   background: color-mix(in srgb, var(--ink) 40%, transparent);
-}
-
-.rhythm-note {
-  grid-column: 1 / -1;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 @media (max-width: 1200px) {

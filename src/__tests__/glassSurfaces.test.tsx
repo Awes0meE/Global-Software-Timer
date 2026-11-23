@@ -523,7 +523,7 @@ describe("statistics range bar and ledgers", () => {
     expect(declarations.background).toBe("var(--chip)");
     expect(declarations["--muted"]).toBe("var(--ink-2)");
     expect(declarations["box-shadow"]).toBeUndefined();
-    expect(topLevel(".stats-note small").color).toBe("var(--ink-2)");
+    expect(declarations.color).toBe("var(--ink-2)");
   });
 
   it("hovers ledger rows on --chip like the other tables", () => {

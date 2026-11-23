@@ -433,7 +433,6 @@ describe("StatisticsPage", () => {
     expect(trend).not.toHaveTextContent("0%比上期");
     expect(trend).not.toHaveTextContent("比上期 0%");
     const ranking = screen.getByRole("region", { name: "区间排行" });
-    expect(ranking).toHaveTextContent("按焦点时长 · 无对比");
     expect(within(ranking).getByText("无对比")).toBeInTheDocument();
   });
 
@@ -442,7 +441,6 @@ describe("StatisticsPage", () => {
     await renderPage();
 
     const ranking = screen.getByRole("region", { name: "区间排行" });
-    expect(ranking).toHaveTextContent("按焦点时长 · 与前 7 天比");
     expect(within(ranking).getByText("上升 2 名")).toBeInTheDocument();
     expect(within(ranking).getByText("持平")).toBeInTheDocument();
     expect(within(ranking).getByText("下降 1 名")).toBeInTheDocument();
@@ -453,8 +451,42 @@ describe("StatisticsPage", () => {
     invoke.mockResolvedValue(summary({ days_without_software_detail: 3 }));
     await renderPage();
 
-    expect(screen.getByText("区间内有 3 天无软件明细")).toBeInTheDocument();
-    expect(screen.getByText(/2026-06-18 之前只记了总时长/)).toBeInTheDocument();
+    const note = screen.getByText("区间内有 3 天无软件明细").closest(".stats-note") as HTMLElement;
+    expect(note).toHaveTextContent(/^区间内有 3 天无软件明细$/);
+    expect(note.querySelector("small")).toBeNull();
+  });
+
+  // v0.4.1: no explanatory small print on the ledgers; the rules that matter sit behind a "?".
+  it("prints no explanatory small print on the panel heads, cells or foot", async () => {
+    invoke.mockResolvedValue(summary());
+    await renderPage();
+
+    const ranking = screen.getByRole("region", { name: "区间排行" });
+    expect(ranking).not.toHaveTextContent("按焦点时长");
+    expect(ranking).not.toHaveTextContent("与前 7 天比");
+    const sessions = screen.getByRole("region", { name: "会话" });
+    expect(sessions).not.toHaveTextContent("按打开次数");
+    const idle = screen.getByRole("region", { name: "开着没用" });
+    expect(idle).not.toHaveTextContent("只算有窗口的时间");
+    expect(idle).not.toHaveTextContent("条长按本榜");
+    expect(idle).not.toHaveTextContent("才上榜");
+    // The bar key stays: it names the two bar colours.
+    expect(idle.querySelector(".stats-foot")).toHaveTextContent(/^焦点窗口开着$/);
+    const rhythm = screen.getByRole("region", { name: "作息" });
+    for (const text of ["有记录 5 天", "条长满格", "空白日计入", "按有记录的", "中位时间"]) {
+      expect(rhythm).not.toHaveTextContent(text);
+    }
+    expect(rhythm.querySelector(".rhythm-note")).toBeNull();
+    for (const region of [ranking, sessions, idle, rhythm]) {
+      expect(region.querySelector(".panel-head .panel-count")).toBeNull();
+    }
+
+    cleanup();
+    invoke.mockReset();
+    invoke.mockResolvedValue(summary({ idle_open: [] }));
+    await renderPage();
+    const emptyIdle = screen.getByRole("region", { name: "开着没用" });
+    expect(emptyIdle).not.toHaveTextContent("才上榜");
   });
 
   it("lists idle-open software and says so when there is none", async () => {
@@ -503,7 +535,6 @@ describe("StatisticsPage", () => {
     expect(within(rhythm).getByText("工作日日均活跃").closest(".rhythm-cell")).toHaveTextContent("4.0小时");
     expect(within(rhythm).getByText("周末日均活跃").closest(".rhythm-cell")).toHaveTextContent("2.5小时");
     expect(within(rhythm).getByText("日均开机时长").closest(".rhythm-cell")).toHaveTextContent("21.0小时");
-    expect(rhythm).toHaveTextContent("有记录 5 天 / 共 7 天");
   });
 
   it("requests hidden software when the switch is turned on", async () => {
