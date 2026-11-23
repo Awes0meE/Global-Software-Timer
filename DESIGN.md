@@ -241,7 +241,7 @@ GST 的窗口是一块浮在柔和光晕上的云母玻璃，今天的读数印�
 
 - 玻璃只有一层：只有侧栏和页面顶层面板（`.panel`、`.readout`、`.software-panel`）带 `backdrop-filter: blur(30px) saturate(1.4)`，同屏最多 6 个模糊层（统计页的侧栏加 5 块面板已到上限），不嵌套，模糊半径不按组件调。面板配方：`--glass` 底、内收 1px `--edge` 描边（`outline`，不占盒子）、`--glass-shadow` 投影加 2px `--glass-hi` 上沿高光、圆角 16px。
 - 子板只用半透明填充：面板里的子板、按钮、分段选择器、表格行和提示卡用 `--glass-2`、`--chip` 或 `--on`，不再模糊。页头按钮同样不加模糊。
-- 浮层不透明：对话框、悬停说明和读数卡用 `--glass-solid`，吸顶表头用 `--head-fill` 叠 `--head-solid`（强制颜色模式下只铺 `Canvas`）；“该功能暂未完成”提示气泡是 `--ink` 底、`--glass-solid` 字。对话框背后的遮罩保留 2px 模糊，不计入 6 个模糊层。
+- 浮层不透明：对话框、悬停说明和读数卡用 `--glass-solid`，吸顶表头用 `--head-fill` 叠 `--head-solid`（强制颜色模式下只铺 `Canvas`，表头和第一行之间用 1px `CanvasText` 线隔开）；“该功能暂未完成”提示气泡是 `--ink` 底、`--glass-solid` 字。对话框背后的遮罩保留 2px 模糊，不计入 6 个模糊层。
 - 墨水屏内凹：`inset 0 1px 3px rgba(0,0,0,.28), inset 0 0 0 1px rgba(0,0,0,.10), 0 1px 0 var(--glass-hi)`，纸面上一层 SVG 噪点颗粒和一层自上而下的哑光渐变，不发光。
 - 三种回退切换同一组 token（`--glass-surface`、`--side-surface`、`--glass-filter`）：Windows“透明效果”关闭时根元素带 `data-glass="off"`（启动时和窗口重新可见时读注册表，只读、不保存），`prefers-reduced-transparency: reduce` 媒体查询，以及 `@supports not (backdrop-filter: …)`。三者效果相同：面板和侧栏改用 `--glass-solid`、去掉模糊，光晕保留。强制颜色模式下面板和墨水屏用系统色 `Canvas` / `CanvasText` 和内收 `outline: 1px solid CanvasText`，光晕、颗粒和残影都去掉；只靠阴影画边的控件同样加内收 `outline`，盒子不变；焦点环改为 2px `Highlight` 描边。
 
