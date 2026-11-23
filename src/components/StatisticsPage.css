@@ -232,39 +232,31 @@
   font-style: normal;
 }
 
-/* recorder slot: two rollers and a paper strip in a recessed tray */
+/* recorder: two thin rollers and an e-ink paper strip */
 .recorder {
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr) 14px;
   margin: 0 14px 14px;
   padding: 8px;
-  border-radius: var(--radius-key);
-  background: var(--panel-sunken);
-  box-shadow: inset 0 2px 5px var(--shade-deep), inset 0 0 0 1px var(--edge-strong), 0 1px 0 var(--highlight);
 }
 
 .roller {
-  border-radius: 4px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--knob-base) 70%, var(--panel)) 0%,
-    color-mix(in srgb, var(--knob-top) 70%, var(--panel)) 42%,
-    color-mix(in srgb, var(--knob-middle) 70%, var(--panel)) 70%,
-    color-mix(in srgb, var(--knob-base) 70%, var(--panel)) 100%
-  );
-  box-shadow: 0 1px 2px var(--shade-deep), inset 0 0 0 1px var(--edge-strong);
+  justify-self: center;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--eink-mid);
+  box-shadow: none;
 }
 
+/* The paper takes the e-ink screen recipe (styles.css, incl. position and overflow); the chart sits above
+   its grain and matte wash. */
 .paper {
-  position: relative;
   min-width: 0;
-  overflow: hidden;
-  background: var(--panel-raised);
-  box-shadow:
-    inset 0 3px 3px -2px var(--shade-deep),
-    inset 0 -3px 3px -2px var(--shade-deep),
-    inset 8px 0 8px -8px var(--shade-deep),
-    inset -8px 0 8px -8px var(--shade-deep);
+}
+
+.paper > .recorder-svg {
+  position: relative;
+  z-index: 1;
 }
 
 .recorder-svg {
@@ -282,29 +274,29 @@
 }
 
 .rule-major {
-  stroke: var(--edge-strong);
+  stroke: var(--eink-track);
 }
 
 .rule-minor {
-  stroke: var(--edge-strong);
+  stroke: var(--eink-track);
   opacity: 0.7;
 }
 
 .rule-day {
-  stroke: var(--edge-strong);
+  stroke: var(--eink-track);
 }
 
 .rule-tick {
-  stroke: var(--muted);
+  stroke: var(--eink-mid);
 }
 
 .scale {
-  fill: var(--muted);
+  fill: var(--eink-dim);
   font-size: 12px;
 }
 
 .day {
-  fill: var(--ink-2);
+  fill: var(--eink-dim);
   font-size: 12px;
 }
 
@@ -313,71 +305,71 @@
 }
 
 .vals-strong {
-  fill: var(--ink);
+  fill: var(--eink-ink);
   font-weight: 600;
 }
 
 .vals-dim {
-  fill: var(--muted);
+  fill: var(--eink-dim);
 }
 
 .hover-band {
-  fill: color-mix(in srgb, var(--ink) 10%, transparent);
+  fill: color-mix(in srgb, var(--eink-ink) 10%, transparent);
 }
 
 .needle-rec {
-  fill: color-mix(in srgb, var(--ink) 16%, transparent);
+  fill: color-mix(in srgb, var(--eink-ink) 16%, transparent);
 }
 
 .needle-cap {
-  stroke: var(--ink-2);
+  stroke: var(--eink-dim);
   stroke-width: 2;
 }
 
 .needle-act {
-  fill: var(--ink);
+  fill: var(--eink-ink);
 }
 
 .gap {
   fill: none;
-  stroke: color-mix(in srgb, var(--muted) 70%, transparent);
+  stroke: color-mix(in srgb, var(--eink-mid) 70%, transparent);
   stroke-dasharray: 3 3;
 }
 
 .avg {
-  stroke: var(--muted);
+  stroke: var(--eink-mid);
   stroke-width: 1.25;
   stroke-dasharray: 6 4;
 }
 
 .avg-mark {
-  fill: var(--muted);
+  fill: var(--eink-mid);
 }
 
 .trace {
   fill: none;
-  stroke: var(--ink-2);
+  stroke: var(--eink-dim);
   stroke-width: 1.5;
   stroke-linejoin: round;
 }
 
 .trace-dot {
-  fill: var(--panel-raised);
-  stroke: var(--ink-2);
+  fill: var(--eink-paper-solid);
+  stroke: var(--eink-dim);
   stroke-width: 1.5;
 }
 
 .trace-label {
-  fill: var(--ink-2);
+  fill: var(--eink-dim);
   font-size: 12px;
 }
 
 .pen {
-  fill: var(--ink);
+  fill: var(--eink-ink);
 }
 
 .pen-arm {
-  stroke: var(--knob-base);
+  stroke: var(--eink-mid);
   stroke-width: 3;
   stroke-linecap: round;
 }

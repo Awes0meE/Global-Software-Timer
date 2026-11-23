@@ -142,6 +142,24 @@ describe("forced colors", () => {
     expect(declarationsFor(".lcd::after", FORCED).display).toBe("none");
   });
 
+  // Plan task 14: the recorder paper is an e-ink screen too, so it leaves contrast themes the same way.
+  it("drops the recorder paper's texture layers with the screen's", () => {
+    for (const layer of ["::before", "::after"]) {
+      const shared = rulesFor(`.paper${layer}`, FORCED);
+      expect(shared.length, layer).toBeGreaterThan(0);
+      for (const rule of shared) expect(rule.selectors, layer).toContain(`.lcd${layer}`);
+      expect(declarationsFor(`.paper${layer}`, FORCED).display, layer).toBe("none");
+    }
+  });
+
+  // The paper is an e-ink screen, so it takes the same Canvas / CanvasText reset and inset outline
+  // (decision G-B) as .lcd, from the same rules; the panel checks below cover the values.
+  it("resets the recorder paper in the screen's own forced-colour rules", () => {
+    const shared = rulesFor(".paper", FORCED);
+    expect(shared.length).toBeGreaterThan(0);
+    for (const rule of shared) expect(rule.selectors).toContain(".lcd");
+  });
+
   it("drops the readout ghost", () => {
     // As specific as the ghost's own rule, so the drop does not rest on source order alone.
     expect(declarationsFor(".lcd-value.lcd-ghost", FORCED).display).toBe("none");
@@ -154,7 +172,7 @@ describe("forced colors", () => {
   });
 
   it("draws panels in system colours", () => {
-    for (const selector of [".sidebar", ".panel", ".readout", ".software-panel", ".lcd", ".dialog", ".add-software-dialog"]) {
+    for (const selector of [".sidebar", ".panel", ".readout", ".software-panel", ".lcd", ".paper", ".dialog", ".add-software-dialog"]) {
       const declarations = declarationsFor(selector, FORCED);
       expect(declarations.background, selector).toBe("Canvas");
       expect(declarations.color, selector).toBe("CanvasText");
@@ -163,18 +181,18 @@ describe("forced colors", () => {
       expect(normalize(declarationsFor(selector, FORCED).border ?? ""), selector).toBe("1px solid CanvasText");
     }
     // Glass panels keep their inset outline (decision 2A), so a border would move their content. The
-    // e-ink screen takes the same inset outline (decision G-B), so the readout keeps its v0.3.1 height.
-    for (const selector of [".panel", ".readout", ".software-panel", ".lcd"]) {
+    // e-ink screens take the same inset outline (decision G-B), so the readout keeps its v0.3.1 height.
+    for (const selector of [".panel", ".readout", ".software-panel", ".lcd", ".paper"]) {
       const declarations = declarationsFor(selector, FORCED);
       expect(declarations.border, selector).toBeUndefined();
       expect(normalize(declarations.outline ?? ""), selector).toBe("1px solid CanvasText");
     }
   });
 
-  // One forced-colours rule sets the -1px offset for the panels and the screen alike; the screen is
-  // the one selector with no outline outside that block.
+  // One forced-colours rule sets the -1px offset for the panels and the screens alike; the screens are
+  // the selectors with no outline outside that block.
   it("insets the outline of the glass panels and the e-ink screen (decisions 2A, G-B)", () => {
-    for (const selector of [".panel", ".readout", ".software-panel", ".lcd"]) {
+    for (const selector of [".panel", ".readout", ".software-panel", ".lcd", ".paper"]) {
       expect(declarationsFor(selector, FORCED)["outline-offset"], selector).toBe("-1px");
     }
   });

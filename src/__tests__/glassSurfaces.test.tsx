@@ -610,7 +610,7 @@ describe("e-ink screen", () => {
     const paint = styleRules().filter(
       (rule) => rule.atRules.length === 0 && rule.declarations.background === "var(--eink-paper)",
     );
-    expect(paint.map((rule) => rule.selectors)).toEqual([[".lcd"]]);
+    expect(paint.map((rule) => rule.selectors)).toEqual([[".lcd", ".paper"]]);
     for (const property of ["display", "grid-template-columns", "gap", "min-height", "padding"]) {
       expect(paint[0].declarations[property], property).toBeUndefined();
     }
@@ -811,6 +811,129 @@ describe("achievements heatmap ink", () => {
       rule.selectors.filter((selector) => selector.startsWith(DARK) && heatmap.test(selector)),
     );
     expect(darkHeatmap).toEqual([]);
+  });
+});
+
+// Plan task 14: the statistics recorder prints on the shared e-ink paper; only colours change.
+describe("statistics recorder on e-ink paper", () => {
+  // Built from pieces so a repo-wide search for the signal token finds only real uses.
+  const SIGNAL = "var(--" + "signal";
+  const RECORDER = [
+    ".recorder", ".roller", ".paper", ".recorder-svg", ".recorder-svg text", ".recorder-svg .day", ".recorder-svg .vals",
+    ".rule-major", ".rule-minor", ".rule-day", ".rule-tick", ".scale", ".day", ".vals", ".vals-strong", ".vals-dim",
+    ".hover-band", ".needle-rec", ".needle-cap", ".needle-act", ".gap", ".avg", ".avg-mark", ".trace", ".trace-dot",
+    ".trace-label", ".pen", ".pen-arm",
+  ];
+  const recorderRules = () =>
+    allRules().filter(
+      (rule) => rule.file.includes("StatisticsPage") && rule.selectors.some((selector) => RECORDER.includes(selector)),
+    );
+  const mix = (name: string, percent: number) => `color-mix(in srgb, var(--${name}) ${percent}%, transparent)`;
+
+  it.each([
+    [".paper", ".lcd"],
+    [".paper::before", ".lcd::before"],
+    [".paper::after", ".lcd::after"],
+  ])("paints %s with the screen's own rule", (paper, screen) => {
+    const shared = allRules().filter((rule) => rule.atRules.length === 0 && rule.selectors.includes(paper));
+    expect(shared.some((rule) => rule.selectors.includes(screen) && rule.file.includes("styles.css"))).toBe(true);
+  });
+
+  it("lays the paper on the screen recipe instead of the raised panel and its shadows", () => {
+    const declarations = topLevel(".paper");
+    expect(declarations.background).toBe("var(--eink-paper)");
+    expect(declarations.color).toBe("var(--eink-ink)");
+    expect(declarations["border-radius"]).toBe("var(--radius-screen)");
+    expect(normalize(declarations["box-shadow"])).toBe(
+      "inset 0 1px 3px rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(0, 0, 0, 0.1), 0 1px 0 var(--glass-hi)",
+    );
+    expect(declarations.position).toBe("relative");
+    expect(declarations.overflow).toBe("hidden");
+    // The pixel font stays on .lcd: the recorder keeps its fonts (trade-off 15).
+    expect(declarations["font-family"]).toBeUndefined();
+  });
+
+  it("lifts the chart above the grain and the matte wash", () => {
+    const declarations = topLevel(".paper > .recorder-svg");
+    expect(declarations.position).toBe("relative");
+    expect(declarations["z-index"]).toBe("1");
+    // The hover card sits inside the paper as well, so it must stay above the raised chart.
+    expect(Number(topLevel(".trend-tip")["z-index"])).toBeGreaterThan(Number(declarations["z-index"]));
+  });
+
+  it("drops the recessed tray but keeps its box and three columns", () => {
+    const declarations = topLevel(".recorder");
+    expect(declarations.background).toBeUndefined();
+    expect(declarations["box-shadow"]).toBeUndefined();
+    expect(declarations.display).toBe("grid");
+    expect(declarations["grid-template-columns"]).toBe("14px minmax(0, 1fr) 14px");
+    expect(declarations.margin).toBe("0 14px 14px");
+    expect(declarations.padding).toBe("8px");
+  });
+
+  it("flattens the rollers into thin --eink-mid bars centred in their columns", () => {
+    const declarations = topLevel(".roller");
+    expect(declarations["justify-self"]).toBe("center");
+    expect(declarations.width).toBe("3px");
+    expect(declarations["border-radius"]).toBe("2px");
+    expect(declarations.background).toBe("var(--eink-mid)");
+    expect(declarations["box-shadow"]).toBe("none");
+  });
+
+  it.each([
+    [".rule-major", "stroke", "var(--eink-track)"],
+    [".rule-day", "stroke", "var(--eink-track)"],
+    [".rule-minor", "stroke", "var(--eink-track)"],
+    [".rule-minor", "opacity", "0.7"],
+    [".rule-tick", "stroke", "var(--eink-mid)"],
+    [".avg", "stroke", "var(--eink-mid)"],
+    [".avg-mark", "fill", "var(--eink-mid)"],
+    [".gap", "stroke", mix("eink-mid", 70)],
+    [".scale", "fill", "var(--eink-dim)"],
+    [".day", "fill", "var(--eink-dim)"],
+    [".vals-dim", "fill", "var(--eink-dim)"],
+    [".vals-strong", "fill", "var(--eink-ink)"],
+    [".needle-act", "fill", "var(--eink-ink)"],
+    [".pen", "fill", "var(--eink-ink)"],
+    [".needle-rec", "fill", mix("eink-ink", 16)],
+    [".needle-cap", "stroke", "var(--eink-dim)"],
+    [".trace", "stroke", "var(--eink-dim)"],
+    [".trace-label", "fill", "var(--eink-dim)"],
+    [".trace-dot", "fill", "var(--eink-paper-solid)"],
+    [".trace-dot", "stroke", "var(--eink-dim)"],
+    [".hover-band", "fill", mix("eink-ink", 10)],
+    [".pen-arm", "stroke", "var(--eink-mid)"],
+  ])("prints %s %s as %s", (selector, property, value) => {
+    expect(normalize(topLevel(selector)[property])).toBe(value);
+  });
+
+  it("keeps the recording lamp in signal orange", () => {
+    const declarations = topLevel(".pen-lamp");
+    expect(declarations.fill).toBe(`${SIGNAL})`);
+    expect(normalize(declarations.filter)).toBe(`drop-shadow(0 0 3px ${SIGNAL}))`);
+  });
+
+  it("keeps the recorder's fonts", () => {
+    expect(topLevel(".recorder-svg text")["font-family"]).toBe("var(--font-num)");
+    expect(topLevel(".recorder-svg .day")["font-family"]).toBe("var(--font-ui)");
+    expect(topLevel(".recorder-svg .vals")["font-family"]).toBe("var(--font-ui)");
+  });
+
+  it("paints the recorder only with e-ink tokens, in one recipe for both themes", () => {
+    const rules = recorderRules();
+    expect(rules.length).toBeGreaterThan(0);
+    for (const rule of rules) {
+      const label = `${rule.atRules.join(" ")} ${rule.selector}`;
+      const tokens = Object.values(rule.declarations).join(" ").match(/var\(--[\w-]+/g) ?? [];
+      for (const used of tokens) expect(used, label).toMatch(/^var\(--(eink-|font-|radius-)/);
+    }
+    // Any dark-theme selector naming a recorder class anywhere (compound, descendant or pseudo-element).
+    const classes = [...new Set(RECORDER.flatMap((selector) => selector.match(/\.[\w-]+/g) ?? []))];
+    const recorderClass = new RegExp(`(?:${classes.map((name) => `\\${name}`).join("|")})(?![\\w-])`);
+    const darkRecorder = allRules().flatMap((rule) =>
+      rule.selectors.filter((selector) => /data-theme=["']?dark/.test(selector) && recorderClass.test(selector)),
+    );
+    expect(darkRecorder).toEqual([]);
   });
 });
 

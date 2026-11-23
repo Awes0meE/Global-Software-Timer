@@ -737,7 +737,8 @@ main > p[role="status"] {
 }
 
 /* E-ink screen: matte paper, printed ink, no glow. */
-.lcd {
+.lcd,
+.paper {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-screen);
@@ -750,7 +751,8 @@ main > p[role="status"] {
 }
 
 /* Paper grain. */
-.lcd::before {
+.lcd::before,
+.paper::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -761,7 +763,8 @@ main > p[role="status"] {
 }
 
 /* Matte finish. */
-.lcd::after {
+.lcd::after,
+.paper::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -2139,6 +2142,7 @@ mark {
   .readout,
   .software-panel,
   .lcd,
+  .paper,
   .dialog,
   .add-software-dialog {
     background: Canvas;
@@ -2151,12 +2155,13 @@ mark {
     border: 1px solid CanvasText;
   }
 
-  /* Glass panels and the e-ink screen draw an inset outline, so neither the readout's height nor
+  /* Glass panels and the e-ink screens draw an inset outline, so neither the readout's height nor
      any content moves. */
   .panel,
   .readout,
   .software-panel,
-  .lcd {
+  .lcd,
+  .paper {
     outline: 1px solid CanvasText;
     outline-offset: -1px;
   }
@@ -2189,6 +2194,8 @@ mark {
 
   .lcd::before,
   .lcd::after,
+  .paper::before,
+  .paper::after,
   .lcd-value.lcd-ghost {
     display: none;
   }
