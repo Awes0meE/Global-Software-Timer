@@ -27,6 +27,18 @@ function declarationsFor(selector: string, atRules: string[] = []): Record<strin
 const SWITCH_TOKENS = ["--glass-surface", "--side-surface", "--glass-filter"];
 const FORCED = ["@media (forced-colors: active)"];
 
+/** Rules of a component stylesheet inside the forced-colours block that list `selector`. */
+function forcedRulesIn(file: string, selector: string): CssRule[] {
+  return parseRules(allCss()[file]).rules.filter(
+    (rule) =>
+      rule.atRules.length === 1 && normalize(rule.atRules[0]) === FORCED[0] && rule.selectors.includes(selector),
+  );
+}
+
+function forcedIn(file: string, selector: string): Record<string, string> {
+  return Object.assign({}, ...forcedRulesIn(file, selector).map((rule) => rule.declarations));
+}
+
 describe("glass switch tokens", () => {
   it("default to the translucent glass and the 30px blur", () => {
     const root = rules.filter(
@@ -223,6 +235,20 @@ describe("forced colors", () => {
 // inks (the light theme's near-black ones on a dark contrast palette), the legend keys, the heatmap cells and
 // the buttons' glass keys vanish. These rules redraw them in system colours and change no box.
 describe("forced colors: e-ink inks, keys, buttons and scrollers", () => {
+  const COMPONENT_FILES = ["AchievementsPage.css", "StatisticsPage.css"];
+  const PAINT_ONLY = [
+    "fill",
+    "stroke",
+    "background",
+    "box-shadow",
+    "outline",
+    "outline-offset",
+    "forced-color-adjust",
+    "filter",
+    "--eink-ink",
+    "border-color",
+    "border-top-color",
+  ];
   const SYSTEM_COLOUR = /\b(Canvas|CanvasText|GrayText|Highlight)\b/;
   const THEME_COLOUR = /#|\brgba?\(/;
   const forcedTopLevel = () =>
@@ -293,5 +319,132 @@ describe("forced colors: e-ink inks, keys, buttons and scrollers", () => {
         expect(declarationsFor(selector, FORCED)[property], `${selector} ${property}`).toBeUndefined();
       }
     }
+  });
+
+  // The cells (legend included) keep their own colours and print the usual ink levels in CanvasText.
+  it("prints the heatmap levels, the legend and the day marks in system colours", () => {
+    const file = "AchievementsPage.css";
+    const cell = forcedIn(file, ".ach-cell");
+    expect(cell["forced-color-adjust"]).toBe("none");
+    expect(cell["--eink-ink"]).toBe("CanvasText");
+    const tokens = { "--eink-ink": "CanvasText" };
+    const cellRules = parseRules(allCss()[file]).rules.filter(
+      (rule) => rule.atRules.length === 0 && rule.selectors.some((selector) => selector.startsWith(".ach-cell")),
+    );
+    for (const rule of cellRules) {
+      for (const property of ["background", "box-shadow", "outline"].filter((name) => name in rule.declarations)) {
+        const value = resolve(rule.declarations[property], tokens);
+        expect(value, `${rule.selector} ${property}`).not.toMatch(THEME_COLOUR);
+      }
+    }
+    // The unused-day cell is too faint at 9% / 20%, so it gets an inset GrayText ring; today keeps its own.
+    const unused = forcedIn(file, ".ach-cell.l0:not(.is-today)");
+    expect(normalize(unused.outline ?? "")).toBe("1px solid GrayText");
+    expect(unused["outline-offset"]).toBe("-1px");
+  });
+
+  it.each([
+    [".rule-major", "stroke", "GrayText"],
+    [".rule-minor", "stroke", "GrayText"],
+    [".rule-day", "stroke", "GrayText"],
+    [".rule-tick", "stroke", "GrayText"],
+    [".gap", "stroke", "GrayText"],
+    [".avg", "stroke", "GrayText"],
+    [".avg-mark", "fill", "GrayText"],
+    [".pen-arm", "stroke", "GrayText"],
+    [".needle-rec", "fill", "GrayText"],
+    [".needle-cap", "stroke", "CanvasText"],
+    [".needle-act", "fill", "CanvasText"],
+    [".scale", "fill", "CanvasText"],
+    [".day", "fill", "CanvasText"],
+    [".vals-strong", "fill", "CanvasText"],
+    [".vals-dim", "fill", "CanvasText"],
+    [".trace", "stroke", "CanvasText"],
+    [".trace-dot", "fill", "Canvas"],
+    [".trace-dot", "stroke", "CanvasText"],
+    [".trace-label", "fill", "CanvasText"],
+    [".pen", "fill", "CanvasText"],
+    [".pen-lamp", "fill", "Highlight"],
+    [".pen-lamp", "filter", "none"],
+  ])("prints the recorder's %s %s in %s", (selector, property, value) => {
+    expect(forcedIn("StatisticsPage.css", selector)[property]).toBe(value);
+  });
+
+  // A guard for recorder rules added later: every fill and stroke (other than none) has a forced system colour.
+  it("gives every recorder fill and stroke a forced system colour", () => {
+    const inked = (rule: CssRule) =>
+      ["fill", "stroke"].filter((name) => name in rule.declarations && rule.declarations[name] !== "none");
+    const painted = parseRules(allCss()["StatisticsPage.css"]).rules.filter(
+      (rule) => rule.atRules.length === 0 && inked(rule).length > 0,
+    );
+    expect(painted.length).toBeGreaterThan(0);
+    for (const rule of painted) {
+      for (const selector of rule.selectors) {
+        for (const property of inked(rule)) {
+          expect(forcedIn("StatisticsPage.css", selector)[property] ?? "", `${selector} ${property}`).toMatch(
+            SYSTEM_COLOUR,
+          );
+        }
+      }
+    }
+  });
+
+  it("keeps the recorder's legend keys in the paper's system colours", () => {
+    const recorded = forcedIn("StatisticsPage.css", ".key-rec");
+    expect(recorded["forced-color-adjust"]).toBe("none");
+    expect(recorded.background).toBe("GrayText");
+    expect(normalize(recorded["box-shadow"] ?? "")).toBe("inset 0 2px 0 CanvasText");
+    const active = forcedIn("StatisticsPage.css", ".key-act");
+    expect(active["forced-color-adjust"]).toBe("none");
+    expect(active.background).toBe("CanvasText");
+  });
+
+  // The component sheets load after styles.css and their forced rules repeat the normal selectors, so each
+  // must come after the rules it overrides; and it may only repaint, never resize.
+  it.each(COMPONENT_FILES)("orders %s's forced rules after the rules they repaint, and only repaints", (file) => {
+    const all = parseRules(allCss()[file]).rules;
+    const forced = all
+      .map((rule, index) => ({ rule, index }))
+      .filter(({ rule }) => rule.atRules.length === 1 && normalize(rule.atRules[0]) === FORCED[0]);
+    expect(forced.length).toBeGreaterThan(0);
+    for (const { rule, index } of forced) {
+      for (const selector of rule.selectors) {
+        let last = -1;
+        all.forEach((other, otherIndex) => {
+          if (other.atRules.length === 0 && other.selectors.includes(selector)) last = otherIndex;
+        });
+        expect(index, selector).toBeGreaterThan(last);
+      }
+      for (const property of Object.keys(rule.declarations)) {
+        expect(PAINT_ONLY, `${rule.selector} ${property}`).toContain(property);
+      }
+    }
+  });
+
+  it("matches the recorder's avg and gap keys to their GrayText marks and frames the hover card", () => {
+    expect(forcedIn("StatisticsPage.css", ".key-avg")["border-top-color"]).toBe("GrayText");
+    expect(forcedIn("StatisticsPage.css", ".key-gap")["border-color"]).toBe("GrayText");
+    const tip = forcedIn("StatisticsPage.css", ".trend-tip");
+    expect(normalize(tip.outline ?? "")).toBe("1px solid CanvasText");
+    expect(tip["outline-offset"]).toBe("-1px");
+  });
+
+  it("draws the idle meters and their keys in system colours", () => {
+    const file = "StatisticsPage.css";
+    expect(normalize(forcedIn(file, ".idle-bar").outline ?? "")).toBe("1px solid GrayText");
+    for (const selector of [".idle-bar i", ".idle-key i"]) {
+      expect(forcedIn(file, selector)["forced-color-adjust"], selector).toBe("none");
+    }
+    for (const selector of [".idle-win", ".idle-key.is-light i"]) {
+      expect(forcedIn(file, selector).background, selector).toBe("GrayText");
+      expect(forcedIn(file, selector)["box-shadow"], selector).toBe("none");
+    }
+    for (const selector of [".idle-focus", ".idle-key i"]) {
+      expect(forcedIn(file, selector).background, selector).toBe("CanvasText");
+    }
+  });
+
+  it("prints the heatmap's no-record dot in GrayText", () => {
+    expect(forcedIn("AchievementsPage.css", ".ach-cell.is-norecord::after").background).toBe("GrayText");
   });
 });

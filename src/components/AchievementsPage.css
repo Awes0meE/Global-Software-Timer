@@ -808,3 +808,25 @@
     padding-left: 18px;
   }
 }
+
+/* Contrast themes: the cells are fills and inset shadows, which forced colours drop. They keep their own
+   colours and the ink becomes CanvasText, so every level, the future and no-record marks and today's ring
+   print in CanvasText over Canvas at their usual strengths. Paint only; every cell keeps its box. */
+@media (forced-colors: active) {
+  .ach-cell {
+    forced-color-adjust: none;
+    --eink-ink: CanvasText;
+  }
+
+  /* The unused-day cell (9% fill, 20% ring) is too faint for a contrast theme; an inset GrayText ring marks
+     it. Today keeps its own ring. */
+  .ach-cell.l0:not(.is-today) {
+    outline: 1px solid GrayText;
+    outline-offset: -1px;
+  }
+
+  /* The no-record dot at 34% CanvasText falls under 3:1 on Canvas; GrayText keeps it a quiet but clear mark. */
+  .ach-cell.is-norecord::after {
+    background: GrayText;
+  }
+}
