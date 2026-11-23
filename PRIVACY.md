@@ -61,4 +61,6 @@ v0.3.1 does not upload usage data or require an account.
 
 v0.3.1 runs as a normal user-space app and does not request administrator permission by default.
 
+GST reads the Windows "Transparency effects" setting only to decide how panels look; it is not stored.
+
 Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.3.1, can be turned off in Settings, and does not require administrator permission.

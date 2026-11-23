@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Redesigned the whole app as a Mica-like glass shell with matte e-ink screens for the readouts, in both light and dark themes. Nothing about the data, metrics or layout changes.
+- The overview dial gains 96 quarter-hour ticks; the two large overview readouts keep a faint ghost of the previous value.
+- Panels turn opaque when Windows transparency effects are off, when reduced transparency is requested, or when blur is unsupported; high-contrast themes keep text and focus rings visible.
+- Signal orange now marks only what is happening now; selection and focus use a blue accent, and errors use their own red.
+
 ## v0.3.1 - 2026-11-22
 
 - Recorded a local timeline of focus and activity segments, and of when each software had a window, in the new `timeline_segments` and `timeline_window_spans` tables (schema version 3); nothing in the UI changes yet.

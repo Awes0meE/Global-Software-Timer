@@ -103,7 +103,7 @@ The v0.2 desktop UI additionally includes:
 
 - The desk-instrument visual system in `DESIGN.md`, replacing the Steam-like dark dashboard look.
 - Light and dark themes with a 跟随系统 / 浅色 / 深色 Settings choice stored as `ui.theme`.
-- A pixel-font LCD readout (bundled Ark Pixel 12px, SIL OFL 1.1) and the skeuomorphic clock app mark.
+- A pixel-font LCD readout (an e-ink screen since v0.4.0; bundled Ark Pixel 12px, SIL OFL 1.1) and the skeuomorphic clock app mark.
 
 v0.1.5 through v0.2.3 additionally include:
 
@@ -128,6 +128,11 @@ v0.3.1 additionally includes:
 - Timeline data collection: `timeline_segments` (focus identity and active state per credited stretch) and `timeline_window_spans` (when each software identity had a taskbar window), written in the tracker tick's transaction (SQLite schema 3). Kept permanently; no backfill, cleanup or export.
 - Hidden software is still recorded; hiding only affects display. The read-only `get_timeline_summary` command exists but no page calls it until v0.5.0.
 - Keep `PRIVACY.md` in step with any change to what these tables store. Binding decisions: `docs/superpowers/specs/2026-11-22-timeline-data-collection-design.md`.
+
+v0.4.0 additionally includes:
+
+- The Mica-glass shell with e-ink screens replaces the v0.2 desk-instrument case and LCD look (`DESIGN.md`). No tracking, schema (still 3), metric or wording change; the sidebar `时间轴` entry is still unavailable.
+- One read-only command, `get_transparency_effects_enabled`, reads the Windows transparency setting (HKCU, not stored); panels turn opaque when it is off. The only other data change is one extra read-only field in the dashboard summary: `get_dashboard_summary` returns `usage_date` (the local date of today's readings), which clears the overview readout ghost when the date changes. Binding decisions: `docs/superpowers/specs/2026-11-22-glass-eink-redesign-design.md`.
 
 v0.1 excludes:
 

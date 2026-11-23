@@ -58,7 +58,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 
 一天开着电脑十几个小时，真正在用的是哪几个软件？写代码写了多久，聊天软件挂了多久，哪个程序又在后台悄悄跑了一整天？
 
-**全局软件计时器**（Global Software Timer，简称 GST）在托盘里安静地帮你记下每个软件的运行时长，再用一块像素液晶屏，把今天的数字摆在你面前。不用手动开始，不用联网，不用注册账号。
+**全局软件计时器**（Global Software Timer，简称 GST）在托盘里安静地帮你记下每个软件的运行时长，再用一块像素墨水屏，把今天的数字摆在你面前。不用手动开始，不用联网，不用注册账号。
 
 > 💡 **小贴士**：装好之后基本不用管它。默认开机自启，关掉主窗口也照常记录；想看数据时，点一下右下角托盘里的小时钟就行。
 
@@ -88,7 +88,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
     </td>
     <td width="33%" valign="top">
       <h3>🎛️ 桌面仪器质感</h3>
-      <p>像素点阵液晶读数窗，配一圈 24 小时分段表盘。浅色 / 深色两套主题，默认跟随 Windows。</p>
+      <p>云母玻璃外壳里嵌着像素字墨水屏读数窗，配一圈 24 小时分段表盘。浅色 / 深色两套主题，默认跟随 Windows。</p>
     </td>
     <td width="33%" valign="top">
       <h3>🔍 中文友好的搜索</h3>
@@ -134,7 +134,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 
 ### 成就
 
-液晶屏里按月排开的活跃热力图，配上当前和最长连续天数；下方是个人纪录、10 到 1000 小时的里程碑（6666 小时为终极成就），以及近 30 天新出现和没再打开的软件。
+墨水屏里按月排开的活跃热力图，配上当前和最长连续天数；下方是个人纪录、10 到 1000 小时的里程碑（6666 小时为终极成就），以及近 30 天新出现和没再打开的软件。
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/ui-achievements-dark.png" />
@@ -319,7 +319,7 @@ Get-FileHash .\Global.Software.Timer_0.3.1_x64-setup.exe -Algorithm SHA256
 ## 🗺️ 路线图
 
 - [x] 托盘常驻，自动记录软件运行时长
-- [x] 今日记录 / 今日活跃 / 最常用的液晶读数与 24 小时表盘
+- [x] 今日记录 / 今日活跃 / 最常用的墨水屏读数与 24 小时表盘
 - [x] 软件页：特别关注、隐藏软件、离线拼音搜索
 - [x] Windows 11 托盘软件识别与「后台」进程页
 - [x] 浅色 / 深色主题，开机自启与关闭行为设置
@@ -399,6 +399,8 @@ npm run tauri:dev           # 启动桌面开发版
 npm run preview:ui          # 打开 http://localhost:1421，可加 ?theme=light|dark、?format=hm、?empty
 ```
 
+还可以加 `?page=software|background|statistics|achievements|settings` 直接打开某一页，`?glass=off` 看关闭透明效果后的不透明面板，`?tick` 让每次轮询把今日读数加 6 分钟，用来看读数残影。README 截图前先运行 `node scripts/ui-preview/collect-demo-icons.mjs` 取本地图标（不入库），再用 `node scripts/ui-preview/probe.mjs shot --url "http://localhost:1421/?page=<page>&theme=<theme>" --size 1440x900 --date 2026-11-22 --time 22:01 --out docs/assets/ui-<page>-<theme>.png` 截图：`--time` 固定时刻，读数和表盘不随截图时刻变化；`--date` 固定日期，统计和成就页的示例数据不随日期变化（其余参数见脚本头注释）。在另一个 worktree 里预览时用 `npm run preview:ui -- --port <n> --strictPort`，1421 留给主 checkout。
+
 提交前运行完整检查（前端测试与构建、Rust 格式检查与测试、依赖审计），打包时生成 EXE 和 MSI 安装包：
 
 ```powershell
@@ -448,7 +450,7 @@ npm.cmd run release:build
 ## 🙏 致谢
 
 - [Tauri](https://tauri.app)：轻量的桌面应用框架，让安装包保持在几 MB。
-- [方舟像素字体 Ark Pixel Font](https://github.com/TakWolf/ark-pixel-font)（作者 TakWolf）：液晶读数窗使用的像素字体，以 SIL Open Font License 1.1 授权，随应用打包在 `src/assets/fonts/`，许可文本见 [ark-pixel-OFL.txt](./src/assets/fonts/ark-pixel-OFL.txt)。
+- [方舟像素字体 Ark Pixel Font](https://github.com/TakWolf/ark-pixel-font)（作者 TakWolf）：墨水屏读数窗使用的像素字体，以 SIL Open Font License 1.1 授权，随应用打包在 `src/assets/fonts/`，许可文本见 [ark-pixel-OFL.txt](./src/assets/fonts/ark-pixel-OFL.txt)。
 - [pinyin-pro](https://github.com/zh-lx/pinyin-pro)：已发现软件的拼音搜索。
 - [Lucide](https://lucide.dev)：界面图标。
 
