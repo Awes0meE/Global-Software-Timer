@@ -9,6 +9,7 @@ import {
   parseColor,
   parseRules,
   radialLayers,
+  resolve,
   themeTokens,
   token,
   type CssRule,
@@ -48,6 +49,16 @@ function accentAt(s: Surfaces, alpha: number): Rgba {
   return { ...s.colour("--accent"), a: alpha };
 }
 
+// Plan trade-off 1 (local re-point): on the dark --glass-2 sub-plates the global --muted is too
+// faint, so this one rule points --muted at --ink-2 there. Read --muted as the plates see it.
+const SUB_PLATE_REPOINT = ':root[data-theme="dark"] :is(.mix-plate, .ach-plate.is-reached)';
+
+function subPlateMuted(s: Surfaces): Rgba {
+  const repoint = allRules().find((rule) => rule.atRules.length === 0 && rule.selector === SUB_PLATE_REPOINT);
+  const value = s.theme === "dark" ? repoint?.declarations["--muted"] : undefined;
+  return value ? parseColor(resolve(value, themeTokens("dark"))) : s.colour("--muted");
+}
+
 interface Combo {
   name: string;
   threshold: number;
@@ -64,6 +75,9 @@ const COMBOS: Combo[] = [
   { name: "--ink-2 on B", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), s.B] },
   { name: "--ink-2 on chip over B", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--chip"), s.B)] },
   { name: "--ink on glass-2 over B", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--glass-2"), s.B)] },
+  // Header button labels, including the unavailable ones (decision 1B, 2026-11-23).
+  { name: "--ink-2 on glass-2 over B", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--glass-2"), s.B)] },
+  { name: "--ink-2 on --on over B", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--on"), s.B)] },
   { name: "--ink on --on over B", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--on"), s.B)] },
   {
     name: "--alert-ink on alert-wash over glass-solid",
@@ -76,13 +90,13 @@ const COMBOS: Combo[] = [
   { name: "--muted on G", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.G] },
   { name: "--muted on S", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.S] },
   { name: "--ink-2 on chip over G", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--chip"), s.G)] },
+  // Also the in-panel control labels (更多, 编辑) on their --glass-2 key (decision 3C, 2026-11-23).
   { name: "--ink-2 on glass-2 over G", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--glass-2"), s.G)] },
-  // Dark is added in task 5 together with the trade-off 1 re-point.
+  { name: "--ink-2 on --on over G", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--on"), s.G)] },
   {
-    name: "--muted on glass-2 over G",
+    name: "--muted inside the sub-plates on glass-2 over G",
     threshold: TEXT,
-    themes: ["light"],
-    pair: (s) => [s.colour("--muted"), over(s.colour("--glass-2"), s.G)],
+    pair: (s) => [subPlateMuted(s), over(s.colour("--glass-2"), s.G)],
   },
   { name: "--ink on --on over G", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--on"), s.G)] },
   { name: "--signal-ink on G", threshold: TEXT, pair: (s) => [s.colour("--signal-ink"), s.G] },
@@ -179,6 +193,9 @@ const SPEC_TOKENS: Record<string, [light: string, dark: string]> = {
   "--chip": ["rgba(20,30,60,.06)", "rgba(255,255,255,.07)"],
   "--on": ["rgba(255,255,255,.75)", "rgba(255,255,255,.10)"],
   "--side": ["rgba(255,255,255,.38)", "rgba(30,30,34,.55)"],
+  "--edge": ["rgba(255,255,255,.75)", "rgba(255,255,255,.11)"],
+  // Plan trade-off 4: not in the spec table, chosen with the user on 2026-11-23.
+  "--edge-strong": ["rgba(20,30,60,.18)", "rgba(255,255,255,.18)"],
   "--rule": ["rgba(20,30,60,.07)", "rgba(255,255,255,.07)"],
   "--glass-hi": ["rgba(255,255,255,.8)", "rgba(255,255,255,.07)"],
   "--glass-shadow": ["0 18px 46px rgba(60,70,110,.14), 0 0 0 1px rgba(20,30,60,.06)", "0 24px 60px rgba(0,0,0,.35)"],

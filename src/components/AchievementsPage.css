@@ -28,8 +28,11 @@
 
 /* ---------- Heatmap readout ---------- */
 
+/* The glass filter makes this the hidden table's containing block; a table ignores height: 1px,
+   so clip it here or its full height becomes scrollable blank space. */
 .ach-readout {
   padding: 0 12px 12px;
+  overflow: clip;
 }
 
 .ach-readout-head {
@@ -384,7 +387,7 @@
 }
 
 .ach-record + .ach-record {
-  border-left: 1px solid var(--edge);
+  border-left: 1px solid var(--rule);
   box-shadow: inset 1px 0 0 var(--highlight);
 }
 
@@ -728,7 +731,7 @@
 /* ---------- Comings and goings ---------- */
 
 .ach-coming {
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
 }
 
 .ach-coming-row {

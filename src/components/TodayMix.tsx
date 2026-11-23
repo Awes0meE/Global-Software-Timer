@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { AppUsageRow, DurationFormat } from "../api";
 import { formatDurationZh } from "../i18n";
 import { UnavailableTooltip } from "./UnavailableTooltip";
@@ -34,13 +35,22 @@ export function TodayMix({ apps, durationFormat = "decimal_hours" }: Props) {
       <p className="mix-caption">今日活跃时间按前台软件拆分</p>
       <div className="mix-plate">
         <div className="mix-bar" aria-label="今日使用分布条">
-          {rows.map((app, index) => (
-            <span
-              className="mix-segment"
-              key={app.app_id}
-              style={{ width: `${share(app.active_today_seconds)}%`, backgroundColor: mixColor(index) }}
-            />
-          ))}
+          {rows.map((app, index) => {
+            const color = mixColor(index);
+            return (
+              <span
+                className="mix-segment"
+                key={app.app_id}
+                style={
+                  {
+                    width: `${share(app.active_today_seconds)}%`,
+                    backgroundColor: color,
+                    "--mix-color": color,
+                  } as CSSProperties
+                }
+              />
+            );
+          })}
         </div>
         <div className="mix-scroll" role="region" aria-label="今日分布列表" tabIndex={0}>
           {rows.length === 0 ? <div className="empty-state compact">今天还没有活跃记录。</div> : null}

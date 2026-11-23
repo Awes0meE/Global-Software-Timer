@@ -21,8 +21,8 @@
   --panel: #e9eaec;
   --panel-raised: #f4f5f6;
   --panel-sunken: #e1e3e6;
-  --edge: #c7cace;
-  --edge-strong: #aeb2b8;
+  --edge: rgba(255, 255, 255, 0.75);
+  --edge-strong: rgba(20, 30, 60, 0.18);
   --ink: #17191d;
   --ink-2: #33373e;
   --muted: #5a606c;
@@ -106,8 +106,8 @@
   --panel: #1a1b1e;
   --panel-raised: #222327;
   --panel-sunken: #151618;
-  --edge: #2b2d31;
-  --edge-strong: #3b3d42;
+  --edge: rgba(255, 255, 255, 0.11);
+  --edge-strong: rgba(255, 255, 255, 0.18);
   --ink: #f1f3f7;
   --ink-2: #d5d9e0;
   --muted: #98a0ad;
@@ -482,25 +482,15 @@ p {
   background: var(--chip);
 }
 
+/* Unavailable buttons keep the resting key and label, and hovering or pressing changes nothing
+   (decision 1B, 2026-11-23). */
 .header-button[aria-disabled="true"],
+.header-button[aria-disabled="true"]:is(:hover, :active),
 .panel-link[aria-disabled="true"] {
-  background: transparent;
-  color: var(--muted);
+  --muted: inherit;
+  background: var(--glass-2);
+  color: var(--ink-2);
   cursor: default;
-}
-
-/* Hovering or pressing an unavailable button changes nothing, so its label keeps the plain --muted. */
-.header-button[aria-disabled="true"]:hover {
-  --muted: inherit;
-  background: transparent;
-}
-
-.header-button[aria-disabled="true"]:active {
-  --muted: inherit;
-}
-
-.date-control {
-  color: var(--muted);
 }
 
 .button-primary,
@@ -586,12 +576,15 @@ p {
 .panel,
 .readout,
 .software-panel {
-  border-radius: var(--radius-case);
-  background: var(--panel);
-  box-shadow:
-    inset 0 1px 0 var(--highlight),
-    0 0 0 1px var(--edge),
-    0 1px 1px var(--shade);
+  /* An inset outline instead of a border keeps frames and content where v0.3.1 had them; it covers
+     the top row, so the highlight is two rows tall (decision 2A, 2026-11-23). */
+  border: 0;
+  outline: 1px solid var(--edge);
+  outline-offset: -1px;
+  border-radius: var(--radius-panel);
+  background: var(--glass-surface);
+  box-shadow: var(--glass-shadow), inset 0 2px 0 var(--glass-hi);
+  backdrop-filter: var(--glass-filter);
 }
 
 .panel {
@@ -640,7 +633,15 @@ p {
   height: 26px;
   padding: 0 9px;
   font-size: 12px;
-  background: transparent;
+}
+
+/* Controls inside a glass panel get a stronger line on their --glass-2 key (decision 3C, 2026-11-23). */
+:where(.panel, .software-panel, .readout) :is(.panel-link, .text-action, .button:not(.button-primary)) {
+  box-shadow: inset 0 0 0 1px var(--edge-strong);
+}
+
+:where(.panel, .software-panel, .readout) :is(.panel-link, .text-action, .button:not(.button-primary)):focus-visible {
+  box-shadow: inset 0 0 0 1px var(--edge-strong), var(--focus);
 }
 
 .empty-state {
@@ -654,6 +655,12 @@ p {
 .empty-state strong {
   color: var(--ink-2);
   font-weight: 600;
+}
+
+/* Loading notes outside any panel sit straight on the glow, where --muted is too faint. */
+main > .empty-state,
+main > p[role="status"] {
+  color: var(--ink-2);
 }
 
 .empty-state.compact {
@@ -911,7 +918,7 @@ p {
   gap: 14px;
   min-height: 52px;
   padding: 0 18px;
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
 }
 
 .usage-row > .num {
@@ -920,9 +927,11 @@ p {
   white-space: nowrap;
 }
 
+/* The rule sits under the column labels, not between them and the panel title. */
 .usage-head {
   min-height: 30px;
-  background: var(--panel-sunken);
+  border-top: 0;
+  border-bottom: 1px solid var(--rule);
   color: var(--muted);
   font-size: 12px;
   letter-spacing: 0.08em;
@@ -944,7 +953,8 @@ p {
 
 .usage-scroll .usage-row:hover,
 .background-row:hover {
-  background: color-mix(in srgb, var(--panel-raised) 60%, transparent);
+  --muted: var(--ink-2);
+  background: var(--chip);
 }
 
 .software-cell {
@@ -1009,7 +1019,7 @@ p {
 .software-icon-lg {
   width: 44px;
   height: 44px;
-  border-radius: var(--radius-case);
+  border-radius: var(--radius-screen);
 }
 
 :root[data-theme="light"] .software-icon:has(img:not([hidden])) {
@@ -1027,14 +1037,16 @@ p {
   place-items: center;
   width: 100%;
   height: 100%;
-  background: var(--panel-sunken);
+  /* No --muted text inside today; the chip contrast guard (trade-off 26) still asks for it. */
+  --muted: var(--ink-2);
+  background: var(--chip);
   color: var(--ink-2);
   font: 600 14px var(--font-num);
   box-shadow: inset 0 0 0 1px var(--edge-strong);
   border-radius: inherit;
 }
 
-/* Distribution colours live only inside this plate. */
+/* Software identity colours; the distribution plate is where they appear today. */
 .mix-total {
   padding: 0 18px;
   font-size: 30px;
@@ -1054,21 +1066,37 @@ p {
   margin: 0 14px 14px;
   padding: 12px 12px 6px;
   border-radius: var(--radius-key);
-  background: var(--panel-raised);
-  box-shadow: inset 0 0 0 1px var(--edge-strong);
+  background: var(--glass-2);
+  box-shadow: inset 0 0 0 1px var(--edge);
 }
 
+/* Plan trade-off 1: dark --muted is too faint on --glass-2 sub-plates. */
+:root[data-theme="dark"] :is(.mix-plate, .ach-plate.is-reached) {
+  --muted: var(--ink-2);
+}
+
+/* No overflow clip, so the segments' glow shows; the end segments carry the rounding instead. */
 .mix-bar {
   display: flex;
   gap: 2px;
   height: 12px;
-  overflow: hidden;
   border-radius: var(--radius-tag);
-  background: var(--panel-sunken);
+  background: var(--chip);
 }
 
 .mix-segment {
   min-width: 2px;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--mix-color) var(--mix-glow), transparent);
+}
+
+.mix-segment:first-child {
+  border-top-left-radius: var(--radius-tag);
+  border-bottom-left-radius: var(--radius-tag);
+}
+
+.mix-segment:last-child {
+  border-top-right-radius: var(--radius-tag);
+  border-bottom-right-radius: var(--radius-tag);
 }
 
 .mix-scroll {
@@ -1118,7 +1146,7 @@ p {
   gap: 11px;
   min-height: 44px;
   padding: 0 18px;
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
 }
 
 .recent-item strong {
@@ -1274,7 +1302,7 @@ p {
   gap: 10px;
   min-height: 50px;
   padding: 0 16px 0 8px;
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
 }
 
 .focused-table-row > span:not(.software-remove-slot):not(.active-column-head) {
@@ -1293,6 +1321,8 @@ p {
   color: var(--muted);
   font-size: 12px;
   letter-spacing: 0.04em;
+  /* A sticky, opaque head paints over the panel's inset outline, so it redraws the edge (decision 2A). */
+  box-shadow: inset 1px 0 0 var(--edge), inset -1px 0 0 var(--edge);
 }
 
 .focused-table-head > span:not(.software-remove-slot) {
@@ -1338,7 +1368,7 @@ p {
   gap: 10px;
   min-height: 48px;
   padding: 0 18px 0 8px;
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
 }
 
 .software-mark {
@@ -1393,7 +1423,7 @@ p {
   gap: 10px;
   min-height: 48px;
   padding: 0 16px;
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
 }
 
 .discovered-copy,
@@ -1610,7 +1640,7 @@ mark {
 .add-software-results {
   min-height: 0;
   overflow: auto;
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
 }
 
 .add-software-row {
@@ -1622,7 +1652,7 @@ mark {
   min-height: 48px;
   padding: 0 16px 0 20px;
   border: 0;
-  border-bottom: 1px solid var(--edge);
+  border-bottom: 1px solid var(--rule);
   background: transparent;
   text-align: left;
 }
@@ -1647,7 +1677,7 @@ mark {
   align-items: center;
   gap: 12px;
   padding: 12px 16px 16px 20px;
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
 }
 
 .add-software-footer .add-software-actions {
@@ -1713,7 +1743,7 @@ mark {
   gap: 14px;
   min-height: 60px;
   padding: 8px 20px;
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
 }
 
 .settings-group h3 + .settings-row {
@@ -1965,7 +1995,20 @@ mark {
   .add-software-dialog {
     background: Canvas;
     color: CanvasText;
+  }
+
+  .sidebar,
+  .lcd,
+  .dialog,
+  .add-software-dialog {
     border: 1px solid CanvasText;
+  }
+
+  /* Glass panels keep their inset outline, so their content does not move. */
+  .panel,
+  .readout,
+  .software-panel {
+    outline: 1px solid CanvasText;
   }
 
   .lcd::before,
@@ -2075,6 +2118,15 @@ mark {
   font-weight: 600;
 }
 
+/* The sticky, opaque end cells paint over the panel's inset outline, so they redraw the edge (decision 2A). */
+.background-table th:first-child {
+  box-shadow: inset 1px 0 0 var(--edge);
+}
+
+.background-table th:last-child {
+  box-shadow: inset -1px 0 0 var(--edge);
+}
+
 .background-table .sort-button {
   display: flex;
   align-items: center;
@@ -2144,7 +2196,7 @@ mark {
 }
 
 .background-table td {
-  border-bottom: 1px solid var(--edge);
+  border-bottom: 1px solid var(--rule);
 }
 
 .background-table :is(th, td):first-child {

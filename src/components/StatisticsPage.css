@@ -282,12 +282,12 @@
 }
 
 .rule-minor {
-  stroke: var(--edge);
+  stroke: var(--edge-strong);
   opacity: 0.7;
 }
 
 .rule-day {
-  stroke: var(--edge);
+  stroke: var(--edge-strong);
 }
 
 .rule-tick {
@@ -453,7 +453,7 @@
   gap: 12px;
   min-height: 31px;
   padding: 0 18px;
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
   font-size: 14px;
 }
 
@@ -589,7 +589,7 @@
 
 .stats-empty {
   align-content: center;
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
   font-size: 13px;
 }
 
@@ -642,7 +642,7 @@
   align-items: center;
   gap: 4px 0;
   padding: 8px 18px 10px;
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
   color: var(--muted);
   font-size: 12px;
 }
@@ -671,7 +671,7 @@
 .rhythm-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-top: 1px solid var(--edge);
+  border-top: 1px solid var(--rule);
 }
 
 .rhythm-cell {
@@ -683,7 +683,7 @@
 }
 
 .rhythm-cell + .rhythm-cell {
-  border-left: 1px solid var(--edge);
+  border-left: 1px solid var(--rule);
 }
 
 .rhythm-label {
@@ -757,7 +757,7 @@
   }
 
   .rhythm-cell:nth-child(n + 3) {
-    border-top: 1px solid var(--edge);
+    border-top: 1px solid var(--rule);
   }
 }
 

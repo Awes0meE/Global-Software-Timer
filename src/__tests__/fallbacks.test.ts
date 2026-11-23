@@ -105,7 +105,15 @@ describe("forced colors", () => {
       const declarations = declarationsFor(selector, FORCED);
       expect(declarations.background, selector).toBe("Canvas");
       expect(declarations.color, selector).toBe("CanvasText");
-      expect(normalize(declarations.border ?? ""), selector).toBe("1px solid CanvasText");
+    }
+    for (const selector of [".sidebar", ".lcd", ".dialog", ".add-software-dialog"]) {
+      expect(normalize(declarationsFor(selector, FORCED).border ?? ""), selector).toBe("1px solid CanvasText");
+    }
+    // Glass panels keep their inset outline (decision 2A), so a border would move their content.
+    for (const selector of [".panel", ".readout", ".software-panel"]) {
+      const declarations = declarationsFor(selector, FORCED);
+      expect(declarations.border, selector).toBeUndefined();
+      expect(normalize(declarations.outline ?? ""), selector).toBe("1px solid CanvasText");
     }
   });
 });

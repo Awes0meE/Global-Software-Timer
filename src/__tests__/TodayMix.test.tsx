@@ -49,4 +49,18 @@ describe("TodayMix", () => {
     expect(container.querySelector(".mix-total")).toHaveTextContent("2分钟");
     expect(screen.getAllByText("2分钟").length).toBeGreaterThan(0);
   });
+
+  it("hands each bar segment its identity colour for the glow", () => {
+    const apps = [
+      appRow(1, 3600, 300),
+      appRow(2, 65, 125),
+    ];
+
+    const { container } = render(<TodayMix apps={apps} />);
+    const segments = container.querySelectorAll<HTMLElement>(".mix-segment");
+
+    expect(segments).toHaveLength(2);
+    expect(segments[0].style.getPropertyValue("--mix-color")).toBe("var(--mix-1)");
+    expect(segments[1].style.getPropertyValue("--mix-color")).toBe("var(--mix-2)");
+  });
 });
