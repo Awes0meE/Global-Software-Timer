@@ -2152,7 +2152,8 @@ mark {
   }
 
   /* Reached milestone plates draw their lines with box-shadow, which forced colours drop, while unlit
-     plates keep their dashed border; inset outlines keep the reached ones framed without moving them. */
+     plates keep their dashed inset outline (in CanvasText); solid inset outlines keep the reached ones framed
+     without moving them. */
   .ach-plate.is-reached {
     outline: 1px solid CanvasText;
     outline-offset: -1px;

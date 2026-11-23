@@ -545,11 +545,15 @@ describe("achievement records, milestone plates and comings", () => {
   });
 
   // Trade-off 7: the light --edge is invisible on glass, so unlit plates use a dashed --edge-strong.
-  it("draws unlit plates as a dashed --edge-strong outline", () => {
+  // 用户已确认（2026-11-23）: an inset outline instead of a border, so the unlit plate's content sits where
+  // a lit plate's does (no 1px border pushing it in) and the outer box stays the same.
+  it("draws unlit plates as a dashed --edge-strong inset outline, without a border", () => {
     const declarations = topLevel(".ach-plate.is-slot");
     expect(declarations.background).toBe("transparent");
     expect(declarations["box-shadow"]).toBe("none");
-    expect(normalize(declarations.border)).toBe("1px dashed var(--edge-strong)");
+    expect(declarations.border).toBe("0");
+    expect(normalize(declarations.outline)).toBe("1px dashed var(--edge-strong)");
+    expect(declarations["outline-offset"]).toBe("-1px");
     expect(topLevel(".ach-plate.is-slot .ach-plate-tier b").color).toBe("var(--muted)");
   });
 

@@ -219,7 +219,7 @@ describe("forced colors", () => {
     expect(normalize(declarationsFor(selector, FORCED)[property] ?? ""), selector).toBe("1px solid CanvasText");
   });
 
-  // Forced colours drop the box-shadow lines of reached plates but keep the unlit plates' dashed border,
+  // Forced colours drop the box-shadow lines of reached plates but keep the unlit plates' dashed inset outline,
   // so reached plates (and the 6666-hour one in Highlight) get inset outlines that leave the box alone.
   it.each([
     [".ach-plate.is-reached", "1px solid CanvasText", "-1px"],
@@ -228,6 +228,24 @@ describe("forced colors", () => {
     const declarations = declarationsFor(selector, FORCED);
     expect(normalize(declarations.outline ?? ""), selector).toBe(outline);
     expect(declarations["outline-offset"], selector).toBe(offset);
+  });
+
+  // An unlit plate's dashed inset outline is forced to CanvasText but keeps its dashes, so it stays apart from
+  // the reached plates' solid one; no forced rule in any stylesheet may restyle the outline of a plate selector
+  // that does not require .is-reached (".ach-plate", ".ach-plate.is-slot", ...).
+  it("leaves the unlit plate's dashed outline to the forced palette", () => {
+    const OUTLINE = ["outline", "outline-style", "outline-color", "outline-width"];
+    const lastCompound = (selector: string) => selector.trim().split(/\s*[>+~]\s*|\s+/).pop() ?? "";
+    const restyling = allRules()
+      .filter((rule) => rule.atRules.map(normalize).includes(FORCED[0]))
+      .filter((rule) => OUTLINE.some((property) => property in rule.declarations))
+      .flatMap((rule) =>
+        rule.selectors
+          .filter((selector) => /\.ach-plate(?![\w-])/.test(lastCompound(selector)))
+          .filter((selector) => !/\.is-reached(?![\w-])/.test(lastCompound(selector)))
+          .map((selector) => `${rule.file}: ${selector}`),
+      );
+    expect(restyling).toEqual([]);
   });
 });
 
