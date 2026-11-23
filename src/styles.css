@@ -1329,6 +1329,28 @@ main > p[role="status"] {
   overflow: auto;
 }
 
+/* Each of these scrollers ends its panel, so whenever it fills the panel it reaches the 16px bottom curve,
+   where the last row's hover fill and the scrollbar would show square corners (in forced colours the
+   scrollbar is a bordered Canvas box that also covers the outline). Clip it to the inner edge of the panel's
+   outline and its curve; clip-path changes no box. A short list ends mid-panel and takes the same clip: its
+   last row's hover fill rounds off and the 后台 table's last rule goes, so it ends like the other lists. The
+   top stays open (-1px), so a first row's line at a fractional y is not cut. */
+:is(.usage-scroll, .recent-scroll, .software-table-scroll, .hidden-software-scroll, .discovered-scroll),
+.ach-coming:last-child .ach-coming-list {
+  clip-path: inset(-1px 1px 1px round 0 0 calc(var(--radius-panel) - 1px) calc(var(--radius-panel) - 1px));
+}
+
+/* Focus drops the clip, so the usual outward ring shows whole: an inner ring would sit under the sticky
+   heads and be cut by the curve. The name list has no tabIndex but takes focus as a scroller with nothing
+   focusable inside. Of the focusable contents only the 后台 table's sort buttons reach the clip: flush with
+   the sides, their 2px inset ring would be halved. The 特别关注 help and remove buttons sit well inside it.
+   The square corners show again only while focused. */
+:is(.usage-scroll, .recent-scroll, .software-table-scroll, .hidden-software-scroll, .discovered-scroll):focus-visible,
+.usage-scroll:has(:focus-visible),
+.ach-coming:last-child .ach-coming-list:focus-visible {
+  clip-path: none;
+}
+
 .focused-table {
   min-width: 100%;
   width: min-content;
@@ -1364,7 +1386,8 @@ main > p[role="status"] {
   color: var(--muted);
   font-size: 12px;
   letter-spacing: 0.04em;
-  /* A sticky, opaque head paints over the panel's inset outline, so it redraws the edge (decision 2A). */
+  /* A sticky, opaque head paints over the panel's inset outline, so it redraws the edge (decision 2A); that
+     shows while its scroller is focused, otherwise the scroller's side clip lets the outline through. */
   box-shadow: inset 1px 0 0 var(--edge), inset -1px 0 0 var(--edge);
 }
 
@@ -2137,8 +2160,9 @@ mark {
   }
 
   /* The opaque sticky heads cover that outline and forced colours drop the shadow that redraws it,
-     so their ends draw the edge as a border instead. While their scroller is not focused, its side clip
-     (below) trims that border and the outline itself shows; a focused scroller drops the clip. */
+     so their ends draw the edge as a border instead. While neither their scroller nor a sort button in it is
+     focused, its side clip (outside this block) trims that border and the outline itself shows; focus drops
+     the clip, and these borders redraw the panel edge. */
   .focused-table-head {
     border-inline: 1px solid CanvasText;
   }
@@ -2247,26 +2271,11 @@ mark {
     outline-color: GrayText;
   }
 
-  /* Forced colours draw scrollbars as bordered, Canvas-filled boxes, which cover the panel's outline where a
-     scroller runs edge to edge, and whose square corner sticks out of the panel's 16px curve. Each of these
-     scrollers ends its panel, so whenever it scrolls it reaches the panel's bottom corners: clip it to the
-     inner edge of the outline and its curve (no box change). The top stays open (-1px), so a first row's
-     line at a fractional y is not cut. */
-  :is(.usage-scroll, .recent-scroll, .software-table-scroll, .hidden-software-scroll, .discovered-scroll),
-  .ach-coming:last-child .ach-coming-list {
-    clip-path: inset(-1px 1px 1px round 0 0 calc(var(--radius-panel) - 1px) calc(var(--radius-panel) - 1px));
-  }
-
-  /* A name list above the last one sits mid-panel: only its sides keep off the outline. */
-  .ach-coming:not(:last-child) .ach-coming-list {
+  /* The panel-end scrollers keep the plain clip and focus rules (outside this block). A name list above the
+     last one sits mid-panel, where only its bordered scrollbar's sides would cover the outline: keep it off
+     them, except while focused, so its 2px Highlight ring shows whole. */
+  .ach-coming:not(:last-child) .ach-coming-list:not(:focus-visible) {
     clip-path: inset(-1px 1px);
-  }
-
-  /* A focused scroller drops the clip, so its usual 2px Highlight ring shows whole outside it: an inner ring
-     would sit under the sticky table heads and be cut by the curve. The square scrollbar corner then shows
-     inside that ring, and the heads' end borders above redraw the panel edge. */
-  :is(.usage-scroll, .recent-scroll, .software-table-scroll, .hidden-software-scroll, .discovered-scroll):focus-visible {
-    clip-path: none;
   }
 
   /* A switched-off toggle is drawn only with shadows and fills, which forced colours remove. An inset
@@ -2414,7 +2423,8 @@ mark {
   font-weight: 600;
 }
 
-/* The sticky, opaque end cells paint over the panel's inset outline, so they redraw the edge (decision 2A). */
+/* The sticky, opaque end cells paint over the panel's inset outline, so they redraw the edge (decision 2A).
+   That shows while the scroller drops its side clip on focus; otherwise the clip lets the outline through. */
 .background-table th:first-child {
   box-shadow: inset 1px 0 0 var(--edge);
 }

@@ -477,33 +477,63 @@ describe("forced colors: e-ink inks, keys, buttons and scrollers", () => {
     expect(Object.keys(declarations)).toEqual(["outline-color"]);
   });
 
-  // Forced colours draw scrollbars as bordered, Canvas-filled boxes which cover the panel's outline and
-  // whose square corner sticks out of the panel's 16px curve; a clip-path to the outline's inner edge (no
-  // box change) keeps them inside. Only scrollers that end their panel take the curve.
+  // The scrollers that end their panel reach its 16px bottom curve whenever they fill it, where the last row's
+  // hover fill and the scrollbar are square (and, in forced colours, the scrollbar is a bordered Canvas box over
+  // the outline). A clip-path to the outline's inner edge and curve (no box change) keeps them inside, in every mode.
   const SCROLLERS = ":is(.usage-scroll, .recent-scroll, .software-table-scroll, .hidden-software-scroll, .discovered-scroll)";
+  const PANEL_END = [SCROLLERS, ".ach-coming:last-child .ach-coming-list"];
   const PANEL_END_CLIP = "inset(-1px 1px 1px round 0 0 calc(var(--radius-panel) - 1px) calc(var(--radius-panel) - 1px))";
+  // Every scroller takes focus (tabIndex, or as a scroller with nothing focusable inside). Of their focusable
+  // contents only the 后台 table's sort buttons reach the clip: flush with the sides, their 2px inset ring would
+  // be halved. The 特别关注 help and remove buttons sit well inside it.
+  const FOCUSED = [
+    `${SCROLLERS}:focus-visible`,
+    ".usage-scroll:has(:focus-visible)",
+    ".ach-coming:last-child .ach-coming-list:focus-visible",
+  ];
+  const MID_PANEL = ".ach-coming:not(:last-child) .ach-coming-list:not(:focus-visible)";
 
-  it("clips the scrollers that end a panel to its outline and curve, top left open", () => {
-    for (const selector of [SCROLLERS, ".ach-coming:last-child .ach-coming-list"]) {
-      expect(normalize(declarationsFor(selector, FORCED)["clip-path"] ?? ""), selector).toBe(PANEL_END_CLIP);
+  it("clips the scrollers that end a panel to its outline and curve in every mode, top left open", () => {
+    for (const selector of PANEL_END) {
+      expect(normalize(declarationsFor(selector)["clip-path"] ?? ""), selector).toBe(PANEL_END_CLIP);
+      expect(rulesFor(selector, FORCED), selector).toEqual([]);
     }
-    // The first name list sits mid-panel: sides only, no curve.
-    expect(normalize(declarationsFor(".ach-coming:not(:last-child) .ach-coming-list", FORCED)["clip-path"] ?? "")).toBe(
-      "inset(-1px 1px)",
-    );
-    // No rule clips every name list, mid-panel ones included.
-    expect(rules.some((rule) => rule.selectors.includes(".ach-coming-list") && "clip-path" in rule.declarations)).toBe(
-      false,
-    );
+    // No rule in any stylesheet clips every name list, mid-panel ones included.
+    expect(
+      allRules().some((rule) => rule.selectors.includes(".ach-coming-list") && "clip-path" in rule.declarations),
+    ).toBe(false);
   });
 
-  // An inner ring would sit under the sticky heads and be cut by the curve, so a focused scroller drops the
-  // clip and keeps the plain outward ring; its selector must not outrank :focus-visible's offset either.
-  it("drops the clip on a focused scroller so the outward focus ring shows whole", () => {
-    const focused = declarationsFor(`${SCROLLERS}:focus-visible`, FORCED);
-    expect(focused["clip-path"]).toBe("none");
-    expect(focused["outline-offset"]).toBeUndefined();
+  // A ring inside the scroller would sit under the sticky heads and be cut by the curve, so focus drops the
+  // clip and keeps the plain outward ring; the selectors must not outrank :focus-visible's offset either.
+  it("drops the clip while a scroller or a sort button in it is focused, so the ring shows whole", () => {
+    for (const selector of FOCUSED) {
+      const focused = declarationsFor(selector);
+      expect(focused["clip-path"], selector).toBe("none");
+      expect(focused["outline-offset"], selector).toBeUndefined();
+      expect(rulesFor(selector, FORCED), selector).toEqual([]);
+    }
     expect(declarationsFor(":focus-visible", FORCED)["outline-offset"]).toBe("2px");
+  });
+
+  // Forced colours only: a name list above the last one sits mid-panel, where its bordered scrollbar would
+  // cover the outline; it keeps off the sides only, and not while focused.
+  it("clips a mid-panel name list at its sides in forced colours only", () => {
+    expect(normalize(declarationsFor(MID_PANEL, FORCED)["clip-path"] ?? "")).toBe("inset(-1px 1px)");
+    const scrollerClips = allRules().filter(
+      (rule) =>
+        "clip-path" in rule.declarations &&
+        rule.selectors.some((selector) =>
+          /(usage|recent|software-table|hidden-software|discovered)-scroll|ach-coming-list/.test(selector),
+        ),
+    );
+    // Outside @media only the panel-end clip and its focus exceptions; inside, only the mid-panel one, forced.
+    expect(scrollerClips.filter((rule) => rule.atRules.length === 0).flatMap((rule) => rule.selectors).sort()).toEqual(
+      [...PANEL_END, ...FOCUSED].sort(),
+    );
+    const scopedClips = scrollerClips.filter((rule) => rule.atRules.length > 0);
+    expect(scopedClips.map((rule) => rule.selector)).toEqual([MID_PANEL]);
+    expect(normalize(scopedClips[0].atRules.join(" "))).toBe(FORCED[0]);
   });
 
   // 今日分布: identity colours are the only link between the bar and its list, so they stay, framed.
