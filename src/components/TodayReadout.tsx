@@ -70,6 +70,8 @@ type Reading = "recorded" | "active";
 
 interface Shown {
   format: DurationFormat;
+  /** The seconds the shown text was formatted from, to tell a shrink from a rise. */
+  seconds: number;
   text: string;
   parts: DurationPart[];
   previous: DurationPart[] | null;
@@ -86,22 +88,30 @@ export function forgetShownReadings() {
   shownInWindow.clear();
 }
 
-/** `last` moved on to the reading shown now; the same object when the shown text has not changed. */
+/**
+ * `last` moved on to the reading shown now; the same object when the shown text has not changed and
+ * the reading has not shrunk. A smaller reading (in seconds, even with the same text) leaves no ghost:
+ * today's readings only shrink at day rollover, so the first smaller reading after midnight drops
+ * yesterday's ghost. A rollover the readings do not shrink across is not noticed.
+ */
 function nextShown(last: Shown | undefined, seconds: number, format: DurationFormat): Shown {
   const text = formatDurationZh(seconds, format);
-  if (last && last.format === format && last.text === text) return last;
+  const kept = last !== undefined && last.format === format && seconds >= last.seconds;
+  if (kept && last.text === text) return last;
   return {
     format,
+    seconds,
     text,
     parts: formatDurationPartsZh(seconds, format),
-    previous: last && last.format === format ? last.parts : null,
+    previous: kept ? last.parts : null,
   };
 }
 
 /**
  * The reading shown now and, for the e-ink ghost, the one shown before it in this window; `previous`
- * is null until the shown text changes, and again after the duration format changes. Moved on during
- * render, so each change is remembered once, also under StrictMode.
+ * is null until the shown text changes, again after the duration format changes, and when the reading
+ * shrank (day rollover). Moved on during render, so each change is remembered once, also under
+ * StrictMode.
  */
 function useShownReading(reading: Reading, seconds: number, format: DurationFormat): Shown {
   const [shown, setShown] = useState<Shown>(() => nextShown(shownInWindow.get(reading), seconds, format));

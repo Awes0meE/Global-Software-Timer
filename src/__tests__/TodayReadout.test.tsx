@@ -198,6 +198,53 @@ describe("TodayReadout ghost", () => {
     expect(again.container.querySelector(".lcd-ghost")).toBeNull();
   });
 
+  // Today's readings only shrink at day rollover, so a smaller reading drops yesterday's ghost.
+  it("draws no ghost when the reading shrinks", () => {
+    const { rerender } = render(readout(34560, 3600));
+    rerender(readout(360, 3600));
+
+    expect(cell("今日记录").querySelector(".lcd-ghost")).toBeNull();
+    expect(cell("今日记录").querySelector(".lcd-value:not(.lcd-ghost) > span:not(.lcd-ghost) b")).toHaveTextContent("0.1");
+  });
+
+  it("drops the ghost when the reading shrinks without changing its text", () => {
+    const { rerender } = render(readout(0, 3600));
+    rerender(readout(360, 3600));
+    expect(ghostParts("今日记录")).toEqual([["0.0", "小时"]]);
+
+    // 300s also shows 0.1, as yesterday's 360s did.
+    rerender(readout(300, 3600));
+    expect(cell("今日记录").querySelector(".lcd-ghost")).toBeNull();
+
+    rerender(readout(720, 3600));
+    expect(ghostParts("今日记录")).toEqual([["0.1", "小时"]]);
+  });
+
+  it("leaves the reading shown after a shrink behind the next one", () => {
+    const { rerender } = render(readout(34560, 3600));
+    rerender(readout(360, 3600));
+    rerender(readout(720, 3600));
+
+    expect(ghostParts("今日记录")).toEqual([["0.1", "小时"]]);
+  });
+
+  it("draws no ghost when the reading shrank while the overview was not shown", () => {
+    const first = render(readout(34560, 3600));
+    first.unmount();
+
+    const again = render(readout(360, 3600));
+    expect(again.container.querySelector(".lcd-ghost")).toBeNull();
+  });
+
+  it("judges each reading's shrink on its own", () => {
+    const { rerender } = render(readout(34560, 3600));
+    // Not a real rollover, where both shrink: only shows that one reading does not clear the other's ghost.
+    rerender(readout(360, 3960));
+
+    expect(cell("今日记录").querySelector(".lcd-ghost")).toBeNull();
+    expect(ghostParts("今日活跃")).toEqual([["1.0", "小时"]]);
+  });
+
   it("remembers each change once under StrictMode", () => {
     const strict = (recorded: number) => <StrictMode>{readout(recorded, 3600)}</StrictMode>;
     const { rerender } = render(strict(4 * 3600));
