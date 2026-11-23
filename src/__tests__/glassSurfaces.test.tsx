@@ -750,6 +750,70 @@ describe("e-ink screen", () => {
   });
 });
 
+// Plan task 13, spec 迁移表「成就热力图」: the same ink levels printed in --eink-ink, one grading for
+// both themes and no glow.
+describe("achievements heatmap ink", () => {
+  // Built from pieces so a repo-wide search for the retired tokens finds only real uses.
+  const OLD_INK = "var(--" + "lcd";
+  const DARK = ':root[data-theme="dark"] ';
+  const achievementRules = () => allRules().filter((rule) => rule.file.includes("AchievementsPage"));
+  const mix = (percent: number) => `color-mix(in srgb, var(--eink-ink) ${percent}%, transparent)`;
+
+  it("leaves no LCD ink in the achievements stylesheet", () => {
+    for (const rule of achievementRules()) {
+      const text = Object.values(rule.declarations).join(" ");
+      expect(text, `${rule.atRules.join(" ")} ${rule.selector}`).not.toContain(OLD_INK);
+    }
+  });
+
+  it("dots the month and reading rules in --eink-ink at 22%", () => {
+    expect(normalize(topLevel(".lcd.ach-dial")["--ach-rule"])).toBe(`2px dotted ${mix(22)}`);
+  });
+
+  it.each([
+    [".ach-cell.l0", "background", mix(9)],
+    [".ach-cell.l0", "box-shadow", `inset 0 0 0 1px ${mix(20)}`],
+    [".ach-cell.l1", "background", mix(44)],
+    [".ach-cell.l2", "background", mix(70)],
+    [".ach-cell.l3", "background", "var(--eink-ink)"],
+    [".ach-cell.is-future", "outline", `1px dashed ${mix(42)}`],
+    [".ach-cell.is-norecord::after", "background", mix(34)],
+    [".ach-cell.is-today", "outline", "1px solid var(--eink-ink)"],
+  ])("prints %s %s as %s", (selector, property, value) => {
+    expect(normalize(topLevel(selector)[property])).toBe(value);
+  });
+
+  // Any stylesheet, any at-rule: a cell may only carry the l0 hairline ring (an unblurred inset), never a glow.
+  it("draws no cell with a glow", () => {
+    const cellRules = allRules().filter((rule) => rule.selectors.some((selector) => selector.includes(".ach-cell")));
+    expect(cellRules.length).toBeGreaterThan(0);
+    for (const rule of cellRules) {
+      const label = `${rule.atRules.join(" ")} ${rule.selector}`;
+      const shadow = normalize(rule.declarations["box-shadow"] ?? "none");
+      expect(shadow, label).toMatch(/^(none|inset 0 0 0 1px color-mix\(in srgb, var\(--eink-ink\) \d+%, transparent\))$/);
+      expect(rule.declarations.filter, label).toBeUndefined();
+      expect(rule.declarations["text-shadow"], label).toBeUndefined();
+    }
+  });
+
+  it.each([".ach-weekday", ".ach-dial-stat small", ".ach-legend"])(
+    "prints %s in --eink-dim without a text shadow override",
+    (selector) => {
+      const declarations = topLevel(selector);
+      expect(declarations.color).toBe("var(--eink-dim)");
+      expect(declarations["text-shadow"]).toBeUndefined();
+    },
+  );
+
+  it("shares one grading between the themes", () => {
+    const heatmap = /\.ach-(cell|dial|legend|weekday|month|readings|rule-top|pair|caption)/;
+    const darkHeatmap = allRules().flatMap((rule) =>
+      rule.selectors.filter((selector) => selector.startsWith(DARK) && heatmap.test(selector)),
+    );
+    expect(darkHeatmap).toEqual([]);
+  });
+});
+
 describe("glass layers on every page", () => {
   beforeEach(() => {
     // Pin the synthetic day (it scales with the wall clock) to the visual baseline's moment.

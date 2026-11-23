@@ -900,7 +900,7 @@ function Ticks({ minutesToday }: { minutesToday: number }) {
 
 ## 任务 13：成就热力图上墨
 
-**文件：** `src/components/AchievementsPage.css`（1、55–332）
+**文件：** `src/components/AchievementsPage.css`（1、55–332）；实现时补充：`src/__tests__/glassSurfaces.test.tsx`（新增用例：成就样式表里没有 `var(--lcd`，各级墨色、`--ach-rule`、三处 `--eink-dim` 文字的取值，无 `text-shadow` 覆盖；所有样式表、所有 at-rule 里的 `.ach-cell` 规则都没有发光——`box-shadow` 只允许 l0 那种不模糊的 1px 内描边，也没有 `filter` / `text-shadow`；所有样式表里都没有热力图（格子、刻度盘、图例、星期、月份、读数、规则线、说明）的深色专用规则）
 
 **对应规格：** 迁移表「成就热力图」；墨水屏配方「文字」「发光：无」。
 
@@ -910,6 +910,10 @@ function Ticks({ minutesToday }: { minutesToday: number }) {
 - [ ] **Step 4：检查**：`npm.cmd run check`（`AchievementsPage.test` 不改）。
 - [ ] **Step 5：视觉检查**：成就页 × 两主题 × 两尺寸；用 `--eval` 依次点「近半年」「近一年」（紧凑格子），确认 4 级墨色在深色渐变纸面三个位置都分得清，今日描边可见，`&empty` 时的无记录点不像空缺。
 - [ ] **Step 6：审查关口。** `rg -- "--lcd-" src/components/AchievementsPage.css` 为 0。
+
+**任务 13 遗留到后续任务（2026-11-23）：**
+
+- 强制颜色下热力图的格子全部消失：`.ach-cell` 各级墨色、l0 的内阴影描边、无记录点和图例色块都是 `background` / `box-shadow`，强制颜色把底色置为 `Canvas`、去掉阴影，只剩今日的实线 `outline` 和未到日子的虚线 `outline`（改墨色前后逐像素相同，不是本任务引入）→ 任务 16 Step 3 / 验收 7 时在 forced-colors 块里处理（例如 `.ach-cell` 用 `forced-color-adjust: none` 加系统色分级，或给有记录的格子画 `CanvasText` 轮廓），格子盒子不变。
 
 提交：`feat(ui): print the achievements heatmap in e-ink`
 
