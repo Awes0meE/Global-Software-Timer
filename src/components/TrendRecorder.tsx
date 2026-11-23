@@ -216,7 +216,6 @@ function RecorderPaper({
 
   return (
     <div className="recorder">
-      <i className="roller" aria-hidden="true" />
       <div className="paper" ref={paperRef} style={{ height }}>
         <svg
           className="recorder-svg"
@@ -421,7 +420,6 @@ function RecorderPaper({
           </div>
         ) : null}
       </div>
-      <i className="roller" aria-hidden="true" />
     </div>
   );
 }

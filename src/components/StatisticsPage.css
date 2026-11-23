@@ -232,20 +232,9 @@
   font-style: normal;
 }
 
-/* recorder: two thin rollers and an e-ink paper strip */
+/* recorder: an e-ink paper strip, inset like the other plates */
 .recorder {
-  display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) 14px;
   margin: 0 14px 14px;
-  padding: 8px;
-}
-
-.roller {
-  justify-self: center;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--eink-mid);
-  box-shadow: none;
 }
 
 /* The paper takes the e-ink screen recipe (styles.css, incl. position and overflow); the chart sits above

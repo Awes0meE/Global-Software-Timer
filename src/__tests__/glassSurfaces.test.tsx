@@ -836,7 +836,7 @@ describe("statistics recorder on e-ink paper", () => {
   // Built from pieces so a repo-wide search for the signal token finds only real uses.
   const SIGNAL = "var(--" + "signal";
   const RECORDER = [
-    ".recorder", ".roller", ".paper", ".recorder-svg", ".recorder-svg text", ".recorder-svg .day", ".recorder-svg .vals",
+    ".recorder", ".paper", ".recorder-svg", ".recorder-svg text", ".recorder-svg .day", ".recorder-svg .vals",
     ".rule-major", ".rule-minor", ".rule-day", ".rule-tick", ".scale", ".day", ".vals", ".vals-strong", ".vals-dim",
     ".hover-band", ".needle-rec", ".needle-cap", ".needle-act", ".gap", ".avg", ".avg-mark", ".trace", ".trace-dot",
     ".trace-label", ".pen", ".pen-arm",
@@ -878,23 +878,16 @@ describe("statistics recorder on e-ink paper", () => {
     expect(Number(topLevel(".trend-tip")["z-index"])).toBeGreaterThan(Number(declarations["z-index"]));
   });
 
-  it("drops the recessed tray but keeps its box and three columns", () => {
+  // v0.4.1: the two grey roller strips at the ends are gone; the paper fills the panel with the plate inset.
+  it("drops the recessed tray and the rollers, insetting the paper like the other plates", () => {
     const declarations = topLevel(".recorder");
     expect(declarations.background).toBeUndefined();
     expect(declarations["box-shadow"]).toBeUndefined();
-    expect(declarations.display).toBe("grid");
-    expect(declarations["grid-template-columns"]).toBe("14px minmax(0, 1fr) 14px");
+    expect(declarations.display).toBeUndefined();
+    expect(declarations["grid-template-columns"]).toBeUndefined();
+    expect(declarations.padding).toBeUndefined();
     expect(declarations.margin).toBe("0 14px 14px");
-    expect(declarations.padding).toBe("8px");
-  });
-
-  it("flattens the rollers into thin --eink-mid bars centred in their columns", () => {
-    const declarations = topLevel(".roller");
-    expect(declarations["justify-self"]).toBe("center");
-    expect(declarations.width).toBe("3px");
-    expect(declarations["border-radius"]).toBe("2px");
-    expect(declarations.background).toBe("var(--eink-mid)");
-    expect(declarations["box-shadow"]).toBe("none");
+    expect(allRules().filter((rule) => rule.selectors.some((selector) => selector.includes(".roller")))).toEqual([]);
   });
 
   it.each([

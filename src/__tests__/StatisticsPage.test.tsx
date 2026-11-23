@@ -230,6 +230,17 @@ describe("StatisticsPage", () => {
       return screen.getByRole("img", { name: /每日趋势/ });
     }
 
+    it("draws the paper alone, with no roller strips beside it", async () => {
+      invoke.mockResolvedValue(summary());
+      await renderPage();
+
+      const recorder = document.querySelector(".recorder");
+      expect(recorder).not.toBeNull();
+      expect(recorder?.children).toHaveLength(1);
+      expect(recorder?.firstElementChild).toHaveClass("paper");
+      expect(document.querySelector(".roller")).toBeNull();
+    });
+
     it("labels every day of a short range when the columns are wide enough", async () => {
       paperWidth = 1100;
       invoke.mockResolvedValue(summary());
