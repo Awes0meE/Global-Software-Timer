@@ -332,7 +332,7 @@
 
 .gap {
   fill: none;
-  stroke: color-mix(in srgb, var(--eink-mid) 70%, transparent);
+  stroke: var(--eink-mid);
   stroke-dasharray: 3 3;
 }
 

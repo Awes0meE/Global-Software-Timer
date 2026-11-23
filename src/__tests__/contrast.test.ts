@@ -239,6 +239,17 @@ describe.each(THEMES)("contrast in the %s theme", (theme) => {
     expect(hour, `${theme}: yielded hour tick = ${hour.toFixed(2)}`).toBeGreaterThanOrEqual(GRAPHIC);
     expect(minor, `${theme}: yielded minor tick = ${minor.toFixed(2)}`).toBeCloseTo(theme === "light" ? 2.17 : 2.32, 1);
   });
+
+  // 用户已确认（2026-11-23）: the recorder's dashed no-record box is a graphic on the paper, so its stroke
+  // clears 3:1 on every paper stop (light 4.06, dark 3.69 to 4.09 with the plain --eink-mid).
+  it("keeps the no-record box above 3:1 on every paper stop", () => {
+    const rule = allRules().find((candidate) => candidate.atRules.length === 0 && candidate.selector === ".gap");
+    const gap = parseColor(resolve(rule?.declarations.stroke ?? "(missing)", themeTokens(theme)));
+    paperStops(theme).forEach((stop, index) => {
+      const ratio = contrast(gap, stop);
+      expect(ratio, `${theme}: .gap on paper stop ${index} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(GRAPHIC);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

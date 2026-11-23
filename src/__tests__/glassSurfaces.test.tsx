@@ -888,7 +888,8 @@ describe("statistics recorder on e-ink paper", () => {
     [".rule-tick", "stroke", "var(--eink-mid)"],
     [".avg", "stroke", "var(--eink-mid)"],
     [".avg-mark", "fill", "var(--eink-mid)"],
-    [".gap", "stroke", mix("eink-mid", 70)],
+    // 用户已确认（2026-11-23）: the full --eink-mid, so the no-record box clears 3:1 on every paper stop.
+    [".gap", "stroke", "var(--eink-mid)"],
     [".scale", "fill", "var(--eink-dim)"],
     [".day", "fill", "var(--eink-dim)"],
     [".vals-dim", "fill", "var(--eink-dim)"],
