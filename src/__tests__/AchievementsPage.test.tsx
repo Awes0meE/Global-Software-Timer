@@ -238,6 +238,64 @@ describe("AchievementsPage", () => {
     expect(dial.querySelectorAll(".ach-month.is-wrapped")).toHaveLength(3);
   });
 
+  // v0.4.1: every month keeps its full Monday-first calendar shape, whatever the range; days before the range
+  // are faint placeholders and days after today are 未到, so the month blocks line up as equal calendars.
+  it.each([90, 180, 365])("draws each month of 近 %i 天 as a whole calendar month", async (days) => {
+    const heatmap = heatmapDays(days);
+    invoke.mockResolvedValue(summary({ heatmap_days: days, heatmap }));
+    await renderPage();
+
+    const dial = document.querySelector(".lcd.ach-dial") as HTMLElement;
+    const months = [...dial.querySelectorAll<HTMLElement>(".ach-month")];
+    const keys = [...new Set(heatmap.map((day) => day.date.slice(0, 7)))];
+    expect(months).toHaveLength(keys.length);
+    const rangeStart = heatmap[0].date;
+
+    months.forEach((month, index) => {
+      const [year, monthNumber] = keys[index].split("-").map(Number);
+      const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+      const offset = (new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay() + 6) % 7;
+      const cells = [...month.querySelectorAll<HTMLElement>(".ach-month-grid > .ach-cell")];
+      const leading = cells.findIndex((cell) => !cell.classList.contains("is-blank"));
+      expect(leading, keys[index]).toBe(offset);
+      expect(cells.slice(leading), keys[index]).toHaveLength(daysInMonth);
+
+      const outside = month.querySelectorAll(".ach-cell.is-outside");
+      const future = month.querySelectorAll(".ach-cell.is-future");
+      const isFirst = index === 0;
+      const isLast = index === months.length - 1;
+      expect(outside, keys[index]).toHaveLength(isFirst ? Number(rangeStart.slice(8)) - 1 : 0);
+      expect(future, keys[index]).toHaveLength(isLast ? daysInMonth - Number(TODAY.slice(8)) : 0);
+      // A placeholder before the range is not a day of the chart: no accessible name, no 无记录.
+      for (const cell of outside) {
+        expect(cell).not.toHaveAttribute("aria-label");
+        expect(cell).not.toHaveClass("is-norecord");
+      }
+    });
+    expect(screen.getAllByLabelText(/^\d{4}-\d{2}-\d{2} (活跃|无记录)/)).toHaveLength(days);
+  });
+
+  it("lines the four readings and the legend up in one strip under the months", async () => {
+    invoke.mockResolvedValue(summary());
+    await renderPage();
+
+    const dial = document.querySelector(".lcd.ach-dial") as HTMLElement;
+    expect([...dial.children].map((child) => child.className)).toEqual(["ach-months", "ach-readings"]);
+    const strip = dial.querySelector(".ach-readings") as HTMLElement;
+    const parts = [...strip.children] as HTMLElement[];
+    expect(parts.map((part) => part.className)).toEqual(["lcd-cell", "lcd-cell", "lcd-cell", "lcd-cell", "ach-legend"]);
+    expect(parts.slice(0, 4).map((part) => part.querySelector(".lcd-label")?.textContent)).toEqual([
+      "当前连续",
+      "最长连续",
+      "近 90 天里用过",
+      "近 90 天活跃",
+    ]);
+    // Readings only: label, value and a streak's dates; no sentence explains them on the screen.
+    expect(strip.textContent).toBe(
+      "当前连续3天11-19 至今天最长连续27天08-23 至 09-18近 90 天里用过4天近 90 天活跃6.9小时没用<1小时<3小时≥3小时未到",
+    );
+  });
+
   it("buckets days below the filter, under 1 hour, under 3 hours and from 3 hours", () => {
     expect(heatLevel(0, 300)).toBe(0);
     expect(heatLevel(299, 300)).toBe(0);

@@ -54,23 +54,22 @@
   margin-left: auto;
 }
 
+/* Months on top in equal columns, the readings and the legend in one strip along the bottom. */
 .lcd.ach-dial {
-  --ach-readout-width: 300px;
-  --ach-cell: 18px;
-  --ach-gap: 4px;
+  --ach-cell: 14px;
+  --ach-gap: 3px;
   --ach-rule: 2px dotted color-mix(in srgb, var(--eink-ink) 22%, transparent);
-  --pixel-display-size: 48px;
-  grid-template-columns: minmax(0, 1fr) var(--ach-readout-width);
+  --pixel-display-size: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   align-items: stretch;
-  gap: 0 26px;
+  gap: 14px 0;
   min-height: 0;
-  padding: 14px 22px 14px 20px;
+  padding: 18px 40px 16px;
 }
 
 .lcd.ach-dial.is-compact {
-  --ach-readout-width: 262px;
   --ach-cell: 10px;
-  --ach-gap: 3px;
 }
 
 .ach-months {
@@ -82,19 +81,19 @@
 }
 
 /* Each month spans a head row and a dot row of the parent grid, so dot matrices in a row line up
-   even when one month's caption wraps. */
+   even when one month's caption wraps. Every column is the same width with its matrix centred. */
 .ach-month {
   display: grid;
   grid-row: span 2;
   grid-template-rows: subgrid;
-  row-gap: 7px;
+  justify-items: center;
+  row-gap: 8px;
   min-width: 0;
-  padding: 0 14px;
+  padding: 0 12px;
   border-left: var(--ach-rule);
 }
 
 .ach-month.is-row-start {
-  padding-left: 0;
   border-left: 0;
 }
 
@@ -105,18 +104,17 @@
 }
 
 .is-compact .ach-month {
-  row-gap: 5px;
-  padding: 0 10px;
+  row-gap: 6px;
 }
 
-.is-compact .ach-month.is-row-start {
-  padding-left: 0;
-}
-
+/* Month name and caption on one centred line; a narrow column puts the caption on a second one. */
 .ach-month-head {
-  display: grid;
-  align-content: start;
-  gap: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px 10px;
+  max-width: 100%;
   min-width: 0;
 }
 
@@ -157,12 +155,18 @@
   text-align: center;
 }
 
+/* Always the weekday row and six week rows (six week rows in the compact grid, which has no weekdays),
+   so every month block, and the panel, keeps one height whatever the dates. */
 .ach-month-grid {
   display: grid;
   align-self: start;
   grid-template-columns: repeat(7, var(--ach-cell));
-  grid-auto-rows: var(--ach-cell);
+  grid-template-rows: repeat(7, var(--ach-cell));
   gap: var(--ach-gap);
+}
+
+.is-compact .ach-month-grid {
+  grid-template-rows: repeat(6, var(--ach-cell));
 }
 
 .ach-weekday {
@@ -172,8 +176,8 @@
   text-align: center;
 }
 
-/* Four ink levels, plus days outside the range (blank), days before records began and days still
-   to come in this month. */
+/* Four ink levels, plus the blanks before the 1st, days before the range, days before records began
+   and days still to come in this month. */
 .ach-cell {
   display: block;
   width: var(--ach-cell);
@@ -225,48 +229,67 @@
   background: color-mix(in srgb, var(--eink-ink) 34%, transparent);
 }
 
-.ach-cell.is-today {
-  outline: 1px solid var(--eink-ink);
-  outline-offset: 2px;
+/* A day of the month before the range: a fainter dot than 无记录, only there to keep the month's shape. */
+.ach-cell.is-outside {
+  position: relative;
+  background: transparent;
 }
 
-.is-compact .ach-cell.is-today {
+.ach-cell.is-outside::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 2px;
+  margin: -1px 0 0 -1px;
+  background: color-mix(in srgb, var(--eink-ink) 18%, transparent);
+}
+
+.ach-cell.is-today {
+  outline: 1px solid var(--eink-ink);
   outline-offset: 1px;
 }
 
+/* The bottom strip: four readings left to right, the legend at the right end. When the readings leave
+   it too little room, the legend wraps its own items and, at the last, drops to a line of its own. */
 .ach-readings {
-  display: grid;
-  /* Both pairs share these columns, so their labels line up. The right column never gets narrower
-     than its widest reading (近一年 in 小时分钟 can be "1234小时56分钟"); the left one gives way. */
-  grid-template-columns: minmax(0, 1fr) minmax(max-content, 1fr);
-  align-content: space-between;
-  gap: 12px 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 48px;
   min-width: 0;
-  padding-left: 26px;
-  border-left: var(--ach-rule);
-}
-
-.ach-readings > * {
-  grid-column: 1 / -1;
-}
-
-.ach-pair {
-  display: grid;
-  grid-template-columns: subgrid;
-}
-
-.ach-rule-top {
   padding-top: 12px;
   border-top: var(--ach-rule);
 }
 
+/* Label on top; the value, and a streak's dates on the same baseline, below it. */
 .ach-dial .lcd-cell {
-  align-content: start;
+  display: grid;
+  flex: none;
+  grid-template-columns: auto auto;
+  justify-content: start;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+.ach-dial .lcd-cell .lcd-label {
+  grid-column: 1 / -1;
 }
 
 .ach-dial .lcd-value {
-  min-height: 52px;
-  margin-top: 4px;
+  min-height: 0;
+  margin: 0;
+}
+
+.ach-dial .lcd-value b {
+  line-height: 24px;
+}
+
+.ach-dial .lcd-value small {
+  color: var(--eink-dim);
+  font-size: 12px;
+  line-height: 12px;
 }
 
 .ach-dial-stat {
@@ -274,7 +297,6 @@
   flex-wrap: nowrap;
   align-items: baseline;
   gap: 0 4px;
-  margin-top: 6px;
   font-size: 24px;
   line-height: 24px;
   white-space: nowrap;
@@ -284,20 +306,18 @@
   margin-left: 4px;
   color: var(--eink-dim);
   font-size: 12px;
-}
-
-.ach-caption {
-  display: grid;
-  gap: 10px;
-  /* Spans both reading columns; it wraps to their width and must not widen the right one. */
-  contain: inline-size;
+  line-height: 12px;
 }
 
 .ach-legend {
   display: flex;
+  flex: 1 1 200px;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px 14px;
+  min-width: 0;
+  padding-bottom: 6px;
   color: var(--eink-dim);
   font-size: 12px;
   line-height: 12px;
@@ -752,20 +772,16 @@
 
 @media (max-width: 1200px) {
   .lcd.ach-dial {
-    --ach-readout-width: 270px;
-    --ach-cell: 14px;
-    --ach-gap: 3px;
+    padding-right: 28px;
+    padding-left: 28px;
   }
 
-  .lcd.ach-dial.is-compact {
-    --ach-readout-width: 280px;
-    --ach-cell: 7px;
-    --ach-gap: 2px;
+  .ach-month {
+    padding: 0 8px;
   }
 
   .ach-readings {
-    column-gap: 14px;
-    padding-left: 20px;
+    column-gap: 32px;
   }
 
   .ach-shelf {

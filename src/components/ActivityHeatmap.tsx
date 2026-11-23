@@ -14,7 +14,7 @@ export type HeatLevel = 0 | 1 | 2 | 3;
 const LEVEL_1_MAX_SECONDS = 3600;
 const LEVEL_2_MAX_SECONDS = 3 * 3600;
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
-/** Months per row before the normal-size dot matrices wrap; 近一年 switches to small cells instead. */
+/** Months per row before the normal-size dot matrices wrap; 近一年 switches to small cells, seven a row. */
 const MONTHS_PER_ROW = 4;
 const COMPACT_MIN_DAYS = 200;
 
@@ -28,6 +28,7 @@ export function heatLevel(activeSeconds: number, thresholdSeconds: number): Heat
 type Cell =
   | { kind: "blank" }
   | { kind: "future" }
+  | { kind: "outside"; date: string }
   | { kind: "norecord"; date: string }
   | { kind: "day"; day: HeatmapDay; level: HeatLevel; isToday: boolean };
 
@@ -127,45 +128,39 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
         </div>
 
         <div className="ach-readings">
-          <div className="ach-pair">
-            <div className="lcd-cell">
-              <span className="lcd-label">当前连续</span>
-              <p className="lcd-value"><b>{summary.current_streak_days}</b><small>天</small></p>
-              <span className="lcd-note">
-                {streakNote(summary.current_streak_start, summary.current_streak_days, today)}
-              </span>
-            </div>
-            <div className="lcd-cell">
-              <span className="lcd-label">最长连续</span>
-              <p className="lcd-value"><b>{summary.longest_streak_days}</b><small>天</small></p>
-              <span className="lcd-note">
-                {streakNote(summary.longest_streak_start, summary.longest_streak_days, today)}
-              </span>
-            </div>
+          <div className="lcd-cell">
+            <span className="lcd-label">当前连续</span>
+            <p className="lcd-value"><b>{summary.current_streak_days}</b><small>天</small></p>
+            <span className="lcd-note">
+              {streakNote(summary.current_streak_start, summary.current_streak_days, today)}
+            </span>
           </div>
-          <div className="ach-pair ach-rule-top">
-            <div className="lcd-cell">
-              <span className="lcd-label">{rangeLabel}里用过</span>
-              <p className="ach-dial-stat">{usedDays}<small>天</small></p>
-            </div>
-            <div className="lcd-cell">
-              <span className="lcd-label">{rangeLabel}活跃</span>
-              <p className="ach-dial-stat">
-                {formatDurationPartsZh(activeTotal, durationFormat).map((part) => (
-                  <span key={part.unit}>{part.value}<small>{part.unit}</small></span>
-                ))}
-              </p>
-            </div>
+          <div className="lcd-cell">
+            <span className="lcd-label">最长连续</span>
+            <p className="lcd-value"><b>{summary.longest_streak_days}</b><small>天</small></p>
+            <span className="lcd-note">
+              {streakNote(summary.longest_streak_start, summary.longest_streak_days, today)}
+            </span>
           </div>
-          <div className="ach-caption ach-rule-top">
-            <div className="ach-legend" aria-hidden="true">
-              <span><i className="ach-cell l0" />没用</span>
-              <span><i className="ach-cell l1" />&lt;1小时</span>
-              <span><i className="ach-cell l2" />&lt;3小时</span>
-              <span><i className="ach-cell l3" />≥3小时</span>
-              <span><i className="ach-cell is-future" />未到</span>
-              {hasNoRecordDays ? <span><i className="ach-cell is-norecord" />无记录</span> : null}
-            </div>
+          <div className="lcd-cell">
+            <span className="lcd-label">{rangeLabel}里用过</span>
+            <p className="ach-dial-stat">{usedDays}<small>天</small></p>
+          </div>
+          <div className="lcd-cell">
+            <span className="lcd-label">{rangeLabel}活跃</span>
+            <p className="ach-dial-stat">
+              {formatDurationPartsZh(activeTotal, durationFormat).map((part) => (
+                <span key={part.unit}>{part.value}<small>{part.unit}</small></span>
+              ))}
+            </p>
+          </div>
+          <div className="ach-legend" aria-hidden="true">
+            <span><i className="ach-cell l0" />没用</span>
+            <span><i className="ach-cell l1" />&lt;1小时</span>
+            <span><i className="ach-cell l2" />&lt;3小时</span>
+            <span><i className="ach-cell l3" />≥3小时</span>
+            <span><i className="ach-cell is-future" />未到</span>
+            {hasNoRecordDays ? <span><i className="ach-cell is-norecord" />无记录</span> : null}
           </div>
         </div>
       </div>
@@ -196,6 +191,7 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
 function HeatCell({ cell, durationFormat }: { cell: Cell; durationFormat: DurationFormat }) {
   if (cell.kind === "blank") return <i className="ach-cell is-blank" />;
   if (cell.kind === "future") return <i className="ach-cell is-future" />;
+  if (cell.kind === "outside") return <i className="ach-cell is-outside" title={`${cell.date} 不在范围内`} />;
   if (cell.kind === "norecord") {
     const label = `${cell.date} 无记录`;
     return <i className="ach-cell is-norecord" aria-label={label} title={label} />;
@@ -243,21 +239,16 @@ function buildMonths(
         activeSeconds += day.active_seconds;
         cells.push({ kind: "day", day, level, isToday: date === today });
       } else {
-        cells.push({ kind: date > today ? "future" : "blank" });
+        // Every month keeps its whole calendar shape: days before the range are faint placeholders.
+        cells.push(date > today ? { kind: "future" } : { kind: "outside", date });
       }
-    }
-
-    // A month cut by the range start should not open with empty weeks.
-    let firstRow = 0;
-    while (firstRow + 7 <= cells.length && cells.slice(firstRow, firstRow + 7).every((cell) => cell.kind === "blank")) {
-      firstRow += 7;
     }
 
     const withYear = (month === 1 && index > 0) || (index === 0 && year !== lastYear);
     return {
       key,
       label: withYear ? `${String(year % 100).padStart(2, "0")}年${month}月` : `${month}月`,
-      cells: cells.slice(firstRow),
+      cells,
       recorded,
       usedDays,
       activeSeconds,

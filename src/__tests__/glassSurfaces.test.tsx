@@ -761,7 +761,8 @@ describe("e-ink screen", () => {
     expect(topLevel(".lcd-value b")["font-size"]).toBe("var(--pixel-display-size, 60px)");
     expect(inMedia("@media (resolution: 1.25dppx)", ".lcd")["--pixel-display-size"]).toBe("57.6px");
     expect(inMedia("@media (resolution: 1.5dppx)", ".lcd")["--pixel-display-size"]).toBe("64px");
-    expect(topLevel(".lcd.ach-dial")["--pixel-display-size"]).toBe("48px");
+    // v0.4.1: the streak readings sit in the bottom strip at the size of the other dial readings.
+    expect(topLevel(".lcd.ach-dial")["--pixel-display-size"]).toBe("24px");
     for (const rule of allRules()) {
       const text = Object.entries(rule.declarations).flat().join(" ");
       expect(text, rule.selectors.join(", ")).not.toContain(OLD_SIZE);
@@ -844,6 +845,7 @@ describe("achievements heatmap ink", () => {
     [".ach-cell.l3", "background", "var(--eink-ink)"],
     [".ach-cell.is-future", "outline", `1px dashed ${mix(42)}`],
     [".ach-cell.is-norecord::after", "background", mix(34)],
+    [".ach-cell.is-outside::after", "background", mix(18)],
     [".ach-cell.is-today", "outline", "1px solid var(--eink-ink)"],
   ])("prints %s %s as %s", (selector, property, value) => {
     expect(normalize(topLevel(selector)[property])).toBe(value);
