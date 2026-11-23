@@ -444,6 +444,35 @@ describe("forced colors: e-ink inks, keys, buttons and scrollers", () => {
     expect(Object.keys(declarations)).toEqual(["outline-color"]);
   });
 
+  // Forced colours draw scrollbars as bordered, Canvas-filled boxes which cover the panel's outline and
+  // whose square corner sticks out of the panel's 16px curve; a clip-path to the outline's inner edge (no
+  // box change) keeps them inside. Only scrollers that end their panel take the curve.
+  const SCROLLERS = ":is(.usage-scroll, .recent-scroll, .software-table-scroll, .hidden-software-scroll, .discovered-scroll)";
+  const PANEL_END_CLIP = "inset(-1px 1px 1px round 0 0 calc(var(--radius-panel) - 1px) calc(var(--radius-panel) - 1px))";
+
+  it("clips the scrollers that end a panel to its outline and curve, top left open", () => {
+    for (const selector of [SCROLLERS, ".ach-coming:last-child .ach-coming-list"]) {
+      expect(normalize(declarationsFor(selector, FORCED)["clip-path"] ?? ""), selector).toBe(PANEL_END_CLIP);
+    }
+    // The first name list sits mid-panel: sides only, no curve.
+    expect(normalize(declarationsFor(".ach-coming:not(:last-child) .ach-coming-list", FORCED)["clip-path"] ?? "")).toBe(
+      "inset(-1px 1px)",
+    );
+    // No rule clips every name list, mid-panel ones included.
+    expect(rules.some((rule) => rule.selectors.includes(".ach-coming-list") && "clip-path" in rule.declarations)).toBe(
+      false,
+    );
+  });
+
+  // An inner ring would sit under the sticky heads and be cut by the curve, so a focused scroller drops the
+  // clip and keeps the plain outward ring; its selector must not outrank :focus-visible's offset either.
+  it("drops the clip on a focused scroller so the outward focus ring shows whole", () => {
+    const focused = declarationsFor(`${SCROLLERS}:focus-visible`, FORCED);
+    expect(focused["clip-path"]).toBe("none");
+    expect(focused["outline-offset"]).toBeUndefined();
+    expect(declarationsFor(":focus-visible", FORCED)["outline-offset"]).toBe("2px");
+  });
+
   // 今日分布: identity colours are the only link between the bar and its list, so they stay, framed.
   it("keeps the mix segments and swatches in their colours inside a CanvasText frame", () => {
     for (const selector of [".mix-segment", ".mix-row i"]) {

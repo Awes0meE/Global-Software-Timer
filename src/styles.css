@@ -2137,7 +2137,8 @@ mark {
   }
 
   /* The opaque sticky heads cover that outline and forced colours drop the shadow that redraws it,
-     so their ends draw the edge as a border instead. */
+     so their ends draw the edge as a border instead. While their scroller is not focused, its side clip
+     (below) trims that border and the outline itself shows; a focused scroller drops the clip. */
   .focused-table-head {
     border-inline: 1px solid CanvasText;
   }
@@ -2234,6 +2235,28 @@ mark {
   /* An unavailable button's edge matches its GrayText label; an aria-disabled one can still take focus. */
   :is(.header-button, .button, .panel-link, .text-action, .panel-add-button):is(:disabled, [aria-disabled="true"]):not(:focus-visible) {
     outline-color: GrayText;
+  }
+
+  /* Forced colours draw scrollbars as bordered, Canvas-filled boxes, which cover the panel's outline where a
+     scroller runs edge to edge, and whose square corner sticks out of the panel's 16px curve. Each of these
+     scrollers ends its panel, so whenever it scrolls it reaches the panel's bottom corners: clip it to the
+     inner edge of the outline and its curve (no box change). The top stays open (-1px), so a first row's
+     line at a fractional y is not cut. */
+  :is(.usage-scroll, .recent-scroll, .software-table-scroll, .hidden-software-scroll, .discovered-scroll),
+  .ach-coming:last-child .ach-coming-list {
+    clip-path: inset(-1px 1px 1px round 0 0 calc(var(--radius-panel) - 1px) calc(var(--radius-panel) - 1px));
+  }
+
+  /* A name list above the last one sits mid-panel: only its sides keep off the outline. */
+  .ach-coming:not(:last-child) .ach-coming-list {
+    clip-path: inset(-1px 1px);
+  }
+
+  /* A focused scroller drops the clip, so its usual 2px Highlight ring shows whole outside it: an inner ring
+     would sit under the sticky table heads and be cut by the curve. The square scrollbar corner then shows
+     inside that ring, and the heads' end borders above redraw the panel edge. */
+  :is(.usage-scroll, .recent-scroll, .software-table-scroll, .hidden-software-scroll, .discovered-scroll):focus-visible {
+    clip-path: none;
   }
 
   /* A switched-off toggle is drawn only with shadows and fills, which forced colours remove. An inset
