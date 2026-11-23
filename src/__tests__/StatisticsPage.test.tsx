@@ -470,6 +470,26 @@ describe("StatisticsPage", () => {
     expect(screen.getByText("这段时间没有开着不用的软件")).toBeInTheDocument();
   });
 
+  // v0.4.1: 作息 follows the trend chart; the per-software ledgers come after it, 会话 last.
+  it("orders the panels trend, rhythm, ranking and idle-open, then sessions", async () => {
+    invoke.mockResolvedValue(summary({ days_without_software_detail: 3, software_detail_start_date: "2026-06-18" }));
+    await renderPage();
+
+    const results = document.querySelector(".stats-results");
+    expect(results).not.toBeNull();
+    const titles = within(results as HTMLElement)
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent);
+    expect(titles).toEqual(["每日趋势", "作息", "区间排行", "开着没用", "会话"]);
+
+    // The missing-detail note names the software ledgers, so it sits right above them, under 作息.
+    const note = screen.getByText("区间内有 3 天无软件明细").closest(".stats-note") as HTMLElement;
+    const rhythm = screen.getByRole("region", { name: "作息" });
+    const ranking = screen.getByRole("region", { name: "区间排行" });
+    expect(rhythm.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note.compareDocumentPosition(ranking) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("shows sessions and the daily rhythm", async () => {
     invoke.mockResolvedValue(summary());
     await renderPage();

@@ -33,8 +33,10 @@ export function Duration({ seconds, format }: { seconds: number; format: Duratio
 }
 
 export function StatisticsLedgers({ summary, durationFormat }: LedgerProps) {
+  // 作息 (whole-machine rhythm) comes first; the missing-detail note heads the per-software ledgers it names.
   return (
     <>
+      <RhythmPanel summary={summary} durationFormat={durationFormat} />
       {summary.days_without_software_detail > 0 ? (
         <p className="stats-note">
           <Info size={15} aria-hidden="true" />
@@ -51,7 +53,6 @@ export function StatisticsLedgers({ summary, durationFormat }: LedgerProps) {
         <IdleOpenPanel rows={summary.idle_open} durationFormat={durationFormat} />
       </div>
       <SessionsPanel rows={summary.sessions} durationFormat={durationFormat} />
-      <RhythmPanel summary={summary} durationFormat={durationFormat} />
     </>
   );
 }
