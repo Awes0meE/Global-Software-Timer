@@ -28,7 +28,6 @@
   --shade: rgba(28, 34, 42, 0.12);
   --shade-deep: rgba(28, 34, 42, 0.22);
   --modal-scrim: rgb(0 0 0 / 45%);
-  --icon-well: #767d85;
   --mix-1: #2f7de1;
   --mix-2: #e2536a;
   --mix-3: #1fa874;
@@ -1061,8 +1060,10 @@ main > p[role="status"] {
   border-radius: var(--radius-screen);
 }
 
+/* Light glass can swallow white icons, so a loaded icon gets a hairline that follows its own alpha (and a
+   faint lift); transparent margins stay glass. Set on the span so the e-ink .lcd img filter still applies. */
 :root[data-theme="light"] .software-icon:has(img:not([hidden])) {
-  background: var(--icon-well);
+  filter: drop-shadow(0 0 0.5px rgba(20, 30, 60, 0.5)) drop-shadow(0 1px 1px rgba(20, 30, 60, 0.14));
 }
 
 .software-icon img {

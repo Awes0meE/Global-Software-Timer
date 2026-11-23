@@ -184,7 +184,7 @@ describe("glass and e-ink limits", () => {
   });
 
   // Plan「迁移表：深色选择器覆盖」: dark values live in the token block; the only theme-scoped rules
-  // left are trade-off 1 (--muted on dark sub-plates) and the light icon well.
+  // left are trade-off 1 (--muted on dark sub-plates) and the light icon hairline.
   it("has no dark-theme selector overrides outside the token block", () => {
     const themed = allRules().flatMap((rule) =>
       rule.selectors

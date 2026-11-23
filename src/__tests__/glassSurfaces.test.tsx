@@ -190,6 +190,19 @@ describe("software and background pages, dialogs", () => {
     }
   });
 
+  // v0.4.1: the light theme's mid-grey well showed around round or transparent-edged icons. A loaded icon now
+  // gets only a hairline that follows its own alpha, so white icons stay visible on light glass and the
+  // transparent margins stay glass; the initial-letter tile and the dark theme are unchanged.
+  it("edges loaded light-theme icons along their own shape, with no grey well", () => {
+    const light = topLevel(':root[data-theme="light"] .software-icon:has(img:not([hidden]))');
+    expect(light.background).toBeUndefined();
+    expect(normalize(light.filter)).toMatch(/^drop-shadow\(0 0 0\.5px rgba\(20, 30, 60, 0\.\d+\)\)/);
+    expect(topLevel(".software-icon").background).toBeUndefined();
+    expect(topLevel(".software-icon").filter).toBeUndefined();
+    expect(themeTokens("light")["--icon-well"]).toBeUndefined();
+    expect(themeTokens("dark")["--icon-well"]).toBeUndefined();
+  });
+
   // The inset accent outline is the sort button's whole focus mark; the global ring would double it.
   it("draws one focus mark on the background table's sort buttons", () => {
     expect(topLevel(".background-table .sort-button:focus-visible")["box-shadow"]).toBe("none");
