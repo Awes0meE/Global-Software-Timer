@@ -432,8 +432,12 @@ describe("StatisticsPage", () => {
     expect(within(trend).getAllByText("无对比")).toHaveLength(2);
     expect(trend).not.toHaveTextContent("0%比上期");
     expect(trend).not.toHaveTextContent("比上期 0%");
+    // In 区间排行 the 名次 cell shows only a dash; 无对比 is screen-reader text beside it.
     const ranking = screen.getByRole("region", { name: "区间排行" });
-    expect(within(ranking).getByText("无对比")).toBeInTheDocument();
+    const none = within(ranking).getByText("无对比");
+    expect(none).toHaveClass("stats-sr");
+    expect(none.previousElementSibling).toHaveTextContent("—");
+    expect(none.previousElementSibling).toHaveAttribute("aria-hidden", "true");
   });
 
   it("states rank changes in text, not only colour", async () => {
