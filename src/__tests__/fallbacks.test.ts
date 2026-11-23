@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allCss, allRules, parseRules, type CssRule } from "./support/css";
+import { allCss, allRules, parseRules, resolve, type CssRule } from "./support/css";
 
 // Built from pieces so a repo-wide search for the property finds only real uses.
 const BLUR_PROPERTY = "backdrop" + "-filter";
@@ -216,5 +216,82 @@ describe("forced colors", () => {
     const declarations = declarationsFor(selector, FORCED);
     expect(normalize(declarations.outline ?? ""), selector).toBe(outline);
     expect(declarations["outline-offset"], selector).toBe(offset);
+  });
+});
+
+// Plan task 16 (验收 7): forced colours leave SVG fill / stroke and opted-out paint as authored, so the e-ink
+// inks (the light theme's near-black ones on a dark contrast palette), the legend keys, the heatmap cells and
+// the buttons' glass keys vanish. These rules redraw them in system colours and change no box.
+describe("forced colors: e-ink inks, keys, buttons and scrollers", () => {
+  const SYSTEM_COLOUR = /\b(Canvas|CanvasText|GrayText|Highlight)\b/;
+  const THEME_COLOUR = /#|\brgba?\(/;
+  const forcedTopLevel = () =>
+    rules.filter((rule) => rule.atRules.length === 1 && normalize(rule.atRules[0]) === FORCED[0]);
+
+  // The dial's own rules (and the tick yield under the pointer, which LcdDial.test keeps in one place) stay
+  // as they are; inside the dial the ink tokens become system colours.
+  const DIAL_TOKENS: Record<string, string> = {
+    "--eink-ink": "CanvasText",
+    "--eink-mid": "CanvasText",
+    "--eink-dim": "CanvasText",
+    "--eink-track": "GrayText",
+    "--eink-dial-paper": "Canvas",
+  };
+
+  it("swaps the dial's ink tokens for system colours", () => {
+    const declarations = declarationsFor(".lcd-dial", FORCED);
+    for (const [name, value] of Object.entries(DIAL_TOKENS)) {
+      expect(declarations[name], name).toBe(value);
+    }
+  });
+
+  // Every fill and stroke of a dial part must resolve to system colours through those tokens alone (an
+  // unknown token throws), so the pointer is CanvasText on a Canvas halo and passed ticks are CanvasText.
+  it("draws every dial part in system colours", () => {
+    const DIAL_PART = /^\.(lcd-ring|lcd-tick|lcd-dial-now|lcd-dial-hour|lcd-midnight-mark)(?![\w-])/;
+    const painted = rules.filter(
+      (rule) =>
+        rule.atRules.length === 0 &&
+        rule.selectors.some((selector) => DIAL_PART.test(selector)) &&
+        ("fill" in rule.declarations || "stroke" in rule.declarations),
+    );
+    expect(painted.length).toBeGreaterThanOrEqual(8);
+    for (const rule of painted) {
+      for (const property of ["fill", "stroke"].filter((name) => name in rule.declarations)) {
+        const value = resolve(rule.declarations[property], DIAL_TOKENS);
+        expect(value, `${rule.selector} ${property}`).toMatch(SYSTEM_COLOUR);
+        expect(value, `${rule.selector} ${property}`).not.toMatch(THEME_COLOUR);
+      }
+    }
+    expect(resolve(declarationsFor(".lcd-dial-now", []).fill, DIAL_TOKENS)).toBe("CanvasText");
+    expect(resolve(declarationsFor(".lcd-dial-now", []).stroke, DIAL_TOKENS)).toBe("Canvas");
+  });
+
+  it("draws the rings as a hollow GrayText track with filled lit segments", () => {
+    const track = declarationsFor(".lcd-ring path", FORCED);
+    expect(track.fill).toBe("Canvas");
+    expect(track.stroke).toBe("GrayText");
+    for (const lit of [".lcd-ring-recorded path.is-lit", ".lcd-ring-active path.is-lit"]) {
+      expect(declarationsFor(lit, FORCED).stroke, lit).toBe("CanvasText");
+      // The lit fill is the swapped --eink-ink / --eink-mid.
+      expect(resolve(declarationsFor(lit, []).fill, DIAL_TOKENS), lit).toBe("CanvasText");
+    }
+  });
+
+  it("keeps the readout legend keys, solid and striped, in CanvasText with their 12x6 box", () => {
+    const key = declarationsFor(".lcd-key", FORCED);
+    expect(key["forced-color-adjust"]).toBe("none");
+    expect(key.background).toBe("CanvasText");
+    expect(normalize(declarationsFor(".lcd-key-active", FORCED).background ?? "")).toBe(
+      "repeating-linear-gradient(90deg, CanvasText 0 2px, transparent 2px 3px)",
+    );
+    const forced = forcedTopLevel();
+    const at = (selector: string) => forced.findIndex((rule) => rule.selectors.includes(selector));
+    expect(at(".lcd-key-active")).toBeGreaterThan(at(".lcd-key"));
+    for (const selector of [".lcd-key", ".lcd-key-active"]) {
+      for (const property of ["width", "height"]) {
+        expect(declarationsFor(selector, FORCED)[property], `${selector} ${property}`).toBeUndefined();
+      }
+    }
   });
 });

@@ -67,6 +67,17 @@ describe("TodayReadout", () => {
 
     expect(screen.getByText("今日活跃 42分钟")).toBeInTheDocument();
   });
+
+  // The forced-colours rules opt `.lcd-key` out and paint the striped key through `.lcd-key-active`.
+  it("marks both legend keys as .lcd-key", () => {
+    const { container } = render(<TodayReadout summary={summaryWith(null)} now={now} />);
+
+    const keys = container.querySelectorAll(".lcd-key-recorded, .lcd-key-active");
+    expect(keys).toHaveLength(2);
+    for (const key of keys) {
+      expect(key).toHaveClass("lcd-key");
+    }
+  });
 });
 
 function readings(recorded: number, active: number): DashboardSummary {

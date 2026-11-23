@@ -2170,6 +2170,40 @@ mark {
     display: none;
   }
 
+  /* SVG fill and stroke are not forced, so the dial's theme inks (near-black in the light theme) would
+     vanish on a dark Canvas. Inside the dial the ink tokens become system colours, so every dial rule draws
+     in them: passed ticks, hour numbers, the midnight mark and the pointer in CanvasText, the pointer's halo
+     in Canvas, and the ticks under the pointer half way between CanvasText and the GrayText track. */
+  .lcd-dial {
+    --eink-ink: CanvasText;
+    --eink-mid: CanvasText;
+    --eink-dim: CanvasText;
+    --eink-track: GrayText;
+    --eink-dial-paper: Canvas;
+  }
+
+  /* Unlit segments become a hollow track, so they stay apart from lit ones in any contrast palette. */
+  .lcd-ring path {
+    fill: Canvas;
+    stroke: GrayText;
+    stroke-width: 1;
+  }
+
+  .lcd-ring-recorded path.is-lit,
+  .lcd-ring-active path.is-lit {
+    stroke: CanvasText;
+  }
+
+  /* The legend keys are a fill and a stripe, which forced colours would drop; same 12x6 boxes. */
+  .lcd-key {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  .lcd-key-active {
+    background: repeating-linear-gradient(90deg, CanvasText 0 2px, transparent 2px 3px);
+  }
+
   /* The date fields follow the app theme's color-scheme, but a contrast theme can pair a light app
      theme with a dark palette; let the calendar icon follow the palette instead. */
   .stats-date {
