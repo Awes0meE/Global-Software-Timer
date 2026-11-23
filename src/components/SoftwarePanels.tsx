@@ -212,7 +212,7 @@ function FocusedSoftwareTable({
 function HiddenSoftwareHelp() {
   return (
     <HelpPopover label="什么是隐藏软件" title="什么是隐藏软件？" align="start">
-      <p>隐藏的软件不出现在概览的排行和今日分布里，统计、成就页的软件榜单默认也不列出它。</p>
+      <p>隐藏的软件不进概览排行和今日分布，统计、成就页的软件榜单默认也不列。</p>
       <p>GST 仍照常记录它的时长；从列表移除后，历史时长会重新显示。</p>
     </HelpPopover>
   );
