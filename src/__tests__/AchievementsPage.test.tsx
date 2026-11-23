@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AchievementsSummary, HeatmapDay } from "../api";
 import { AchievementsPage } from "../components/AchievementsPage";
 import { heatLevel } from "../components/ActivityHeatmap";
+import { allCss, parseRules } from "./support/css";
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
@@ -236,6 +237,36 @@ describe("AchievementsPage", () => {
     const months = dial.querySelectorAll(".ach-month");
     expect(months).toHaveLength(7);
     expect(dial.querySelectorAll(".ach-month.is-wrapped")).toHaveLength(3);
+  });
+
+  // A last row with fewer months than the first (7 = 4 + 3, 13 = 7 + 6) is filled up with empty slots, which carry
+  // the dotted rules, so the rule between the rows runs the full width and the last month is closed off.
+  it.each([
+    [90, 0],
+    [180, 1],
+    [365, 1],
+  ])("fills the last row of 近 %i 天 with %i empty slot(s)", async (days, expected) => {
+    invoke.mockResolvedValue(summary({ heatmap_days: days, heatmap: heatmapDays(days) }));
+    await renderPage();
+
+    const slots = [...(document.querySelector(".ach-months") as HTMLElement).children];
+    const fillers = slots.filter((slot) => slot.classList.contains("ach-month-filler"));
+    expect(fillers).toHaveLength(expected);
+    expect(slots.slice(slots.length - expected)).toEqual(fillers);
+    for (const filler of fillers) {
+      expect(filler).toHaveAttribute("aria-hidden", "true");
+      expect(filler).toBeEmptyDOMElement();
+    }
+  });
+
+  it("draws the empty slots with the months' dotted rules", () => {
+    const rules = parseRules(allCss()["AchievementsPage.css"]).rules.filter(
+      (rule) => rule.atRules.length === 0 && rule.selectors.includes(".ach-month-filler"),
+    );
+    const declarations = Object.assign({}, ...rules.map((rule) => rule.declarations));
+    expect(declarations["grid-row"]).toBe("span 2");
+    expect(declarations["border-top"]).toBe("var(--ach-rule)");
+    expect(declarations["border-left"]).toBe("var(--ach-rule)");
   });
 
   // v0.4.1: every month keeps its full Monday-first calendar shape, whatever the range; days before the range

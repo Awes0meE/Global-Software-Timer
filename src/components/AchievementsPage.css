@@ -108,6 +108,14 @@
   border-top: var(--ach-rule);
 }
 
+/* Empty slots after the last month carry the rules, so the rule between the rows runs the full width. */
+.ach-month-filler {
+  grid-row: span 2;
+  margin-top: 12px;
+  border-top: var(--ach-rule);
+  border-left: var(--ach-rule);
+}
+
 .is-compact .ach-month {
   row-gap: 6px;
 }

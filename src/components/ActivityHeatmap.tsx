@@ -84,6 +84,7 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
   const compact = heatmap.length > COMPACT_MIN_DAYS;
   const rows = Math.max(Math.ceil(months.length / MONTHS_PER_ROW), 1);
   const perRow = compact ? 7 : Math.max(Math.ceil(months.length / rows), 1);
+  const fillers = months.length > perRow ? (perRow - (months.length % perRow)) % perRow : 0;
   const start = heatmap[0]?.date ?? today;
   const end = heatmap[heatmap.length - 1]?.date ?? today;
   const recordNote = !hasNoRecordDays ? "" : recordStart === null ? "，还没有记录" : `，${recordStart} 之前无记录`;
@@ -125,6 +126,9 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
               </div>
             );
           })}
+          {Array.from({ length: fillers }, (_, index) => (
+            <div className="ach-month-filler" aria-hidden="true" key={`filler-${index}`} />
+          ))}
         </div>
 
         <div className="ach-readings">
