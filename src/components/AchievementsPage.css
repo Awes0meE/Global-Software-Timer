@@ -264,12 +264,13 @@
   outline-offset: 1px;
 }
 
-/* The bottom strip: four readings left to right, the legend at the right end. When the readings leave
-   it too little room, the legend wraps its own items and, at the last, drops to a line of its own. */
+/* The bottom strip: four readings left to right, the legend at the right end, all on the units' last baseline.
+   When the readings leave it too little room, the legend wraps its own items and, at the last, drops to a line
+   of its own. */
 .ach-readings {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: last baseline;
   gap: 10px 48px;
   min-width: 0;
   padding-top: 12px;
@@ -330,7 +331,6 @@
   justify-content: flex-end;
   gap: 8px 14px;
   min-width: 0;
-  padding-bottom: 6px;
   color: var(--eink-dim);
   font-size: 12px;
   line-height: 12px;

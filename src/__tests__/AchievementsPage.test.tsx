@@ -259,6 +259,20 @@ describe("AchievementsPage", () => {
     }
   });
 
+  // The legend's 12px keys sit on the readings' unit line (天, 小时), not 11px below it on the strip's bottom edge.
+  it("sets the legend on the readings' last baseline", () => {
+    const topLevel = (selector: string) =>
+      Object.assign(
+        {},
+        ...parseRules(allCss()["AchievementsPage.css"]).rules
+          .filter((rule) => rule.atRules.length === 0 && rule.selectors.includes(selector))
+          .map((rule) => rule.declarations),
+      );
+    expect(topLevel(".ach-readings")["align-items"]).toBe("last baseline");
+    expect(topLevel(".ach-legend")["padding-bottom"]).toBeUndefined();
+    expect(topLevel(".ach-legend")["align-self"]).toBeUndefined();
+  });
+
   it("draws the empty slots with the months' dotted rules", () => {
     const rules = parseRules(allCss()["AchievementsPage.css"]).rules.filter(
       (rule) => rule.atRules.length === 0 && rule.selectors.includes(".ach-month-filler"),
