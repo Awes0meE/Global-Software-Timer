@@ -93,6 +93,8 @@ describe("preview mock exports", () => {
       ["terminal", 10, "2026-11-16"],
     ]);
     expect(software.every((row) => row.used_days > 0 && row.process_name !== "")).toBe(true);
+    // Day counts match the approved 成就海报 mocks.
+    expect(software.find((row) => row.identity_key === "code")?.used_days).toBe(1046);
 
     const all = await invoke<MilestoneSoftware[]>("get_milestone_software", { includeHidden: true });
     expect(all.map((row) => row.identity_key)).toContain("snipaste");
@@ -103,11 +105,21 @@ describe("preview mock exports", () => {
     const data = await invoke<StatisticsExport>("get_statistics_export", range);
     const summary = await invoke<StatisticsSummary>("get_statistics_summary", range);
 
-    expect(data.software.map((row) => [row.identity_key, row.focused_seconds, row.window_seconds])).toEqual(
+    const ledger = data.software.filter((row) => row.focused_seconds > 0 || row.window_seconds > 0);
+    expect(ledger.map((row) => [row.identity_key, row.focused_seconds, row.window_seconds])).toEqual(
       summary.ranking.map((row) => [row.identity_key, row.focused_seconds, row.window_seconds]),
     );
-    expect(data.software.some((row) => row.identity_key === "snipaste")).toBe(false);
+    expect(data.software.some((row) => row.identity_key === "snipaste" || row.identity_key === "onedrive")).toBe(false);
     expect(data.software.some((row) => row.background_seconds > 0)).toBe(true);
+    // Steam has had no window for 45 days but keeps running in the background.
+    expect(data.software.find((row) => row.identity_key === "steam")).toMatchObject({
+      focused_seconds: 0,
+      window_seconds: 0,
+      used_days: 0,
+    });
+    expect(data.software.find((row) => row.identity_key === "steam")?.background_seconds).toBeGreaterThan(0);
+    const withHidden = await invoke<StatisticsExport>("get_statistics_export", { ...range, includeHidden: true });
+    expect(withHidden.software.some((row) => row.identity_key === "onedrive")).toBe(true);
     for (const software of data.software) {
       const rows = data.days.filter((row) => row.identity_key === software.identity_key);
       expect(rows.reduce((sum, row) => sum + row.focused_seconds, 0)).toBe(software.focused_seconds);

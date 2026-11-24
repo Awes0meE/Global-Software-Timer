@@ -536,14 +536,16 @@ export function emptyStatisticsSummary(start: string, end: string): StatisticsSu
 // Focus totals are hand-picked so the shelf shows every state: a tier reached
 // today (100 hours), no tier yet, and the 6666-hour ultimate tier (demo only).
 // `usedDays` counts all-time days with at least 5 minutes of focus (成就海报).
+// Like the 6666 tier, these day counts are demo only: they match the approved
+// v0.4.3 成就海报 mocks (round-3 data.js) and reach past the mock's data window.
 const milestoneSeeds: { key: string; hours: number; reachedOffset: number | null; usedDays: number }[] = [
-  { key: "code", hours: 6702.4, reachedOffset: 2, usedDays: 151 },
-  { key: "chrome", hours: 742.5, reachedOffset: 41, usedDays: 148 },
-  { key: "excel", hours: 100.3, reachedOffset: 0, usedDays: 97 },
-  { key: "typora", hours: 63.4, reachedOffset: 20, usedDays: 46 },
-  { key: "matlab", hours: 55.1, reachedOffset: 63, usedDays: 52 },
-  { key: "terminal", hours: 18.6, reachedOffset: 6, usedDays: 17 },
-  { key: "snipaste", hours: 12.1, reachedOffset: 90, usedDays: 35 },
+  { key: "code", hours: 6702.4, reachedOffset: 2, usedDays: 1046 },
+  { key: "chrome", hours: 742.5, reachedOffset: 41, usedDays: 412 },
+  { key: "excel", hours: 100.3, reachedOffset: 0, usedDays: 58 },
+  { key: "typora", hours: 63.4, reachedOffset: 20, usedDays: 71 },
+  { key: "matlab", hours: 55.1, reachedOffset: 63, usedDays: 49 },
+  { key: "terminal", hours: 18.6, reachedOffset: 6, usedDays: 33 },
+  { key: "snipaste", hours: 12.1, reachedOffset: 90, usedDays: 90 },
   { key: "notion", hours: 7.2, reachedOffset: null, usedDays: 9 },
 ];
 
@@ -675,35 +677,49 @@ export function milestoneSoftware(includeHidden: boolean, hidden: Set<string>): 
         },
       ];
     })
-    .sort((left, right) => right.tier_hours - left.tier_hours || right.total_focused_seconds - left.total_focused_seconds);
+    .sort(
+      (left, right) =>
+        right.tier_hours - left.tier_hours ||
+        right.total_focused_seconds - left.total_focused_seconds ||
+        left.identity_key.localeCompare(right.identity_key),
+    );
 }
 
 // Typical background hours a day for software that keeps running without a window.
-const BACKGROUND_HOURS: Record<string, number> = { wechat: 3, cloudmusic: 2, snipaste: 8, steam: 4, chrome: 0.5 };
+// Background time does not need a window that day: Steam (no window in the last
+// 45 days) and OneDrive (never a window) give the 区间汇总 background-only rows.
+const BACKGROUND_HOURS: Record<string, number> = { wechat: 3, cloudmusic: 2, snipaste: 8, steam: 4, chrome: 0.5, onedrive: 10 };
 
 function exportNames(key: string) {
   return { identity_key: key, display_name: identity(key).display_name, process_name: seedByKey.get(key)?.process ?? "" };
+}
+
+function backgroundDay(key: string, today: number, day: number): number {
+  const machine = machineDay(today, day);
+  if (!machine || today - day > SOFTWARE_DETAIL_OFFSET) return 0;
+  return Math.round((BACKGROUND_HOURS[key] ?? 0) * hour * (0.5 + noise(`background:${key}:${today - day}`)) * machine.share);
 }
 
 /** The 统计 CSV data, from the same synthetic days as statisticsSummary. */
 export function statisticsExport(start: string, end: string, includeHidden: boolean, hidden: Set<string>): StatisticsExport {
   const { first, last } = parseRange(start, end);
   const today = todayNumber();
-  const models = visibleModels(includeHidden, hidden);
+  const models = new Map(visibleModels(includeHidden, hidden).map((model) => [model.key, model]));
+  const keys = new Set([
+    ...models.keys(),
+    ...Object.keys(BACKGROUND_HOURS).filter((key) => includeHidden || !hidden.has(key)),
+  ]);
   const days: StatisticsExportDay[] = [];
   for (const day of dayNumbers(first, last)) {
     const rows: StatisticsExportDay[] = [];
-    for (const model of models) {
-      const usage = softwareDay(model, today, day);
-      if (!usage) continue;
-      const share = machineDay(today, day)?.share ?? 1;
-      const background = Math.round(
-        (BACKGROUND_HOURS[model.key] ?? 0) * hour * (0.5 + noise(`background:${model.key}:${today - day}`)) * share,
-      );
+    for (const key of keys) {
+      const model = models.get(key);
+      const usage = (model && softwareDay(model, today, day)) ?? { focus: 0, window: 0 };
+      const background = backgroundDay(key, today, day);
       if (usage.focus === 0 && usage.window === 0 && background === 0) continue;
       rows.push({
         date: dateOf(day),
-        ...exportNames(model.key),
+        ...exportNames(key),
         focused_seconds: usage.focus,
         window_seconds: usage.window,
         background_seconds: background,
