@@ -295,8 +295,8 @@ describe("迁移与备份", () => {
       ["主题", "跟随系统→改为深色"],
       ["特别关注", "+2"],
       ["隐藏软件", "+1"],
-      ["未匹配", "3"],
-      ["冲突", "0"],
+      ["本机没有的软件", "3"],
+      ["已在另一列表", "0"],
     ]);
     expect(within(dialog).getByRole("button", { name: "取消" })).toHaveFocus();
 
@@ -497,8 +497,8 @@ describe("importFacts", () => {
       { label: "关闭窗口", value: "最小化到后台", to: "直接退出" },
       { label: "特别关注", value: "+0" },
       { label: "隐藏软件", value: "+0" },
-      { label: "未匹配", value: "0" },
-      { label: "冲突", value: "1" },
+      { label: "本机没有的软件", value: "0" },
+      { label: "已在另一列表", value: "1" },
     ]);
   });
 });

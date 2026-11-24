@@ -36,8 +36,8 @@ export function importFacts(preview: SettingsImportPreview): ImportFact[] {
     })),
     { label: "特别关注", value: `+${preview.focused_added}` },
     { label: "隐藏软件", value: `+${preview.hidden_added}` },
-    { label: "未匹配", value: String(preview.unmatched) },
-    { label: "冲突", value: String(preview.conflicts) },
+    { label: "本机没有的软件", value: String(preview.unmatched) },
+    { label: "已在另一列表", value: String(preview.conflicts) },
   ];
 }
 
