@@ -134,6 +134,13 @@ v0.4.0 additionally includes:
 - The Mica-glass shell with e-ink screens replaces the v0.2 desk-instrument case and LCD look (`DESIGN.md`). No tracking, schema (still 3), metric or wording change; the sidebar `时间轴` entry is still unavailable.
 - One read-only command, `get_transparency_effects_enabled`, reads the Windows transparency setting (HKCU, not stored); panels turn opaque when it is off. The only other data change is one extra read-only field in the dashboard summary: `get_dashboard_summary` returns `usage_date` (the local date of today's readings), which clears the overview readout ghost when the date changes. Binding decisions: `docs/superpowers/specs/2026-11-22-glass-eink-redesign-design.md`.
 
+v0.4.2 additionally includes:
+
+- Date browsing on `概览` and `后台`: a `‹ date ›` header key group with a calendar popover shaded by each day's active time, and a `今天` key when a past day is shown. The viewed date is never persisted; past days are read-only views of stored data. The `统计` custom range uses the same calendar.
+- Page-specific CSV exports (`概览`, `软件`, `后台`, `统计`), settings export/import as JSON (merge-only, previewed before applying) and a full data backup (`VACUUM INTO`; restore stays manual). Files are written only to the path the user picks in the native dialog; no program paths in exports, no network.
+- The header and panel `更多` buttons are removed (no placeholder header buttons); the `后台` e-ink strip is taller.
+- No tracking or schema change (still schema 3). Binding decisions: `docs/superpowers/specs/2026-11-24-v042-date-browsing-and-exports-design.md`.
+
 v0.1 excludes:
 
 - macOS implementation.
