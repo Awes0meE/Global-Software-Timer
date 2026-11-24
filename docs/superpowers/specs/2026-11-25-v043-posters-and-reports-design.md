@@ -42,7 +42,7 @@ A 1080×1440 PNG of ONE software's focus milestone.
 
 1. **Header line**: `成就` on the left; on the right the date that software reached its highest focus tier, as `2026年11月20日`.
 2. **Software**: icon + display name.
-3. **Name fit** (the mock's `kit.js` logic, shared with the daily tray names): shrink the name to fit its slot down to 0.8× its size; if it still does not fit, wrap to two balanced lines at 0.8×; only then ellipsis (line clamp). The daily tray names use the one-line variant (shrink to 0.8×, then ellipsis).
+3. **Name fit** (the mock's `kit.js` logic, shared with the daily tray names): shrink the name to fit its slot down to 0.8× its size; if it still does not fit, wrap to two balanced lines at 0.8×; only then ellipsis (line clamp). A word wider than the slot cannot wrap, so it also ends the name in an ellipsis instead of being cut off sideways. The daily tray names use the one-line variant (shrink to 0.8×, then ellipsis).
 4. **Label** `专注里程碑`.
 5. **Hero**: the tier in hours (the app's tiers, `statistics::MILESTONE_HOURS` = 10 / 50 / 100 / 500 / 1000 / 6666) + `小时`. The hero is fitted to its slot and anchored by cap top (the mock's `data-captop`: Inter figures are 1490/2048 em tall), so 2-, 3- and 4-digit heroes sit at the same top and the label-to-numeral gap is identical on every tier.
 6. A hairline rule.
@@ -64,7 +64,21 @@ A 1080×1440 PNG of ONE software's focus milestone.
 3. The list respects the page's `包含隐藏软件` switch. When the switch changes, the selection is kept if that software is still listed, otherwise it falls back to the default.
 4. While the milestone list is loading the key is busy. When no software qualifies, the key is disabled (`aria-disabled`, dimmed, no hover or press) with the tooltip `暂无里程碑` (the existing `UnavailableTooltip` bubble) and opens no dialog.
 5. `保存图片` renders the PNG and calls `save_binary_export`. While rendering and saving, `保存图片` is busy and cannot be pressed again. On success the dialog closes and the v0.4.2 `已保存` toast appears with `在文件夹中显示`. If the user cancels the native dialog, nothing happens and the poster dialog stays open. On failure the dialog stays open and the toast says `保存失败`.
-6. Dark, light and forced-colors must work for the key, the dialog and the list; transitions respect `prefers-reduced-motion`.
+6. Dark, light and forced-colors must work for the key, the dialog and the list; transitions respect `prefers-reduced-motion`. In forced colours the primary key `保存图片` is drawn in `Highlight` / `HighlightText`, apart from `取消`.
+7. The toast stays live while the dialog is open: it is left out of the `inert` set (`data-modal-keep`) and drawn above the scrim (z-index 45; scrim 40, help popovers 50), so `保存失败` is announced and readable while the dialog stays open. The focus trap keeps Tab off it.
+8. The first-close choice dialog (`关闭全局软件计时器`) can open over this dialog. It is modal too; while a later `.modal-backdrop` is up, the dialog underneath yields Tab, focus and Esc to it, and focus returns to the dialog underneath once a close choice is made.
+
+### UI copy
+
+| Where | Copy |
+|---|---|
+| `概览` menu key and items | `导出日报`; `日报海报` [`PNG`], `当日明细` [`CSV`] |
+| `统计` menu key and items | `导出报表`; `区间汇总` [`CSV`], `每日明细` [`CSV`] |
+| `成就` key, its disabled tooltip | `导出成就` [`PNG`]; `暂无里程碑` |
+| Dialog title, keys, list rows | `成就海报`; `取消`, `保存图片`; `<name>` + `N 小时` |
+| Toasts | `已保存` + `在文件夹中显示`; `保存失败` (error tone); `无法读取成就` (error tone, when the retry read of the milestone list on `导出成就` also fails; worded like the existing `无法打开文件夹`) |
+| 日报海报 | `11月25日 周三`; `今日活跃` / `当日活跃`; hero + `小时`; `记录 X 小时`; tray `X 小时`; `全局软件计时器` |
+| 成就海报 | `成就`; `2026年11月20日`; `专注里程碑`; hero + `小时`; `使用 N 天`; `累计专注 X 小时`; `全局软件计时器` |
 
 ## D. 概览 export menu
 
@@ -77,7 +91,7 @@ A 1080×1440 PNG of ONE software's focus milestone.
 ### 区间汇总 (file `GST-统计-START至END.csv`, unchanged name)
 
 - Columns, in order: `软件名称`, `进程名`, `排名`, `焦点(小时)`, `窗口开着(小时)`, `开着没用(小时)`, `打开次数`, `平均单次(小时)`, `最长单次(小时)`, `后台(小时)`, `使用天数`.
-- Rows: every software with any focus, window or background time in the range (not only the top 20), ordered by focus (highest first), then window, then display name.
+- Rows: every software with any focus, window or background time in the range (not only the top 20). Rows that have a `排名` come first, in `排名` order, so the column reads 1, 2, 3, …; rows without a `排名` follow in the export's order (focus, highest first, then window, then display name). The two orders differ on ties, because the ranking (`rank_software`, unchanged, as is the `统计` page) breaks focus ties by display name.
 - `焦点`, `窗口开着`, `后台` and `使用天数` come from `get_statistics_export`. `排名`, `开着没用`, `打开次数`, `平均单次` and `最长单次` come from the page's `StatisticsSummary` ledgers as in v0.4.2 and stay empty for a software those ledgers do not list.
 - A used day = a day with focus ≥ 300 s (`STREAK_MIN_ACTIVE_SECONDS`) for that software. Window-only or background-only days never count.
 
@@ -91,9 +105,9 @@ A 1080×1440 PNG of ONE software's focus milestone.
 1. `modern-screenshot` pinned to exactly `4.7.0` (MIT), loaded with a dynamic `import()` only when exporting, so it is not in the startup bundle.
 2. The poster React component renders into a portal positioned `position: fixed; left: -10000px; top: 0; pointer-events: none` with `aria-hidden="true"`. `capturePoster` meets this with its own detached React root in such a host on `<body>`; it is the only off-screen mount. Never `display: none` or `visibility: hidden` (the clone would measure nothing). The poster subtree sets `forced-color-adjust: none` so the PNG does not depend on forced-colors.
 3. Before capture: load the poster fonts (`FontFace` / `document.fonts.load` for each family and weight used), `await img.decode()` for every image, run the name and hero fit, then wait two animation frames.
-4. Capture with `domToBlob(node, { scale: 2, backgroundColor, font: { cssText } })`: an explicit integer `scale: 2`, never `devicePixelRatio`; `backgroundColor` is the poster's opaque base colour for the theme; `cssText` holds the poster `@font-face` rules so the fonts are embedded. The result must be exactly 1080×1440.
+4. Capture with `domToBlob(node, { scale: 2, backgroundColor, font: { cssText } })`: an explicit integer `scale: 2`, never `devicePixelRatio`; `backgroundColor` is the poster's opaque base colour for the theme; `cssText` holds the poster `@font-face` rules so the fonts are embedded. The result must be exactly 1080×1440. modern-screenshot tags a scale-2 PNG as 192 DPI (`pHYs`), which makes Word, PowerPoint and print previews place it at half size, so `renderPosterPng` removes the `pHYs` chunk before saving.
 5. **Icons**: `iconToDataUrl(url)` = `fetch(url, { cache: "no-store" })` with an `AbortController` timeout of about 3 s; it requires `response.ok` and a `Content-Type` of `image/png`, then reads the blob into a `data:` URL with `FileReader`. Any failure returns `null`, and the poster draws a letter tile (the first character of the name) instead. `no-store` keeps the request from reusing an `<img>` response cached without CORS headers.
-6. **Backend CORS**: `native_icon::icon_response` adds `Access-Control-Allow-Origin` echoing the request's `Origin` (and `Vary: Origin`) only when that origin is one of the app's own: the production origin `http://tauri.localhost`, and in debug builds also the dev server origin from `tauri.conf.json` `build.devUrl` (`http://localhost:1420`). Any other origin gets no CORS header. The implementer verifies the real origins in a built app's webview and in the dev webview before relying on them; the allowed-origin check is a pure function with unit tests.
+6. **Backend CORS**: `native_icon::icon_response` adds `Access-Control-Allow-Origin` echoing the request's `Origin` (and `Vary: Origin`) only when that origin is one of the app's own: the production origin `http://tauri.localhost`, and when tauri serves the page from `tauri.conf.json` `build.devUrl` (`http://localhost:1420`) also that origin. "Serves the page from devUrl" is tauri-build's `dev` cfg (no `custom-protocol` feature), the same cfg tauri 2.11.2's `manager::get_app_url` checks; it is not `debug_assertions`, which differs in `tauri dev --release` and `tauri build --debug`. Any other origin gets no CORS header. The allowed-origin check is a pure function with unit tests. The production origin was confirmed against the tauri 2.11.2 source: `manager::tauri_protocol_url` returns `http://tauri.localhost` on Windows when `app.windows[].useHttpsScheme` is false (the default), and `tauri.conf.json` does not set it. No automated test runs a real webview, so the user checks that real icons (not letter tiles) appear on posters exported from the installed build (see the acceptance pass).
 
 ## G. Saving PNGs
 
@@ -201,7 +215,7 @@ MilestoneSoftware {
   - `get_statistics_export`: all software beyond 20 are included; window-only and background-only software are listed but have `used_days` 0; the 300 s boundary (299 s not counted, 300 s counted); hidden filtering on and off; `days` rows only for nonzero values and in the stated order; range errors equal to `get_statistics_summary`'s.
   - `get_milestone_software`: tier and reached date match `statistics::milestones`; software below 10 h left out; no 30-row truncation; sort tier desc then total focus desc; all-time `used_days`; hidden filtering.
   - `save_binary_export` helpers: header percent-decoding (Chinese names, invalid UTF-8), name sanitising and `.png` appending, the 32 MiB cap boundary, PNG signature check, raw-body requirement.
-  - The `gsticon` allowed-origin function: production origin, debug dev origin, other origins and a missing `Origin` header.
+  - The `gsticon` allowed-origin function: production origin, the dev origin (only under the `dev` cfg), other origins and a missing `Origin` header.
 - **Vitest**:
   - `dailyPosterModel`: today vs past label, date and weekday strings, one-decimal hours, bar share clamping and zero recorded time, top-3 ranking with ties, runtime fallback, 0 / 1 / 2 / 3 columns, hidden software excluded.
   - `achievementPosterModel`: `2026年11月20日`, tier hero, `使用 N 天`, `累计专注 X 小时`.
@@ -212,7 +226,7 @@ MilestoneSoftware {
   - The `成就海报` dialog: default selection, keyboard, typeahead, Enter / Esc, double-click, focus return, the disabled key and its tooltip, the hidden switch.
   - The `概览` and `统计` export menus list exactly their items.
 - **Manual / preview**: the poster route and the probe screenshots of section "Acceptance criteria" 10, compared side by side with the approved mock PNGs; one real save through the dialog in the built app is left to the user's acceptance pass.
-- **User acceptance pass (criterion 8)**: no automated test runs a real webview, so the allowed origins (`http://tauri.localhost` in the installed build, `http://localhost:1420` in `tauri dev`) are checked by hand: export a `成就海报` and a `日报海报` in the installed build and in `tauri dev`, and confirm the real software icons are embedded, not letter tiles. In `tauri dev` the console also prints the first `gsticon` request's `Origin` once (debug builds only).
+- **User acceptance pass (criterion 8)**: no automated test runs a real webview, so the allowed origins (`http://tauri.localhost` in the installed build, `http://localhost:1420` in `tauri dev`) are checked by hand: export a `成就海报` and a `日报海报` in the installed build and in `tauri dev`, and confirm the real software icons are embedded, not letter tiles. In `tauri dev` the console also prints, once, the first `Origin` a `gsticon` request carries (debug builds only). `<img>` loads are no-cors and send none, so that line comes from the first poster icon `fetch`.
 
 ## Docs to update
 
