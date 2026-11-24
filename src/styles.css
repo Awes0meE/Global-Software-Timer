@@ -115,6 +115,11 @@
   --nk-lift-press: 0 0.5px 1px rgba(20, 30, 60, 0.16);
   --nk-hover-fill: rgba(255, 255, 255, 0.42);
   --nk-hover-rim: rgba(20, 30, 60, 0.07);
+  /* The groove between the segments of a grouped header key; light needs a darker dark line than --nk-lo,
+     or the segments read as one pill. */
+  --nk-groove: var(--edge-strong);
+  /* Heat level 1 on the calendar's e-ink screen, under ink-coloured digits. */
+  --eink-heat-1: color-mix(in srgb, var(--eink-ink) 44%, transparent);
 }
 
 :root[data-theme="dark"] {
@@ -192,6 +197,9 @@
   --nk-lift-press: 0 0.5px 1px rgba(0, 0, 0, 0.55);
   --nk-hover-fill: rgba(255, 255, 255, 0.05);
   --nk-hover-rim: rgba(255, 255, 255, 0.06);
+  --nk-groove: var(--nk-lo);
+  /* 44% under near-white digits is only about 3.6:1 on the dark paper; 34% gives about 5:1. */
+  --eink-heat-1: color-mix(in srgb, var(--eink-ink) 34%, transparent);
 }
 
 /* Glass switch: panels and the sidebar draw through these, never --glass / --side directly. */

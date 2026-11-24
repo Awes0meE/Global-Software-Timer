@@ -166,10 +166,10 @@ describe("glass and e-ink limits", () => {
     expect(inKeyframes).toEqual(["lamp-breathe"]);
   });
 
-  // Spec「动效」: no new animations.
-  it("has exactly the three existing keyframes", () => {
+  // Spec「动效」: no new animations, except the v0.4.2 header popovers' and toast's pop-in.
+  it("has exactly the known keyframes", () => {
     const names = Object.values(allCss()).flatMap((css) => parseRules(css).keyframes);
-    expect(names.sort()).toEqual(["backdrop-in", "dialog-in", "lamp-breathe"]);
+    expect(names.sort()).toEqual(["backdrop-in", "dialog-in", "lamp-breathe", "pop-in"]);
   });
 
   // Spec「字体」: GST Pixel only on the e-ink screens.
@@ -237,9 +237,17 @@ describe("glass and e-ink limits", () => {
   });
 
   // Plan「口径：投影颜色」, trade-off 24: --shade / --shade-deep only under the skip link, the knob
-  // and the three floating cards.
+  // and the floating cards (since v0.4.2 also the header popovers and the toast).
   it("keeps the shade colours on the whitelisted floating surfaces", () => {
-    const allowed = [".skip-link", ".toggle-knob", ".unavailable-tooltip-bubble", ".active-help-popover", ".trend-tip"];
+    const allowed = [
+      ".skip-link",
+      ".toggle-knob",
+      ".unavailable-tooltip-bubble",
+      ".active-help-popover",
+      ".trend-tip",
+      ".glass-pop",
+      ".toast",
+    ];
     const users = selectorsUsing(SHADE);
     expect(users.length).toBeGreaterThan(0);
     for (const selector of users) expect(allowed, selector).toContain(selector);

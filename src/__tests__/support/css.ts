@@ -10,6 +10,7 @@
 import styles from "../../styles.css?raw";
 import achievementsCss from "../../components/AchievementsPage.css?raw";
 import statisticsCss from "../../components/StatisticsPage.css?raw";
+import headerControlsCss from "../../components/HeaderControls.css?raw";
 
 export type Theme = "light" | "dark";
 
@@ -36,12 +37,13 @@ export interface Rgba {
   a: number;
 }
 
-/** The three stylesheets the app ships, keyed by file name. */
+/** The stylesheets the app ships, keyed by file name. */
 export function allCss(): Record<string, string> {
   return {
     "styles.css": styles,
     "AchievementsPage.css": achievementsCss,
     "StatisticsPage.css": statisticsCss,
+    "HeaderControls.css": headerControlsCss,
   };
 }
 

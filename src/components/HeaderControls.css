@@ -1,0 +1,649 @@
+/* v0.4.2 header keys, their glass popovers (calendar, export menu) and the toast. The calendar is
+   react-day-picker (MIT); its stylesheet is not imported, and the few structural rules below follow it. */
+
+/* ---------- Raised keys ---------- */
+
+.page-header .window-actions {
+  align-items: center;
+}
+
+.hk-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The raised key, built like the selected nav key: face, sheen, rim, lit top, dark bottom, lift. */
+.hk-group,
+.hk-solo,
+.cal-key:not(:disabled) {
+  background-color: var(--nk-fill);
+  background-image: var(--nk-sheen);
+  box-shadow: 0 0 0 1px var(--nk-rim), inset 0 1px 0 var(--nk-hi), inset 0 -1px 0 var(--nk-lo), var(--nk-lift);
+}
+
+.hk-group {
+  display: inline-flex;
+  align-items: stretch;
+  height: 32px;
+  border-radius: var(--radius-key);
+}
+
+.hk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-key);
+  color: var(--ink);
+  font-size: var(--type-small);
+  white-space: nowrap;
+  transition: background-color 120ms var(--ease), box-shadow 120ms var(--ease), color 120ms var(--ease);
+}
+
+/* Segments of the grouped key: flat on the group's face, square where they meet. */
+.hk-group .hk {
+  --hk-groove: 0 0 transparent;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: var(--hk-groove);
+}
+
+.hk-group .hk:first-child {
+  border-radius: var(--radius-key) 0 0 var(--radius-key);
+}
+
+.hk-group .hk:last-child {
+  border-radius: 0 var(--radius-key) var(--radius-key) 0;
+}
+
+/* A groove between segments: a dark line with a lit line beside it. */
+.hk-group .hk + .hk {
+  --hk-groove: -1px 0 0 var(--nk-groove), inset 1px 0 0 var(--nk-hi);
+}
+
+.hk-step {
+  width: 30px;
+  padding: 0;
+}
+
+.hk-date {
+  padding: 0 10px 0 11px;
+}
+
+/* Digits (Bahnschrift) and 周X (YaHei) on one baseline; YaHei's ideographs sit a pixel low, so lift them. */
+.hk-date-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.hk-date-text .num {
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+.hk-week {
+  position: relative;
+  top: -1px;
+  color: var(--ink-2);
+}
+
+.hk-caret {
+  color: var(--ink-2);
+  transition: transform 160ms var(--ease);
+}
+
+.hk[aria-expanded="true"] .hk-caret {
+  transform: rotate(180deg);
+}
+
+.hk-export > svg:first-child,
+.hk-range > svg:first-child {
+  color: var(--ink-2);
+}
+
+.hk-group .hk:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.hk-solo:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--nk-fill) 100%, var(--ink) 4%);
+}
+
+/* Pressed, and held down while its popover is open: the key sinks, like a pressed nav key. */
+.hk-group .hk:active:not(:disabled),
+.hk-group .hk[aria-expanded="true"] {
+  --muted: var(--ink-2);
+  background-color: var(--chip);
+  background-image: linear-gradient(to bottom, var(--nk-lo), transparent 80%);
+  box-shadow: var(--hk-groove), inset 0 2px 3px var(--nk-lo);
+}
+
+.hk-solo:active:not(:disabled),
+.hk-solo[aria-expanded="true"] {
+  --muted: var(--ink-2);
+  background-color: var(--chip);
+  background-image: linear-gradient(to bottom, var(--nk-lo), transparent 80%);
+  box-shadow: 0 0 0 1px var(--nk-rim), inset 0 2px 3px var(--nk-lo), var(--nk-lift-press);
+}
+
+.hk:disabled {
+  color: color-mix(in srgb, var(--ink-2) 32%, transparent);
+  cursor: default;
+}
+
+.hk[aria-busy="true"] {
+  cursor: progress;
+}
+
+/* Segments: an inner ring on a rounded box, keeping the groove. */
+.hk-group .hk:focus-visible {
+  border-radius: var(--radius-key);
+  box-shadow: var(--hk-groove), inset 0 0 0 2px var(--accent);
+}
+
+.hk-solo:focus-visible {
+  box-shadow: 0 0 0 1px var(--nk-rim), inset 0 1px 0 var(--nk-hi), inset 0 -1px 0 var(--nk-lo), var(--nk-lift), var(--focus);
+}
+
+/* The format tag: plain UI type in a hairline box (pixel type stays on the e-ink screens). */
+.hk-tag {
+  justify-self: end;
+  min-width: 42px;
+  padding: 0 6px;
+  border-radius: var(--radius-tag);
+  box-shadow: inset 0 0 0 1px var(--edge-strong);
+  color: var(--ink-2);
+  font: 600 11px/18px var(--font-num);
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+/* On a one-format key the tag takes the caret's place. */
+.hk-export .hk-tag {
+  min-width: 0;
+  margin-right: -4px;
+}
+
+/* ---------- Glass popover (calendar and menus) ---------- */
+
+.glass-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  z-index: 40;
+  border-radius: var(--radius-dialog);
+  background-color: var(--glass-solid);
+  background-image: linear-gradient(to bottom, var(--glass-hi), transparent 44px);
+  color: var(--ink);
+  box-shadow:
+    0 0 0 1px var(--edge-strong),
+    inset 0 1px 0 var(--glass-hi),
+    0 4px 10px -4px var(--shade),
+    0 22px 44px -14px var(--shade-deep);
+  animation: pop-in 160ms var(--ease);
+}
+
+.hk-cal-pop {
+  left: 0;
+  padding: 12px;
+  transform-origin: top left;
+}
+
+.hk-menu {
+  right: 0;
+  transform-origin: top right;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+/* ---------- Export menu ---------- */
+
+.hk-menu {
+  display: grid;
+  gap: 2px;
+  min-width: 216px;
+  padding: 6px;
+}
+
+.hk-menu-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-radius: var(--radius-key);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 14px;
+  text-align: left;
+  transition: background-color 120ms var(--ease), box-shadow 120ms var(--ease);
+}
+
+.hk-menu-item svg {
+  color: var(--ink-2);
+}
+
+.hk-menu-item:is(:hover, :focus-visible) {
+  color: var(--ink);
+  background-color: var(--nk-fill);
+  background-image: var(--nk-sheen);
+  box-shadow: 0 0 0 1px var(--nk-rim), inset 0 1px 0 var(--nk-hi), inset 0 -1px 0 var(--nk-lo), var(--nk-lift);
+}
+
+.hk-menu-item:is(:hover, :focus-visible) svg {
+  color: var(--accent);
+}
+
+/* Focus is drawn inside the row, so it never runs along the popover's own edge. */
+.hk-menu-item:focus-visible {
+  box-shadow:
+    0 0 0 1px var(--nk-rim),
+    inset 0 1px 0 var(--nk-hi),
+    inset 0 -1px 0 var(--nk-lo),
+    var(--nk-lift),
+    inset 0 0 0 2px var(--accent);
+}
+
+.hk-menu-item:active {
+  background-image: linear-gradient(to bottom, var(--nk-lo), transparent 70%);
+  box-shadow: 0 0 0 1px var(--nk-rim), inset 0 1px 2px var(--nk-lo), var(--nk-lift-press);
+}
+
+/* An item that replaces data: alert ink at rest and raised. */
+.hk-menu-item.is-danger,
+.hk-menu-item.is-danger svg,
+.hk-menu-item.is-danger:is(:hover, :focus-visible),
+.hk-menu-item.is-danger:is(:hover, :focus-visible) svg {
+  color: var(--alert-ink);
+}
+
+.hk-menu-rule {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--rule);
+}
+
+/* ---------- Calendar ---------- */
+
+/* Cells are even-sized and the pixel digits 6px wide, so centring lands every glyph on whole pixels. */
+.cal {
+  --cal-cell-w: 32px;
+  --cal-cell-h: 28px;
+  --cal-spacing: 6px;
+  --cal-weekday-h: 22px;
+  /* The screen's 4px top and 6px bottom padding, the weekday row, six weeks and the spacing between. */
+  --cal-grid-h: calc(10px + var(--cal-weekday-h) + 6 * var(--cal-cell-h) + 8 * var(--cal-spacing));
+  /* 6px screen padding + 6px spacing: the caption keys line up with the outer day cells. */
+  --cal-caption-inset: 12px;
+  position: relative;
+}
+
+.cal .rdp-months {
+  display: flex;
+}
+
+.cal .rdp-month_caption {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 32px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 0 var(--cal-caption-inset);
+}
+
+.cal-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-key);
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+  transition: background-color 120ms var(--ease), box-shadow 120ms var(--ease);
+}
+
+.cal-key:disabled {
+  color: color-mix(in srgb, var(--ink-2) 30%, transparent);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  cursor: default;
+}
+
+.cal-key:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--nk-fill) 100%, var(--ink) 4%);
+}
+
+.cal-key:not(:disabled):active,
+.cal-key[aria-expanded="true"] {
+  --muted: var(--ink-2);
+  background-color: var(--chip);
+  background-image: linear-gradient(to bottom, var(--nk-lo), transparent 80%);
+  box-shadow: 0 0 0 1px var(--nk-rim), inset 0 2px 3px var(--nk-lo), var(--nk-lift-press);
+}
+
+.cal-key:focus-visible {
+  box-shadow: 0 0 0 1px var(--nk-rim), var(--focus);
+}
+
+.cal-caption {
+  font-family: "Segoe UI Variable Display", var(--font-ui);
+  font-weight: 650;
+}
+
+.cal-caption svg {
+  color: var(--ink-2);
+}
+
+.cal-caption svg.is-flipped {
+  transform: rotate(180deg);
+}
+
+/* The day grid's e-ink screen (.paper paints the paper, its grain and its finish). */
+.lcd-cal {
+  padding: 4px 6px 6px;
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  line-height: 12px;
+}
+
+.lcd-cal > table {
+  position: relative;
+  z-index: 1;
+  border-collapse: separate;
+  border-spacing: var(--cal-spacing);
+}
+
+.lcd-cal .rdp-weekday {
+  height: var(--cal-weekday-h);
+  padding: 0;
+  color: var(--eink-dim);
+  font-weight: 400;
+}
+
+.lcd-cal .rdp-day {
+  padding: 0;
+  color: var(--eink-ink);
+}
+
+.lcd-cal .rdp-day_button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--cal-cell-w);
+  height: var(--cal-cell-h);
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.lcd-cal .rdp-day_button:disabled {
+  cursor: default;
+}
+
+/* The achievements heatmap's four ink levels; level 1 is a step lighter in the dark theme, under its
+   near-white digits. */
+.lcd-cal .cal-lv0 .rdp-day_button {
+  background: color-mix(in srgb, var(--eink-ink) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--eink-ink) 20%, transparent);
+  color: var(--eink-dim);
+}
+
+.lcd-cal .cal-lv1 .rdp-day_button {
+  background: var(--eink-heat-1);
+}
+
+.lcd-cal .cal-lv2 .rdp-day_button {
+  background: color-mix(in srgb, var(--eink-ink) 70%, transparent);
+  color: var(--eink-paper-solid);
+}
+
+.lcd-cal .cal-lv3 .rdp-day_button {
+  background: var(--eink-ink);
+  color: var(--eink-paper-solid);
+}
+
+/* Days still to come: the heatmap's dashed empty box; days before the records: dim type, no box. */
+.lcd-cal .cal-future:not(.rdp-outside) .rdp-day_button {
+  outline: 1px dashed color-mix(in srgb, var(--eink-ink) 42%, transparent);
+  outline-offset: -1px;
+  color: color-mix(in srgb, var(--eink-ink) 45%, transparent);
+}
+
+.lcd-cal .cal-before-data .rdp-day_button {
+  color: color-mix(in srgb, var(--eink-ink) 38%, transparent);
+}
+
+/* Days of the next or previous month: never shaded; dim when they can be picked, fainter when not. */
+.lcd-cal .rdp-outside .rdp-day_button {
+  background: none;
+  box-shadow: none;
+  outline: none;
+  color: color-mix(in srgb, var(--eink-ink) 26%, transparent);
+}
+
+.lcd-cal .rdp-outside:not(.rdp-disabled) .rdp-day_button {
+  color: var(--eink-dim);
+}
+
+.lcd-cal .rdp-day_button:not(:disabled):hover {
+  outline: 1px dotted var(--eink-ink);
+  outline-offset: 1px;
+}
+
+/* Today: a 1px frame. */
+.lcd-cal .rdp-today .rdp-day_button {
+  outline: 1px solid var(--eink-ink);
+  outline-offset: 1px;
+}
+
+/* The shown day (and a range's ends): solid ink with a 2px ring 1px off it, inside the 6px gap. */
+.lcd-cal .rdp-selected .rdp-day_button,
+.lcd-cal .rdp-selected .rdp-day_button:hover {
+  background: var(--eink-ink);
+  box-shadow: none;
+  color: var(--eink-paper-solid);
+  outline: 2px solid var(--eink-ink);
+  outline-offset: 1px;
+}
+
+/* Range mode: the days between the ends sit on --chip (or keep their level's ink) inside a 1px frame. */
+.lcd-cal .rdp-range_middle .rdp-day_button,
+.lcd-cal .rdp-range_middle .rdp-day_button:hover {
+  outline: 1px solid var(--eink-ink);
+  outline-offset: 1px;
+}
+
+.lcd-cal .rdp-range_middle:not(.cal-lv1, .cal-lv2, .cal-lv3) .rdp-day_button {
+  --muted: var(--ink-2);
+  background: var(--chip);
+  box-shadow: none;
+}
+
+.lcd-cal .rdp-day_button:focus-visible,
+.lcd-cal .rdp-selected .rdp-day_button:focus-visible {
+  box-shadow: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---------- Month view (opened from the caption key) ---------- */
+
+.cal-months {
+  width: calc(7 * var(--cal-cell-w) + 8 * var(--cal-spacing) + 12px);
+}
+
+/* As tall as the day grid, so the popover keeps its size. */
+.cal-month-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: center;
+  gap: 6px;
+  height: var(--cal-grid-h);
+  padding: 4px var(--cal-caption-inset);
+}
+
+.cal-month {
+  height: 36px;
+  font-family: var(--font-ui);
+  font-weight: 400;
+}
+
+.cal-month:not(:disabled):not(.is-current) {
+  background: transparent;
+  box-shadow: none;
+}
+
+.cal-month:not(:disabled):not(.is-current):hover {
+  --muted: var(--ink-2);
+  background-color: var(--chip);
+  box-shadow: 0 0 0 1px var(--nk-hover-rim);
+}
+
+.cal-month.is-current {
+  font-weight: 650;
+}
+
+.cal-month:disabled {
+  box-shadow: none;
+}
+
+/* ---------- Toast ---------- */
+
+.toast {
+  position: fixed;
+  right: 28px;
+  bottom: 24px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 48px;
+  padding: 8px 8px 8px 16px;
+  border-radius: var(--radius-dialog);
+  background-color: var(--glass-solid);
+  background-image: linear-gradient(to bottom, var(--glass-hi), transparent 44px);
+  color: var(--ink);
+  font-size: 14px;
+  box-shadow:
+    0 0 0 1px var(--edge-strong),
+    inset 0 1px 0 var(--glass-hi),
+    0 4px 10px -4px var(--shade),
+    0 22px 44px -14px var(--shade-deep);
+  animation: pop-in 160ms var(--ease);
+}
+
+.toast.is-error {
+  color: var(--alert-ink);
+  font-weight: 600;
+}
+
+/* Contrast themes: keys and popovers lose their paint; they get system-colour outlines, and the calendar's
+   levels become CanvasText patterns. */
+@media (forced-colors: active) {
+  .hk-group,
+  .hk-solo,
+  .cal-key:not(:disabled) {
+    outline: 1px solid ButtonText;
+    outline-offset: -1px;
+  }
+
+  .hk-tag {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
+  .glass-pop,
+  .toast {
+    outline: 1px solid CanvasText;
+  }
+
+  .hk-group .hk + .hk {
+    border-left: 1px solid ButtonText;
+  }
+
+  .hk-solo[aria-expanded="true"],
+  .hk-group .hk[aria-expanded="true"],
+  .hk-menu-item:is(:hover, :focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  /* The key outlines above outrank the sheet's plain :focus-visible ring, so focus is restated here. */
+  :is(.hk-solo, .cal-key):focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .hk-group .hk:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  /* The levels keep their own colours: dotted, dashed, then a solid CanvasText fill. */
+  .lcd-cal :is(.cal-lv1, .cal-lv2, .cal-lv3):not(.rdp-outside) .rdp-day_button {
+    forced-color-adjust: none;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  .lcd-cal .cal-lv1:not(.rdp-selected, .rdp-outside, .rdp-today) .rdp-day_button {
+    outline: 1px dotted CanvasText;
+    outline-offset: -1px;
+  }
+
+  .lcd-cal .cal-lv2:not(.rdp-selected, .rdp-outside, .rdp-today) .rdp-day_button {
+    outline: 2px dashed CanvasText;
+    outline-offset: -2px;
+  }
+
+  .lcd-cal .cal-lv3:not(.rdp-outside) .rdp-day_button {
+    background: CanvasText;
+    color: Canvas;
+  }
+
+  /* Disabled days print in GrayText, so the pickable ones stand apart. */
+  .lcd-cal .rdp-disabled .rdp-day_button {
+    color: GrayText;
+  }
+
+  .lcd-cal .rdp-today .rdp-day_button {
+    outline: 1px solid CanvasText;
+    outline-offset: 1px;
+  }
+
+  .lcd-cal .rdp-selected .rdp-day_button,
+  .lcd-cal .rdp-selected .rdp-day_button:hover {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+    outline: 2px solid Highlight;
+    outline-offset: 1px;
+  }
+
+  .lcd-cal .rdp-day_button:focus-visible,
+  .lcd-cal .rdp-selected .rdp-day_button:focus-visible {
+    outline: 2px solid CanvasText;
+    outline-offset: 1px;
+  }
+}

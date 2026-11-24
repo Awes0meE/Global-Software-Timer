@@ -118,6 +118,12 @@ const COMBOS: Combo[] = [
     pair: (s) => [s.colour("--ink-2"), over(s.colour("--nk-hover-fill"), s.S)],
   },
   { name: "--ink-2 on chip over S (pressed nav key)", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--chip"), s.S)] },
+  // v0.4.2 raised header keys straight on the background: the date and labels in --ink, 周X, the caret and
+  // the format tag in --ink-2; pressed, on --chip.
+  { name: "--ink on header key over B", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--nk-fill"), s.B)] },
+  { name: "--ink-2 on header key over B", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--nk-fill"), s.B)] },
+  // Their popovers: menu rows and calendar caption keys raised on the opaque popover.
+  { name: "--ink on popover key over glass-solid", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--nk-fill"), s.solid)] },
   { name: "--signal-ink on G", threshold: TEXT, pair: (s) => [s.colour("--signal-ink"), s.G] },
   { name: "--alert-ink on G", threshold: TEXT, pair: (s) => [s.colour("--alert-ink"), s.G] },
   {
@@ -247,6 +253,22 @@ describe.each(THEMES)("contrast in the %s theme", (theme) => {
     paperStops(theme).forEach((stop, index) => {
       const ratio = contrast(ink, stop);
       expect(ratio, `${theme}: ${name} on paper stop ${index} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(threshold);
+    });
+  });
+
+  // v0.4.2 calendar: each heat level's digits on its cell, over every stop of the e-ink paper.
+  it.each([
+    ["level 0", "--eink-dim", "color-mix(in srgb, var(--eink-ink) 9%, transparent)"],
+    ["level 1", "--eink-ink", "var(--eink-heat-1)"],
+    ["level 2", "--eink-paper-solid", "color-mix(in srgb, var(--eink-ink) 70%, transparent)"],
+    ["level 3 and the shown day", "--eink-paper-solid", "var(--eink-ink)"],
+  ])("prints the calendar's %s digits legibly", (_level, digits, cell) => {
+    const tokens = themeTokens(theme);
+    const text = parseColor(token(theme, digits));
+    const fill = parseColor(resolve(cell, tokens));
+    paperStops(theme).forEach((stop, index) => {
+      const ratio = contrast(text, over(fill, stop));
+      expect(ratio, `${theme}: ${digits} on ${cell} over paper stop ${index} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(TEXT);
     });
   });
 
