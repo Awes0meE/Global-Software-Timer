@@ -6,11 +6,32 @@ import { layoutPoster, OUTPUT_SCALE, POSTER_HEIGHT, POSTER_WIDTH } from "./layou
 /** Integer capture scale: 540×720 CSS px -> 1080×1440 PNG. Never devicePixelRatio. */
 export const POSTER_SCALE = OUTPUT_SCALE;
 
-/** The poster's opaque base colour per theme (kept in step with posters.css). */
+/** The poster's opaque base colour per theme, used when `--p-base` cannot be read (a test asserts posters.css agrees). */
 export const POSTER_BASE_COLORS = { dark: "#121218", light: "#f3f3f8" } as const;
 
-function nextFrame(): Promise<void> {
-  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+/** Longest wait for one animation frame: WebView2 pauses rAF while the window is minimised or in the tray. */
+export const FRAME_TIMEOUT_MS = 100;
+
+/** The next animation frame, or FRAME_TIMEOUT_MS when none comes (hidden window). */
+export function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    let frame = 0;
+    const timer = setTimeout(() => {
+      cancelAnimationFrame(frame);
+      resolve();
+    }, FRAME_TIMEOUT_MS);
+    frame = requestAnimationFrame(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+/** The colour the poster paints under its glow (`--p-base`), so the capture background matches it. */
+function posterBaseColor(element: HTMLElement): string {
+  const painted = getComputedStyle(element).getPropertyValue("--p-base").trim();
+  if (painted) return painted;
+  return element.classList.contains("is-light") ? POSTER_BASE_COLORS.light : POSTER_BASE_COLORS.dark;
 }
 
 function pngSize(bytes: Uint8Array): { width: number; height: number } | null {
@@ -36,7 +57,7 @@ export async function renderPosterPng(element: HTMLElement): Promise<Uint8Array>
   await nextFrame();
 
   const [{ domToBlob }, fontCss] = await Promise.all([import("modern-screenshot"), posterFontEmbedCss()]);
-  const backgroundColor = element.classList.contains("is-light") ? POSTER_BASE_COLORS.light : POSTER_BASE_COLORS.dark;
+  const backgroundColor = posterBaseColor(element);
   const blob = await domToBlob(element, {
     width: POSTER_WIDTH,
     height: POSTER_HEIGHT,

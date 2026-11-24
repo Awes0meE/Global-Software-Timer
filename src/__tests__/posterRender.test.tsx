@@ -9,7 +9,8 @@ import { capturePoster } from "../posters/capturePoster";
 import { DailyPoster } from "../posters/DailyPoster";
 import { iconToDataUrl } from "../posters/iconToDataUrl";
 import type { AchievementPosterModel, DailyPosterModel } from "../posters/models";
-import { POSTER_SCALE, renderPosterPng } from "../posters/renderPosterPng";
+import { FRAME_TIMEOUT_MS, nextFrame, POSTER_BASE_COLORS, POSTER_SCALE, renderPosterPng } from "../posters/renderPosterPng";
+import posterCss from "../posters/posters.css?raw";
 
 const PNG_DATA_URL = "data:image/png;base64,iVBORw0KGgo=";
 
@@ -21,6 +22,11 @@ function fakePng(width: number, height: number): Blob {
   view.setUint32(16, width);
   view.setUint32(20, height);
   return new Blob([bytes], { type: "image/png" });
+}
+
+/** A response body that starts with the PNG signature. */
+function pngBody(): Uint8Array<ArrayBuffer> {
+  return new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
 }
 
 function stubFetch(handler: (url: string, init?: RequestInit) => Promise<Response>) {
@@ -54,6 +60,7 @@ const achievement: AchievementPosterModel = {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
+  vi.restoreAllMocks();
   domToBlob.mockReset();
 });
 
@@ -136,6 +143,46 @@ describe("renderPosterPng", () => {
     );
   });
 
+  it("paints the capture background in the same base colour as posters.css", () => {
+    const base = (selector: string) => {
+      const block = posterCss.slice(posterCss.indexOf(selector));
+      return /--p-base:\s*([^;]+);/.exec(block)?.[1].trim();
+    };
+    expect(base(".gst-poster.is-dark")).toBe(POSTER_BASE_COLORS.dark);
+    expect(base(".gst-poster.is-light")).toBe(POSTER_BASE_COLORS.light);
+  });
+
+  it("does not wait for an animation frame that never comes (window hidden in the tray)", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    let done = false;
+    void nextFrame().then(() => {
+      done = true;
+    });
+    await vi.advanceTimersByTimeAsync(FRAME_TIMEOUT_MS - 1);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(done).toBe(true);
+    expect(cancelAnimationFrame).toHaveBeenCalledWith(1);
+  });
+
+  it("resolves on the animation frame when it comes", async () => {
+    let fire: FrameRequestCallback = () => undefined;
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        fire = callback;
+        return 7;
+      }),
+    );
+    const clear = vi.spyOn(globalThis, "clearTimeout");
+    const frame = nextFrame();
+    fire(0);
+    await expect(frame).resolves.toBeUndefined();
+    expect(clear).toHaveBeenCalled();
+  });
+
   it("captures a poster mounted off screen and removes it afterwards", async () => {
     stubFetch(async () => new Response(new Blob(["font"]), { status: 200 }));
     let host: HTMLElement | null = null;
@@ -160,13 +207,25 @@ describe("renderPosterPng", () => {
 describe("iconToDataUrl", () => {
   it("reads a PNG icon into a data: URL without the HTTP cache", async () => {
     const fetchMock = stubFetch(
-      async () => new Response(new Blob([new Uint8Array([0x89, 0x50])], { type: "image/png" }), {
-        status: 200,
-        headers: { "Content-Type": "image/png" },
-      }),
+      async () => new Response(pngBody(), { status: 200, headers: { "Content-Type": "image/png" } }),
     );
     await expect(iconToDataUrl("http://gsticon.localhost/abc")).resolves.toMatch(/^data:image\/png;base64,/);
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: "no-store" });
+  });
+
+  it("accepts a PNG content type with parameters", async () => {
+    stubFetch(async () => new Response(pngBody(), { status: 200, headers: { "Content-Type": "image/png; charset=binary" } }));
+    await expect(iconToDataUrl("http://gsticon.localhost/abc")).resolves.toMatch(/^data:image\/png;base64,iVBORw0KGgo/);
+  });
+
+  it("returns null for an empty body labelled image/png", async () => {
+    stubFetch(async () => new Response(new Uint8Array(0), { status: 200, headers: { "Content-Type": "image/png" } }));
+    await expect(iconToDataUrl("http://gsticon.localhost/abc")).resolves.toBeNull();
+  });
+
+  it("returns null for a body labelled image/png that is not a PNG", async () => {
+    stubFetch(async () => new Response("GIF89a not a png", { status: 200, headers: { "Content-Type": "image/png" } }));
+    await expect(iconToDataUrl("http://gsticon.localhost/abc")).resolves.toBeNull();
   });
 
   it("returns null for a failed response", async () => {
@@ -197,5 +256,45 @@ describe("iconToDataUrl", () => {
     const result = iconToDataUrl("http://gsticon.localhost/slow");
     await vi.advanceTimersByTimeAsync(3000);
     await expect(result).resolves.toBeNull();
+  });
+});
+
+describe("poster fonts", () => {
+  it("rejects with poster_font_unavailable when a font cannot be read, and retries on the next call", async () => {
+    vi.resetModules();
+    const { posterFontEmbedCss } = await import("../posters/fonts");
+    const fetchMock = stubFetch(async () => new Response("missing", { status: 404 }));
+    await expect(posterFontEmbedCss()).rejects.toThrow("poster_font_unavailable");
+
+    fetchMock.mockImplementation(async () => new Response(new Blob(["font"]), { status: 200 }));
+    await expect(posterFontEmbedCss()).resolves.toContain("data:font/woff2;base64,");
+  });
+
+  it("still resolves when a font face fails to load (the fallback fonts draw the poster)", async () => {
+    vi.resetModules();
+    const added: unknown[] = [];
+    class FailingFace {
+      constructor(
+        public family: string,
+        public source: string,
+      ) {}
+      load() {
+        return Promise.reject(new DOMException("bad font", "NetworkError"));
+      }
+    }
+    vi.stubGlobal("FontFace", FailingFace);
+    const fonts = {
+      add: vi.fn((face: unknown) => added.push(face)),
+      load: vi.fn(() => Promise.reject(new Error("no font"))),
+    };
+    Object.defineProperty(document, "fonts", { configurable: true, value: fonts });
+    try {
+      const { loadPosterFonts } = await import("../posters/fonts");
+      await expect(loadPosterFonts()).resolves.toBeUndefined();
+      expect(added).toHaveLength(2);
+      expect(fonts.load).toHaveBeenCalled();
+    } finally {
+      delete (document as unknown as { fonts?: unknown }).fonts;
+    }
   });
 });
