@@ -545,16 +545,19 @@
 
 /* ---------- Toast ---------- */
 
-/* Under the modal scrim (40): while a dialog is open the toast and its key sit dimmed behind it. */
+/* Under the modal scrim (40): while a dialog is open the toast and its key sit dimmed behind it. Inset
+   well inside the page gutter (28px / 24px), so it floats over the panels instead of sitting in a
+   panel's corner. */
 .toast {
   position: fixed;
-  right: 28px;
-  bottom: 24px;
+  right: 48px;
+  bottom: 44px;
   z-index: 35;
   display: flex;
   align-items: center;
+  gap: 8px;
   min-height: 48px;
-  padding: 8px 8px 8px 16px;
+  padding: 8px 8px 8px 14px;
   border-radius: var(--radius-dialog);
   background-color: var(--glass-solid);
   background-image: linear-gradient(to bottom, var(--glass-hi), transparent 44px);
@@ -563,9 +566,18 @@
   box-shadow:
     0 0 0 1px var(--edge-strong),
     inset 0 1px 0 var(--glass-hi),
-    0 4px 10px -4px var(--shade),
-    0 22px 44px -14px var(--shade-deep);
+    0 6px 14px -4px var(--shade),
+    0 28px 56px -12px var(--shade-deep);
   animation: pop-in 160ms var(--ease);
+}
+
+.toast-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.toast.is-error .toast-icon {
+  color: var(--alert-ink);
 }
 
 .toast.is-error {
@@ -574,7 +586,7 @@
 }
 
 .toast-action {
-  margin-left: 14px;
+  margin-left: 6px;
 }
 
 /* Without a key the message sits evenly in the glass. */

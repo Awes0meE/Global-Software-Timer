@@ -623,6 +623,14 @@ describe("Toast", () => {
     expect(zIndex("HeaderControls.css", ".toast")).toBeLessThan(zIndex("styles.css", ".modal-backdrop"));
   });
 
+  it("marks a message with a status icon that screen readers skip, and none while idle", () => {
+    const { container, rerender } = render(<Toast toast={null} onDismiss={() => {}} />);
+    expect(container.querySelector(".toast-icon")).toBeNull();
+    rerender(<Toast toast={saved()} onDismiss={() => {}} />);
+    expect(container.querySelector(".toast-icon")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByRole("status")).toHaveTextContent(/^已保存$/);
+  });
+
   it("reads a failure as an alert", () => {
     render(<Toast toast={{ id: 1, message: "保存失败", tone: "error" }} onDismiss={() => {}} />);
     expect(screen.getByRole("alert")).toHaveTextContent("保存失败");

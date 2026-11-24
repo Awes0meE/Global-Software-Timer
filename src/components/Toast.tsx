@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { CircleAlert, CircleCheck } from "lucide-react";
 import "./HeaderControls.css";
 
 export const TOAST_DURATION_MS = 6000;
@@ -102,6 +103,13 @@ export function Toast({ toast, durationMs = TOAST_DURATION_MS, onDismiss }: Toas
         }
       }}
     >
+      {toast ? (
+        isError ? (
+          <CircleAlert size={16} className="toast-icon" aria-hidden="true" />
+        ) : (
+          <CircleCheck size={16} className="toast-icon" aria-hidden="true" />
+        )
+      ) : null}
       <span className="toast-message" role="status">
         {isError ? null : text}
       </span>
