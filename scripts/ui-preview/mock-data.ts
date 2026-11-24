@@ -687,8 +687,9 @@ export function milestoneSoftware(includeHidden: boolean, hidden: Set<string>): 
 
 // ?milestones=30: the stress rows of the approved 30-row 成就海报 frame (round-3 data.js), demo only. Their
 // keys carry a prefix so they never meet the seeded software; with no icon they show the letter tile.
-const stressMilestoneSeeds: { key: string; name: string; tier: number; hours: number; reached: string }[] = [
-  { key: "ssms", name: "Microsoft SQL Server Management Studio 20", tier: 1000, hours: 1088.6, reached: "2026-11-08" },
+// usedDays where the approved poster mock gives one (ach-a3 ssms); else derived from the hours.
+const stressMilestoneSeeds: { key: string; name: string; tier: number; hours: number; reached: string; usedDays?: number }[] = [
+  { key: "ssms", name: "Microsoft SQL Server Management Studio 20", tier: 1000, hours: 1088.6, reached: "2026-11-08", usedDays: 704 },
   { key: "word", name: "Microsoft Word", tier: 500, hours: 612.4, reached: "2026-09-02" },
   { key: "pycharm", name: "PyCharm", tier: 500, hours: 538.0, reached: "2026-11-04" },
   { key: "obsidian", name: "Obsidian", tier: 100, hours: 288.1, reached: "2026-06-18" },
@@ -725,7 +726,7 @@ export function withStressMilestones(list: MilestoneSoftware[]): MilestoneSoftwa
       tier_hours: seed.tier,
       reached_on: seed.reached,
       total_focused_seconds: Math.round(seed.hours * hour),
-      used_days: Math.max(1, Math.round(seed.hours / 1.6)),
+      used_days: seed.usedDays ?? Math.max(1, Math.round(seed.hours / 1.6)),
     }),
   );
   return [...list, ...stress].sort(
