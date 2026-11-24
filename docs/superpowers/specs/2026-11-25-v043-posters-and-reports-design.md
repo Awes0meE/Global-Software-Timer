@@ -1,6 +1,6 @@
 # v0.4.3 Posters and Reports Design
 
-Status: binding. All product decisions below (A–I) were approved by the user on 2026-11-25, for version v0.4.3, after three rounds of rendered mockups. The previous release spec is `2026-11-24-v042-date-browsing-and-exports-design.md` (v0.4.2, shipped). The version number stays `0.4.2` on the `feat/v0.4.3` branch until release.
+Status: binding. All product decisions below (A–I) were approved by the user on 2026-11-25, for version v0.4.3, after three rounds of rendered mockups. The previous release spec is `2026-11-24-v042-date-browsing-and-exports-design.md` (v0.4.2, shipped). Shipped in v0.4.3 (2026-11-25).
 
 This spec is written in English; every UI string is given in Chinese exactly as it must appear.
 
@@ -133,7 +133,7 @@ New Rust command `save_binary_export`:
 
 ## I. Not in v0.4.3
 
-`成就记录` CSV, `统计` `区间报告` PNG, a poster theme choice, timeline. The version stays `0.4.2` on the branch.
+`成就记录` CSV, `统计` `区间报告` PNG, a poster theme choice, timeline.
 
 ## API contract
 

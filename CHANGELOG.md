@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.3 - 2026-11-25
 
 - Save a day as a share poster: `导出日报` on `概览` is now a menu with `日报海报` (PNG) and `当日明细` (the v0.4.2 day CSV, unchanged). The poster is a 1080×1440 PNG of the viewed day: the date, that day's active time as one large figure under `今日活跃` or `当日活跃`, a bar of active over recorded time with `记录 X 小时` under it, and the day's top three software by active time (by runtime on a day without active time). Hidden software is left out, as on the page.
 - Save one software's focus milestone as a poster: `成就` has a new `导出成就` key that opens the `成就海报` dialog, a live preview of the poster next to a list of every software that reached a milestone, highest tier first. The software that reached its tier most recently is selected; ↑, ↓, Home, End and typing a name move the selection, and Enter, a double-click or `保存图片` saves. The poster shows the software's icon and name, its highest tier and the date it was reached, `使用 N 天` and `累计专注 X 小时`. The list follows the page's `包含隐藏软件` switch; while no software has a milestone the key is dimmed and its tooltip reads `暂无里程碑`.
