@@ -1,0 +1,241 @@
+/* Share posters (spec v0.4.3 A and B), ported from the approved round-3 mockups (kit.css, daily-d2, ach-a3).
+   Laid out at 540×720 CSS px and captured at scale 2 (1080×1440 PNG): every mock size is halved.
+   Opaque painted Mica glow, no backdrop-filter. Every class is poster- prefixed so app rules never reach in. */
+
+.gst-poster {
+  --p-hero-font: "GST Poster Inter", "GST Poster Noto SC", "Microsoft YaHei UI", sans-serif;
+  --p-text-font: "GST Poster Inter", "GST Poster Noto SC", "Microsoft YaHei UI", sans-serif;
+  --p-cjk-font: "GST Poster Noto SC", "Microsoft YaHei UI", sans-serif;
+
+  position: relative;
+  width: 540px;
+  height: 720px;
+  overflow: hidden;
+  flex: none;
+  margin: 0;
+  background: var(--p-bg), var(--p-base);
+  color: var(--p-ink);
+  font-family: var(--p-text-font);
+  /* The mocks' default 16px, halved: unsized groups take their strut from it. */
+  font-size: 8px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: normal;
+  letter-spacing: normal;
+  text-align: left;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  /* The PNG must not depend on forced colours. */
+  forced-color-adjust: none;
+  user-select: none;
+}
+
+.gst-poster.is-dark {
+  --p-base: #121218;
+  --p-ink: #f4f5f8;
+  --p-ink2: #d7dae1;
+  --p-label: #9ea5b2;
+  --p-track: rgba(255, 255, 255, 0.12);
+  --p-glass-fill: rgba(255, 255, 255, 0.065);
+  --p-glass-border: rgba(255, 255, 255, 0.08);
+  --p-glass-hi: rgba(255, 255, 255, 0.16);
+  --p-glass-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+  --p-icon-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --p-accent: linear-gradient(90deg, #5b8cff 0%, #9a7cf0 50%, #e07ab4 100%);
+  --p-bg:
+    radial-gradient(440px 410px at 4% 0%, rgba(78, 134, 255, 0.42), transparent 66%),
+    radial-gradient(430px 400px at 100% 12%, rgba(238, 128, 196, 0.5), transparent 64%),
+    radial-gradient(520px 380px at 50% 104%, rgba(136, 102, 244, 0.4), transparent 66%);
+}
+
+.gst-poster.is-light {
+  --p-base: #f3f3f8;
+  --p-ink: #15171b;
+  --p-ink2: #343840;
+  --p-label: #646a77;
+  --p-track: rgba(20, 30, 60, 0.09);
+  --p-glass-fill: rgba(255, 255, 255, 0.58);
+  --p-glass-border: rgba(255, 255, 255, 0.7);
+  --p-glass-hi: rgba(255, 255, 255, 0.95);
+  --p-glass-shadow: 0 10px 25px rgba(70, 80, 130, 0.12);
+  --p-icon-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --p-accent: linear-gradient(90deg, #4f82f7 0%, #8f74ea 50%, #dc6fae 100%);
+  --p-bg:
+    radial-gradient(440px 410px at 4% 0%, rgba(112, 165, 255, 0.5), transparent 66%),
+    radial-gradient(430px 400px at 100% 12%, rgba(240, 140, 198, 0.44), transparent 64%),
+    radial-gradient(520px 380px at 50% 104%, rgba(170, 140, 255, 0.44), transparent 66%);
+}
+
+.gst-poster * {
+  box-sizing: border-box;
+}
+
+/* Positioned by layoutPoster (layout.ts) from its data attributes. */
+.poster-abs {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.poster-glass {
+  position: absolute;
+  background: var(--p-glass-fill);
+  border: 0.5px solid var(--p-glass-border);
+  box-shadow: inset 0 0.5px 0 var(--p-glass-hi), var(--p-glass-shadow);
+}
+
+.poster-icon {
+  position: absolute;
+  display: block;
+  filter: drop-shadow(var(--p-icon-shadow));
+}
+
+img.poster-icon {
+  object-fit: contain;
+}
+
+/* No icon (or it could not be read): the first character of the name on an accent tile. */
+.poster-tile {
+  display: grid;
+  place-items: center;
+  border-radius: 22%;
+  background: linear-gradient(180deg, #6f97ff, #8a6fe8);
+  color: #ffffff;
+  font-family: var(--p-cjk-font);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Hero: proportional figures (Inter's tabular period is digit-wide and pulls 6 . 3 apart), Inter Display. */
+.poster-hero {
+  font-family: var(--p-hero-font);
+  font-weight: 300;
+  letter-spacing: -0.025em;
+  font-variation-settings: "opsz" 32;
+  font-variant-numeric: proportional-nums;
+  font-feature-settings: "tnum" 0;
+  color: var(--p-ink);
+}
+
+.poster-hero .poster-point {
+  margin: 0 0.035em;
+}
+
+.poster-num {
+  font-family: var(--p-text-font);
+  letter-spacing: -0.02em;
+  color: var(--p-ink);
+}
+
+.poster-cjk {
+  font-family: var(--p-cjk-font);
+}
+
+.poster-w4 {
+  font-weight: 400;
+}
+
+.poster-w5 {
+  font-weight: 500;
+}
+
+.poster-w6 {
+  font-weight: 600;
+}
+
+.poster-ink {
+  color: var(--p-ink);
+}
+
+.poster-ink2 {
+  color: var(--p-ink2);
+}
+
+.poster-label {
+  color: var(--p-label);
+}
+
+/* Unit: 0.34 × the number (floor 11px so row units stay legible), same baseline, label colour. */
+.poster-unit {
+  margin-left: 0.3em;
+  font-family: var(--p-cjk-font);
+  font-size: max(0.34em, 11px);
+  font-weight: 400;
+  letter-spacing: 0;
+  font-variation-settings: normal;
+  color: var(--p-label);
+}
+
+.poster-unit.is-thin {
+  font-weight: 300;
+}
+
+.poster-signature {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.poster-signature img {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+.poster-signature span {
+  font-family: var(--p-cjk-font);
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--p-label);
+}
+
+/* 日报海报 (D2) */
+.poster-bar {
+  position: absolute;
+  left: 60px;
+  top: 418px;
+  width: 420px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--p-track);
+}
+
+.poster-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--p-accent);
+}
+
+.poster-tray {
+  left: 60px;
+  top: 488px;
+  width: 420px;
+  height: 134px;
+  border-radius: 16px;
+}
+
+/* 成就海报 (A3) */
+.poster-card {
+  left: 60px;
+  top: 98px;
+  width: 420px;
+  height: 506px;
+  border-radius: 24px;
+}
+
+.poster-rule {
+  position: absolute;
+  left: 92px;
+  top: 484px;
+  width: 356px;
+  height: 0.5px;
+  background: var(--p-track);
+}
