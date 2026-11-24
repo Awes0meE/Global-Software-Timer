@@ -87,9 +87,12 @@ pub fn resolve_icon(request_path: &str, waiter: IconWaiter) {
     store().resolve(key, waiter);
 }
 
-/// The dev server's origin (`build.devUrl`), in debug builds only.
+/// The dev server's origin (`build.devUrl`), only when tauri serves the page
+/// from it: tauri-build's `dev` cfg (no `custom-protocol` feature), which is
+/// what tauri's own `get_app_url` checks. It differs from `debug_assertions`
+/// in `tauri dev --release` and `tauri build --debug`.
 pub fn dev_server_origin(dev_url: Option<&tauri::Url>) -> Option<String> {
-    if !cfg!(debug_assertions) {
+    if !cfg!(dev) {
         return None;
     }
     url_origin(dev_url?)
@@ -101,12 +104,17 @@ pub fn url_origin(url: &tauri::Url) -> Option<String> {
     origin.is_tuple().then(|| origin.ascii_serialization())
 }
 
-/// Debug builds print the first `gsticon` request's `Origin` once, so the
-/// real webview origin can be checked against the allowed ones in `tauri dev`.
+/// Debug builds print the first `Origin` a `gsticon` request carries, once, so
+/// the real webview origin can be checked against the allowed ones in `tauri
+/// dev`. `<img>` loads are no-cors and send no `Origin`, so they are skipped;
+/// the first one logged is a poster's icon `fetch`.
 pub fn log_first_request_origin(origin: Option<&str>) {
     static LOGGED: std::sync::Once = std::sync::Once::new();
-    if cfg!(debug_assertions) {
-        LOGGED.call_once(|| eprintln!("gsticon request Origin: {origin:?}"));
+    if !cfg!(debug_assertions) {
+        return;
+    }
+    if let Some(origin) = origin {
+        LOGGED.call_once(|| eprintln!("gsticon request Origin: {origin}"));
     }
 }
 
@@ -1252,9 +1260,9 @@ mod cors_tests {
     }
 
     #[test]
-    fn the_dev_origin_is_allowed_only_in_debug_builds() {
+    fn the_dev_origin_is_allowed_only_when_tauri_serves_the_dev_url() {
         let dev_url = tauri::Url::parse("http://localhost:1420/").unwrap();
-        let expected = cfg!(debug_assertions).then(|| "http://localhost:1420".to_string());
+        let expected = cfg!(dev).then(|| "http://localhost:1420".to_string());
         assert_eq!(dev_server_origin(Some(&dev_url)), expected);
         assert_eq!(dev_server_origin(None), None);
     }
