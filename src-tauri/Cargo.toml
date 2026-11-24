@@ -21,6 +21,7 @@ serde_json = "1"
 sysinfo = "0.32"
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-autostart = "2"
+tauri-plugin-dialog = "=2.7.3"
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 windows-sys = { version = "0.59", features = [
