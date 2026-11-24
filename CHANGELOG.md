@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Look at a past day on `概览` and `后台`. The page header has a date key group (`‹ 前一天`, the date, `› 后一天`) whose date key opens a calendar; a `今天` key appears while a past day is shown. A past day is a read-only view of what was stored: the readout and table read `当日记录`, `当日活跃` and `当日`, the `正在运行` panel is hidden and `当日分布` fills the right rail, and `后台` shows that day's peak process count and memory instead of current CPU and status. The viewed day is not saved, so the app opens on today again after a restart; today's view stays live and follows midnight.
+- The calendar is a plain date picker printed on an e-ink screen: Monday first, a month view behind the `2026年11月` caption, and only today, the selected day, other-month days and days outside the recorded range (after today or before the first record) marked. The `统计` custom range now opens the same calendar in range mode instead of two date boxes.
+- Export from the page header: `导出日报` on `概览` and `导出后台记录` on `后台` save the viewed day, `导出软件清单` on `软件` saves every software once under 特别关注, 隐藏 or 已发现, and `导出报表` on `统计` saves one row per software for the chosen range, following the `包含隐藏软件` switch. The files are CSV (UTF-8 with BOM, durations in hours with two decimals) and hold no program paths; a cell that a spreadsheet could run as a formula gets a leading `'`.
+- `设置` has a `迁移与备份` menu: `导出设置` saves the theme, duration format and close behaviour you chose plus the 特别关注 and 隐藏 lists as JSON; `导入设置…` shows what a settings file would change and adds to the lists without removing anything; `备份全部数据` saves a full copy of the database. There is no restore button yet; the README describes how to restore a backup by hand.
+- Every file goes through the Windows save dialog, which opens in Downloads, and is written only to the path picked there, through a temporary file so a failed save never leaves a half-written file. A saved file shows an `已保存` notice with `在文件夹中显示`; cancelling does nothing and a failure shows `保存失败`.
+- The header and the `今日分布` and `正在运行` panels no longer have `更多` buttons, and headers carry no unavailable placeholder keys. Header keys are raised keys like the selected sidebar item.
+- The `后台` e-ink strip is taller, with more room between labels and digits.
+- Tracking, metrics and the database schema (still 3) are unchanged. The calendar uses react-day-picker 10.0.2 (MIT); the native dialogs use tauri-plugin-dialog 2.7.3.
+
 ## v0.4.1 - 2026-11-24
 
 - The selected sidebar item is now a raised key instead of a side bar, and the sticky heads of the 特别关注 and 后台 tables are a raised key strip that no longer sinks into near-black in the dark theme.
