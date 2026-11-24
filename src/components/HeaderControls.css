@@ -146,6 +146,12 @@
   cursor: default;
 }
 
+/* Its body goes flat too (no sheen, highlight or lift, only the rim), so it does not read as pressable. */
+.hk-solo[aria-disabled="true"] {
+  background-image: none;
+  box-shadow: 0 0 0 1px var(--nk-rim);
+}
+
 /* A header key has no room above it: its tooltip opens below, as the menus do. */
 .page-header .unavailable-tooltip-bubble {
   top: calc(100% + 8px);

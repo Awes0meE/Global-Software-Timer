@@ -2234,6 +2234,12 @@ mark {
     background: Canvas;
   }
 
+  /* A dialog's primary key (保存图片, 导入, 最小化到状态栏) stays marked apart from 取消, as its fill does. */
+  .dialog .button-primary:not(:disabled) {
+    background: Highlight;
+    color: HighlightText;
+  }
+
   .sidebar,
   .panel,
   .readout,
