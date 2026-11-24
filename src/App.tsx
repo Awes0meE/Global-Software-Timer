@@ -36,12 +36,15 @@ import { DateControl } from "./components/DateControl";
 import { ExportKey } from "./components/ExportKey";
 import { RecentActivity } from "./components/RecentActivity";
 import { TodayMix } from "./components/TodayMix";
-import { Toast, type ToastMessage } from "./components/Toast";
+import { SettingsImportDialog } from "./components/SettingsImportDialog";
+import { Toast } from "./components/Toast";
 import { TodayReadout } from "./components/TodayReadout";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
+import type { StatisticsScope } from "./exports";
 import { startTransparencyWatch } from "./glass";
-import { pageExport, type ExportActionId } from "./pageExports";
+import { pageExport } from "./pageExports";
 import { applyThemePreference, readCachedThemePreference } from "./theme";
+import { useExportActions } from "./useExportActions";
 import { answersDay, isDayInvalidDate, useLocalToday } from "./viewedDay";
 import { startVisiblePolling } from "./visiblePolling";
 
@@ -116,8 +119,8 @@ export default function App() {
   const [pickedDate, setPickedDate] = useState<string | null>(null);
   // The first day the header calendar offers; null until get_calendar_summary finds a record.
   const [dataStartDate, setDataStartDate] = useState<string | null>(null);
-  // The save toast; its live regions stay mounted so a new message is announced.
-  const [toast, setToast] = useState<ToastMessage | null>(null);
+  // The 统计 page's range and 包含隐藏软件 switch, for its 导出报表 key.
+  const [statisticsScope, setStatisticsScope] = useState<StatisticsScope | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Today's live scan for the sidebar lamp; it stays live while 概览/后台 show a past day.
   const [liveScan, setLiveScan] = useState<LiveScan>({ succeeded: null, failed: false });
@@ -452,9 +455,23 @@ export default function App() {
     }
   };
 
-  const handleExport = useCallback((_action: ExportActionId) => {
-    // The exports are wired to the backend in a later task.
-  }, []);
+  // After a settings import: read the settings back, and the overview, whose hidden list may have grown.
+  const reloadImportedSettings = useCallback(async () => {
+    try {
+      const settings = await getAppSettings();
+      setCloseBehavior(settings.close_behavior);
+      closePreferenceRef.current = settings.close_behavior;
+      closeBehaviorConfiguredRef.current = settings.close_behavior_configured;
+      setDurationFormat(settings.duration_format);
+      // A theme save still in flight must not roll the imported theme back.
+      themeRequest.current += 1;
+      confirmedTheme.current = settings.theme;
+      setTheme(settings.theme);
+    } catch {
+      setSettingsError("设置读取失败");
+    }
+    void loadDashboard();
+  }, [loadDashboard]);
 
   const contentId = `${activePage}-content`;
 
@@ -481,6 +498,10 @@ export default function App() {
   const summaryIsStale = shownSummary !== null && !summaryIsForView;
   // The wording follows the summary on screen, so labels and figures always name the same day.
   const shownPastDay = shownSummary?.is_today === false;
+  const exports = useExportActions({
+    csvContext: { viewedDate, today, statistics: statisticsScope },
+    onSettingsImported: reloadImportedSettings,
+  });
 
   const recording = !liveScan.failed && liveScan.succeeded === true;
   const recordingLabel = liveScan.failed ? "记录状态未知"
@@ -565,7 +586,8 @@ export default function App() {
                   label={headerExport.label}
                   icon={headerExport.icon}
                   items={headerExport.items}
-                  onSelect={handleExport}
+                  busy={exports.busy}
+                  onSelect={exports.handleExport}
                 />
               ) : null}
             </div>
@@ -603,7 +625,7 @@ export default function App() {
             />
           ) : activePage === "statistics" ? (
             <Suspense fallback={<main id="statistics-content"><p role="status">正在读取统计…</p></main>}>
-              <StatisticsPage durationFormat={durationFormat} />
+              <StatisticsPage durationFormat={durationFormat} onScopeChange={setStatisticsScope} />
             </Suspense>
           ) : activePage === "achievements" ? (
             <Suspense fallback={<main id="achievements-content"><p role="status">正在读取成就…</p></main>}>
@@ -637,7 +659,16 @@ export default function App() {
         </div>
       </div>
 
-      <Toast toast={toast} onDismiss={() => setToast(null)} />
+      <Toast toast={exports.toast} onDismiss={exports.dismissToast} />
+
+      {exports.importPreview ? (
+        <SettingsImportDialog
+          preview={exports.importPreview}
+          busy={exports.importBusy}
+          onConfirm={() => void exports.confirmImport()}
+          onCancel={exports.cancelImport}
+        />
+      ) : null}
 
       {closeDialogOpen ? (
         <div className="modal-backdrop">

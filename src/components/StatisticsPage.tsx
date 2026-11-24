@@ -1,6 +1,7 @@
 import { CalendarDays } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStatisticsSummary, type DurationFormat, type StatisticsSummary } from "../api";
+import type { StatisticsScope } from "../exports";
 import {
   DEFAULT_RANGE_PRESET,
   RANGE_PRESET_LABELS,
@@ -18,13 +19,15 @@ import "./StatisticsPage.css";
 
 interface StatisticsPageProps {
   durationFormat?: DurationFormat;
+  /** Reports the range and 包含隐藏软件 switch in use, for the header's 导出报表 key. */
+  onScopeChange?: (scope: StatisticsScope) => void;
 }
 
 const PRESETS: RangePreset[] = ["last7", "thisWeek", "thisMonth", "last30", "thisYear", "custom"];
 // The range includes today, so its numbers keep growing while the page is open.
 const POLL_INTERVAL_MS = 60_000;
 
-export function StatisticsPage({ durationFormat = "decimal_hours" }: StatisticsPageProps) {
+export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange }: StatisticsPageProps) {
   const [preset, setPreset] = useState<RangePreset>(DEFAULT_RANGE_PRESET);
   const [draft, setDraft] = useState<DateRange>({ start: "", end: "" });
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
@@ -75,6 +78,10 @@ export function StatisticsPage({ durationFormat = "decimal_hours" }: StatisticsP
   }, []);
 
   useEffect(() => startVisiblePolling(refresh, POLL_INTERVAL_MS), [refresh]);
+
+  useEffect(() => {
+    onScopeChange?.({ start, end, includeHidden });
+  }, [onScopeChange, start, end, includeHidden]);
 
   // A custom range is applied as soon as both dates pass validation.
   useEffect(() => {
