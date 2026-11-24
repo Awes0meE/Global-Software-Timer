@@ -1,24 +1,10 @@
 // View models for the share posters (spec v0.4.3 A and B): pure functions from the summaries the pages
 // already read to the strings a poster draws. Posters show display names, icons, hours, days and dates
 // only, never program paths or process names.
-import type { AppUsageRow, DashboardSummary } from "../api";
+import type { AppUsageRow, DashboardSummary, MilestoneSoftware } from "../api";
 import { formatDurationPartsZh } from "../i18n";
 
-/**
- * One software that reached a focus milestone, as `get_milestone_software` returns it (API contract,
- * v0.4.3). Declared here until src/api.ts carries the same interface.
- */
-export interface MilestoneSoftware {
-  identity_key: string;
-  display_name: string;
-  process_name: string;
-  icon_url: string | null;
-  tier_hours: number;
-  /** YYYY-MM-DD: the day the running focus total first crossed `tier_hours`. */
-  reached_on: string;
-  total_focused_seconds: number;
-  used_days: number;
-}
+export type { MilestoneSoftware };
 
 export type PosterTheme = "dark" | "light";
 

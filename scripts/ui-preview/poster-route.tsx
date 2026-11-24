@@ -5,8 +5,7 @@
 // window.__renderPoster() renders the PNG exactly as an export does and resolves to its data: URL.
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { invoke } from "@tauri-apps/api/core";
-import { getDashboardSummary } from "../../src/api";
+import { getDashboardSummary, getMilestoneSoftware } from "../../src/api";
 import {
   AchievementPoster,
   DailyPoster,
@@ -18,10 +17,8 @@ import {
   withIcons,
   type AchievementPosterModel,
   type DailyPosterModel,
-  type MilestoneSoftware,
   type PosterTheme,
 } from "../../src/posters";
-import { achievementsSummary } from "./mock-data";
 
 declare global {
   interface Window {
@@ -30,43 +27,11 @@ declare global {
   }
 }
 
-// All-time days with at least 300 s of focus, invented to fit the demo focus totals.
-const DEMO_USED_DAYS: Record<string, number> = {
-  code: 1046,
-  chrome: 412,
-  excel: 58,
-  typora: 71,
-  matlab: 49,
-  terminal: 33,
-  snipaste: 90,
-};
-
-/** get_milestone_software from the preview mock, or derived from its achievements milestones. */
-async function milestoneSoftware(): Promise<MilestoneSoftware[]> {
-  try {
-    return await invoke<MilestoneSoftware[]>("get_milestone_software", { includeHidden: true });
-  } catch {
-    return achievementsSummary(365, true, new Set())
-      .milestones.filter((row) => row.reached_hours !== null && row.reached_on !== null)
-      .map((row) => ({
-        identity_key: row.identity_key,
-        display_name: row.display_name,
-        process_name: "",
-        icon_url: row.icon_url,
-        tier_hours: row.reached_hours as number,
-        reached_on: row.reached_on as string,
-        total_focused_seconds: row.focused_seconds,
-        used_days: DEMO_USED_DAYS[row.identity_key] ?? 0,
-      }))
-      .sort((left, right) => right.tier_hours - left.tier_hours || right.total_focused_seconds - left.total_focused_seconds);
-  }
-}
-
 type Poster = { kind: "daily"; model: DailyPosterModel } | { kind: "achievement"; model: AchievementPosterModel };
 
 async function loadPoster(params: URLSearchParams): Promise<Poster> {
   if (params.get("poster") === "achievement") {
-    const list = await milestoneSoftware();
+    const list = await getMilestoneSoftware(true);
     const wanted = params.get("software");
     const latest = [...list].sort((left, right) => right.reached_on.localeCompare(left.reached_on))[0];
     const software = list.find((item) => item.identity_key === wanted) ?? latest;
