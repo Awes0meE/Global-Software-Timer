@@ -1,8 +1,14 @@
+import { parseLocalDate, weekdayLabel } from "./DayCalendar";
+
 interface Props {
   recordedSeconds: number;
   activeSeconds: number;
   now: Date;
+  /** A past day's local `YYYY-MM-DD`: the whole day has passed, so every tick is inked and no pointer shows. */
+  pastDay?: string;
 }
+
+const DAY_MINUTES = 24 * 60;
 
 const SIZE = 184;
 const CENTER = SIZE / 2;
@@ -64,9 +70,10 @@ function isNearNow(tickMinutes: number, minutesToday: number): boolean {
 
 /**
  * 96 quarter-hour ticks outside the rings; the hour ones are longer. Ticks before now are inked;
- * the ones under the pointer are marked so they can be drawn lighter.
+ * the ones under the pointer are marked so they can be drawn lighter. Without a pointer (a past day,
+ * `minutesToday` a whole day) every tick is inked and none yields.
  */
-function Ticks({ minutesToday }: { minutesToday: number }) {
+function Ticks({ minutesToday, pointer }: { minutesToday: number; pointer: boolean }) {
   return (
     <g>
       {Array.from({ length: TICKS }, (_, index) => {
@@ -79,7 +86,7 @@ function Ticks({ minutesToday }: { minutesToday: number }) {
           "lcd-tick",
           isHour && "is-hour",
           tickMinutes < minutesToday && "is-past",
-          isNearNow(tickMinutes, minutesToday) && "is-near-now",
+          pointer && isNearNow(tickMinutes, minutesToday) && "is-near-now",
         ]
           .filter(Boolean)
           .join(" ");
@@ -94,22 +101,27 @@ function Ticks({ minutesToday }: { minutesToday: number }) {
  * An e-ink capacity dial: a full ring is 24 hours of time, each segment half an hour.
  * Lit segments count today's totals (they are not a timeline); the 96 ticks outside the rings
  * and the pointer mark how much of the day has passed, which is the most either total can reach.
+ * A past day has passed whole: every tick is inked, no pointer, and the centre names the day.
  */
-export function LcdDial({ recordedSeconds, activeSeconds, now }: Props) {
-  const minutesToday = now.getHours() * 60 + now.getMinutes();
-  const nowDegrees = (minutesToday / (24 * 60)) * 360;
+export function LcdDial({ recordedSeconds, activeSeconds, now, pastDay }: Props) {
+  const shownDay = pastDay === undefined ? null : parseLocalDate(pastDay);
+  const minutesToday = shownDay ? DAY_MINUTES : now.getHours() * 60 + now.getMinutes();
+  const nowDegrees = (minutesToday / DAY_MINUTES) * 360;
   const [tipX, tipY] = point(CENTER - 2, nowDegrees);
   const [leftX, leftY] = point(CENTER - 11, nowDegrees - 3.2);
   const [rightX, rightY] = point(CENTER - 11, nowDegrees + 3.2);
   const elapsed = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
   return (
-    <figure className="lcd-dial" aria-label={`满圈 24 小时，今日已过 ${elapsed}`}>
+    <figure
+      className="lcd-dial"
+      aria-label={shownDay ? "满圈 24 小时" : `满圈 24 小时，今日已过 ${elapsed}`}
+    >
       <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE} aria-hidden="true">
         <Ring className="lcd-ring lcd-ring-recorded" lit={litSegments(recordedSeconds)} outer={78} inner={66} />
         <Ring className="lcd-ring lcd-ring-active" lit={litSegments(activeSeconds)} outer={61} inner={53} />
         <rect className="lcd-midnight-mark" x={CENTER - 1} y="45" width="2" height="8" />
-        <Ticks minutesToday={minutesToday} />
+        <Ticks minutesToday={minutesToday} pointer={shownDay === null} />
         {[6, 12, 18].map((hour) => {
           const [x, y] = point(41, hour * 15);
           return (
@@ -118,15 +130,24 @@ export function LcdDial({ recordedSeconds, activeSeconds, now }: Props) {
             </text>
           );
         })}
-        <path
-          className="lcd-dial-now"
-          d={`M${tipX.toFixed(2)} ${tipY.toFixed(2)}L${leftX.toFixed(2)} ${leftY.toFixed(2)}L${rightX.toFixed(2)} ${rightY.toFixed(2)}Z`}
-        />
+        {shownDay ? null : (
+          <path
+            className="lcd-dial-now"
+            d={`M${tipX.toFixed(2)} ${tipY.toFixed(2)}L${leftX.toFixed(2)} ${leftY.toFixed(2)}L${rightX.toFixed(2)} ${rightY.toFixed(2)}Z`}
+          />
+        )}
       </svg>
-      <figcaption className="lcd-dial-clock">
-        <span>今日已过</span>
-        <strong>{elapsed}</strong>
-      </figcaption>
+      {shownDay ? (
+        <figcaption className="lcd-dial-clock">
+          <span>{weekdayLabel(pastDay ?? "")}</span>
+          <strong>{`${shownDay.getDate()}日`}</strong>
+        </figcaption>
+      ) : (
+        <figcaption className="lcd-dial-clock">
+          <span>今日已过</span>
+          <strong>{elapsed}</strong>
+        </figcaption>
+      )}
     </figure>
   );
 }

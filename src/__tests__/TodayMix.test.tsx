@@ -67,6 +67,15 @@ describe("TodayMix", () => {
     }
   });
 
+  it("names a past day's mix 当日分布 and says when that day had no active time", () => {
+    render(<TodayMix apps={[appRow(1, 3600, 0)]} pastDay />);
+
+    const panel = screen.getByRole("complementary", { name: "当日分布" });
+    expect(panel.querySelector("h2")).toHaveTextContent("当日分布");
+    expect(screen.getByRole("region", { name: "当日分布列表" })).toHaveTextContent("这一天没有活跃记录。");
+    expect(screen.queryByText(/今日|今天/)).not.toBeInTheDocument();
+  });
+
   // v0.4.1: no explanatory line under the total; the plate follows the figure directly.
   it("puts the bar straight under the total, with no caption", () => {
     const { container } = render(<TodayMix apps={[appRow(1, 3600, 300)]} />);

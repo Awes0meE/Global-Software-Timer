@@ -41,8 +41,8 @@ import { TodayReadout } from "./components/TodayReadout";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
 import { startTransparencyWatch } from "./glass";
 import { pageExport, type ExportActionId } from "./pageExports";
-import { formatLocalDate } from "./statisticsRange";
 import { applyThemePreference, readCachedThemePreference } from "./theme";
+import { answersDay, isDayInvalidDate, useLocalToday } from "./viewedDay";
 import { startVisiblePolling } from "./visiblePolling";
 
 // Load the software search dictionary only when this route is needed.
@@ -125,32 +125,56 @@ export default function App() {
   const closePreferenceRef = useRef<CloseBehavior>(defaultCloseBehavior);
   const closeBehaviorConfiguredRef = useRef(false);
   const durationFormatSaveInFlightRef = useRef(false);
+  const today = useLocalToday();
+  // The past day 概览 and 后台 show, or null for today (live). A picked day becomes today at midnight.
+  const viewedDay = pickedDate !== null && pickedDate < today ? pickedDate : null;
+  const viewedDate = viewedDay ?? today;
+  // The day the latest dashboard request is for; answers for any other day are dropped.
+  const dashboardDayRef = useRef<string | null>(viewedDay);
 
   const loadDashboard = useCallback(async () => {
-    try {
-      const nextSummary = await getDashboardSummary();
+    const day = dashboardDayRef.current;
+    const isCurrent = () => dashboardMountedRef.current && dashboardDayRef.current === day;
 
-      if (dashboardMountedRef.current) {
+    try {
+      const nextSummary = await getDashboardSummary(day ?? undefined);
+
+      if (isCurrent() && answersDay(nextSummary, day)) {
         setSummary(nextSummary);
         setError(null);
       }
-    } catch {
-      if (dashboardMountedRef.current) {
-        setError(dashboardLoadError);
+    } catch (reason) {
+      if (!isCurrent()) {
+        return;
       }
+      if (day !== null && isDayInvalidDate(reason)) {
+        // The backend no longer takes the day (the clock moved back, say): show today instead.
+        setPickedDate(null);
+        return;
+      }
+      setError(dashboardLoadError);
     }
   }, []);
 
   useEffect(() => {
     dashboardMountedRef.current = true;
 
-    const stopPolling = startVisiblePolling(loadDashboard, dashboardRefreshIntervalMs);
-
     return () => {
       dashboardMountedRef.current = false;
-      stopPolling();
     };
-  }, [loadDashboard]);
+  }, []);
+
+  // Today stays live and is read again right after midnight (`today` changes); a past day is read once.
+  useEffect(() => {
+    dashboardDayRef.current = viewedDay;
+
+    if (viewedDay !== null) {
+      void loadDashboard();
+      return undefined;
+    }
+
+    return startVisiblePolling(loadDashboard, dashboardRefreshIntervalMs);
+  }, [viewedDay, today, loadDashboard]);
 
   useEffect(() => {
     let cancelled = false;
@@ -400,7 +424,6 @@ export default function App() {
   }, []);
 
   const contentId = `${activePage}-content`;
-  const today = formatLocalDate(new Date());
 
   // Read again when the day changes: a fresh install gets its data start on the first recorded day.
   useEffect(() => {
@@ -417,8 +440,9 @@ export default function App() {
     };
   }, [today]);
 
-  const viewedDate = pickedDate !== null && pickedDate < today ? pickedDate : today;
   const headerExport = pageExport(activePage);
+  // The wording follows the summary on screen, so labels and figures always name the same day.
+  const shownPastDay = summary?.is_today === false;
 
   const recording = !error && summary?.last_scan_succeeded === true;
   const recordingLabel = error ? "记录状态未知"
@@ -534,7 +558,11 @@ export default function App() {
               />
             </Suspense>
           ) : activePage === "background" ? (
-            <BackgroundPage durationFormat={durationFormat} />
+            <BackgroundPage
+              date={viewedDay ?? undefined}
+              durationFormat={durationFormat}
+              onInvalidDate={() => setPickedDate(null)}
+            />
           ) : activePage === "statistics" ? (
             <Suspense fallback={<main id="statistics-content"><p role="status">正在读取统计…</p></main>}>
               <StatisticsPage durationFormat={durationFormat} />
@@ -551,10 +579,13 @@ export default function App() {
                   <TodayReadout summary={summary} durationFormat={durationFormat} />
 
                   <div className="overview-grid">
-                    <AppUsageTable apps={summary.apps} durationFormat={durationFormat} />
-                    <div className="right-rail">
-                      <TodayMix apps={summary.apps} durationFormat={durationFormat} />
-                      <RecentActivity apps={summary.apps} durationFormat={durationFormat} />
+                    <AppUsageTable apps={summary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
+                    {/* Nothing runs on a past day: 当日分布 takes the whole rail. */}
+                    <div className={`right-rail${shownPastDay ? " is-past" : ""}`}>
+                      <TodayMix apps={summary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
+                      {shownPastDay ? null : (
+                        <RecentActivity apps={summary.apps} durationFormat={durationFormat} />
+                      )}
                     </div>
                   </div>
                 </>

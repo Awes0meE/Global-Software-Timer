@@ -83,6 +83,22 @@ describe("TodayReadout", () => {
     expect(screen.getByText("今日活跃 42分钟")).toBeInTheDocument();
   });
 
+  it("reads 当日 for a past day and drops the open-a-program hint", () => {
+    const past = { ...summaryWith(appRow(3 * 3600, 42 * 60)), usage_date: "2026-11-17", is_today: false };
+    const { container, rerender } = render(<TodayReadout summary={past} now={now} />);
+
+    const region = screen.getByRole("region", { name: "当日总览" });
+    expect(region).toHaveTextContent("当日记录");
+    expect(region).toHaveTextContent("当日活跃");
+    expect(screen.getByText("当日活跃 0.7小时")).toBeInTheDocument();
+    expect(region).not.toHaveTextContent(/今日/);
+    expect(container.querySelector(".lcd-dial-clock")).toHaveTextContent("周二17日");
+
+    rerender(<TodayReadout summary={{ ...past, most_used: null, apps: [] }} now={now} />);
+    expect(screen.getByText("暂无数据")).toBeInTheDocument();
+    expect(container.querySelector(".lcd-note")).toBeNull();
+  });
+
   // The forced-colours rules opt `.lcd-key` out and paint the 今日活跃 key (striped there) through `.lcd-key-active`.
   it("marks both legend keys as .lcd-key", () => {
     const { container } = render(<TodayReadout summary={summaryWith(null)} now={now} />);

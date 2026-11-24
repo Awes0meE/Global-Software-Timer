@@ -2025,3 +2025,265 @@ describe("App", () => {
     expect(badge).toHaveAttribute("aria-hidden", "true");
   });
 });
+
+// v0.4.2 decision H: 概览 and 后台 browse past days; today stays live and follows midnight.
+describe("App date browsing", () => {
+  const dataStartDate = "2026-09-03";
+  type DayArgs = { date?: string } | undefined;
+  let dashboardCalls: Array<string | undefined> = [];
+  let pastDayAnswer: (date: string) => Promise<unknown> = async (date) => pastDashboard(date);
+
+  function usageRow(id: number, name: string, active: number, status: string) {
+    return {
+      app_id: id,
+      display_name: name,
+      process_name: `${name.toLowerCase()}.exe`,
+      icon_url: null,
+      total_seconds: 40 * 3600,
+      today_seconds: 2 * 3600,
+      active_today_seconds: active,
+      status,
+      is_running: status !== "closed",
+    };
+  }
+
+  function todayDashboard() {
+    const app = usageRow(1, "Codex", 3600, "foreground");
+    return {
+      last_scan_succeeded: true,
+      product_title: "全局软件计时器",
+      locale: "zh-CN",
+      usage_date: localDate(new Date()),
+      is_today: true,
+      most_used: app,
+      recorded_today_seconds: 2 * 3600,
+      active_today_seconds: 3600,
+      apps: [app],
+    };
+  }
+
+  function pastDashboard(date: string, apps = [usageRow(2, "Word", 30 * 60, "closed")]) {
+    return {
+      ...todayDashboard(),
+      usage_date: date,
+      is_today: false,
+      most_used: apps[0] ?? null,
+      recorded_today_seconds: apps.length * 2 * 3600,
+      active_today_seconds: apps.reduce((sum, app) => sum + app.active_today_seconds, 0),
+      apps,
+    };
+  }
+
+  function localDate(date: Date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+
+  function shiftDays(value: string, days: number) {
+    const [year, month, day] = value.split("-").map(Number);
+    return localDate(new Date(year, month - 1, day + days));
+  }
+
+  const dateKey = () => screen.getByRole("button", { name: /，打开日历$/ });
+
+  /** Lets pending reads settle; under fake timers it also runs the timers due within `ms`. */
+  async function flush(ms = 0) {
+    await act(async () => {
+      if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(ms);
+      else await Promise.resolve();
+    });
+  }
+
+  beforeEach(() => {
+    dashboardCalls = [];
+    pastDayAnswer = async (date) => pastDashboard(date);
+    mockInvoke.mockReset();
+    getCurrentWindowMock.mockReset();
+    getCurrentWindowMock.mockReturnValue({ onCloseRequested: vi.fn(() => Promise.resolve(vi.fn())) });
+    autostartMocks.isEnabled.mockResolvedValue(true);
+    mockInvoke.mockImplementation(async (command: string, args: DayArgs) => {
+      if (command === "get_app_settings") {
+        return {
+          close_behavior: "minimize_to_tray",
+          close_behavior_configured: true,
+          autostart_enabled: true,
+          autostart_configured: true,
+        };
+      }
+      if (command === "get_calendar_summary") {
+        return { today: localDate(new Date()), data_start_date: dataStartDate };
+      }
+      if (command === "get_dashboard_summary") {
+        dashboardCalls.push(args?.date);
+        return args?.date ? pastDayAnswer(args.date) : todayDashboard();
+      }
+      if (command === "get_background_page_summary") {
+        return {
+          logical_cores: 8,
+          running_count: 0,
+          rows: [],
+          usage_date: args?.date ?? localDate(new Date()),
+          is_today: !args?.date,
+        };
+      }
+      return undefined;
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
+  });
+
+  it("shows a past day in 当日 wording, with 当日分布 filling the rail", async () => {
+    const { container } = render(<App />);
+    expect(await screen.findByRole("complementary", { name: "正在运行" })).toBeInTheDocument();
+    const yesterday = shiftDays(localDate(new Date()), -1);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "前一天" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "前一天" }));
+
+    expect(await screen.findByRole("region", { name: "当日总览" })).toBeInTheDocument();
+    expect(mockInvoke).toHaveBeenCalledWith("get_dashboard_summary", { date: yesterday });
+    expect(dateKey()).toHaveTextContent(yesterday);
+    const readout = screen.getByRole("region", { name: "当日总览" });
+    expect(within(readout).getByText("当日记录")).toBeInTheDocument();
+    expect(within(readout).getByText("当日活跃")).toBeInTheDocument();
+    expect(within(readout).getByText("当日活跃 0.5小时")).toBeInTheDocument();
+    const [year, month, day] = yesterday.split("-").map(Number);
+    const weekday = `周${"日一二三四五六"[new Date(year, month - 1, day).getDay()]}`;
+    expect(container.querySelector(".lcd-dial-clock")).toHaveTextContent(`${weekday}${day}日`);
+    expect(screen.getByRole("figure", { name: "满圈 24 小时" })).toBeInTheDocument();
+
+    expect(screen.queryByRole("complementary", { name: "正在运行" })).not.toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "当日分布" })).toBeInTheDocument();
+    expect(container.querySelector(".right-rail")).toHaveClass("is-past");
+    expect(container.querySelector(".right-rail")?.children).toHaveLength(1);
+
+    const head = container.querySelector(".usage-head") as HTMLElement;
+    expect([...head.children].map((cell) => cell.textContent)).toEqual(["软件", "累计", "当日", "当日活跃"]);
+    const table = screen.getByRole("region", { name: "应用时长列表" });
+    expect(within(table).getByText("1 个软件")).toBeInTheDocument();
+    expect(within(table).getAllByText("0.5小时").length).toBeGreaterThan(0);
+    expect(within(table).queryByText(/运行/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "今天" }));
+    expect(await screen.findByRole("complementary", { name: "正在运行" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "今日总览" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "今天" })).not.toBeInTheDocument();
+  });
+
+  it("says when a past day recorded nothing", async () => {
+    pastDayAnswer = async (date) => pastDashboard(date, []);
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "前一天" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "前一天" }));
+
+    expect(await screen.findByText("这一天没有记录到软件")).toBeInTheDocument();
+    expect(screen.getByText("这一天没有活跃记录。")).toBeInTheDocument();
+    expect(screen.queryByText("还没有记录到软件")).not.toBeInTheDocument();
+    expect(screen.queryByText(/保持 GST 在托盘运行/)).not.toBeInTheDocument();
+  });
+
+  it("stops polling on a past day and polls again back on today", async () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 24, 10, 0, 0) });
+    render(<App />);
+    await flush(10000);
+    expect(dashboardCalls).toEqual([undefined, undefined, undefined]);
+
+    fireEvent.click(screen.getByRole("button", { name: "前一天" }));
+    await flush(30000);
+    expect(dashboardCalls.slice(3)).toEqual(["2026-11-23"]);
+    expect(screen.getByRole("region", { name: "当日总览" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "今天" }));
+    await flush(5000);
+    expect(dashboardCalls.slice(4)).toEqual([undefined, undefined]);
+    expect(screen.getByRole("region", { name: "今日总览" })).toBeInTheDocument();
+  });
+
+  it("follows midnight to the new day while on today", async () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 24, 23, 59, 58) });
+    render(<App />);
+    await flush();
+    expect(dateKey()).toHaveTextContent("2026-11-24");
+    const before = dashboardCalls.length;
+
+    await flush(3000);
+    expect(dateKey()).toHaveTextContent("2026-11-25");
+    expect(dashboardCalls.length).toBeGreaterThan(before);
+    expect(mockInvoke.mock.calls.filter(([command]) => command === "get_calendar_summary")).toHaveLength(2);
+    expect(screen.getByRole("region", { name: "今日总览" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "今天" })).not.toBeInTheDocument();
+  });
+
+  it("stays on a picked past day across midnight", async () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 24, 23, 59, 50) });
+    render(<App />);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "前一天" }));
+    await flush();
+    expect(dateKey()).toHaveTextContent("2026-11-23");
+
+    await flush(15000);
+    expect(dateKey()).toHaveTextContent("2026-11-23");
+    expect(screen.getByRole("button", { name: "今天" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "当日总览" })).toBeInTheDocument();
+    expect(dashboardCalls.filter((date) => date === undefined)).toHaveLength(1);
+  });
+
+  it("returns to today when the backend refuses the day", async () => {
+    pastDayAnswer = () => Promise.reject("day_invalid_date");
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "前一天" })).toBeEnabled());
+    const todayCalls = dashboardCalls.length;
+    fireEvent.click(screen.getByRole("button", { name: "前一天" }));
+
+    await waitFor(() => expect(screen.queryByRole("button", { name: "今天" })).not.toBeInTheDocument());
+    expect(dateKey()).toHaveTextContent(localDate(new Date()));
+    await waitFor(() => expect(dashboardCalls.slice(todayCalls)).toEqual([shiftDays(localDate(new Date()), -1), undefined]));
+    expect(screen.queryByText("无法读取本地数据")).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "今日总览" })).toBeInTheDocument();
+  });
+
+  it("drops a late answer for today once a past day is picked", async () => {
+    let answerToday!: (value: unknown) => void;
+    const invokeDefault = mockInvoke.getMockImplementation()!;
+    let held = false;
+    mockInvoke.mockImplementation((command: string, args: DayArgs) => {
+      if (command === "get_dashboard_summary" && !args?.date && dashboardCalls.length === 1 && !held) {
+        held = true;
+        dashboardCalls.push(undefined);
+        return new Promise((resolve) => {
+          answerToday = resolve;
+        });
+      }
+      return invokeDefault(command, args);
+    });
+    vi.useFakeTimers({ now: new Date(2026, 10, 24, 10, 0, 0) });
+    render(<App />);
+    await flush(5000);
+    expect(held).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "前一天" }));
+    await flush();
+    expect(screen.getByRole("region", { name: "当日总览" })).toBeInTheDocument();
+
+    await act(async () => {
+      answerToday(todayDashboard());
+    });
+    expect(screen.getByRole("region", { name: "当日总览" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "正在运行" })).not.toBeInTheDocument();
+  });
+
+  it("shows the viewed past day on 后台 too", async () => {
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "前一天" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "前一天" }));
+    const yesterday = shiftDays(localDate(new Date()), -1);
+    fireEvent.click(screen.getByRole("button", { name: "后台" }));
+
+    expect(await screen.findByText("这一天没有后台记录。")).toBeInTheDocument();
+    expect(mockInvoke).toHaveBeenCalledWith("get_background_page_summary", { date: yesterday });
+    expect(dateKey()).toHaveTextContent(yesterday);
+  });
+});

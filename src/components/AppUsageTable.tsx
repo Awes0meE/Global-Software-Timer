@@ -5,30 +5,40 @@ import { SoftwareIcon } from "./SoftwareIcon";
 interface Props {
   apps: AppUsageRow[];
   durationFormat?: DurationFormat;
+  /** The apps are a past day's: nothing runs, so 今天 reads 当日 and the status column is 当日活跃. */
+  pastDay?: boolean;
 }
 
-export function AppUsageTable({ apps, durationFormat = "decimal_hours" }: Props) {
+export function AppUsageTable({ apps, durationFormat = "decimal_hours", pastDay = false }: Props) {
+  const rowClass = `usage-row${pastDay ? " is-past" : ""}`;
+
   return (
     <section className="panel usage-panel" aria-label="应用时长列表">
       <header className="panel-head">
         <h2>软件使用情况</h2>
         <span className="panel-count">{apps.length} 个软件</span>
       </header>
-      <div className="usage-row usage-head" aria-hidden="true">
+      <div className={`${rowClass} usage-head`} aria-hidden="true">
         <span>软件</span>
         <span>累计</span>
-        <span>今天</span>
-        <span>状态</span>
+        <span>{pastDay ? "当日" : "今天"}</span>
+        <span>{pastDay ? "当日活跃" : "状态"}</span>
       </div>
       <div className="usage-scroll" role="region" tabIndex={0} aria-label="软件使用明细">
         {apps.length === 0 ? (
-          <div className="empty-state">
-            <strong>还没有记录到软件</strong>
-            <span>保持 GST 在托盘运行，打开的软件会自动出现在这里。</span>
-          </div>
+          pastDay ? (
+            <div className="empty-state">
+              <strong>这一天没有记录到软件</strong>
+            </div>
+          ) : (
+            <div className="empty-state">
+              <strong>还没有记录到软件</strong>
+              <span>保持 GST 在托盘运行，打开的软件会自动出现在这里。</span>
+            </div>
+          )
         ) : (
           apps.map((app) => (
-            <div className="usage-row" key={app.app_id}>
+            <div className={rowClass} key={app.app_id}>
               <div className="software-cell">
                 <SoftwareIcon app={app} />
                 <span>
@@ -38,7 +48,11 @@ export function AppUsageTable({ apps, durationFormat = "decimal_hours" }: Props)
               </div>
               <span className="num">{formatDurationZh(app.total_seconds, durationFormat)}</span>
               <span className="num">{formatDurationZh(app.today_seconds, durationFormat)}</span>
-              <StatusBadge status={app.status} />
+              {pastDay ? (
+                <span className="num">{formatDurationZh(app.active_today_seconds, durationFormat)}</span>
+              ) : (
+                <StatusBadge status={app.status} />
+              )}
             </div>
           ))
         )}

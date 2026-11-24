@@ -13,26 +13,30 @@ interface Props {
 export function TodayReadout({ summary, durationFormat = "decimal_hours", now = new Date() }: Props) {
   const recorded = useShownReading("recorded", summary.recorded_today_seconds, durationFormat, summary.usage_date);
   const active = useShownReading("active", summary.active_today_seconds, durationFormat, summary.usage_date);
+  // A past day's summary covers that whole day: 今日 reads 当日 and the dial names the day.
+  const pastDay = summary.is_today === false;
+  const day = pastDay ? "当日" : "今日";
 
   return (
-    <section className="readout" aria-label="今日总览">
+    <section className="readout" aria-label={`${day}总览`}>
       <div className="lcd">
         <LcdDial
           recordedSeconds={summary.recorded_today_seconds}
           activeSeconds={summary.active_today_seconds}
           now={now}
+          pastDay={pastDay ? summary.usage_date : undefined}
         />
         <div className="lcd-cell">
           <p className="lcd-label">
             <i className="lcd-key lcd-key-recorded" aria-hidden="true" />
-            今日记录
+            {day}记录
           </p>
           <LcdValue reading={recorded} />
         </div>
         <div className="lcd-cell">
           <p className="lcd-label">
             <i className="lcd-key lcd-key-active" aria-hidden="true" />
-            今日活跃
+            {day}活跃
           </p>
           <LcdValue reading={active} />
         </div>
@@ -46,8 +50,8 @@ export function TodayReadout({ summary, durationFormat = "decimal_hours", now = 
               </div>
               <p className="lcd-note">
                 {summary.most_used.active_today_seconds > 0
-                  ? `今日活跃 ${formatDurationZh(summary.most_used.active_today_seconds, durationFormat)}`
-                  : `今日 ${formatDurationZh(summary.most_used.today_seconds, durationFormat)}`}
+                  ? `${day}活跃 ${formatDurationZh(summary.most_used.active_today_seconds, durationFormat)}`
+                  : `${day} ${formatDurationZh(summary.most_used.today_seconds, durationFormat)}`}
               </p>
             </>
           ) : (
@@ -55,7 +59,8 @@ export function TodayReadout({ summary, durationFormat = "decimal_hours", now = 
               <div className="lcd-most">
                 <strong>暂无数据</strong>
               </div>
-              <p className="lcd-note">打开软件后会在这里显示</p>
+              {/* Nothing will appear on a past day, so it gets no hint. */}
+              {pastDay ? null : <p className="lcd-note">打开软件后会在这里显示</p>}
             </>
           )}
         </div>

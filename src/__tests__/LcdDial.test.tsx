@@ -106,6 +106,22 @@ describe("LcdDial ticks", () => {
     }
   });
 
+  // v0.4.2 decision H: a past day has passed whole.
+  it("inks every tick of a past day, draws no pointer and names the day in the centre", () => {
+    const { container } = render(
+      <LcdDial recordedSeconds={3600} activeSeconds={0} now={new Date(2026, 10, 24, 9, 30, 0)} pastDay="2026-11-17" />,
+    );
+
+    expect(container.querySelectorAll(".lcd-tick.is-past")).toHaveLength(96);
+    expect(container.querySelectorAll(".lcd-tick.is-near-now")).toHaveLength(0);
+    expect(container.querySelector(".lcd-dial-now")).toBeNull();
+    expect(screen.getByRole("figure", { name: "满圈 24 小时" })).toBeTruthy();
+    const caption = container.querySelector("figcaption");
+    expect(caption?.querySelector("span")).toHaveTextContent(/^周二$/);
+    expect(caption?.querySelector("strong")).toHaveTextContent(/^17日$/);
+    expect(container).not.toHaveTextContent(/今日已过|09:30/);
+  });
+
   it("draws the pointer last, over the ticks", () => {
     const { container } = renderDial(new Date(2026, 10, 21, 12, 0, 0));
     const svg = container.querySelector("svg");

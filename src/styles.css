@@ -998,6 +998,20 @@ main > p[role="status"] {
   min-height: 0;
 }
 
+/* A past day has nothing running, so 当日分布 takes the whole rail and its list grows with it. */
+.right-rail.is-past {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.right-rail.is-past .mix-plate {
+  flex: 1;
+}
+
+.right-rail.is-past .mix-scroll {
+  flex: 1;
+  max-height: none;
+}
+
 .usage-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 128px 112px 100px;
@@ -1025,7 +1039,8 @@ main > p[role="status"] {
 }
 
 .usage-head span:nth-child(2),
-.usage-head span:nth-child(3) {
+.usage-head span:nth-child(3),
+.usage-head.is-past span:nth-child(4) {
   text-align: right;
 }
 
@@ -2156,6 +2171,16 @@ mark {
   .right-rail {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: auto;
+  }
+
+  /* Stacked under the table, the lone 当日分布 spans the width and keeps its usual list height. */
+  .right-rail.is-past {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
+
+  .right-rail.is-past .mix-scroll {
+    max-height: calc(28px * 5);
   }
 }
 
