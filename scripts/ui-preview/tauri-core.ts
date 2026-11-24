@@ -14,6 +14,7 @@ import {
   statisticsSummary,
   viewedPastDay,
 } from "./mock-data";
+import { exportCommand } from "./mock-exports";
 
 const params = new URLSearchParams(window.location.search);
 const empty = params.has("empty");
@@ -110,8 +111,11 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
       return (params.get("glass") !== "off") as T;
     case "apply_window_close_choice":
       return undefined as T;
-    default:
+    default: {
+      const exported = exportCommand(command, args, { settings, focused, hidden });
+      if (exported) return exported.value as T;
       throw new Error(`preview mock: unknown command ${command}`);
+    }
   }
 }
 
