@@ -12,8 +12,6 @@ export interface ExportKeyItem<Id extends string = string> {
   icon?: LucideIcon;
   /** Draws a rule above this row. */
   separatorBefore?: boolean;
-  /** `danger` inks an item that replaces data in the alert colour. */
-  tone?: "danger";
 }
 
 interface ExportKeyProps<Id extends string> {
@@ -124,7 +122,7 @@ export function ExportKey<Id extends string>({
                 key={item.id}
                 type="button"
                 role="menuitem"
-                className={`hk-menu-item${item.tone === "danger" ? " is-danger" : ""}`}
+                className="hk-menu-item"
                 tabIndex={-1}
                 onClick={() => {
                   closeToTrigger();

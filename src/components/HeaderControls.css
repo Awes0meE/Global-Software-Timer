@@ -262,14 +262,6 @@
   box-shadow: 0 0 0 1px var(--nk-rim), inset 0 1px 2px var(--nk-lo), var(--nk-lift-press);
 }
 
-/* An item that replaces data: alert ink at rest and raised. */
-.hk-menu-item.is-danger,
-.hk-menu-item.is-danger svg,
-.hk-menu-item.is-danger:is(:hover, :focus-visible),
-.hk-menu-item.is-danger:is(:hover, :focus-visible) svg {
-  color: var(--alert-ink);
-}
-
 .hk-menu-rule {
   height: 1px;
   margin: 4px 8px;
