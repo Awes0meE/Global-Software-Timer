@@ -9,10 +9,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use tauri::{AppHandle, Manager, State};
 
-const CLOSE_BEHAVIOR_SETTING_KEY: &str = "window.close_behavior";
+pub(crate) const CLOSE_BEHAVIOR_SETTING_KEY: &str = "window.close_behavior";
 const AUTOSTART_SETTING_KEY: &str = "startup.autostart_enabled";
-const DURATION_FORMAT_SETTING_KEY: &str = "ui.duration_format";
-const THEME_SETTING_KEY: &str = "ui.theme";
+pub(crate) const DURATION_FORMAT_SETTING_KEY: &str = "ui.duration_format";
+pub(crate) const THEME_SETTING_KEY: &str = "ui.theme";
 const DEFAULT_CLOSE_BEHAVIOR: CloseBehavior = CloseBehavior::MinimizeToTray;
 const DEFAULT_AUTOSTART_ENABLED: bool = true;
 const DEFAULT_DURATION_FORMAT: DurationFormat = DurationFormat::DecimalHours;
@@ -256,14 +256,14 @@ pub enum CloseBehavior {
 }
 
 impl CloseBehavior {
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::Exit => "exit",
             Self::MinimizeToTray => "minimize_to_tray",
         }
     }
 
-    fn from_setting(value: &str) -> Option<Self> {
+    pub(crate) fn from_setting(value: &str) -> Option<Self> {
         match value {
             "exit" => Some(Self::Exit),
             "minimize_to_tray" => Some(Self::MinimizeToTray),
@@ -280,14 +280,14 @@ pub enum DurationFormat {
 }
 
 impl DurationFormat {
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::DecimalHours => "decimal_hours",
             Self::HoursMinutes => "hours_minutes",
         }
     }
 
-    fn from_setting(value: &str) -> Option<Self> {
+    pub(crate) fn from_setting(value: &str) -> Option<Self> {
         match value {
             "decimal_hours" => Some(Self::DecimalHours),
             "hours_minutes" => Some(Self::HoursMinutes),
@@ -305,7 +305,7 @@ pub enum ThemePreference {
 }
 
 impl ThemePreference {
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::System => "system",
             Self::Light => "light",
@@ -313,7 +313,7 @@ impl ThemePreference {
         }
     }
 
-    fn from_setting(value: &str) -> Option<Self> {
+    pub(crate) fn from_setting(value: &str) -> Option<Self> {
         match value {
             "system" => Some(Self::System),
             "light" => Some(Self::Light),
@@ -679,7 +679,7 @@ pub fn apply_window_close_choice(
     Ok(())
 }
 
-fn app_settings_from_store(store: &Store) -> Result<AppSettings, StoreError> {
+pub(crate) fn app_settings_from_store(store: &Store) -> Result<AppSettings, StoreError> {
     let stored_close_behavior = store
         .setting_value(CLOSE_BEHAVIOR_SETTING_KEY)?
         .as_deref()

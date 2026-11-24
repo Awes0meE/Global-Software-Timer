@@ -2512,6 +2512,29 @@ impl Store {
         )?;
         Ok(())
     }
+
+    /// `(identity_key, display_name, process_name)` of every known identity,
+    /// most recently seen first. No executable paths.
+    pub fn software_identity_names(&self) -> StoreResult<Vec<(String, String, String)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT identity_key, display_name, process_name
+             FROM software_identities
+             ORDER BY last_seen_at DESC, identity_key",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StoreError::from)
+    }
+
+    /// Writes a consistent copy of the whole database to `target`, which must
+    /// not exist yet. Works on a read-only connection and outside transactions.
+    pub fn vacuum_into(&self, target: &Path) -> StoreResult<()> {
+        let target = target
+            .to_str()
+            .ok_or(rusqlite::Error::InvalidPath(target.to_path_buf()))?;
+        self.conn.execute("VACUUM INTO ?1", params![target])?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

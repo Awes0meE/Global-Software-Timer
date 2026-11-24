@@ -5,6 +5,7 @@ pub mod background;
 pub mod classifier;
 pub mod commands;
 pub mod domain;
+pub mod export;
 pub mod foreground;
 pub mod native_icon;
 pub mod process_source;
@@ -47,6 +48,7 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_dialog::init())
         .register_asynchronous_uri_scheme_protocol(
             native_icon::URI_SCHEME,
             |_context, request, responder| {
@@ -108,7 +110,13 @@ pub fn run() {
             commands::set_close_behavior_preference,
             commands::set_duration_format_preference,
             commands::set_theme_preference,
-            commands::apply_window_close_choice
+            commands::apply_window_close_choice,
+            export::save_text_export,
+            export::reveal_saved_file,
+            export::export_settings_file,
+            export::pick_settings_import,
+            export::apply_settings_import,
+            export::backup_all_data
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Global Software Timer")
