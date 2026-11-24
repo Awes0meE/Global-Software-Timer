@@ -1,20 +1,12 @@
-import type { ReactElement, ReactNode } from "react";
-import { createPortal, flushSync } from "react-dom";
+import type { ReactElement } from "react";
+import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { renderPosterPng } from "./renderPosterPng";
 
 // Off-screen but laid out: never display: none or visibility: hidden, or the capture measures nothing.
+// The one way posters are mounted for capture (spec v0.4.3 F.2): a detached root on <body>, which is what
+// a portal would give, without tying the export to the caller's render.
 const OFFSCREEN_STYLE = "position:fixed;left:-10000px;top:0;pointer-events:none;";
-
-/** Keeps a poster mounted off screen (aria-hidden) inside the caller's own tree. */
-export function PosterPortal({ children }: { children: ReactNode }) {
-  return createPortal(
-    <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: 0, pointerEvents: "none" }}>
-      {children}
-    </div>,
-    document.body,
-  );
-}
 
 /**
  * Mounts `poster` (a `DailyPoster` or `AchievementPoster` element, icons already as data: URLs) off

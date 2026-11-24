@@ -5,7 +5,7 @@
 //   await saveBinaryExport(png, achievementPosterFileName(software.display_name, software.reached_on));
 export { AchievementPoster } from "./AchievementPoster";
 export { DailyPoster } from "./DailyPoster";
-export { PosterPortal, capturePoster } from "./capturePoster";
+export { capturePoster } from "./capturePoster";
 export { achievementPosterFileName, dailyPosterFileName, fileNameSafe } from "./fileNames";
 export { loadPosterFonts } from "./fonts";
 export { iconToDataUrl } from "./iconToDataUrl";
