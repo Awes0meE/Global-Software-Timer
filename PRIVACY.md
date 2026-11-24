@@ -42,6 +42,7 @@ Since v0.2.4, GST also saves software icons to disk, so they are not read from e
 - Contents: one 96px PNG per icon, taken from the executable or its package resources. Each file is named by a hash of the executable path, size and modification time, so the folder holds no paths or software names in plain text.
 - Cleanup: icon files written more than 90 days ago are deleted at startup. You can delete the folder at any time; icons are read again when needed.
 - The app window loads these icons through the local `gsticon` protocol. They never leave the computer.
+- From v0.4.3 the protocol also sends a CORS header (`Access-Control-Allow-Origin`), but only to the app's own page origin, so that a poster drawn inside the app window can include the icon. Any other origin gets no such header.
 
 ## Timeline segments
 
@@ -55,16 +56,21 @@ Since v0.3.1, GST also keeps a local timeline of when recorded time happened, no
 
 ## Exports and backups
 
-From v0.4.2, you can save some of these records as files: the page CSV exports, the settings file and a full data backup. GST writes such a file only when you press save in the Windows save dialog, and only to the path you picked there. The dialog opens in your Downloads folder; nothing is written to any folder automatically, and nothing is uploaded.
+From v0.4.2, you can save some of these records as files: the page CSV exports, the settings file and a full data backup; from v0.4.3 also share posters (PNG pictures) of a day and of one software's milestone. GST writes such a file only when you press save in the Windows save dialog, and only to the path you picked there. The dialog opens in your Downloads folder; nothing is written to any folder automatically, and nothing is uploaded.
 
-- `导出日报` (`概览`): for the day shown, each listed software's display name, process name, that day's runtime and active time, and its total runtime up to the end of that day. Hidden software is left out, as on the page.
+- `导出日报` → `当日明细` (`概览`): for the day shown, each listed software's display name, process name, that day's runtime and active time, and its total runtime up to the end of that day. Hidden software is left out, as on the page.
+- `导出日报` → `日报海报` (`概览`, from v0.4.3): a PNG picture of the day shown: the date, that day's active and recorded time, and the display names, icons and hours of up to three software. Hidden software is left out, as on the page.
 - `导出软件清单` (`软件`): every focused, hidden and discovered software once, with its group, display name, process name, current status, last opened time, and today's and total foreground, background and focused time.
 - `导出后台记录` (`后台`): for the day shown, each background software's display name, process name, peak process count, peak memory, background time and CPU time.
-- `导出报表` (`统计`): for the chosen range, each software in the ranking, `开着没用` and session lists, with its display name, process name, rank, focused and window time, idle-open time, opens and average and longest session. It follows the page's `包含隐藏软件` switch.
+- `导出报表` → `区间汇总` (`统计`): for the chosen range, every software with focused, window or background time, with its display name, process name, rank, focused and window time, idle-open time, opens, average and longest session, background time and number of days used. It follows the page's `包含隐藏软件` switch.
+- `导出报表` → `每日明细` (`统计`, from v0.4.3): for the chosen range, one row per day and software with its display name, process name and that day's focused, window and background time. It follows the page's `包含隐藏软件` switch.
+- `导出成就` (`成就`, from v0.4.3): a PNG picture of one software you pick: its display name and icon, its highest focus milestone and the date it was reached, the number of days it was used and its total focused time. The list to pick from follows the page's `包含隐藏软件` switch.
 - `导出设置`: the theme, duration format and close-window behaviour you chose (settings you never changed are left empty), and the focused and hidden lists. Each list entry holds only a display name, a process name and a one-way SHA-256 digest of the software identity key, never the key itself, because identity keys are built from install paths. The settings file does not contain the startup-at-login setting, usage history or executable paths.
 - `备份全部数据`: a full copy of the local database. It contains the whole usage history, including the timeline and the executable paths of background processes, and the app settings. Treat it like the database itself.
 
-The CSV files and the settings file never contain executable paths. Once saved, these files are ordinary files under your control; GST does not track or remove them.
+The CSV files, the posters and the settings file never contain executable paths; posters do not show process names either. Once saved, these files are ordinary files under your control; GST does not track or remove them.
+
+Posters are drawn on this computer, inside the app window, from the local records above. Their fonts (Inter and Noto Sans SC) are bundled with the app, and their icons come from the local icon cache; nothing is fetched from the network and nothing is uploaded. A poster is written only where you save it in the Windows save dialog, like the other files.
 
 `导入设置…` reads only the file you pick in the open dialog, up to 1 MB, and shows what it would change before anything is written. Importing adds to the focused and hidden lists and never removes local entries.
 
