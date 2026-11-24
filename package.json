@@ -22,6 +22,7 @@
     "lucide-react": "^0.468.0",
     "pinyin-pro": "^3.28.1",
     "react": "^18.3.1",
+    "react-day-picker": "10.0.2",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
