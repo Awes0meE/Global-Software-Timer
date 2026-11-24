@@ -317,9 +317,9 @@ describe("BackgroundPage", () => {
     }
   });
 
-  // A reading's label and digits (12px + 8px gap + 38.4px at 125%) are taller than its 53px box, which stops
-  // 10px short of the strip so the dotted rules are inset. Clipping only sideways lets the centred overflow
-  // spill into that 10px instead of cutting the top of the label.
+  // A reading's box stops 15px short of the 108px strip at top and bottom so the dotted rules are inset, and
+  // its label and digits sit 14px apart. Clipping only sideways lets a reading taller than its box (large
+  // digits at 125%) spill centred into that 15px instead of cutting the top of the label.
   it("clips the strip's readings sideways only", () => {
     const declarations = Object.assign(
       {},
@@ -510,6 +510,12 @@ describe("BackgroundPage", () => {
       ["@media (resolution: 1.25dppx)", "38.4px"],
       ["@media (resolution: 1.5dppx)", "32px"],
     ]);
+    // Narrow windows keep those digits and narrow the cells' sides instead: at the 1180px minimum a long
+    // 12小时34分钟 measured 132px (137px at 125%) in the 148px cell.
+    const narrowPadding = rules
+      .filter((rule) => rule.selectors.includes(".background-reading") && rule.atRules.length > 0)
+      .map((rule) => [rule.atRules.join(" "), rule.declarations.padding]);
+    expect(narrowPadding).toEqual([["@media (max-width: 1200px)", "0 10px"]]);
   });
 
   it("formats small and large values readably", () => {

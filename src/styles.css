@@ -2748,7 +2748,8 @@ mark {
   padding: 0;
 }
 
-/* Narrow windows keep the taller screen's digits and tighten the cells' sides instead. */
+/* Narrow windows keep the taller screen's digits and tighten the cells' sides instead. At the 1180px minimum
+   a long 今日 CPU 时间 such as 12小时34分钟 measures 132px (137px at 125%) inside a 148px cell, so it fits. */
 @media (max-width: 1200px) {
   .background-reading {
     padding: 0 10px;
