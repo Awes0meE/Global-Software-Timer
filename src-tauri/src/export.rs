@@ -497,24 +497,39 @@ pub fn ensure_not_database(target: &Path, db_path: &Path) -> Result<(), String> 
     }
 }
 
-/// `VACUUM INTO` a temporary file next to `target`, then renames it over
-/// `target`. The live database file is only read.
-pub fn backup_database(db_path: &Path, target: &Path) -> Result<(), String> {
-    ensure_not_database(target, db_path)?;
+/// Builds a temporary sibling of `target` with `fill`, then renames it over
+/// `target`, so a failure part-way never truncates an existing file there.
+/// The temporary file is removed on any error.
+fn replace_via_temporary(
+    target: &Path,
+    prefix: &str,
+    fill: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<(), String> {
     let folder = target.parent().unwrap_or(Path::new("."));
-    let temp = folder.join(format!(".gst-backup-{}.tmp", uuid::Uuid::new_v4()));
-    let result = (|| {
-        let store = Store::open_read_only(db_path).map_err(|error| error.to_string())?;
-        store
-            .vacuum_into(&temp)
-            .map_err(|error| error.to_string())?;
-        drop(store);
-        std::fs::rename(&temp, target).map_err(|error| error.to_string())
-    })();
+    let temp = folder.join(format!(".{prefix}-{}.tmp", uuid::Uuid::new_v4()));
+    let result = fill(&temp)
+        .and_then(|()| std::fs::rename(&temp, target).map_err(|error| error.to_string()));
     if result.is_err() {
         let _ = std::fs::remove_file(&temp);
     }
     result
+}
+
+/// Writes `bytes` to `target` through a temporary sibling and a rename.
+pub fn write_file_replacing(target: &Path, bytes: &[u8]) -> Result<(), String> {
+    replace_via_temporary(target, "gst-export", |temp| {
+        std::fs::write(temp, bytes).map_err(|error| error.to_string())
+    })
+}
+
+/// `VACUUM INTO` a temporary file next to `target`, then renames it over
+/// `target`. The live database file is only read.
+pub fn backup_database(db_path: &Path, target: &Path) -> Result<(), String> {
+    ensure_not_database(target, db_path)?;
+    replace_via_temporary(target, "gst-backup", |temp| {
+        let store = Store::open_read_only(db_path).map_err(|error| error.to_string())?;
+        store.vacuum_into(temp).map_err(|error| error.to_string())
+    })
 }
 
 fn local_today() -> String {
@@ -586,7 +601,7 @@ pub async fn save_text_export(
         };
         let state = app.state::<AppState>();
         ensure_not_database(&path, &state.db_path)?;
-        std::fs::write(&path, with_utf8_bom(&contents)).map_err(|error| error.to_string())?;
+        write_file_replacing(&path, &with_utf8_bom(&contents))?;
         let saved = path_string(&path);
         state.export_session.remember_saved(&saved);
         Ok(Some(saved))
@@ -646,7 +661,7 @@ pub async fn export_settings_file(app: AppHandle) -> Result<Option<String>, Stri
                 .map_err(|error| error.to_string())?
         };
         let json = serde_json::to_string_pretty(&file).map_err(|error| error.to_string())?;
-        std::fs::write(&path, json).map_err(|error| error.to_string())?;
+        write_file_replacing(&path, json.as_bytes())?;
         let saved = path_string(&path);
         state.export_session.remember_saved(&saved);
         Ok(Some(saved))
@@ -1222,6 +1237,38 @@ mod tests {
         assert!(!valid_extension(""));
         assert!(!valid_extension("c.sv"));
         assert!(!valid_extension("exe\\x"));
+    }
+
+    #[test]
+    fn replacing_a_file_swaps_in_the_new_contents_and_leaves_no_temporary_file() {
+        let folder = TempDir::new().unwrap();
+        let target = folder.path().join("GST-日报-2026-11-24.csv");
+        std::fs::write(&target, b"old export").unwrap();
+
+        write_file_replacing(&target, b"new export").unwrap();
+
+        assert_eq!(std::fs::read(&target).unwrap(), b"new export".to_vec());
+        assert_eq!(std::fs::read_dir(folder.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn a_failed_replace_keeps_the_old_target_and_leaves_no_temporary_file() {
+        let folder = TempDir::new().unwrap();
+        // A folder in the way: the temporary file is written, the rename fails.
+        let target = folder.path().join("GST-日报-2026-11-24.csv");
+        std::fs::create_dir(&target).unwrap();
+        std::fs::write(target.join("keep.txt"), b"keep").unwrap();
+
+        assert!(write_file_replacing(&target, b"new export").is_err());
+
+        assert_eq!(
+            std::fs::read(target.join("keep.txt")).unwrap(),
+            b"keep".to_vec()
+        );
+        assert_eq!(std::fs::read_dir(folder.path()).unwrap().count(), 1);
+        let missing = folder.path().join("missing").join("GST.csv");
+        assert!(write_file_replacing(&missing, b"x").is_err());
+        assert_eq!(std::fs::read_dir(folder.path()).unwrap().count(), 1);
     }
 
     #[test]
