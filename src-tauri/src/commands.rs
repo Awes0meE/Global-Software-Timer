@@ -63,21 +63,11 @@ pub struct BackgroundPageSummary {
     pub is_today: bool,
 }
 
-/// Dates are local `YYYY-MM-DD`. `days` holds the stored days from the data
-/// start to today, in date order; days without a record are absent.
+/// The bounds of the header date picker, as local `YYYY-MM-DD` dates.
 #[derive(Debug, Clone, Serialize)]
 pub struct CalendarSummary {
     pub today: String,
     pub data_start_date: Option<String>,
-    pub streak_threshold_seconds: i64,
-    pub days: Vec<CalendarDay>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct CalendarDay {
-    pub date: String,
-    pub recorded_seconds: i64,
-    pub active_seconds: i64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -850,23 +840,9 @@ fn calendar_summary_from_store(
     store: &Store,
     today: NaiveDate,
 ) -> Result<CalendarSummary, StoreError> {
-    let data_start = store.data_start_date()?;
-    let days = match data_start {
-        Some(start) => store.daily_system_usage_range(start, today)?,
-        None => Vec::new(),
-    };
     Ok(CalendarSummary {
         today: today.to_string(),
-        data_start_date: data_start.map(|date| date.to_string()),
-        streak_threshold_seconds: statistics::STREAK_MIN_ACTIVE_SECONDS,
-        days: days
-            .into_iter()
-            .map(|usage| CalendarDay {
-                date: usage.date.to_string(),
-                recorded_seconds: usage.recorded_seconds,
-                active_seconds: usage.active_seconds,
-            })
-            .collect(),
+        data_start_date: store.data_start_date()?.map(|date| date.to_string()),
     })
 }
 
@@ -4263,48 +4239,33 @@ mod day_view_tests {
     }
 
     #[test]
-    fn calendar_summary_lists_stored_days_from_the_data_start_to_today() {
+    fn calendar_summary_gives_today_and_the_data_start() {
         let (_file, store) = migrated_store();
         let today = date(2026, 11, 24);
 
         let empty = calendar_summary_from_store(&store, today).unwrap();
         assert_eq!(empty.today, "2026-11-24");
         assert_eq!(empty.data_start_date, None);
-        assert!(empty.days.is_empty());
-        assert_eq!(
-            empty.streak_threshold_seconds,
-            crate::statistics::STREAK_MIN_ACTIVE_SECONDS
-        );
 
         store
             .increment_daily_system_usage(date(2026, 9, 3), 3600, 1200, 4000)
             .unwrap();
         store
-            .increment_daily_system_usage(date(2026, 11, 22), 600, 0, 700)
-            .unwrap();
-        store
             .increment_daily_system_usage(today, 7200, 5400, 7300)
-            .unwrap();
-        // A day after "today" (a clock change) stays out of the calendar.
-        store
-            .increment_daily_system_usage(date(2026, 11, 25), 60, 60, 60)
             .unwrap();
 
         let summary = calendar_summary_from_store(&store, today).unwrap();
 
+        assert_eq!(summary.today, "2026-11-24");
         assert_eq!(summary.data_start_date.as_deref(), Some("2026-09-03"));
-        let days = summary
-            .days
-            .iter()
-            .map(|day| (day.date.as_str(), day.recorded_seconds, day.active_seconds))
+        let json = serde_json::to_value(&summary).unwrap();
+        let mut keys = json
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
             .collect::<Vec<_>>();
-        assert_eq!(
-            days,
-            vec![
-                ("2026-09-03", 3600, 1200),
-                ("2026-11-22", 600, 0),
-                ("2026-11-24", 7200, 5400),
-            ]
-        );
+        keys.sort();
+        assert_eq!(keys, vec!["data_start_date", "today"]);
     }
 }

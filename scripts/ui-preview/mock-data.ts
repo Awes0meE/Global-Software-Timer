@@ -4,7 +4,6 @@ import type {
   AppUsageRow,
   BackgroundPageSummary,
   BackgroundRow,
-  CalendarDay,
   CalendarSummary,
   DashboardSummary,
   HeatmapDays,
@@ -667,11 +666,10 @@ export function emptyAchievementsSummary(heatmapDays: HeatmapDays): Achievements
 }
 
 // ---------------------------------------------------------------------------
-// Date browsing (v0.4.2): the header calendar and past days on 概览 / 后台.
-// The calendar's spread follows the approved mockup: recording starts on
-// 2026-09-03, weekdays mostly 1 to 7 active hours, weekends lighter, a few
-// days without a record, so all four ink levels show. Past-day summaries are
-// derived from the same days; today matches the live dashboard readings.
+// Date browsing (v0.4.2): the header calendar's bounds and past days on 概览 / 后台.
+// Recording starts on 2026-09-03; weekdays have mostly 1 to 7 active hours,
+// weekends are lighter and a few days have no record. Past-day summaries are
+// derived from these days; today matches the live dashboard readings.
 
 const CALENDAR_START = Date.UTC(2026, 8, 3) / DAY_MS;
 // Same string as DAY_INVALID_DATE in src/api.ts. Only types may be imported from there: the API module
@@ -701,20 +699,11 @@ function calendarDay(today: number, day: number): { recorded: number; active: nu
 
 export function calendarSummary(): CalendarSummary {
   const today = todayNumber();
-  const days: CalendarDay[] = dayNumbers(calendarStart(today), today).flatMap((day) => {
-    const usage = calendarDay(today, day);
-    return usage ? [{ date: dateOf(day), recorded_seconds: usage.recorded, active_seconds: usage.active }] : [];
-  });
-  return {
-    today: dateOf(today),
-    data_start_date: dateOf(calendarStart(today)),
-    streak_threshold_seconds: STREAK_MIN_ACTIVE_SECONDS,
-    days,
-  };
+  return { today: dateOf(today), data_start_date: dateOf(calendarStart(today)) };
 }
 
 export function emptyCalendarSummary(): CalendarSummary {
-  return { today: dateOf(todayNumber()), data_start_date: null, streak_threshold_seconds: STREAK_MIN_ACTIVE_SECONDS, days: [] };
+  return { today: dateOf(todayNumber()), data_start_date: null };
 }
 
 /**

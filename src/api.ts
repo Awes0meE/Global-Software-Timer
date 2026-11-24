@@ -117,18 +117,10 @@ export async function getBackgroundPageSummary(date?: string): Promise<Backgroun
     : invoke<BackgroundPageSummary>("get_background_page_summary", { date });
 }
 
-export interface CalendarDay {
-  date: string;
-  recorded_seconds: number;
-  active_seconds: number;
-}
-
-/** Dates are local "YYYY-MM-DD". `days` lists stored days only, data start to today. */
+/** The header date picker's bounds, local "YYYY-MM-DD"; `data_start_date` is null before the first record. */
 export interface CalendarSummary {
   today: string;
   data_start_date: string | null;
-  streak_threshold_seconds: number;
-  days: CalendarDay[];
 }
 
 export async function getCalendarSummary(): Promise<CalendarSummary> {

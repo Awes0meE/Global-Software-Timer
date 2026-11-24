@@ -101,7 +101,7 @@ describe("api date browsing", () => {
   });
 
   it("reads the calendar summary", async () => {
-    const summary = { today: "2026-11-24", data_start_date: "2026-09-03", days: [] };
+    const summary = { today: "2026-11-24", data_start_date: "2026-09-03" };
     mockInvoke.mockResolvedValue(summary);
 
     await expect(getCalendarSummary()).resolves.toBe(summary);
