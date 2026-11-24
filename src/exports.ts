@@ -154,17 +154,21 @@ export function backgroundCsv(summary: BackgroundPageSummary): string {
 
 /**
  * 统计 区间汇总 (spec v0.4.3 E): one row per software with any focus, window or background time in the
- * range, in the export's order (focus, then window, highest first, then name). 焦点, 窗口开着, 后台 and
- * 使用天数 come from the export; 排名, 开着没用 and the session figures from the page's ledgers, left empty
- * for a software those ledgers do not list.
+ * range. Rows with a 排名 come first in 排名 order, so the column reads 1, 2, 3, …; the rest follow in the
+ * export's order (focus, then window, highest first, then name). The two orders differ on ties: the
+ * ranking breaks them by name. 焦点, 窗口开着, 后台 and 使用天数 come from the export; 排名, 开着没用 and the
+ * session figures from the page's ledgers, left empty for a software those ledgers do not list.
  */
 export function statisticsCsv(summary: StatisticsSummary, data: StatisticsExport): string {
   const ranks = new Map(summary.ranking.map((row) => [row.identity_key, row.rank]));
   const idle = new Map(summary.idle_open.map((row) => [row.identity_key, row.idle_seconds]));
   const sessions = new Map(summary.sessions.map((row) => [row.identity_key, row]));
   const hours = (seconds: number | undefined) => (seconds === undefined ? null : formatHours(seconds));
+  const rankOf = (key: string) => ranks.get(key) ?? Number.POSITIVE_INFINITY;
+  // Array.prototype.sort is stable, so unranked rows keep the export's order (∞ − ∞ is NaN, hence `|| 0`).
+  const ordered = [...data.software].sort((a, b) => rankOf(a.identity_key) - rankOf(b.identity_key) || 0);
 
-  const rows = data.software.map((row): CsvValue[] => {
+  const rows = ordered.map((row): CsvValue[] => {
     const session = sessions.get(row.identity_key);
     return [
       row.display_name,

@@ -312,6 +312,53 @@ describe("statisticsCsv", () => {
     expect(rows[25]).toEqual(["App 24", "app24.exe", "", "1.00", "1.00", "", "", "", "", "0.00", "1"]);
   });
 
+  it("puts ranked rows first in 排名 order when the export breaks ties another way", () => {
+    // The ranking breaks focus ties by name; the export breaks them by window first.
+    const ranked = (key: string, name: string, rank: number, focused: number, window: number) => ({
+      identity_key: key,
+      display_name: name,
+      icon_url: null,
+      rank,
+      previous_rank: null,
+      is_new: false,
+      focused_seconds: focused,
+      previous_focused_seconds: 0,
+      window_seconds: window,
+    });
+    const summary = statistics({
+      ranking: [
+        ranked("alpha", "Alpha", 1, 600, 600),
+        ranked("beta", "Beta", 2, 600, 600),
+        ranked("wide", "Wide", 3, 600, 900),
+        ranked("aplayer", "APlayer", 4, 0, 1 * H),
+        ranked("bplayer", "BPlayer", 5, 0, 5 * H),
+      ],
+      idle_open: [],
+      sessions: [],
+    });
+    const software = [
+      exportSoftware("wide", "Wide", "wide.exe", 600, 900, 0, 1),
+      exportSoftware("alpha", "Alpha", "alpha.exe", 600, 600, 0, 1),
+      exportSoftware("beta", "Beta", "beta.exe", 600, 600, 0, 1),
+      // An unranked software (past the top 20) the export would place between ranked rows.
+      exportSoftware("extra", "Extra", "extra.exe", 0, 8 * H, 0, 0),
+      exportSoftware("bplayer", "BPlayer", "bplayer.exe", 0, 5 * H, 0, 0),
+      exportSoftware("aplayer", "APlayer", "aplayer.exe", 0, 1 * H, 0, 0),
+      exportSoftware("sync", "Sync", "sync.exe", 0, 0, 9 * H, 0),
+    ];
+    const rows = parse(statisticsCsv(summary, statisticsExport({ software })));
+
+    expect(rows.slice(1).map((row) => [row[0], row[2]])).toEqual([
+      ["Alpha", "1"],
+      ["Beta", "2"],
+      ["Wide", "3"],
+      ["APlayer", "4"],
+      ["BPlayer", "5"],
+      ["Extra", ""],
+      ["Sync", ""],
+    ]);
+  });
+
   it("writes only the header for a range without software", () => {
     const csv = statisticsCsv(statistics({ ranking: [], idle_open: [], sessions: [] }), statisticsExport({ software: [] }));
     expect(csv).toBe(`${STATISTICS_CSV_COLUMNS.join(",")}\r\n`);
