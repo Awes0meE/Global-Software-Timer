@@ -157,6 +157,13 @@ async function openPage(name: string) {
   await userEvent.click(await screen.findByRole("button", { name }));
 }
 
+/** Opens 统计 and waits until its lazy page has reported the range, so 导出报表 is no longer busy. */
+async function openStatistics() {
+  await openPage("统计");
+  const key = await screen.findByRole("button", { name: "导出报表" });
+  await waitFor(() => expect(key).not.toHaveAttribute("aria-busy"));
+}
+
 async function pickFromMenu(item: string, key = "迁移与备份") {
   await userEvent.click(await screen.findByRole("button", { name: key }));
   await userEvent.click(within(screen.getByRole("menu", { name: key })).getByRole("menuitem", { name: new RegExp(item) }));
@@ -229,7 +236,7 @@ describe("page CSV exports", () => {
 
   it("offers 区间汇总 and 每日明细 under 统计's 导出报表", async () => {
     render(<App />);
-    await openPage("统计");
+    await openStatistics();
 
     await userEvent.click(await screen.findByRole("button", { name: "导出报表" }));
 
@@ -238,7 +245,7 @@ describe("page CSV exports", () => {
 
   it("exports the 统计 range the page shows, with its hidden switch", async () => {
     render(<App />);
-    await openPage("统计");
+    await openStatistics();
 
     await userEvent.click(await screen.findByRole("switch", { name: "包含隐藏软件" }));
     await pickFromMenu("区间汇总", "导出报表");
@@ -258,7 +265,7 @@ describe("page CSV exports", () => {
 
   it("exports the 统计 每日明细 for the range the page shows", async () => {
     render(<App />);
-    await openPage("统计");
+    await openStatistics();
 
     await pickFromMenu("每日明细", "导出报表");
 
