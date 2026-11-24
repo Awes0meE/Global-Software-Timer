@@ -16,6 +16,8 @@ import type { ExportActionId } from "./pageExports";
 interface ExportActionsOptions {
   /** Read when an export starts, so it covers the day or range on screen at that moment. */
   csvContext: CsvExportContext;
+  /** Awaited before a settings import is applied, so a settings save still under way cannot overwrite it. */
+  beforeSettingsImport?: () => Promise<void>;
   /** Runs after a settings import is applied: reload settings, theme and the lists. */
   onSettingsImported: () => void | Promise<void>;
 }
@@ -25,7 +27,7 @@ interface ExportActionsOptions {
  * in Rust; a saved file gets the 已保存 toast with 在文件夹中显示, a cancelled dialog changes nothing and a
  * failure shows 保存失败. 导入设置… opens a preview that `confirmImport` applies.
  */
-export function useExportActions({ csvContext, onSettingsImported }: ExportActionsOptions) {
+export function useExportActions({ csvContext, beforeSettingsImport, onSettingsImported }: ExportActionsOptions) {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [importPreview, setImportPreview] = useState<SettingsImportPreview | null>(null);
@@ -36,6 +38,8 @@ export function useExportActions({ csvContext, onSettingsImported }: ExportActio
   contextRef.current = csvContext;
   const importedRef = useRef(onSettingsImported);
   importedRef.current = onSettingsImported;
+  const beforeImportRef = useRef(beforeSettingsImport);
+  beforeImportRef.current = beforeSettingsImport;
 
   const showToast = useCallback((message: string, extra: Omit<ToastMessage, "id" | "message"> = {}) => {
     toastIdRef.current += 1;
@@ -71,7 +75,8 @@ export function useExportActions({ csvContext, onSettingsImported }: ExportActio
             action: {
               label: "在文件夹中显示",
               onClick: () => {
-                void revealSavedFile(path).catch(() => {});
+                // The file may have been moved or deleted since.
+                void revealSavedFile(path).catch(() => showToast("无法打开文件夹", { tone: "error" }));
               },
             },
           });
@@ -91,6 +96,7 @@ export function useExportActions({ csvContext, onSettingsImported }: ExportActio
     setImportBusy(true);
     let applied = false;
     try {
+      await beforeImportRef.current?.();
       await applySettingsImport(importPreview.import_id);
       applied = true;
     } catch {

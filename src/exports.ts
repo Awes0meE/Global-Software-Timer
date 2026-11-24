@@ -6,7 +6,6 @@ import {
   getDashboardSummary,
   getSoftwarePageSummary,
   getStatisticsSummary,
-  type AppRuntimeStatus,
   type BackgroundPageSummary,
   type DashboardSummary,
   type SaveTextExportArgs,
@@ -27,8 +26,9 @@ import {
   toCsv,
   type CsvValue,
 } from "./csv";
+import { runtimeStatusLabelZh } from "./i18n";
 import type { ExportActionId } from "./pageExports";
-import { formatLocalDate, presetRange } from "./statisticsRange";
+import { formatLocalDate } from "./statisticsRange";
 
 export type CsvExportAction = Extract<
   ExportActionId,
@@ -46,7 +46,7 @@ export interface CsvExportContext {
   /** The day 概览 and 后台 show ("YYYY-MM-DD"). */
   viewedDate: string;
   today: string;
-  /** Null until the 统计 page reports its selection; the page's default range is used then. */
+  /** Null until the 统计 page reports its selection (App keeps the 导出报表 key busy until then). */
   statistics: StatisticsScope | null;
 }
 
@@ -61,13 +61,6 @@ export const STATISTICS_CSV_COLUMNS = [
   "平均单次(小时)",
   "最长单次(小时)",
 ] as const;
-
-const STATUS_LABELS: Record<AppRuntimeStatus, string> = {
-  foreground: "前台运行",
-  tray: "托盘运行",
-  background: "后台运行",
-  closed: "未运行",
-};
 
 const MEBIBYTE = 1024 * 1024;
 
@@ -105,7 +98,7 @@ export function softwareListCsv(summary: SoftwarePageSummary): string {
         row.display_name,
         row.process_name,
         group,
-        STATUS_LABELS[row.status] ?? STATUS_LABELS.closed,
+        runtimeStatusLabelZh(row.status),
         formatLocalDateTime(row.last_opened_at),
         // The same fallbacks as the 软件 page when an older backend leaves the split out.
         formatHours(row.today_foreground_seconds ?? row.today_runtime_seconds),
@@ -121,16 +114,16 @@ export function softwareListCsv(summary: SoftwarePageSummary): string {
 }
 
 /**
- * 后台 records of `summary.usage_date`. A past day's rows are stored peaks; today's live rows carry the
- * current process count and memory while running, which is what the backend's today summary has.
+ * 后台 records of `summary.usage_date`: the day's peaks (today's include the live sample), never the current
+ * count or memory, so every day's file means the same thing.
  */
 export function backgroundCsv(summary: BackgroundPageSummary): string {
   const rows = summary.rows.map((row): CsvValue[] => [
     summary.usage_date,
     row.display_name,
     row.process_name,
-    row.process_count,
-    (Math.max(0, row.memory_bytes) / MEBIBYTE).toFixed(1),
+    row.peak_process_count,
+    (Math.max(0, row.peak_memory_bytes) / MEBIBYTE).toFixed(1),
     formatHours(row.today_running_seconds),
     Math.max(0, row.today_cpu_seconds).toFixed(1),
   ]);
@@ -211,14 +204,16 @@ export async function buildCsvExport(action: CsvExportAction, context: CsvExport
     }
     case "software-csv": {
       const summary = await getSoftwarePageSummary();
-      return csvFile(softwareListFileName(context.today), softwareListCsv(summary));
+      // Named for the day the numbers are read, even if App has not re-rendered since midnight.
+      return csvFile(softwareListFileName(formatLocalDate(new Date())), softwareListCsv(summary));
     }
     case "background-csv": {
       const summary = await getBackgroundPageSummary(day);
       return csvFile(backgroundFileName(summary.usage_date), backgroundCsv(summary));
     }
     case "statistics-csv": {
-      const scope = context.statistics ?? { ...presetRange("last7", new Date(), null), includeHidden: false };
+      const scope = context.statistics;
+      if (!scope) throw new Error("statistics_scope_unknown");
       const [summary, software] = await Promise.all([
         getStatisticsSummary(scope),
         // Process names only; the file is still useful without them.

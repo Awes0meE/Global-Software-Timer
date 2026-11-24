@@ -7,6 +7,11 @@
   padding: 24px;
 }
 
+/* Focus rests on the dialog itself while 导入 runs and both keys are off; the keys carry the ring. */
+.import-dialog:focus {
+  outline: none;
+}
+
 .import-dialog h2 {
   font-size: 18px;
   font-weight: 650;

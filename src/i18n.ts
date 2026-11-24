@@ -1,4 +1,18 @@
+import type { AppRuntimeStatus } from "./api";
+
 export type DurationFormat = "decimal_hours" | "hours_minutes";
+
+const RUNTIME_STATUS_LABELS: Record<AppRuntimeStatus, string> = {
+  foreground: "前台运行",
+  tray: "托盘运行",
+  background: "后台运行",
+  closed: "未运行",
+};
+
+/** A software's runtime status as the 概览 table and the CSV exports name it. */
+export function runtimeStatusLabelZh(status: AppRuntimeStatus): string {
+  return RUNTIME_STATUS_LABELS[status] ?? RUNTIME_STATUS_LABELS.closed;
+}
 
 export interface DurationPart {
   value: string;

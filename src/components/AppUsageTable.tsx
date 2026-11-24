@@ -1,5 +1,5 @@
 import type { AppRuntimeStatus, AppUsageRow, DurationFormat } from "../api";
-import { formatDurationZh } from "../i18n";
+import { formatDurationZh, runtimeStatusLabelZh } from "../i18n";
 import { SoftwareIcon } from "./SoftwareIcon";
 
 interface Props {
@@ -62,7 +62,7 @@ export function AppUsageTable({ apps, durationFormat = "decimal_hours", pastDay 
 }
 
 export function StatusBadge({ status, compact = false }: { status: AppRuntimeStatus; compact?: boolean }) {
-  const label = statusLabel(status);
+  const label = runtimeStatusLabelZh(status);
   if (compact) {
     return (
       <span className={`status-badge ${statusClassName(status)}`} role="img" aria-label={label} title={label}>
@@ -76,22 +76,6 @@ export function StatusBadge({ status, compact = false }: { status: AppRuntimeSta
       {label}
     </span>
   );
-}
-
-function statusLabel(status: AppRuntimeStatus): string {
-  if (status === "foreground") {
-    return "前台运行";
-  }
-
-  if (status === "tray") {
-    return "托盘运行";
-  }
-
-  if (status === "background") {
-    return "后台运行";
-  }
-
-  return "未运行";
 }
 
 function statusClassName(status: AppRuntimeStatus): string {

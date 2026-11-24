@@ -103,6 +103,8 @@ function backgroundRow(overrides: Partial<BackgroundRow>): BackgroundRow {
     process_count: 7,
     cpu_percent: null,
     memory_bytes: 512 * 1024 * 1024,
+    peak_process_count: 7,
+    peak_memory_bytes: 512 * 1024 * 1024,
     today_running_seconds: 1.5 * H,
     today_cpu_seconds: 42.25,
     ...overrides,
@@ -217,14 +219,23 @@ describe("backgroundCsv", () => {
     expect(rows[1]).toEqual(["2026-11-17", "Microsoft Edge", "msedge.exe", "7", "512.0", "1.50", "42.3"]);
   });
 
-  it("keeps the same columns for today", () => {
+  it("writes today's peaks, not a running row's current count and memory", () => {
     const today = background({
       usage_date: "2026-11-24",
       is_today: true,
-      rows: [backgroundRow({ is_running: true, cpu_percent: 3.5, process_count: 2, memory_bytes: 1536 * 1024 })],
+      rows: [
+        backgroundRow({
+          is_running: true,
+          cpu_percent: 3.5,
+          process_count: 2,
+          memory_bytes: 1536 * 1024,
+          peak_process_count: 9,
+          peak_memory_bytes: 3 * 1024 * 1024,
+        }),
+      ],
     });
     const rows = parse(backgroundCsv(today));
-    expect(rows[1]).toEqual(["2026-11-24", "Microsoft Edge", "msedge.exe", "2", "1.5", "1.50", "42.3"]);
+    expect(rows[1]).toEqual(["2026-11-24", "Microsoft Edge", "msedge.exe", "9", "3.0", "1.50", "42.3"]);
   });
 });
 
@@ -295,6 +306,7 @@ describe("buildCsvExport", () => {
   });
 
   it("dates the software list today", async () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 24, 12, 0), toFake: ["Date"] });
     mockInvoke.mockResolvedValue({ focused: [], hidden: [], discovered: [softwareRow({})] });
 
     const file = await buildCsvExport("software-csv", { ...context, viewedDate: "2026-11-17" });
@@ -320,17 +332,32 @@ describe("buildCsvExport", () => {
     expect(file.contents.split("\r\n")[1]).toBe("Visual Studio Code,Code.exe,1,30.00,40.00,,12,2.50,6.00");
   });
 
-  it("uses the page's default 近 7 天 range before the page reports one, and still saves without process names", async () => {
-    vi.useFakeTimers({ now: new Date(2026, 10, 24, 12, 0), toFake: ["Date"] });
+  it("still saves the 统计 file without process names when the software list fails", async () => {
     mockInvoke.mockImplementation(async (command: string) => {
       if (command === "get_statistics_summary") return statistics({ start: "2026-11-18", end: "2026-11-24" });
       throw new Error("software list unavailable");
     });
 
-    const file = await buildCsvExport("statistics-csv", context);
+    const file = await buildCsvExport("statistics-csv", {
+      ...context,
+      statistics: { start: "2026-11-18", end: "2026-11-24", includeHidden: false },
+    });
 
-    expect(mockInvoke).toHaveBeenCalledWith("get_statistics_summary", { start: "2026-11-18", end: "2026-11-24", includeHidden: false });
     expect(file.suggestedName).toBe("GST-统计-2026-11-18至2026-11-24.csv");
     expect(file.contents.split("\r\n")[1]).toBe("Visual Studio Code,,1,30.00,40.00,,12,2.50,6.00");
+  });
+
+  it("refuses a 统计 export before the page has reported its range", async () => {
+    await expect(buildCsvExport("statistics-csv", context)).rejects.toThrow("statistics_scope_unknown");
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
+  it("names the software list for the day it is read, not the day App last rendered", async () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 25, 0, 0, 30), toFake: ["Date"] });
+    mockInvoke.mockResolvedValue({ focused: [], hidden: [], discovered: [] });
+
+    const file = await buildCsvExport("software-csv", context);
+
+    expect(file.suggestedName).toBe("GST-软件清单-2026-11-25.csv");
   });
 });

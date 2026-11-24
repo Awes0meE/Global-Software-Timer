@@ -19,8 +19,8 @@ import "./StatisticsPage.css";
 
 interface StatisticsPageProps {
   durationFormat?: DurationFormat;
-  /** Reports the range and 包含隐藏软件 switch in use, for the header's 导出报表 key. */
-  onScopeChange?: (scope: StatisticsScope) => void;
+  /** Reports the range and 包含隐藏软件 switch in use, for the header's 导出报表 key; null once unmounted. */
+  onScopeChange?: (scope: StatisticsScope | null) => void;
 }
 
 const PRESETS: RangePreset[] = ["last7", "thisWeek", "thisMonth", "last30", "thisYear", "custom"];
@@ -82,6 +82,8 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
   useEffect(() => {
     onScopeChange?.({ start, end, includeHidden });
   }, [onScopeChange, start, end, includeHidden]);
+
+  useEffect(() => () => onScopeChange?.(null), [onScopeChange]);
 
   // A custom range is applied as soon as both dates pass validation.
   useEffect(() => {

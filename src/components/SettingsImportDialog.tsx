@@ -63,6 +63,11 @@ export function SettingsImportDialog({ preview, busy, onConfirm, onCancel }: Set
     };
   }, []);
 
+  // While 导入 runs both keys are off; hold focus on the dialog so Esc and the Tab trap still apply.
+  useEffect(() => {
+    if (busy) dialogRef.current?.focus();
+  }, [busy]);
+
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === "Escape") {
       event.preventDefault();
@@ -96,6 +101,7 @@ export function SettingsImportDialog({ preview, busy, onConfirm, onCancel }: Set
         aria-modal="true"
         aria-labelledby="import-dialog-title"
         aria-busy={busy || undefined}
+        tabIndex={-1}
         onKeyDown={onKeyDown}
       >
         <h2 id="import-dialog-title">导入设置</h2>

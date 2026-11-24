@@ -149,6 +149,19 @@ export default function App() {
   const viewedDate = viewedDay ?? today;
   // The day the latest dashboard request is for; answers for any other day are dropped.
   const dashboardDayRef = useRef<string | null>(viewedDay);
+  // Settings saves still under way; a settings import waits for them so it is not overwritten afterwards.
+  const pendingSettingsWrites = useRef(new Set<Promise<void>>());
+  const trackSettingsWrite = useCallback((write: Promise<unknown>) => {
+    const settled = write.then(
+      () => undefined,
+      () => undefined,
+    );
+    pendingSettingsWrites.current.add(settled);
+    void settled.then(() => pendingSettingsWrites.current.delete(settled));
+  }, []);
+  const settleSettingsWrites = useCallback(async () => {
+    await Promise.all(Array.from(pendingSettingsWrites.current));
+  }, []);
 
   const loadDashboard = useCallback(async () => {
     const day = dashboardDayRef.current;
@@ -373,12 +386,14 @@ export default function App() {
     closeBehaviorConfiguredRef.current = true;
     setSettingsError(null);
 
-    setCloseBehaviorPreference(next).catch(() => {
-      setCloseBehavior(previous);
-      closePreferenceRef.current = previous;
-      closeBehaviorConfiguredRef.current = previousConfigured;
-      setSettingsError("关闭窗口行为保存失败");
-    });
+    trackSettingsWrite(
+      setCloseBehaviorPreference(next).catch(() => {
+        setCloseBehavior(previous);
+        closePreferenceRef.current = previous;
+        closeBehaviorConfiguredRef.current = previousConfigured;
+        setSettingsError("关闭窗口行为保存失败");
+      }),
+    );
   };
 
   const handleDurationFormatToggle = () => {
@@ -394,15 +409,17 @@ export default function App() {
     setDurationFormat(next);
     setSettingsError(null);
 
-    setDurationFormatPreference(next)
-      .catch(() => {
-        setDurationFormat(previous);
-        setSettingsError("时间显示设置保存失败");
-      })
-      .finally(() => {
-        durationFormatSaveInFlightRef.current = false;
-        setDurationFormatBusy(false);
-      });
+    trackSettingsWrite(
+      setDurationFormatPreference(next)
+        .catch(() => {
+          setDurationFormat(previous);
+          setSettingsError("时间显示设置保存失败");
+        })
+        .finally(() => {
+          durationFormatSaveInFlightRef.current = false;
+          setDurationFormatBusy(false);
+        }),
+    );
   };
 
   const handleThemeChange = (next: ThemePreference) => {
@@ -426,6 +443,7 @@ export default function App() {
         }
       }
     });
+    trackSettingsWrite(themeWrites.current);
   };
 
   const handleCloseChoice = async (choice: CloseBehavior) => {
@@ -467,6 +485,7 @@ export default function App() {
       themeRequest.current += 1;
       confirmedTheme.current = settings.theme;
       setTheme(settings.theme);
+      setSettingsError(null);
     } catch {
       setSettingsError("设置读取失败");
     }
@@ -500,8 +519,11 @@ export default function App() {
   const shownPastDay = shownSummary?.is_today === false;
   const exports = useExportActions({
     csvContext: { viewedDate, today, statistics: statisticsScope },
+    beforeSettingsImport: settleSettingsWrites,
     onSettingsImported: reloadImportedSettings,
   });
+  // 导出报表 waits for the 统计 page to report its range.
+  const exportBusy = exports.busy || (activePage === "statistics" && statisticsScope === null);
 
   const recording = !liveScan.failed && liveScan.succeeded === true;
   const recordingLabel = liveScan.failed ? "记录状态未知"
@@ -586,7 +608,7 @@ export default function App() {
                   label={headerExport.label}
                   icon={headerExport.icon}
                   items={headerExport.items}
-                  busy={exports.busy}
+                  busy={exportBusy}
                   onSelect={exports.handleExport}
                 />
               ) : null}

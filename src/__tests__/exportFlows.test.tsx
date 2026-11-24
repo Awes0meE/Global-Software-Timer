@@ -257,6 +257,19 @@ describe("迁移与备份", () => {
     });
   });
 
+  it("says so when the saved file cannot be shown in its folder", async () => {
+    overrides.reveal_saved_file = () => {
+      throw "export_unknown_path";
+    };
+    render(<App />);
+    await openPage("设置");
+
+    await pickFromMenu("导出设置");
+    await userEvent.click(await screen.findByRole("button", { name: "在文件夹中显示" }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("无法打开文件夹"));
+  });
+
   it("shows 保存失败 when the backup fails", async () => {
     overrides.backup_all_data = () => {
       throw "export_target_is_database";
@@ -353,6 +366,48 @@ describe("迁移与备份", () => {
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(message));
     expect(screen.queryByRole("dialog", { name: "导入设置" })).not.toBeInTheDocument();
+  });
+
+  it("holds focus in the import preview while 导入 runs", async () => {
+    let finish = () => {};
+    overrides.apply_settings_import = () =>
+      new Promise((resolve) => {
+        finish = () => resolve({ focused_added: 0, hidden_added: 0, unmatched: 0, conflicts: 0 });
+      });
+    render(<App />);
+    await openPage("设置");
+    await pickFromMenu("导入设置");
+
+    const dialog = await screen.findByRole("dialog", { name: "导入设置" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "导入" }));
+
+    await waitFor(() => expect(dialog).toHaveFocus());
+    await userEvent.keyboard("{Escape}");
+    await userEvent.tab();
+    expect(dialog).toHaveFocus();
+
+    finish();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "导入设置" })).not.toBeInTheDocument());
+  });
+
+  it("applies the import only after a theme save still under way has finished", async () => {
+    let finishThemeSave = () => {};
+    overrides.set_theme_preference = () =>
+      new Promise<void>((resolve) => {
+        finishThemeSave = resolve;
+      });
+    render(<App />);
+    await openPage("设置");
+    await waitFor(() => expect(calls("get_app_settings")).toHaveLength(1));
+
+    await userEvent.click(await screen.findByRole("radio", { name: "浅色" }));
+    await pickFromMenu("导入设置");
+    await userEvent.click(await screen.findByRole("button", { name: "导入" }));
+
+    expect(calls("apply_settings_import")).toHaveLength(0);
+    finishThemeSave();
+    await waitFor(() => expect(calls("apply_settings_import")).toHaveLength(1));
+    await waitFor(() => expect(screen.getByRole("radio", { name: "深色" })).toHaveAttribute("aria-checked", "true"));
   });
 
   it("shows 导入失败 and closes the preview when applying fails", async () => {
