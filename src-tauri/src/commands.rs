@@ -4087,6 +4087,58 @@ mod day_view_tests {
         assert_eq!(summary.active_today_seconds, 0);
     }
 
+    /// A day after the data start with no `daily_system_usage` row: sessions
+    /// still say what ran, so their rows show with zero day totals.
+    #[test]
+    fn gap_day_dashboard_lists_session_rows_with_zero_day_totals() {
+        let (_file, store) = migrated_store();
+        let day = date(2026, 11, 20);
+        let view = past_day(day);
+        let spanning = app(&store, "Spanning");
+        // 20:00 the evening before until 03:00 the morning after.
+        closed_session(
+            &store,
+            spanning,
+            view.start - Duration::hours(4),
+            view.until + Duration::hours(3),
+        );
+        store
+            .increment_daily_system_usage(day - Duration::days(1), 3600, 600, 3600)
+            .unwrap();
+        store
+            .increment_daily_system_usage(day + Duration::days(1), 3600, 600, 3600)
+            .unwrap();
+
+        let summary = dashboard_summary_from_store(&store, view, &HashMap::new(), None).unwrap();
+
+        assert_eq!(summary.usage_date, "2026-11-20");
+        assert!(!summary.is_today);
+        assert_eq!(summary.recorded_today_seconds, 0);
+        assert_eq!(summary.active_today_seconds, 0);
+        let day_seconds = (view.until - view.start).num_seconds();
+        let rows = summary
+            .apps
+            .iter()
+            .map(|row| {
+                (
+                    row.display_name.as_str(),
+                    row.today_seconds,
+                    row.active_today_seconds,
+                    row.total_seconds,
+                    row.is_running,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            rows,
+            vec![("Spanning", day_seconds, 0, day_seconds + 4 * 3600, false)]
+        );
+        assert_eq!(summary.most_used.unwrap().display_name, "Spanning");
+
+        let background = background_page_summary_from_store(&store, view, Vec::new(), 4).unwrap();
+        assert!(background.rows.is_empty());
+    }
+
     #[test]
     fn today_dashboard_keeps_live_statuses_and_reports_is_today() {
         let (_file, store) = migrated_store();
