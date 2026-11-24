@@ -561,6 +561,11 @@
   margin-left: 14px;
 }
 
+/* Without a key the message sits evenly in the glass. */
+.toast:not(:has(.toast-action)) {
+  padding-right: 16px;
+}
+
 /* No message: the empty live regions stay in place, with no glass and nothing to hit. */
 .toast.is-idle {
   min-height: 0;
