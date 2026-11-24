@@ -203,6 +203,21 @@ describe("DateControl", () => {
     expect(within(calendar).getByRole("button", { name: "上个月" })).toBeDisabled();
   });
 
+  it("closes the whole popover on Escape in the month view and returns focus to the date key", () => {
+    const { onChange } = renderDateControl({ value: "2026-11-17" });
+    const calendar = openCalendar();
+    fireEvent.click(within(calendar).getByRole("button", { name: "2026年11月，选择年月" }));
+    const month = within(calendar).getByRole("button", { name: "10月" });
+    month.focus();
+
+    fireEvent.keyDown(month, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(dateKey()).toHaveFocus();
+    expect(onChange).not.toHaveBeenCalled();
+    // It opens on the day view again.
+    expect(within(openCalendar()).getByRole("grid")).toBeInTheDocument();
+  });
+
   it("prints the data start month's leading days as faint disabled days, not blanks", () => {
     renderDateControl({ value: "2026-10-28" });
     const calendar = openCalendar();
@@ -268,6 +283,40 @@ describe("RangeControl", () => {
     fireEvent.click(day(calendar, /^2026年11月3日/));
     expect(onChange).toHaveBeenCalledWith({ start: "2026-11-03", end: "2026-11-20" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["Escape", (target: Element) => fireEvent.keyDown(target, { key: "Escape" })],
+    ["a press outside", () => fireEvent.pointerDown(screen.getByText("outside"))],
+  ])("closes on %s, returns focus to the range key and drops a half-picked range", async (_how, dismiss) => {
+    const onChange = vi.fn();
+    render(<p>outside</p>);
+    render(
+      <RangeControl
+        value={{ start: "2026-11-15", end: "2026-11-21" }}
+        today="2026-11-24"
+        dataStartDate="2026-10-28"
+        onChange={onChange}
+      />,
+    );
+    const key = screen.getByRole("button", { name: /^统计区间/ });
+    fireEvent.click(key);
+    let calendar = screen.getByRole("dialog", { name: "选择统计区间" });
+    const anchor = day(calendar, /^2026年11月20日/);
+    anchor.focus();
+    fireEvent.click(anchor);
+    expect(cellOf(day(calendar, /^2026年11月18日/))).not.toHaveClass("rdp-range_middle");
+
+    dismiss(document.activeElement ?? document.body);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(key).toHaveFocus());
+    expect(key).toHaveAttribute("aria-expanded", "false");
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.click(key);
+    calendar = screen.getByRole("dialog", { name: "选择统计区间" });
+    expect(cellOf(day(calendar, /^2026年11月18日/))).toHaveClass("rdp-range_middle");
+    expect(cellOf(day(calendar, /^2026年11月15日/))).toHaveClass("rdp-range_start");
   });
 
   it("marks the range's ends and middle days for the band", () => {
@@ -362,6 +411,48 @@ describe("ExportKey", () => {
     fireEvent.keyDown(rows[0], { key: "Escape" });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(key).toHaveFocus();
+  });
+
+  it("closes on Tab from a row without trapping it", () => {
+    render(<ExportKey label="迁移与备份" items={MENU} onSelect={() => {}} />);
+    const key = screen.getByRole("button", { name: "迁移与备份" });
+    fireEvent.click(key);
+    const row = within(screen.getByRole("menu")).getAllByRole("menuitem")[1];
+    row.focus();
+
+    const tab = fireEvent.keyDown(row, { key: "Tab" });
+    expect(tab).toBe(true); // not prevented: the browser moves focus on as usual
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(key).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("closes on a press outside and hands focus back to the key", async () => {
+    const onSelect = vi.fn();
+    render(<p>outside</p>);
+    render(<ExportKey label="迁移与备份" items={MENU} onSelect={onSelect} />);
+    const key = screen.getByRole("button", { name: "迁移与备份" });
+    fireEvent.click(key);
+    expect(within(screen.getByRole("menu")).getAllByRole("menuitem")[0]).toHaveFocus();
+
+    fireEvent.pointerDown(screen.getByText("outside"));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    await waitFor(() => expect(key).toHaveFocus());
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("closes when focus moves to another control, and leaves focus there", async () => {
+    render(<button type="button">另一个键</button>);
+    render(<ExportKey label="迁移与备份" items={MENU} onSelect={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "迁移与备份" }));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    const other = screen.getByRole("button", { name: "另一个键" });
+    act(() => {
+      other.focus();
+    });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    await new Promise((resolve) => window.setTimeout(resolve, 10));
+    expect(other).toHaveFocus();
   });
 
   it("opens on ArrowUp at the last row", () => {
