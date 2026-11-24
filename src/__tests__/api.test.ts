@@ -22,6 +22,8 @@ import {
   getBackgroundPageSummary,
   getCalendarSummary,
   getDashboardSummary,
+  getMilestoneSoftware,
+  getStatisticsExport,
   pickSettingsImport,
   revealSavedFile,
   saveTextExport,
@@ -62,6 +64,29 @@ describe("api statistics and achievements", () => {
       heatmapDays: 180,
       includeHidden: true,
     });
+  });
+
+  it("reads the statistics export for a date range", async () => {
+    const data = { start: "2026-11-15", end: "2026-11-21", software: [], days: [] };
+    mockInvoke.mockResolvedValue(data);
+
+    await expect(
+      getStatisticsExport({ start: "2026-11-15", end: "2026-11-21", includeHidden: true }),
+    ).resolves.toBe(data);
+
+    expect(mockInvoke).toHaveBeenCalledWith("get_statistics_export", {
+      start: "2026-11-15",
+      end: "2026-11-21",
+      includeHidden: true,
+    });
+  });
+
+  it("reads the milestone software list", async () => {
+    mockInvoke.mockResolvedValue([]);
+
+    await expect(getMilestoneSoftware(false)).resolves.toEqual([]);
+
+    expect(mockInvoke).toHaveBeenCalledWith("get_milestone_software", { includeHidden: false });
   });
 });
 

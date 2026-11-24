@@ -246,6 +246,54 @@ export interface AchievementsSummary {
 
 export type HeatmapDays = 90 | 180 | 365;
 
+export interface StatisticsExportSoftware {
+  identity_key: string;
+  display_name: string;
+  process_name: string;
+  focused_seconds: number;
+  window_seconds: number;
+  background_seconds: number;
+  /** Days in the range with at least 300 s of focus. */
+  used_days: number;
+}
+
+export interface StatisticsExportDay {
+  date: string;
+  identity_key: string;
+  display_name: string;
+  process_name: string;
+  focused_seconds: number;
+  window_seconds: number;
+  background_seconds: number;
+}
+
+/**
+ * The 统计 CSV exports for a range. `software` lists every software with any focus, window or
+ * background time (focus, then window desc, then name); `days` every nonzero date × software row
+ * (date asc, then focus desc, then name).
+ */
+export interface StatisticsExport {
+  start: string;
+  end: string;
+  software: StatisticsExportSoftware[];
+  days: StatisticsExportDay[];
+}
+
+/** A software with at least one focus milestone reached; dates are local `YYYY-MM-DD`. */
+export interface MilestoneSoftware {
+  identity_key: string;
+  display_name: string;
+  process_name: string;
+  icon_url: string | null;
+  /** The highest tier reached, in hours. */
+  tier_hours: number;
+  /** The day the running focus total first crossed that tier. */
+  reached_on: string;
+  total_focused_seconds: number;
+  /** All-time days with at least 300 s of focus. */
+  used_days: number;
+}
+
 export async function getStatisticsSummary(args: {
   start: string;
   end: string;
@@ -259,6 +307,20 @@ export async function getAchievementsSummary(args: {
   includeHidden: boolean;
 }): Promise<AchievementsSummary> {
   return invoke<AchievementsSummary>("get_achievements_summary", args);
+}
+
+/** Rejects with the same range errors as getStatisticsSummary. */
+export async function getStatisticsExport(args: {
+  start: string;
+  end: string;
+  includeHidden: boolean;
+}): Promise<StatisticsExport> {
+  return invoke<StatisticsExport>("get_statistics_export", args);
+}
+
+/** Sorted by tier (highest first), then total focus (highest first). */
+export async function getMilestoneSoftware(includeHidden: boolean): Promise<MilestoneSoftware[]> {
+  return invoke<MilestoneSoftware[]>("get_milestone_software", { includeHidden });
 }
 
 export async function addFocusedSoftwareIdentities(identityKeys: string[]): Promise<void> {
