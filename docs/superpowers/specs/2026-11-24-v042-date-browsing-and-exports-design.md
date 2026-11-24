@@ -28,15 +28,16 @@ Let the user look at a past day on `概览` and `后台`, and take their data ou
    - When the viewed day is not today, a separate `今天` key appears to the right of the group and jumps back to today.
    - No caption text anywhere around it.
    - Aria: the group is labelled `查看日期`; the step keys `前一天` / `后一天`; the date key announces the full date and that it opens a calendar.
-4. **Calendar popover** (approved variant B). Clicking the date key opens a glass popover using the same surface as the export menu, containing:
+4. **Calendar popover** (revised by the user on 2026-11-24: a plain date picker, superseding the earlier variant B heat shading). Clicking the date key opens a popover whose whole surface is the e-ink screen, containing:
    - `react-day-picker@10.0.2`, pinned to that exact version (MIT). Do not import its stylesheet; style everything ourselves.
    - zh-CN locale (`import { zhCN } from "react-day-picker/locale"`), weeks start on Monday.
    - A caption key `2026年11月` that switches to a month/year view of the same popover height, and `‹` `›` month keys (Chinese aria labels such as `上个月` / `下个月`, `上一年` / `下一年` in the month view).
-   - The day grid printed on an e-ink panel (`.lcd` / `.paper` tokens). Each day is shaded by that day's active seconds using the achievements heatmap levels (`heatLevel` in `src/components/ActivityHeatmap.tsx`): l0 = under 5 min, l1 < 1 h, l2 < 3 h, l3 >= 3 h. Days without a record are unshaded.
-   - Today: a 1px frame. Selected: solid fill plus a 2px ring with a 1px offset. Future days and days before `data_start_date` are disabled. Outside-month days are selectable when in range, but dimmed.
+   - The surface: the popover itself is the e-ink paper (`.paper`: the dark theme's `--eink-paper` gradient, 105deg `#1f2d40` → `#281f40` → `#401f40`; the light theme's `#fafaf7` paper), with the paper grain and finish. There is no glass or black frame around a separate inner screen panel: the day grid sits directly on that surface, and the caption and month keys sit on it too, legible in both themes.
+   - A plain date picker with no per-day data: no heat shading, no record dots, no dashed future cells (the activity heatmap lives on the `成就` page). Days are pixel digits in `--eink-ink`.
+   - Day states, and only these: today = a 1px ink frame; selected = solid ink fill with a paper-coloured digit; selectable outside-month days = `--eink-mid` (the one exception to `--eink-mid` being graphics-only); disabled days (after today, before `data_start_date`) = about 28% ink; hover = a faint ink tint; a focus-visible ring.
    - The popover is pixel-snapped to whole device pixels (the mock's `usePixelSnap`) so the pixel font stays crisp at 100% / 125% / 150%.
    - Esc or an outside click closes it and returns focus to the date key. Full keyboard navigation comes from react-day-picker. All aria labels are Chinese.
-   - In forced-colors, today, selected and disabled days stay distinguishable with system colours.
+   - In forced-colors, today, selected and disabled days (and a range's middle) stay distinguishable with system colours.
 5. **Viewed date state.** The viewed date is held in `App` state, shared by `概览` and `后台`, and never persisted: an app restart returns to today.
    - While viewing today, the pages stay live (polling as now) and follow midnight to the new day.
    - While viewing a past day, the pages stay on that day; page data is not polled live. The sidebar `正在记录` lamp keeps its live value.
@@ -44,7 +45,7 @@ Let the user look at a past day on `概览` and `后台`, and take their data ou
 
 ## B. Statistics custom range
 
-Replace the native `<input type="date">` pair of the `统计` `自定义` range with a `RangeControl` key that opens the same calendar in react-day-picker range mode: two clicks pick start and end; the middle days sit on `--chip`; the same e-ink styling and shading as A.4. The range is bounded by the data start date and today.
+Replace the native `<input type="date">` pair of the `统计` `自定义` range with a `RangeControl` key that opens the same calendar in react-day-picker range mode: two clicks pick start and end; the same plain e-ink date picker as A.4, with the range's ends in solid ink and its middle days on a faint ink tint band (running across the gaps within a week; outside-month middles in `--eink-dim`, since `--eink-mid` on the band falls under 3:1 on the dark paper). The range is bounded by the data start date and today.
 
 ## C. Export keys
 
@@ -133,7 +134,7 @@ Labels are exact. Icon: lucide `FileDown` unless noted.
 - Both summaries return `usage_date` (the requested day) and `is_today`.
 - Dashboard, past day: `until` = the end of that day; no live statuses (every app is not running); `累计` = totals clipped to the end of that day; apps are listed only if they ran or were active that day.
 - Background, past day: stored rows only, no live overlay; `process_count` = peak, memory = peak, `cpu_percent` = null, `is_running` = false.
-- New read-only command `get_calendar_summary` → `{today, data_start_date, streak_threshold_seconds, days: [{date, recorded_seconds, active_seconds}]}` from `daily_system_usage`, reusing the achievements queries and threshold (`statistics::STREAK_MIN_ACTIVE_SECONDS`).
+- New read-only command `get_calendar_summary` → `{today, data_start_date}`: the calendar's bounds only (revised 2026-11-24: no per-day list and no threshold, because the calendar no longer shades days). `App` reads it when the day changes.
 
 ### `概览`, past day
 
@@ -168,7 +169,7 @@ Backend and frontend tasks must match this exactly.
 | --- | --- | --- |
 | `get_dashboard_summary(date: Option<String>)` | `DashboardSummary`: existing fields + `usage_date` (the requested day) + `is_today: bool` | `day_invalid_date` |
 | `get_background_page_summary(date: Option<String>)` | `BackgroundPageSummary`: existing fields + `usage_date: String` + `is_today: bool` | `day_invalid_date` |
-| `get_calendar_summary()` | `CalendarSummary { today: String, data_start_date: Option<String>, streak_threshold_seconds: i64, days: Vec<CalendarDay { date: String, recorded_seconds: i64, active_seconds: i64 }> }` | |
+| `get_calendar_summary()` | `CalendarSummary { today: String, data_start_date: Option<String> }` (revised 2026-11-24: the `days` list and `streak_threshold_seconds` are removed) | |
 | `save_text_export(suggested_name: String, filter_name: String, extension: String, contents: String)` | `Option<String>`: the saved path, `None` if cancelled. Writes UTF-8 with BOM | |
 | `reveal_saved_file(path: String)` | `()`; only for a path saved by this app session | `export_unknown_path` |
 | `export_settings_file()` | `Option<String>` | |
@@ -186,7 +187,7 @@ Backend and frontend tasks must match this exactly.
 
 `scripts/ui-preview/tauri-core.ts` and `mock-data.ts` answer every new or changed command with sensible demo data:
 
-- calendar days from 2026-09-03 to the virtual today, with varied active hours;
+- the calendar summary with `data_start_date` 2026-09-03 and the virtual today;
 - past-day summaries derived from the mock;
 - export commands resolve to a fake path like `C:\Users\demo\Downloads\<name>` and never touch the disk.
 
@@ -203,7 +204,7 @@ Backend and frontend tasks must match this exactly.
 1. `npm.cmd run check` passes (vitest, `tsc --noEmit`, build, `cargo test`, `cargo clippy --all-targets -- -D warnings`). New behaviour has tests: date parsing and `day_invalid_date`, past-day dashboard and background summaries (DST day included), calendar summary, CSV quoting / BOM / CRLF / injection guard, settings import validation, merge, conflicts and expiry, backup to a temporary path.
 2. No page header and neither `今日分布` nor `正在运行` renders a `更多` button; no header renders an `aria-disabled` placeholder.
 3. Past days on `概览` and `后台` show the wording, columns and empty states of section H; today stays live and follows midnight; an app restart opens on today.
-4. Calendar: Monday-first zh-CN grid, shading levels match `heatLevel`, today / selected / disabled / outside-month states, keyboard navigation, Esc and outside click return focus to the date key, crisp pixel text at 100% / 125% / 150%.
+4. Calendar: Monday-first zh-CN plain date picker on the e-ink surface with no per-day data, today / selected / disabled / outside-month / hover / range states, keyboard navigation, Esc and outside click return focus to the date key, crisp pixel text at 100% / 125% / 150%.
 5. Every export writes only where the user chose, with the file names of D and the columns of E; cancel does nothing; failure shows `保存失败`.
 6. Preview screenshots (mock data only) of every changed page and popover in dark, light and forced-colors at 1440×900; console clean; reduced motion respected.
 7. `package.json` pins `react-day-picker` to `10.0.2`; `Cargo.toml` pins `tauri-plugin-dialog` to an exact version published at least two weeks before 2026-11-24. Schema is still 3.

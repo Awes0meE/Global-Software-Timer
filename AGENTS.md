@@ -136,7 +136,7 @@ v0.4.0 additionally includes:
 
 v0.4.2 additionally includes:
 
-- Date browsing on `概览` and `后台`: a `‹ date ›` header key group with a calendar popover shaded by each day's active time, and a `今天` key when a past day is shown. The viewed date is never persisted; past days are read-only views of stored data. The `统计` custom range uses the same calendar.
+- Date browsing on `概览` and `后台`: a `‹ date ›` header key group with a plain date-picker calendar popover on an e-ink surface, and a `今天` key when a past day is shown. The viewed date is never persisted; past days are read-only views of stored data. The `统计` custom range uses the same calendar.
 - Page-specific CSV exports (`概览`, `软件`, `后台`, `统计`), settings export/import as JSON (merge-only, previewed before applying) and a full data backup (`VACUUM INTO`; restore stays manual). Files are written only to the path the user picks in the native dialog; no program paths in exports, no network.
 - The header and panel `更多` buttons are removed (no placeholder header buttons); the `后台` e-ink strip is taller.
 - No tracking or schema change (still schema 3). Binding decisions: `docs/superpowers/specs/2026-11-24-v042-date-browsing-and-exports-design.md`.
