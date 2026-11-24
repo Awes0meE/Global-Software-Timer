@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { SettingChange, SettingsImportPreview } from "../api";
+import { useModalDialog } from "./useModalDialog";
 import "./SettingsImportDialog.css";
 
 export interface ImportFact {
@@ -59,68 +60,8 @@ export function SettingsImportDialog({ preview, busy, onConfirm, onCancel }: Set
     if (busy) dialogRef.current?.focus();
   }, [busy]);
 
-  const busyRef = useRef(busy);
-  busyRef.current = busy;
-  const cancelHandlerRef = useRef(onCancel);
-  cancelHandlerRef.current = onCancel;
-
-  // Modal: the rest of the app (the page, the sidebar, a toast still showing) is inert while the
-  // preview is open, and Tab, Esc and focus are handled for the whole document, so a click on the
-  // dialog's text or on the scrim cannot let focus out. Focus starts on 取消 and goes back to where it
-  // was (the 迁移与备份 key) once the app is no longer inert.
-  useEffect(() => {
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const dialog = dialogRef.current;
-    const backdrop = dialog?.parentElement;
-    if (!dialog || !backdrop?.parentElement) return undefined;
-    const madeInert = Array.from(backdrop.parentElement.children).filter(
-      (element): element is HTMLElement =>
-        element !== backdrop && element instanceof HTMLElement && !element.hasAttribute("inert"),
-    );
-    for (const element of madeInert) element.setAttribute("inert", "");
-
-    const keys = () => Array.from(dialog.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
-    const focusInside = (last = false) => {
-      const enabled = keys();
-      (enabled.length === 0 ? dialog : last ? enabled[enabled.length - 1] : enabled[0]).focus();
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        if (!busyRef.current) cancelHandlerRef.current();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const enabled = keys();
-      const active = document.activeElement;
-      const onKey = enabled.some((key) => key === active);
-      if (!onKey) {
-        // On the dialog itself (its text was clicked), on the scrim or anywhere else: step into the keys.
-        event.preventDefault();
-        focusInside(event.shiftKey);
-        return;
-      }
-      if (event.shiftKey && active === enabled[0]) {
-        event.preventDefault();
-        enabled[enabled.length - 1].focus();
-      } else if (!event.shiftKey && active === enabled[enabled.length - 1]) {
-        event.preventDefault();
-        enabled[0].focus();
-      }
-    };
-    const onFocusIn = (event: FocusEvent) => {
-      if (event.target instanceof Node && !dialog.contains(event.target)) focusInside();
-    };
-    cancelRef.current?.focus();
-    document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("focusin", onFocusIn);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("focusin", onFocusIn);
-      for (const element of madeInert) element.removeAttribute("inert");
-      if (opener && document.contains(opener)) opener.focus();
-    };
-  }, []);
+  // Modal (useModalDialog): focus starts on 取消 and returns to the 迁移与备份 key.
+  useModalDialog(dialogRef, { onCancel, busy, initialFocus: cancelRef });
 
   return (
     <div
