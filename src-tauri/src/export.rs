@@ -141,7 +141,7 @@ pub struct SettingsImportResult {
 /// What applying a settings file to the current store would change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportPlan {
-    /// `(setting key in the file, from, to, storage key)`.
+    /// Settings to write: `(setting key in the file, from, to, storage key)`.
     changes: Vec<(&'static str, &'static str, &'static str, &'static str)>,
     /// Identity keys to add, in file order.
     focused_keys: Vec<String>,
@@ -151,9 +151,12 @@ pub struct ImportPlan {
 }
 
 impl ImportPlan {
+    /// The settings whose shown value changes. A choice that only confirms the
+    /// value shown now is still written, but is not a change to list.
     pub fn setting_changes(&self) -> Vec<SettingChange> {
         self.changes
             .iter()
+            .filter(|(_, from, to, _)| from != to)
             .map(|(key, from, to, _)| SettingChange {
                 key: (*key).to_string(),
                 from: (*from).to_string(),
@@ -286,52 +289,55 @@ pub fn read_settings_import(path: &Path) -> Result<Vec<u8>, String> {
 /// their list change nothing. Settings with unknown values are ignored.
 pub fn plan_settings_import(store: &Store, file: &SettingsFile) -> Result<ImportPlan, StoreError> {
     let current = app_settings_from_store(store)?;
+    // A choice in the file is written whenever this store has no choice of its
+    // own or a different one, even when it equals the default shown now: the
+    // file only carries settings the user chose, and the choice itself matters
+    // (an unchosen close behaviour still asks on the first close).
     let mut changes = Vec::new();
-    if let Some(theme) = file
-        .settings
-        .theme
-        .as_deref()
-        .and_then(ThemePreference::from_setting)
-    {
-        if theme != current.theme {
-            changes.push((
-                "theme",
-                current.theme.as_str(),
-                theme.as_str(),
-                THEME_SETTING_KEY,
-            ));
+    let mut plan_setting = |key: &'static str,
+                            storage_key: &'static str,
+                            configured: bool,
+                            from: &'static str,
+                            to: Option<&'static str>| {
+        if let Some(to) = to {
+            if !configured || to != from {
+                changes.push((key, from, to, storage_key));
+            }
         }
-    }
-    if let Some(format) = file
-        .settings
-        .duration_format
-        .as_deref()
-        .and_then(DurationFormat::from_setting)
-    {
-        if format != current.duration_format {
-            changes.push((
-                "duration_format",
-                current.duration_format.as_str(),
-                format.as_str(),
-                DURATION_FORMAT_SETTING_KEY,
-            ));
-        }
-    }
-    if let Some(behavior) = file
-        .settings
-        .close_behavior
-        .as_deref()
-        .and_then(CloseBehavior::from_setting)
-    {
-        if behavior != current.close_behavior {
-            changes.push((
-                "close_behavior",
-                current.close_behavior.as_str(),
-                behavior.as_str(),
-                CLOSE_BEHAVIOR_SETTING_KEY,
-            ));
-        }
-    }
+    };
+    plan_setting(
+        "theme",
+        THEME_SETTING_KEY,
+        current.theme_configured,
+        current.theme.as_str(),
+        file.settings
+            .theme
+            .as_deref()
+            .and_then(ThemePreference::from_setting)
+            .map(ThemePreference::as_str),
+    );
+    plan_setting(
+        "duration_format",
+        DURATION_FORMAT_SETTING_KEY,
+        current.duration_format_configured,
+        current.duration_format.as_str(),
+        file.settings
+            .duration_format
+            .as_deref()
+            .and_then(DurationFormat::from_setting)
+            .map(DurationFormat::as_str),
+    );
+    plan_setting(
+        "close_behavior",
+        CLOSE_BEHAVIOR_SETTING_KEY,
+        current.close_behavior_configured,
+        current.close_behavior.as_str(),
+        file.settings
+            .close_behavior
+            .as_deref()
+            .and_then(CloseBehavior::from_setting)
+            .map(CloseBehavior::as_str),
+    );
 
     let identities = store.software_identity_names()?;
     let by_digest: HashMap<String, &str> = identities
@@ -934,6 +940,33 @@ mod tests {
                 to: "light".to_string(),
             }]
         );
+    }
+
+    #[test]
+    fn an_imported_choice_equal_to_the_default_is_still_recorded() {
+        let (_db, store) = migrated_store();
+        let before = app_settings_from_store(&store).unwrap();
+        assert!(!before.close_behavior_configured);
+        let mut file = file_with(vec![], vec![]);
+        file.settings = SettingsSection {
+            theme: Some(before.theme.as_str().to_string()),
+            duration_format: None,
+            close_behavior: Some(before.close_behavior.as_str().to_string()),
+        };
+
+        // Nothing on screen changes, so the preview lists no setting rows...
+        assert!(plan_settings_import(&store, &file)
+            .unwrap()
+            .setting_changes()
+            .is_empty());
+        apply_settings_file(&store, &file).unwrap();
+
+        // ...but the file's choices are now the user's choices here too.
+        let after = app_settings_from_store(&store).unwrap();
+        assert!(after.close_behavior_configured);
+        assert_eq!(after.close_behavior, before.close_behavior);
+        assert!(after.theme_configured);
+        assert!(!after.duration_format_configured);
     }
 
     #[test]
