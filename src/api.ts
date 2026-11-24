@@ -95,6 +95,10 @@ export interface BackgroundRow {
   cpu_percent: number | null;
   /** Current memory when running, otherwise today's peak. */
   memory_bytes: number;
+  /** The day's peak process count, including the live sample. */
+  peak_process_count: number;
+  /** The day's peak memory, including the live sample. */
+  peak_memory_bytes: number;
   today_running_seconds: number;
   /** CPU core-seconds used today. */
   today_cpu_seconds: number;

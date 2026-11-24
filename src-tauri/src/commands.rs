@@ -82,6 +82,10 @@ pub struct BackgroundRowDto {
     pub cpu_percent: Option<f32>,
     /// Current memory when running, else today's peak.
     pub memory_bytes: u64,
+    /// The day's peak process count, including the live sample.
+    pub peak_process_count: u32,
+    /// The day's peak memory, including the live sample.
+    pub peak_memory_bytes: u64,
     pub today_running_seconds: i64,
     /// Core-seconds of CPU used today.
     pub today_cpu_seconds: f64,
@@ -459,6 +463,8 @@ fn background_rows(
 ) -> Vec<(BackgroundRowDto, String)> {
     let mut rows: HashMap<String, (BackgroundRowDto, String)> = HashMap::new();
     for usage in stored {
+        let peak_process_count = u32::try_from(usage.peak_process_count).unwrap_or(0);
+        let peak_memory_bytes = u64::try_from(usage.peak_memory_bytes).unwrap_or(0);
         rows.insert(
             usage.family_key.clone(),
             (
@@ -468,9 +474,11 @@ fn background_rows(
                     process_name: usage.process_name,
                     icon_url: None,
                     is_running: false,
-                    process_count: u32::try_from(usage.peak_process_count).unwrap_or(0),
+                    process_count: peak_process_count,
                     cpu_percent: None,
-                    memory_bytes: u64::try_from(usage.peak_memory_bytes).unwrap_or(0),
+                    memory_bytes: peak_memory_bytes,
+                    peak_process_count,
+                    peak_memory_bytes,
                     today_running_seconds: usage.running_seconds,
                     today_cpu_seconds: usage.cpu_core_seconds,
                 },
@@ -490,6 +498,8 @@ fn background_rows(
                     process_count: 0,
                     cpu_percent: None,
                     memory_bytes: 0,
+                    peak_process_count: 0,
+                    peak_memory_bytes: 0,
                     today_running_seconds: 0,
                     today_cpu_seconds: 0.0,
                 },
@@ -501,6 +511,8 @@ fn background_rows(
         row.process_count = group.process_count;
         row.cpu_percent = Some(group.cpu_percent / logical_cores.max(1) as f32);
         row.memory_bytes = group.memory_bytes;
+        row.peak_process_count = row.peak_process_count.max(group.process_count);
+        row.peak_memory_bytes = row.peak_memory_bytes.max(group.memory_bytes);
         if !group.executable_path.is_empty() {
             *path = group.executable_path;
         }
@@ -1703,6 +1715,46 @@ mod background_row_tests {
         assert_eq!(light.cpu_percent, Some(10.0));
         assert_eq!(light.memory_bytes, 500);
         assert_eq!(light.today_running_seconds, 600);
+        // The day's peaks stay peaks under the live overlay.
+        assert_eq!(light.peak_process_count, 3);
+        assert_eq!(light.peak_memory_bytes, 1_000);
+    }
+
+    #[test]
+    fn a_live_sample_above_the_stored_peak_raises_it() {
+        let live = vec![
+            BackgroundProcessGroup {
+                family_key: "light".into(),
+                display_name: "Light".into(),
+                process_name: "light.exe".into(),
+                executable_path: r"C:\Tools\light.exe".into(),
+                process_count: 5,
+                cpu_percent: 1.0,
+                memory_bytes: 4_000,
+            },
+            BackgroundProcessGroup {
+                family_key: "fresh".into(),
+                display_name: "Fresh".into(),
+                process_name: "fresh.exe".into(),
+                executable_path: r"C:\Tools\fresh.exe".into(),
+                process_count: 2,
+                cpu_percent: 1.0,
+                memory_bytes: 700,
+            },
+        ];
+        let rows = background_rows(vec![usage("light", 5.0)], live, 8);
+        let row = |key: &str| {
+            &rows
+                .iter()
+                .find(|(row, _)| row.family_key == key)
+                .unwrap()
+                .0
+        };
+
+        assert_eq!(row("light").peak_process_count, 5);
+        assert_eq!(row("light").peak_memory_bytes, 4_000);
+        assert_eq!(row("fresh").peak_process_count, 2);
+        assert_eq!(row("fresh").peak_memory_bytes, 700);
     }
 }
 
