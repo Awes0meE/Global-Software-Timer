@@ -436,6 +436,52 @@ describe("BackgroundPage", () => {
     expect(screen.queryByText("运行中")).not.toBeInTheDocument();
   });
 
+  it("dims and marks busy the previous day's figures until the new day's read lands", async () => {
+    let answerPast!: (value: BackgroundPageSummary) => void;
+    invoke.mockImplementation((_command, args?: { date?: string }) =>
+      args?.date
+        ? new Promise((resolve) => {
+            answerPast = resolve;
+          })
+        : Promise.resolve(summary),
+    );
+    const view = render(<BackgroundPage />);
+    expect(await screen.findByRole("columnheader", { name: "当前 CPU" })).toBeInTheDocument();
+    const page = () => document.querySelector("main.background-page") as HTMLElement;
+    expect(page()).not.toHaveClass("is-stale");
+    expect(page()).not.toHaveAttribute("aria-busy");
+
+    await act(async () => {
+      view.rerender(<BackgroundPage date="2026-11-17" />);
+    });
+    expect(page()).toHaveClass("is-stale");
+    expect(page()).toHaveAttribute("aria-busy", "true");
+
+    await act(async () => {
+      answerPast({ ...pastSummary, usage_date: "2026-11-17" });
+    });
+    expect(page()).not.toHaveClass("is-stale");
+    expect(page()).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("columnheader", { name: "峰值进程数" })).toBeInTheDocument();
+  });
+
+  it("shows only the warning when the new day's read fails, never the previous day's rows", async () => {
+    invoke.mockImplementation(async (_command, args?: { date?: string }) => {
+      if (args?.date) throw new Error("database is locked");
+      return summary;
+    });
+    const view = render(<BackgroundPage />);
+    expect(await screen.findByText("运行中")).toBeInTheDocument();
+
+    await act(async () => {
+      view.rerender(<BackgroundPage date="2026-11-17" />);
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("无法读取后台进程");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "后台概况" })).not.toBeInTheDocument();
+    expect(document.querySelector("main.background-page")).not.toHaveClass("is-stale");
+  });
+
   it("hands a refused date back, so the app can return to today", async () => {
     invoke.mockRejectedValue(DAY_INVALID_DATE);
     const onInvalidDate = vi.fn();

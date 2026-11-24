@@ -735,7 +735,8 @@ main > p[role="status"] {
 }
 
 /* Another day's figures wait, dimmed, for the picked day's read. */
-.overview-page.is-stale > :not(.warning) {
+.overview-page.is-stale > :not(.warning),
+.background-page.is-stale > :not(.warning) {
   opacity: 0.45;
 }
 

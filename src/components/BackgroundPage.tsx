@@ -118,15 +118,20 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
   const dayRef = useRef<string | null>(date ?? null);
   const invalidDateRef = useRef(onInvalidDate);
   invalidDateRef.current = onInvalidDate;
+  // Until the new day's read lands, the figures on screen are another day's: they show dimmed and busy,
+  // and after a failed read only the warning shows, so the header date never heads other figures.
+  const summaryIsForView = summary !== null && answersDay(summary, date ?? null);
+  const shownSummary = summaryIsForView || !fetchError ? summary : null;
+  const summaryIsStale = shownSummary !== null && !summaryIsForView;
   // The wording and columns follow the rows on screen, so they always name the same day.
-  const pastDay = summary?.is_today === false;
+  const pastDay = shownSummary?.is_today === false;
   // A past day hides 当前 CPU and 状态; sorting by either falls back to the default.
   if (pastDay && !PAST_COLUMNS.some((column) => column.key === sort.key)) {
     setSort(DEFAULT_SORT);
   }
   const sortedRows = useMemo(
-    () => (summary ? sortBackgroundRows(summary.rows, sort, summary.is_today === false) : []),
-    [summary, sort],
+    () => (shownSummary ? sortBackgroundRows(shownSummary.rows, sort, shownSummary.is_today === false) : []),
+    [shownSummary, sort],
   );
 
   const refresh = useCallback(async () => {
@@ -158,6 +163,8 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
   useEffect(() => {
     const day = date ?? null;
     dayRef.current = day;
+    // A failed read for the previous day says nothing about the day being read now.
+    setFetchError(false);
     if (day !== null) {
       void refresh();
       return undefined;
@@ -165,7 +172,7 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
     return startVisiblePolling(refresh, 5000);
   }, [date, refresh]);
 
-  if (!summary) {
+  if (!shownSummary) {
     return (
       <main className="background-page" id="background-content">
         {fetchError ? <div className="warning" role="alert">无法读取后台进程</div>
@@ -175,12 +182,16 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
   }
 
   return (
-    <main className="background-page" id="background-content">
+    <main
+      className={`background-page${summaryIsStale ? " is-stale" : ""}`}
+      id="background-content"
+      aria-busy={summaryIsStale || undefined}
+    >
       {fetchError ? <div className="warning" role="alert">无法读取后台进程</div> : null}
 
       <section className="panel background-summary" aria-label="后台概况">
         <div className={`lcd background-strip${pastDay ? " is-past" : ""}`}>
-          {(pastDay ? pastBackgroundReadings : backgroundReadings)(summary, durationFormat).map((reading) => (
+          {(pastDay ? pastBackgroundReadings : backgroundReadings)(shownSummary, durationFormat).map((reading) => (
             <div className="background-reading" key={reading.label}>
               <span>{reading.label}</span>
               <p>
@@ -232,7 +243,7 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
               ))}
             </tbody>
           </table>
-          {summary.rows.length === 0 && (
+          {shownSummary.rows.length === 0 && (
             <div className="empty-state">{pastDay ? "这一天没有后台记录。" : "今天还没有记录到后台进程。"}</div>
           )}
         </div>
