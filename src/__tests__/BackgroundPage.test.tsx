@@ -300,6 +300,8 @@ describe("BackgroundPage", () => {
     expect(bubble).toHaveTextContent("没有窗口、也不在托盘里的第三方程序");
     // Date-neutral: the same words fit today and a past day.
     expect(bubble).toHaveTextContent("内存：运行中的进程显示当前占用，其余显示当日峰值。");
+    // A past day's 峰值内存 reading adds up each software's own peak, which need not coincide.
+    expect(bubble).toHaveTextContent("往日的峰值内存是各软件当日峰值之和，这些峰值不一定同时出现。");
     expect(bubble).not.toHaveTextContent(/今日|今天/);
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

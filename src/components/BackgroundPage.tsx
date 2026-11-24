@@ -216,6 +216,7 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
           <HelpPopover label="什么是后台进程" title="什么是后台进程？" align="start">
             <p>没有窗口、也不在托盘里的第三方程序。Windows 系统进程不列出；由正在使用的软件启动的子进程，算在那个软件名下。</p>
             <p>内存：运行中的进程显示当前占用，其余显示当日峰值。</p>
+            <p>往日的峰值内存是各软件当日峰值之和，这些峰值不一定同时出现。</p>
           </HelpPopover>
         </header>
         <div className="usage-scroll" role="region" tabIndex={0} aria-label="后台进程明细">
