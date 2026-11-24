@@ -16,6 +16,7 @@ import {
   statisticsExport,
   statisticsSummary,
   viewedPastDay,
+  withStressMilestones,
 } from "./mock-data";
 import { exportCommand, saveBinaryExport } from "./mock-exports";
 
@@ -37,6 +38,8 @@ const settings: Record<string, unknown> = {
 // shown value changes on every poll and the readout ghost can be seen. Ignored with ?empty.
 const tick = params.has("tick") && !empty;
 let dashboardCalls = 0;
+// ?milestones=30: pads the 成就海报 list to the approved 30-row stress frame (picker-30). Ignored with ?empty.
+const stressMilestones = params.get("milestones") === "30" && !empty;
 
 export async function invoke<T>(
   command: string,
@@ -89,7 +92,10 @@ export async function invoke<T>(
       return (empty ? emptyStatisticsExport(start, end) : statisticsExport(start, end, args.includeHidden === true, hidden)) as T;
     }
     case "get_milestone_software":
-      return (empty ? [] : milestoneSoftware(args.includeHidden === true, hidden)) as T;
+      if (empty) return [] as T;
+      return (stressMilestones
+        ? withStressMilestones(milestoneSoftware(args.includeHidden === true, hidden))
+        : milestoneSoftware(args.includeHidden === true, hidden)) as T;
     case "get_achievements_summary": {
       const heatmapDays = args.heatmapDays as HeatmapDays;
       return (empty ? emptyAchievementsSummary(heatmapDays) : achievementsSummary(heatmapDays, args.includeHidden === true, hidden)) as T;

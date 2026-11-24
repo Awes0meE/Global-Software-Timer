@@ -685,6 +685,57 @@ export function milestoneSoftware(includeHidden: boolean, hidden: Set<string>): 
     );
 }
 
+// ?milestones=30: the stress rows of the approved 30-row 成就海报 frame (round-3 data.js), demo only. Their
+// keys carry a prefix so they never meet the seeded software; with no icon they show the letter tile.
+const stressMilestoneSeeds: { key: string; name: string; tier: number; hours: number; reached: string }[] = [
+  { key: "ssms", name: "Microsoft SQL Server Management Studio 20", tier: 1000, hours: 1088.6, reached: "2026-11-08" },
+  { key: "word", name: "Microsoft Word", tier: 500, hours: 612.4, reached: "2026-09-02" },
+  { key: "pycharm", name: "PyCharm", tier: 500, hours: 538.0, reached: "2026-11-04" },
+  { key: "obsidian", name: "Obsidian", tier: 100, hours: 288.1, reached: "2026-06-18" },
+  { key: "wechat", name: "微信", tier: 100, hours: 245.6, reached: "2026-05-30" },
+  { key: "zotero", name: "Zotero", tier: 100, hours: 176.2, reached: "2026-10-01" },
+  { key: "figma", name: "Figma", tier: 100, hours: 133.9, reached: "2026-10-27" },
+  { key: "powerpoint", name: "Microsoft PowerPoint", tier: 100, hours: 121.7, reached: "2026-11-11" },
+  { key: "onenote", name: "OneNote", tier: 50, hours: 96.3, reached: "2026-08-12" },
+  { key: "netease", name: "网易云音乐", tier: 50, hours: 88.0, reached: "2026-07-21" },
+  { key: "photoshop", name: "Adobe Photoshop", tier: 50, hours: 79.4, reached: "2026-10-19" },
+  { key: "feishu", name: "飞书", tier: 50, hours: 71.2, reached: "2026-09-29" },
+  { key: "acrobat", name: "Adobe Acrobat", tier: 50, hours: 52.8, reached: "2026-11-14" },
+  { key: "postman", name: "Postman", tier: 10, hours: 47.5, reached: "2026-06-03" },
+  { key: "blender", name: "Blender", tier: 10, hours: 41.9, reached: "2026-09-08" },
+  { key: "steam", name: "Steam", tier: 10, hours: 38.0, reached: "2026-04-16" },
+  { key: "dingtalk", name: "钉钉", tier: 10, hours: 33.6, reached: "2026-10-08" },
+  { key: "docker", name: "Docker Desktop", tier: 10, hours: 29.1, reached: "2026-07-07" },
+  { key: "idea", name: "IntelliJ IDEA", tier: 10, hours: 26.4, reached: "2026-08-30" },
+  { key: "discord", name: "Discord", tier: 10, hours: 22.7, reached: "2026-05-12" },
+  { key: "wps", name: "WPS Office", tier: 10, hours: 17.9, reached: "2026-10-30" },
+  { key: "qqmusic", name: "QQ音乐", tier: 10, hours: 14.2, reached: "2026-11-01" },
+  { key: "potplayer", name: "PotPlayer", tier: 10, hours: 12.8, reached: "2026-09-14" },
+  { key: "everything", name: "Everything", tier: 10, hours: 11.3, reached: "2026-11-19" },
+];
+
+/** `list` padded with the stress rows (?milestones=30), in the list's order. */
+export function withStressMilestones(list: MilestoneSoftware[]): MilestoneSoftware[] {
+  const stress = stressMilestoneSeeds.map(
+    (seed): MilestoneSoftware => ({
+      identity_key: `stress-${seed.key}`,
+      display_name: seed.name,
+      process_name: `${seed.key}.exe`,
+      icon_url: null,
+      tier_hours: seed.tier,
+      reached_on: seed.reached,
+      total_focused_seconds: Math.round(seed.hours * hour),
+      used_days: Math.max(1, Math.round(seed.hours / 1.6)),
+    }),
+  );
+  return [...list, ...stress].sort(
+    (left, right) =>
+      right.tier_hours - left.tier_hours ||
+      right.total_focused_seconds - left.total_focused_seconds ||
+      left.identity_key.localeCompare(right.identity_key),
+  );
+}
+
 // Typical background hours a day for software that keeps running without a window.
 // Background time does not need a window that day: Steam (no window in the last
 // 45 days) and OneDrive (never a window) give the 区间汇总 background-only rows.
