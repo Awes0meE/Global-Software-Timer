@@ -2272,6 +2272,46 @@ impl Store {
         )
     }
 
+    /// Focus, window (taskbar foreground) and background seconds per identity
+    /// and day for `start..=end`, from the same daily tables as the range sums
+    /// above. Identity-days with neither a focus nor a runtime row are absent;
+    /// rows may be all zero. In date, then identity-key order.
+    pub fn software_daily_usage_range(
+        &self,
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> StoreResult<Vec<SoftwareDayUsage>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT usage_date, identity_key, SUM(focused), SUM(window), SUM(background)
+             FROM (
+                 SELECT usage_date, identity_key, focused_seconds AS focused,
+                        0 AS window, 0 AS background
+                 FROM daily_software_focus_usage
+                 WHERE usage_date BETWEEN ?1 AND ?2
+                 UNION ALL
+                 SELECT usage_date, identity_key, 0, foreground_seconds, background_seconds
+                 FROM daily_software_runtime_usage
+                 WHERE usage_date BETWEEN ?1 AND ?2
+             )
+             GROUP BY usage_date, identity_key
+             ORDER BY usage_date, identity_key",
+        )?;
+        let mut rows = stmt.query(params![start.to_string(), end.to_string()])?;
+        let mut usage = Vec::new();
+
+        while let Some(row) = rows.next()? {
+            usage.push(SoftwareDayUsage {
+                date: parse_usage_date(&row.get::<_, String>(0)?)?,
+                identity_key: row.get(1)?,
+                focused_seconds: row.get(2)?,
+                window_seconds: row.get(3)?,
+                background_seconds: row.get(4)?,
+            });
+        }
+
+        Ok(usage)
+    }
+
     fn seconds_by_identity_range(
         &self,
         sql: &str,
@@ -2535,6 +2575,16 @@ impl Store {
         self.conn.execute("VACUUM INTO ?1", params![target])?;
         Ok(())
     }
+}
+
+/// One identity's software totals on one day.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SoftwareDayUsage {
+    pub date: NaiveDate,
+    pub identity_key: String,
+    pub focused_seconds: i64,
+    pub window_seconds: i64,
+    pub background_seconds: i64,
 }
 
 #[derive(Debug, Clone, PartialEq)]

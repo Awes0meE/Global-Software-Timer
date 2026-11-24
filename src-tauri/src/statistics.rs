@@ -305,6 +305,22 @@ pub fn streaks(days: &[(NaiveDate, i64)], today: NaiveDate) -> Streaks {
     }
 }
 
+/// Days per identity with at least `STREAK_MIN_ACTIVE_SECONDS` of focus.
+///
+/// Each item is one identity's focus on one day. Identities without such a
+/// day are absent.
+pub fn used_days<'a>(
+    daily_focus: impl IntoIterator<Item = (&'a str, i64)>,
+) -> HashMap<String, u32> {
+    let mut days: HashMap<String, u32> = HashMap::new();
+    for (key, focused_seconds) in daily_focus {
+        if focused_seconds >= STREAK_MIN_ACTIVE_SECONDS {
+            *days.entry(key.to_string()).or_default() += 1;
+        }
+    }
+    days
+}
+
 /// Focus-time milestones per identity from daily focus rows.
 ///
 /// Records the highest tier reached and the day the running total first
@@ -312,6 +328,38 @@ pub fn streaks(days: &[(NaiveDate, i64)], today: NaiveDate) -> Streaks {
 /// sorted by focus (highest first), then identity key, and limited to
 /// `MILESTONE_LIMIT`.
 pub fn milestones(daily: &[(String, NaiveDate, i64)]) -> Vec<MilestoneEntry> {
+    let mut rows: Vec<MilestoneEntry> = milestone_entries(daily)
+        .into_iter()
+        .filter(|entry| entry.focused_seconds >= SECONDS_PER_HOUR)
+        .collect();
+    rows.sort_by(|a, b| {
+        b.focused_seconds
+            .cmp(&a.focused_seconds)
+            .then_with(|| a.identity_key.cmp(&b.identity_key))
+    });
+    rows.truncate(MILESTONE_LIMIT);
+    rows
+}
+
+/// Every identity that reached at least one milestone tier, with the same
+/// tier and reached day as `milestones`, but not limited. Sorted by tier
+/// (highest first), then focus (highest first), then identity key.
+pub fn reached_milestones(daily: &[(String, NaiveDate, i64)]) -> Vec<MilestoneEntry> {
+    let mut rows: Vec<MilestoneEntry> = milestone_entries(daily)
+        .into_iter()
+        .filter(|entry| entry.reached_hours.is_some())
+        .collect();
+    rows.sort_by(|a, b| {
+        b.reached_hours
+            .cmp(&a.reached_hours)
+            .then_with(|| b.focused_seconds.cmp(&a.focused_seconds))
+            .then_with(|| a.identity_key.cmp(&b.identity_key))
+    });
+    rows
+}
+
+/// Running focus totals per identity, in no particular order.
+fn milestone_entries(daily: &[(String, NaiveDate, i64)]) -> Vec<MilestoneEntry> {
     let mut sorted: Vec<&(String, NaiveDate, i64)> = daily.iter().collect();
     sorted.sort_by_key(|(_, date, _)| *date);
 
@@ -334,23 +382,15 @@ pub fn milestones(daily: &[(String, NaiveDate, i64)]) -> Vec<MilestoneEntry> {
         }
     }
 
-    let mut rows: Vec<MilestoneEntry> = by_identity
+    by_identity
         .into_values()
-        .filter(|entry| entry.focused_seconds >= SECONDS_PER_HOUR)
         .map(|mut entry| {
             entry.next_hours = MILESTONE_HOURS
                 .into_iter()
                 .find(|hours| Some(*hours) > entry.reached_hours);
             entry
         })
-        .collect();
-    rows.sort_by(|a, b| {
-        b.focused_seconds
-            .cmp(&a.focused_seconds)
-            .then_with(|| a.identity_key.cmp(&b.identity_key))
-    });
-    rows.truncate(MILESTONE_LIMIT);
-    rows
+        .collect()
 }
 
 /// New and dormant software from each identity's first and last window day.
@@ -805,6 +845,61 @@ mod tests {
         let rows = milestones(&daily);
         assert_eq!(rows.len(), MILESTONE_LIMIT);
         assert_eq!(rows[0].identity_key, "app35");
+    }
+
+    #[test]
+    fn used_days_count_days_with_at_least_five_minutes_of_focus() {
+        // 299 秒差一秒不算，300 秒恰好算；0 秒的行（只有窗口或后台）不算
+        let days = used_days([
+            ("a", 299),
+            ("a", 300),
+            ("a", 3600),
+            ("b", 0),
+            ("b", 299),
+            ("c", 300),
+        ]);
+        assert_eq!(days, HashMap::from([("a".into(), 2), ("c".into(), 1)]));
+    }
+
+    #[test]
+    fn reached_milestones_keep_only_reached_tiers_without_a_limit() {
+        let mut daily: Vec<(String, NaiveDate, i64)> = (1..=35)
+            .map(|n| (format!("app{n:02}"), d(2026, 7, 1), 10 * H + n))
+            .collect();
+        daily.push(("below".into(), d(2026, 7, 1), 10 * H - 1));
+        let rows = reached_milestones(&daily);
+        assert_eq!(rows.len(), 35); // 不截到 MILESTONE_LIMIT；不满 10 小时的不列
+        assert!(rows.iter().all(|row| row.reached_hours == Some(10)));
+        assert_eq!(rows[0].identity_key, "app35"); // 同档按累计焦点降序
+    }
+
+    #[test]
+    fn reached_milestones_sort_by_tier_then_focus_and_match_milestones() {
+        let daily = vec![
+            ("big_focus_low_tier".into(), d(2026, 7, 1), 99 * H),
+            ("hundred".into(), d(2026, 7, 1), 60 * H),
+            ("hundred".into(), d(2026, 7, 5), 40 * H), // 累计 100，7-5 跨过 100
+            ("ten_a".into(), d(2026, 7, 2), 20 * H),
+            ("ten_b".into(), d(2026, 7, 2), 20 * H),
+        ];
+        let rows = reached_milestones(&daily);
+        assert_eq!(
+            keys(&rows),
+            vec!["hundred", "big_focus_low_tier", "ten_a", "ten_b"]
+        );
+        // 档位和达成日与成就页的 milestones 一致
+        let shelf = milestones(&daily);
+        for row in &rows {
+            let same = shelf
+                .iter()
+                .find(|entry| entry.identity_key == row.identity_key)
+                .unwrap();
+            assert_eq!(row, same);
+        }
+        assert_eq!(
+            (rows[0].reached_hours, rows[0].reached_on),
+            (Some(100), Some(d(2026, 7, 5)))
+        );
     }
 
     #[test]
