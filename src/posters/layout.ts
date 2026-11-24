@@ -178,13 +178,18 @@ export function layoutPoster(poster: HTMLElement): void {
         parent.style.lineHeight = "1.15";
       }
       // Two lines at most (a third line would pass 2.5 line heights, whatever mixed fonts add to a line
-      // box); past that, the text ends in "…". line-clamp stays as a safety net for the live preview.
+      // box), and no word wider than the slot (one without spaces cannot wrap and would run out sideways,
+      // cut off with no "…"); past that, the text ends in "…". scrollWidth is layout px, unscaled, so it
+      // needs no `k`. line-clamp stays as a safety net for the live preview.
+      setStyle(el, "overflow", "hidden");
       const lineHeight = 1.15 * base * fit.scale;
       el.textContent = ellipsize(full, (candidate) =>
-        fitsAs(candidate, () => el.getBoundingClientRect().height / k < 2.5 * lineHeight),
+        fitsAs(
+          candidate,
+          () => el.getBoundingClientRect().height / k < 2.5 * lineHeight && el.scrollWidth <= Math.ceil(max + FIT_EPSILON),
+        ),
       );
       setStyle(el, "webkitLineClamp", "2");
-      setStyle(el, "overflow", "hidden");
     } else if (fit.mode === "ellipsis") {
       setStyle(el, "display", "inline-block");
       setStyle(el, "verticalAlign", "top");
