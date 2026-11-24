@@ -92,8 +92,22 @@ pub fn dev_server_origin(dev_url: Option<&tauri::Url>) -> Option<String> {
     if !cfg!(debug_assertions) {
         return None;
     }
-    let origin = dev_url?.origin();
+    url_origin(dev_url?)
+}
+
+/// `scheme://host[:port]` of a URL; `None` for opaque origins such as `data:`.
+pub fn url_origin(url: &tauri::Url) -> Option<String> {
+    let origin = url.origin();
     origin.is_tuple().then(|| origin.ascii_serialization())
+}
+
+/// Debug builds print the first `gsticon` request's `Origin` once, so the
+/// real webview origin can be checked against the allowed ones in `tauri dev`.
+pub fn log_first_request_origin(origin: Option<&str>) {
+    static LOGGED: std::sync::Once = std::sync::Once::new();
+    if cfg!(debug_assertions) {
+        LOGGED.call_once(|| eprintln!("gsticon request Origin: {origin:?}"));
+    }
 }
 
 /// The request's `Origin` when it is one of the app's own pages, so posters
@@ -1176,7 +1190,7 @@ mod alpha_tests {
 
 #[cfg(test)]
 mod cors_tests {
-    use super::{allowed_cors_origin, dev_server_origin, icon_response, APP_ORIGIN};
+    use super::{allowed_cors_origin, dev_server_origin, icon_response, url_origin, APP_ORIGIN};
     use std::sync::Arc;
 
     const DEV: Option<&str> = Some("http://localhost:1420");
@@ -1222,16 +1236,27 @@ mod cors_tests {
     }
 
     #[test]
-    fn the_dev_origin_comes_from_the_configured_dev_url() {
+    fn a_url_origin_is_scheme_host_and_port() {
         let dev_url = tauri::Url::parse("http://localhost:1420/").unwrap();
-        // Tests build with debug assertions, like `tauri dev`.
         assert_eq!(
-            dev_server_origin(Some(&dev_url)).as_deref(),
+            url_origin(&dev_url).as_deref(),
             Some("http://localhost:1420")
         );
-        assert_eq!(dev_server_origin(None), None);
+        let default_port = tauri::Url::parse("http://tauri.localhost/index.html").unwrap();
+        assert_eq!(
+            url_origin(&default_port).as_deref(),
+            Some("http://tauri.localhost")
+        );
         let opaque = tauri::Url::parse("data:text/html,x").unwrap();
-        assert_eq!(dev_server_origin(Some(&opaque)), None);
+        assert_eq!(url_origin(&opaque), None);
+    }
+
+    #[test]
+    fn the_dev_origin_is_allowed_only_in_debug_builds() {
+        let dev_url = tauri::Url::parse("http://localhost:1420/").unwrap();
+        let expected = cfg!(debug_assertions).then(|| "http://localhost:1420".to_string());
+        assert_eq!(dev_server_origin(Some(&dev_url)), expected);
+        assert_eq!(dev_server_origin(None), None);
     }
 
     #[test]

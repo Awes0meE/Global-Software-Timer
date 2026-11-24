@@ -59,6 +59,7 @@ pub fn run() {
                     .headers()
                     .get(tauri::http::header::ORIGIN)
                     .and_then(|value| value.to_str().ok());
+                native_icon::log_first_request_origin(request_origin);
                 let allow_origin =
                     native_icon::allowed_cors_origin(request_origin, dev_origin.as_deref())
                         .map(str::to_owned);
