@@ -13,8 +13,12 @@ vi.mock("@tauri-apps/plugin-autostart", () => ({
 }));
 
 import {
+  DAY_INVALID_DATE,
   getAchievementsSummary,
   getAppSettings,
+  getBackgroundPageSummary,
+  getCalendarSummary,
+  getDashboardSummary,
   getStatisticsSummary,
   setDurationFormatPreference,
   setThemePreference,
@@ -52,6 +56,51 @@ describe("api statistics and achievements", () => {
       heatmapDays: 180,
       includeHidden: true,
     });
+  });
+});
+
+describe("api date browsing", () => {
+  afterEach(() => {
+    mockInvoke.mockReset();
+  });
+
+  it("reads today's summaries without a date argument", async () => {
+    mockInvoke.mockResolvedValue({});
+
+    await getDashboardSummary();
+    await getBackgroundPageSummary();
+
+    expect(mockInvoke).toHaveBeenNthCalledWith(1, "get_dashboard_summary");
+    expect(mockInvoke).toHaveBeenNthCalledWith(2, "get_background_page_summary");
+  });
+
+  it("passes a viewed past day to both summaries", async () => {
+    const summary = { usage_date: "2026-11-17", is_today: false };
+    mockInvoke.mockResolvedValue(summary);
+
+    await expect(getDashboardSummary("2026-11-17")).resolves.toBe(summary);
+    await expect(getBackgroundPageSummary("2026-11-17")).resolves.toBe(summary);
+
+    expect(mockInvoke).toHaveBeenNthCalledWith(1, "get_dashboard_summary", { date: "2026-11-17" });
+    expect(mockInvoke).toHaveBeenNthCalledWith(2, "get_background_page_summary", {
+      date: "2026-11-17",
+    });
+  });
+
+  it("passes the day_invalid_date error through", async () => {
+    mockInvoke.mockRejectedValue("day_invalid_date");
+
+    await expect(getDashboardSummary("2999-01-01")).rejects.toBe(DAY_INVALID_DATE);
+    expect(DAY_INVALID_DATE).toBe("day_invalid_date");
+  });
+
+  it("reads the calendar summary", async () => {
+    const summary = { today: "2026-11-24", data_start_date: "2026-09-03", days: [] };
+    mockInvoke.mockResolvedValue(summary);
+
+    await expect(getCalendarSummary()).resolves.toBe(summary);
+
+    expect(mockInvoke).toHaveBeenCalledWith("get_calendar_summary");
   });
 });
 

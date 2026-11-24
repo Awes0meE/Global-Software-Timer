@@ -27,6 +27,8 @@ export interface DashboardSummary {
   locale: string;
   /** The local calendar date ("YYYY-MM-DD") the today readings belong to. */
   usage_date: string;
+  /** False when `usage_date` is a past day: no live statuses, totals end with that day. */
+  is_today: boolean;
   most_used: AppUsageRow | null;
   recorded_today_seconds: number;
   active_today_seconds: number;
@@ -68,8 +70,14 @@ export interface AppSettings {
   theme_configured: boolean;
 }
 
-export async function getDashboardSummary(): Promise<DashboardSummary> {
-  return invoke<DashboardSummary>("get_dashboard_summary");
+/** Error for a malformed or future `date` on the date-browsing summaries. */
+export const DAY_INVALID_DATE = "day_invalid_date";
+
+/** `date` is a local "YYYY-MM-DD" no later than today; omit it for today (live). */
+export async function getDashboardSummary(date?: string): Promise<DashboardSummary> {
+  return date === undefined
+    ? invoke<DashboardSummary>("get_dashboard_summary")
+    : invoke<DashboardSummary>("get_dashboard_summary", { date });
 }
 
 export async function getSoftwarePageSummary(): Promise<SoftwarePageSummary> {
@@ -92,14 +100,39 @@ export interface BackgroundRow {
   today_cpu_seconds: number;
 }
 
+/** On a past day the rows are stored totals and peaks only: not running, `cpu_percent` null. */
 export interface BackgroundPageSummary {
   logical_cores: number;
   running_count: number;
   rows: BackgroundRow[];
+  /** The local calendar date ("YYYY-MM-DD") the rows belong to. */
+  usage_date: string;
+  is_today: boolean;
 }
 
-export async function getBackgroundPageSummary(): Promise<BackgroundPageSummary> {
-  return invoke<BackgroundPageSummary>("get_background_page_summary");
+/** `date` is a local "YYYY-MM-DD" no later than today; omit it for today (live). */
+export async function getBackgroundPageSummary(date?: string): Promise<BackgroundPageSummary> {
+  return date === undefined
+    ? invoke<BackgroundPageSummary>("get_background_page_summary")
+    : invoke<BackgroundPageSummary>("get_background_page_summary", { date });
+}
+
+export interface CalendarDay {
+  date: string;
+  recorded_seconds: number;
+  active_seconds: number;
+}
+
+/** Dates are local "YYYY-MM-DD". `days` lists stored days only, data start to today. */
+export interface CalendarSummary {
+  today: string;
+  data_start_date: string | null;
+  streak_threshold_seconds: number;
+  days: CalendarDay[];
+}
+
+export async function getCalendarSummary(): Promise<CalendarSummary> {
+  return invoke<CalendarSummary>("get_calendar_summary");
 }
 
 /** Dates are local `YYYY-MM-DD`; timestamps are RFC 3339. */

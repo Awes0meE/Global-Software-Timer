@@ -25,6 +25,8 @@ afterEach(() => {
 const summary: BackgroundPageSummary = {
   logical_cores: 8,
   running_count: 1,
+  usage_date: "2026-11-24",
+  is_today: true,
   rows: [
     {
       family_key: "razer",

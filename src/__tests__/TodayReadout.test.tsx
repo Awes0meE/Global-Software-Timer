@@ -24,6 +24,7 @@ function summaryWith(mostUsed: AppUsageRow | null): DashboardSummary {
     product_title: "全局软件计时器",
     locale: "zh-CN",
     usage_date: "2026-11-22",
+    is_today: true,
     most_used: mostUsed,
     recorded_today_seconds: 4 * 3600,
     active_today_seconds: 3600,
