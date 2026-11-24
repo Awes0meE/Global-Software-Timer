@@ -528,7 +528,11 @@ export default function App() {
             <BackgroundPage durationFormat={durationFormat} />
           ) : activePage === "statistics" ? (
             <Suspense fallback={<main id="statistics-content"><p role="status">正在读取统计…</p></main>}>
-              <StatisticsPage durationFormat={durationFormat} calendarDays={calendar.days} />
+              <StatisticsPage
+                durationFormat={durationFormat}
+                calendarDays={calendar.days}
+                calendarThresholdSeconds={calendar.thresholdSeconds}
+              />
             </Suspense>
           ) : activePage === "achievements" ? (
             <Suspense fallback={<main id="achievements-content"><p role="status">正在读取成就…</p></main>}>

@@ -207,6 +207,47 @@ describe("DateControl", () => {
     expect(within(calendar).getByRole("button", { name: "2026年10月，选择年月" })).toBeInTheDocument();
     expect(within(calendar).getByRole("button", { name: "上个月" })).toBeDisabled();
   });
+
+  it("prints the data start month's leading days as faint disabled days, not blanks", () => {
+    renderDateControl({ value: "2026-10-28" });
+    const calendar = openCalendar();
+
+    // October 2026 starts on a Thursday: Monday 28 September leads the first week.
+    const leading = day(calendar, /^2026年9月28日/);
+    expect(leading).toBeDisabled();
+    expect(cellOf(leading)).toHaveClass("rdp-outside", "cal-before-data");
+    expect(cellOf(leading)).not.toHaveClass("rdp-hidden");
+  });
+
+  it("hands focus to the caption key when a month or year key reaches the end", () => {
+    renderDateControl({ value: "2026-11-17", dataStartDate: "2025-11-20" });
+    const calendar = openCalendar();
+    const caption = () => within(calendar).getByRole("button", { name: /选择年月$|返回日历$/ });
+
+    fireEvent.click(within(calendar).getByRole("button", { name: "2026年11月，选择年月" }));
+    within(calendar).getByRole("button", { name: "上一年" }).focus();
+    fireEvent.click(within(calendar).getByRole("button", { name: "上一年" }));
+    expect(within(calendar).getByRole("button", { name: "上一年" })).toBeDisabled();
+    expect(caption()).toHaveFocus();
+    within(calendar).getByRole("button", { name: "下一年" }).focus();
+    fireEvent.click(within(calendar).getByRole("button", { name: "下一年" }));
+    expect(within(calendar).getByRole("button", { name: "下一年" })).toBeDisabled();
+    expect(caption()).toHaveFocus();
+
+    fireEvent.click(within(calendar).getByRole("button", { name: "10月" }));
+    within(calendar).getByRole("button", { name: "下个月" }).focus();
+    fireEvent.click(within(calendar).getByRole("button", { name: "下个月" }));
+    expect(within(calendar).getByRole("button", { name: "下个月" })).toBeDisabled();
+    expect(caption()).toHaveFocus();
+
+    fireEvent.click(caption());
+    fireEvent.click(within(calendar).getByRole("button", { name: "上一年" }));
+    fireEvent.click(within(calendar).getByRole("button", { name: "12月" }));
+    within(calendar).getByRole("button", { name: "上个月" }).focus();
+    fireEvent.click(within(calendar).getByRole("button", { name: "上个月" }));
+    expect(within(calendar).getByRole("button", { name: "2025年11月，选择年月" })).toHaveFocus();
+    expect(within(calendar).getByRole("button", { name: "上个月" })).toBeDisabled();
+  });
 });
 
 describe("RangeControl", () => {
@@ -233,6 +274,24 @@ describe("RangeControl", () => {
     fireEvent.click(day(calendar, /^2026年11月3日/));
     expect(onChange).toHaveBeenCalledWith({ start: "2026-11-03", end: "2026-11-20" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shades the range's days with the given 没用 threshold", () => {
+    render(
+      <RangeControl
+        value={{ start: "2026-11-01", end: "2026-11-21" }}
+        today="2026-11-24"
+        dataStartDate="2026-10-28"
+        days={DAYS}
+        thresholdSeconds={30 * 60}
+        onChange={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^统计区间/ }));
+    const calendar = screen.getByRole("dialog", { name: "选择统计区间" });
+    // 20 active minutes is level 1 at the default 5 minutes, level 0 under a 30-minute threshold.
+    const middle = cellOf(day(calendar, /^2026年11月3日/));
+    expect(middle).toHaveClass("rdp-range_middle", "cal-lv0");
   });
 });
 

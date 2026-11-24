@@ -262,6 +262,9 @@ describe.each(THEMES)("contrast in the %s theme", (theme) => {
     ["level 1", "--eink-ink", "var(--eink-heat-1)"],
     ["level 2", "--eink-paper-solid", "color-mix(in srgb, var(--eink-ink) 70%, transparent)"],
     ["level 3 and the shown day", "--eink-paper-solid", "var(--eink-ink)"],
+    // Range mode: middle days without a level, and outside-month middle days, on --chip.
+    ["range middle", "--eink-ink", "var(--chip)"],
+    ["outside-month range middle", "--eink-dim", "var(--chip)"],
   ])("prints the calendar's %s digits legibly", (_level, digits, cell) => {
     const tokens = themeTokens(theme);
     const text = parseColor(token(theme, digits));
@@ -270,6 +273,19 @@ describe.each(THEMES)("contrast in the %s theme", (theme) => {
       const ratio = contrast(text, over(fill, stop));
       expect(ratio, `${theme}: ${digits} on ${cell} over paper stop ${index} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(TEXT);
     });
+  });
+
+  // react-day-picker marks a range's middle days selected too, so the middles must not take the shown
+  // day's solid ink, and their own rule must print the digits measured above.
+  it("keeps range middles off the shown day's solid ink", () => {
+    const rules = allRules().filter((rule) => rule.file === "HeaderControls.css" && rule.atRules.length === 0);
+    const selected = rules.filter((rule) => /\.rdp-selected/.test(rule.selector) && rule.declarations.background === "var(--eink-ink)");
+    expect(selected.length).toBeGreaterThan(0);
+    selected.forEach((rule) => rule.selectors.forEach((selector) => expect(selector).toContain(":not(.rdp-range_middle)")));
+
+    const middle = rules.find((rule) => rule.selectors.some((selector) => selector.startsWith(".lcd-cal .rdp-range_middle:not(")));
+    expect(middle?.declarations.background).toBe("var(--chip)");
+    expect(middle?.declarations.color).toBe("var(--eink-ink)");
   });
 
   // Plan trade-off 3, P-b (user, 2026-11-23): passed ticks under the pointer are mixed half way to the

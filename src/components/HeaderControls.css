@@ -450,15 +450,17 @@
   outline-offset: 1px;
 }
 
-/* Today: a 1px frame. */
-.lcd-cal .rdp-today .rdp-day_button {
+/* Today: a 1px frame, kept under the pointer. */
+.lcd-cal .rdp-today .rdp-day_button,
+.lcd-cal .rdp-today .rdp-day_button:hover {
   outline: 1px solid var(--eink-ink);
   outline-offset: 1px;
 }
 
-/* The shown day (and a range's ends): solid ink with a 2px ring 1px off it, inside the 6px gap. */
-.lcd-cal .rdp-selected .rdp-day_button,
-.lcd-cal .rdp-selected .rdp-day_button:hover {
+/* The shown day (and a range's ends): solid ink with a 2px ring 1px off it, inside the 6px gap.
+   react-day-picker also marks every day inside a range selected; those are the range middles below. */
+.lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button,
+.lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button:hover {
   background: var(--eink-ink);
   box-shadow: none;
   color: var(--eink-paper-solid);
@@ -466,21 +468,31 @@
   outline-offset: 1px;
 }
 
-/* Range mode: the days between the ends sit on --chip (or keep their level's ink) inside a 1px frame. */
+/* Range mode: the days between the ends keep their level's ink inside a 1px frame; days without a
+   level, and the next or previous month's days, sit on --chip. */
 .lcd-cal .rdp-range_middle .rdp-day_button,
 .lcd-cal .rdp-range_middle .rdp-day_button:hover {
   outline: 1px solid var(--eink-ink);
   outline-offset: 1px;
 }
 
-.lcd-cal .rdp-range_middle:not(.cal-lv1, .cal-lv2, .cal-lv3) .rdp-day_button {
+.lcd-cal .rdp-range_middle:not(.cal-lv0, .cal-lv1, .cal-lv2, .cal-lv3) .rdp-day_button,
+.lcd-cal .rdp-range_middle.rdp-outside .rdp-day_button {
   --muted: var(--ink-2);
   background: var(--chip);
   box-shadow: none;
+  color: var(--eink-ink);
 }
 
+.lcd-cal .rdp-range_middle.rdp-outside .rdp-day_button {
+  color: var(--eink-dim);
+}
+
+/* The focus ring outranks every rest and hover rule above. */
 .lcd-cal .rdp-day_button:focus-visible,
-.lcd-cal .rdp-selected .rdp-day_button:focus-visible {
+.lcd-cal .rdp-day_button:focus-visible:hover,
+.lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button:focus-visible,
+.lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button:focus-visible:hover {
   box-shadow: none;
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -627,13 +639,14 @@
     color: GrayText;
   }
 
-  .lcd-cal .rdp-today .rdp-day_button {
+  .lcd-cal .rdp-today .rdp-day_button,
+  .lcd-cal .rdp-today .rdp-day_button:hover {
     outline: 1px solid CanvasText;
     outline-offset: 1px;
   }
 
-  .lcd-cal .rdp-selected .rdp-day_button,
-  .lcd-cal .rdp-selected .rdp-day_button:hover {
+  .lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button,
+  .lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button:hover {
     forced-color-adjust: none;
     background: Highlight;
     color: HighlightText;
@@ -641,8 +654,17 @@
     outline-offset: 1px;
   }
 
+  /* A range's middle days keep their level pattern inside a 1px Highlight frame. */
+  .lcd-cal .rdp-range_middle .rdp-day_button,
+  .lcd-cal .rdp-range_middle .rdp-day_button:hover {
+    outline: 1px solid Highlight;
+    outline-offset: 1px;
+  }
+
   .lcd-cal .rdp-day_button:focus-visible,
-  .lcd-cal .rdp-selected .rdp-day_button:focus-visible {
+  .lcd-cal .rdp-day_button:focus-visible:hover,
+  .lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button:focus-visible,
+  .lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button:focus-visible:hover {
     outline: 2px solid CanvasText;
     outline-offset: 1px;
   }

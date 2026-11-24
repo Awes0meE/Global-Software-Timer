@@ -1,7 +1,7 @@
 // The date-picking calendar of the header date key and the 统计 自定义 range, built on react-day-picker
 // (MIT, https://daypicker.dev; its stylesheet is not imported, HeaderControls.css styles it). The month is
 // printed on an e-ink screen, each day inked by that day's active time like the achievements heatmap.
-import { createContext, useContext, useMemo, useState, type HTMLAttributes, type TableHTMLAttributes } from "react";
+import { createContext, useContext, useMemo, useRef, useState, type HTMLAttributes, type TableHTMLAttributes } from "react";
 import { DayPicker, useDayPicker, type CalendarMonth, type Matcher, type PropsBase } from "react-day-picker";
 import { zhCN } from "react-day-picker/locale";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
@@ -68,11 +68,13 @@ function bounds(today: string, dataStartDate: string | null): Bounds {
 
 interface CaptionState {
   openMonths: () => void;
+  /** The first month that has pickable days (the data start's). */
+  firstMonth: Date;
   /** The last month that has pickable days (today's). */
   lastMonth: Date;
 }
 
-const CaptionContext = createContext<CaptionState>({ openMonths: () => {}, lastMonth: new Date() });
+const CaptionContext = createContext<CaptionState>({ openMonths: () => {}, firstMonth: new Date(), lastMonth: new Date() });
 
 /** The caption row: ‹ month key, a 2026年11月 key that opens the month view, › month key. */
 function CaptionKeys({
@@ -82,21 +84,33 @@ function CaptionKeys({
   ...divProps
 }: { calendarMonth: CalendarMonth; displayIndex: number } & HTMLAttributes<HTMLDivElement>) {
   const { previousMonth, nextMonth, goToMonth } = useDayPicker();
-  const { openMonths, lastMonth } = useContext(CaptionContext);
-  // endMonth runs one month past today's so its trailing outside days still render; stop at today's.
-  const next = monthIndex(calendarMonth.date) < monthIndex(lastMonth) ? nextMonth : undefined;
+  const { openMonths, firstMonth, lastMonth } = useContext(CaptionContext);
+  const captionRef = useRef<HTMLButtonElement>(null);
+  // startMonth and endMonth run one month past the pickable ones so their outside days still render (dim
+  // and disabled); the month keys stop at the pickable months.
+  const shown = monthIndex(calendarMonth.date);
+  const previous = shown > monthIndex(firstMonth) ? previousMonth : undefined;
+  const next = shown < monthIndex(lastMonth) ? nextMonth : undefined;
+  // A month key that reaches the end turns disabled, which would drop focus; hand it to the caption key.
+  const step = (target: Date) => {
+    goToMonth(target);
+    if (monthIndex(target) === monthIndex(firstMonth) || monthIndex(target) === monthIndex(lastMonth)) {
+      captionRef.current?.focus();
+    }
+  };
   return (
     <div {...divProps}>
       <button
         type="button"
         className="cal-key cal-step"
         aria-label="上个月"
-        disabled={!previousMonth}
-        onClick={() => previousMonth && goToMonth(previousMonth)}
+        disabled={!previous}
+        onClick={() => previous && step(previous)}
       >
         <ChevronLeft size={16} aria-hidden="true" />
       </button>
       <button
+        ref={captionRef}
         type="button"
         className="cal-key cal-caption"
         aria-expanded={false}
@@ -111,7 +125,7 @@ function CaptionKeys({
         className="cal-key cal-step"
         aria-label="下个月"
         disabled={!next}
-        onClick={() => next && goToMonth(next)}
+        onClick={() => next && step(next)}
       >
         <ChevronRight size={16} aria-hidden="true" />
       </button>
@@ -138,8 +152,14 @@ interface MonthViewProps {
 /** Twelve month keys of one year, the same height as the day grid; ‹ › change the year. */
 function MonthView({ shown, bounds: { first, today }, onPick, onClose }: MonthViewProps) {
   const [year, setYear] = useState(shown.getFullYear());
+  const captionRef = useRef<HTMLButtonElement>(null);
   const lo = monthIndex(first);
   const hi = monthIndex(today);
+  // A year key that reaches the end turns disabled, which would drop focus; hand it to the caption key.
+  const stepYear = (to: number) => {
+    setYear(to);
+    if (to <= first.getFullYear() || to >= today.getFullYear()) captionRef.current?.focus();
+  };
   return (
     <div className="cal cal-months">
       <div className="rdp-month_caption">
@@ -148,11 +168,11 @@ function MonthView({ shown, bounds: { first, today }, onPick, onClose }: MonthVi
           className="cal-key cal-step"
           aria-label="上一年"
           disabled={year <= first.getFullYear()}
-          onClick={() => setYear(year - 1)}
+          onClick={() => stepYear(year - 1)}
         >
           <ChevronLeft size={16} aria-hidden="true" />
         </button>
-        <button type="button" className="cal-key cal-caption" aria-expanded={true} aria-label={`${year}年，返回日历`} onClick={onClose}>
+        <button ref={captionRef} type="button" className="cal-key cal-caption" aria-expanded={true} aria-label={`${year}年，返回日历`} onClick={onClose}>
           <span className="rdp-caption_label">{year}年</span>
           <ChevronDown size={14} aria-hidden="true" className="is-flipped" />
         </button>
@@ -161,7 +181,7 @@ function MonthView({ shown, bounds: { first, today }, onPick, onClose }: MonthVi
           className="cal-key cal-step"
           aria-label="下一年"
           disabled={year >= today.getFullYear()}
-          onClick={() => setYear(year + 1)}
+          onClick={() => stepYear(year + 1)}
         >
           <ChevronRight size={16} aria-hidden="true" />
         </button>
@@ -215,8 +235,8 @@ function CalendarFrame({ initialMonth, today, dataStartDate, days, thresholdSeco
   }, [days, thresholdSeconds]);
 
   const caption = useMemo<CaptionState>(
-    () => ({ openMonths: () => setView("months"), lastMonth: startOfMonth(range.today) }),
-    [range.today],
+    () => ({ openMonths: () => setView("months"), firstMonth: startOfMonth(range.first), lastMonth: startOfMonth(range.today) }),
+    [range.first, range.today],
   );
 
   if (view === "months") {
@@ -244,7 +264,7 @@ function CalendarFrame({ initialMonth, today, dataStartDate, days, thresholdSeco
     locale: zhCN,
     weekStartsOn: 1,
     today: range.today,
-    startMonth: startOfMonth(range.first),
+    startMonth: new Date(range.first.getFullYear(), range.first.getMonth() - 1, 1),
     endMonth: new Date(range.today.getFullYear(), range.today.getMonth() + 1, 1),
     disabled,
     hideNavigation: true,
