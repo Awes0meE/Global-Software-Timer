@@ -102,6 +102,7 @@ export function FitName({
       data-maxw={maxWidth}
       data-lines={lines}
       data-fs={size}
+      data-text={children}
       style={{ ...style, fontSize: size }}
     >
       {children}

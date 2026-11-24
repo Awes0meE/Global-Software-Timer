@@ -1,20 +1,73 @@
 import { describe, expect, it } from "vitest";
 import { achievementPosterFileName, dailyPosterFileName, fileNameSafe } from "../posters/fileNames";
-import { capTopBaseline, fitName, fitToWidth, INTER_CAP_HEIGHT, opticalSize } from "../posters/layout";
+import { capTopBaseline, ellipsize, fitName, fitToWidth, INTER_CAP_HEIGHT, opticalSize } from "../posters/layout";
+
+/** A name `width` px wide at its base size; Inter at a lower optical size is `widen` × wider per unit of shrink. */
+function textAt(width: number, widen = 0) {
+  const calls: number[] = [];
+  const measure = (scale: number) => {
+    calls.push(scale);
+    return width * scale * (1 + widen * (1 - scale));
+  };
+  return { measure, calls };
+}
 
 describe("fitName", () => {
   it("keeps a name that fits", () => {
-    expect(fitName(200, 250, false)).toEqual({ mode: "fits", scale: 1 });
+    expect(fitName(textAt(200).measure, 250, false)).toEqual({ mode: "fits", scale: 1 });
   });
 
   it("shrinks down to 0.8x", () => {
-    expect(fitName(300, 250, true)).toEqual({ mode: "shrink", scale: 250 / 300 });
-    expect(fitName(312.5, 250, false)).toEqual({ mode: "shrink", scale: 0.8 });
+    expect(fitName(textAt(300).measure, 250, true)).toEqual({ mode: "shrink", scale: 250 / 300 });
+    expect(fitName(textAt(312.5).measure, 250, false)).toEqual({ mode: "shrink", scale: 0.8 });
   });
 
   it("wraps to two lines at 0.8x when allowed, else ellipsises", () => {
-    expect(fitName(600, 295, true)).toEqual({ mode: "two-lines", scale: 0.8 });
-    expect(fitName(600, 125, false)).toEqual({ mode: "ellipsis", scale: 0.8 });
+    expect(fitName(textAt(600).measure, 295, true)).toEqual({ mode: "two-lines", scale: 0.8 });
+    expect(fitName(textAt(600).measure, 125, false)).toEqual({ mode: "ellipsis", scale: 0.8 });
+  });
+
+  it("measures every trial size instead of extrapolating, so a lower optical size cannot overflow", () => {
+    // 2% too wide; each step down widens the text a little (lower opsz), so one ratio step is not enough.
+    const text = textAt(295 * 1.02, 0.15);
+    const fit = fitName(text.measure, 295, true);
+    expect(fit.mode).toBe("shrink");
+    expect(fit.scale).toBeGreaterThanOrEqual(0.8);
+    expect(text.measure(fit.scale)).toBeLessThanOrEqual(295.01);
+    expect(text.calls.length).toBeGreaterThan(2);
+  });
+
+  it("gives the same answer whatever was measured before", () => {
+    const first = fitName(textAt(301, 0.15).measure, 295, true);
+    const again = fitName(textAt(301, 0.15).measure, 295, true);
+    expect(again).toEqual(first);
+  });
+
+  it("goes to two lines only when the 0.8x size, measured, is still too wide", () => {
+    // At 0.8x: 370 -> 296 px, too wide; 368 -> 294.4 px, fits (shrunk a little less than 0.8x).
+    expect(fitName(textAt(370).measure, 295, true).mode).toBe("two-lines");
+    expect(fitName(textAt(368).measure, 295, true).mode).toBe("shrink");
+  });
+});
+
+describe("ellipsize", () => {
+  const upTo = (length: number) => (text: string) => Array.from(text).length <= length;
+
+  it("keeps a name that fits", () => {
+    expect(ellipsize("Visual Studio Code", upTo(40))).toBe("Visual Studio Code");
+  });
+
+  it("keeps the longest prefix that fits with the ellipsis, without a space before it", () => {
+    expect(ellipsize("Visual Studio Code", upTo(10))).toBe("Visual St…");
+    expect(ellipsize("Visual Studio Code", upTo(8))).toBe("Visual…");
+  });
+
+  it("cuts between whole characters, not inside a surrogate pair", () => {
+    expect(ellipsize("网易云音乐𠮷𠮷𠮷", upTo(7))).toBe("网易云音乐𠮷…");
+  });
+
+  it("falls back to the ellipsis alone", () => {
+    expect(ellipsize("Visual Studio Code", () => false)).toBe("…");
   });
 });
 

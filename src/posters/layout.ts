@@ -4,9 +4,12 @@
 // Elements opt in through data attributes (set by the components in PosterParts.tsx):
 //   .poster-abs     data-x (left) | data-right (right edge) | data-cx (centre x)
 //                   data-y (top) | data-bl (baseline y) | data-cy (centre y) | data-captop (hero figure top)
-//   data-fs         the element's base font size in px; every pass starts from it, so the pass is idempotent
+//   data-fs         the element's base font size in px; every pass starts again from it and from Inter's
+//                   optical size for it, so repeated passes (and passes under any transform) agree
 //   data-fit="W"    shrink the element (children sized in em) to at most W px wide
-//   data-maxw="W"   names: shrink to 0.8×, then (data-lines="2") two balanced lines at 0.8×, then ellipsis
+//   data-maxw="W"   names: shrink to 0.8×, then (data-lines="2") two balanced lines at 0.8×, then ellipsis;
+//   data-text       the full name, restored on every pass (the ellipsis is written into the text itself,
+//                   because the capture's clone does not keep -webkit-line-clamp or text-overflow)
 
 export const POSTER_WIDTH = 540;
 export const POSTER_HEIGHT = 720;
@@ -25,19 +28,50 @@ export interface NameFit {
   scale: number;
 }
 
+/** Width tolerance in px for "fits", against sub-pixel measuring noise. */
+const FIT_EPSILON = 0.01;
+
+/** Shrink attempts before giving up on one line (Inter widens slightly as its optical size drops). */
+const SHRINK_STEPS = 6;
+
 /**
- * How a name of `width` px (at its base size) fits a `max` px slot: as is; shrunk (down to 0.8×);
- * else, when two lines are allowed, wrapped to two balanced lines at 0.8×; else ellipsis at 0.8×.
+ * How a name fits a `max` px slot. `measure(scale)` is the name's width in px at `scale` × its base size,
+ * measured with the optical size that size renders with (so each trial size is measured, never
+ * extrapolated). As is; else shrunk (down to 0.8×); else, when two lines are allowed, two balanced lines
+ * at 0.8×; else ellipsis at 0.8×.
  */
-export function fitName(width: number, max: number, allowTwoLines: boolean): NameFit {
-  if (width <= max) {
+export function fitName(measure: (scale: number) => number, max: number, allowTwoLines: boolean): NameFit {
+  let width = measure(1);
+  if (width <= max + FIT_EPSILON) {
     return { mode: "fits", scale: 1 };
   }
-  const scale = Math.max(NAME_MIN_SCALE, max / width);
-  if (width * scale <= max + 0.01) {
-    return { mode: "shrink", scale };
+  let scale = 1;
+  for (let step = 0; step < SHRINK_STEPS && scale > NAME_MIN_SCALE; step += 1) {
+    scale = Math.max(NAME_MIN_SCALE, scale * (max / width));
+    width = measure(scale);
+    if (width <= max + FIT_EPSILON) {
+      return { mode: "shrink", scale };
+    }
   }
-  return { mode: allowTwoLines ? "two-lines" : "ellipsis", scale };
+  return { mode: allowTwoLines ? "two-lines" : "ellipsis", scale: NAME_MIN_SCALE };
+}
+
+/**
+ * The longest prefix of `text` (whole characters, trailing spaces dropped) plus "…" for which `fits` is true,
+ * or `text` itself when it already fits.
+ */
+export function ellipsize(text: string, fits: (candidate: string) => boolean): string {
+  if (fits(text)) return text;
+  const chars = Array.from(text);
+  const cut = (length: number) => `${chars.slice(0, length).join("").trimEnd()}…`;
+  let low = 0;
+  let high = chars.length - 1;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (fits(cut(mid))) low = mid;
+    else high = mid - 1;
+  }
+  return cut(low);
 }
 
 /** Font size that makes a group `width` px wide at `size` fit `slot` px (never grows). */
@@ -68,7 +102,6 @@ const NAME_STYLE_KEYS = [
   "lineHeight",
   "width",
   "maxWidth",
-  "textOverflow",
   "verticalAlign",
 ] as const;
 
@@ -82,19 +115,30 @@ function setStyle(el: HTMLElement, key: (typeof NAME_STYLE_KEYS)[number], value:
   (el.style as unknown as Record<string, string>)[key] = value;
 }
 
-/** Runs the whole pass on one poster root (`.gst-poster`). Safe to call again at any time. */
+/** Font size and Inter optical size for an element drawn at `cssSize` px. */
+function setSize(el: HTMLElement, cssSize: number) {
+  el.style.fontSize = `${cssSize}px`;
+  el.style.fontVariationSettings = `"opsz" ${opticalSize(cssSize)}`;
+}
+
+/**
+ * Runs the whole pass on one poster root (`.gst-poster`). Each pass starts from the same state (step 0),
+ * so calling it again, or under a scale transform, gives the same layout.
+ */
 export function layoutPoster(poster: HTMLElement): void {
   // Measurements are taken in poster space: the dialog shows the poster scaled down.
   const rootRect = poster.getBoundingClientRect();
   const k = rootRect.width > 0 ? rootRect.width / POSTER_WIDTH : 1;
   const width = (el: Element) => el.getBoundingClientRect().width / k;
 
-  // 0. Reset everything a previous pass changed.
+  // 0. Reset everything a previous pass changed, including the optical size.
   for (const el of poster.querySelectorAll<HTMLElement>("[data-fs]")) {
-    el.style.fontSize = `${el.dataset.fs}px`;
+    setSize(el, Number(el.dataset.fs));
   }
   for (const el of poster.querySelectorAll<HTMLElement>("[data-maxw]")) {
     for (const key of NAME_STYLE_KEYS) setStyle(el, key, "");
+    const full = el.dataset.text;
+    if (full !== undefined && el.textContent !== full) el.textContent = full;
     const parent = el.parentElement;
     if (parent) {
       parent.style.whiteSpace = "";
@@ -102,18 +146,28 @@ export function layoutPoster(poster: HTMLElement): void {
     }
   }
 
-  // 1. Names.
+  // 1. Names, each trial size measured at the optical size it renders with.
   for (const el of poster.querySelectorAll<HTMLElement>("[data-maxw]")) {
     const max = Number(el.dataset.maxw);
-    const base = parseFloat(getComputedStyle(el).fontSize);
-    const fit = fitName(width(el), max, el.dataset.lines === "2");
-    if (fit.mode === "fits") continue;
-    el.style.fontSize = `${base * fit.scale}px`;
+    const base = Number(el.dataset.fs) || parseFloat(getComputedStyle(el).fontSize);
+    const fit = fitName(
+      (scale) => {
+        setSize(el, base * scale);
+        return width(el);
+      },
+      max,
+      el.dataset.lines === "2",
+    );
+    setSize(el, base * fit.scale);
+    if (fit.mode === "fits" || fit.mode === "shrink") continue;
+    const full = el.dataset.text ?? el.textContent ?? "";
+    const fitsAs = (candidate: string, fits: () => boolean) => {
+      el.textContent = candidate;
+      return fits();
+    };
     if (fit.mode === "two-lines") {
       setStyle(el, "display", "-webkit-box");
       setStyle(el, "webkitBoxOrient", "vertical");
-      setStyle(el, "webkitLineClamp", "2");
-      setStyle(el, "overflow", "hidden");
       setStyle(el, "whiteSpace", "normal");
       setStyle(el, "textWrap", "balance");
       setStyle(el, "lineHeight", "1.15");
@@ -123,12 +177,20 @@ export function layoutPoster(poster: HTMLElement): void {
         parent.style.whiteSpace = "normal";
         parent.style.lineHeight = "1.15";
       }
+      // Two lines at most (a third line would pass 2.5 line heights, whatever mixed fonts add to a line
+      // box); past that, the text ends in "…". line-clamp stays as a safety net for the live preview.
+      const lineHeight = 1.15 * base * fit.scale;
+      el.textContent = ellipsize(full, (candidate) =>
+        fitsAs(candidate, () => el.getBoundingClientRect().height / k < 2.5 * lineHeight),
+      );
+      setStyle(el, "webkitLineClamp", "2");
+      setStyle(el, "overflow", "hidden");
     } else if (fit.mode === "ellipsis") {
       setStyle(el, "display", "inline-block");
+      setStyle(el, "verticalAlign", "top");
+      el.textContent = ellipsize(full, (candidate) => fitsAs(candidate, () => width(el) <= max + FIT_EPSILON));
       setStyle(el, "maxWidth", `${max}px`);
       setStyle(el, "overflow", "hidden");
-      setStyle(el, "textOverflow", "ellipsis");
-      setStyle(el, "verticalAlign", "top");
     }
   }
 
@@ -139,7 +201,8 @@ export function layoutPoster(poster: HTMLElement): void {
   }
 
   // 3. Inter's optical size follows the size the text has in the PNG (2× its CSS px), as in the mockups,
-  //    which were drawn at PNG size. The hero keeps its own fixed display size (posters.css).
+  //    which were drawn at PNG size; this catches the groups step 2 resized. The hero keeps its own fixed
+  //    display size (posters.css).
   for (const el of poster.querySelectorAll<HTMLElement>("[data-fs]")) {
     el.style.fontVariationSettings = `"opsz" ${opticalSize(parseFloat(getComputedStyle(el).fontSize))}`;
   }
