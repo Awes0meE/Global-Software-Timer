@@ -11,19 +11,25 @@ import {
   type RangePreset,
 } from "../statisticsRange";
 import { startVisiblePolling } from "../visiblePolling";
+import type { CalendarDayActivity } from "./DayCalendar";
+import { RangeControl } from "./RangeControl";
 import { StatisticsLedgers } from "./StatisticsLedgers";
 import { TrendRecorder } from "./TrendRecorder";
 import "./StatisticsPage.css";
 
 interface StatisticsPageProps {
   durationFormat?: DurationFormat;
+  /** Each recorded day's active time, which shades the 自定义 calendar. */
+  calendarDays?: readonly CalendarDayActivity[];
 }
+
+const NO_DAYS: readonly CalendarDayActivity[] = [];
 
 const PRESETS: RangePreset[] = ["last7", "thisWeek", "thisMonth", "last30", "thisYear", "custom"];
 // The range includes today, so its numbers keep growing while the page is open.
 const POLL_INTERVAL_MS = 60_000;
 
-export function StatisticsPage({ durationFormat = "decimal_hours" }: StatisticsPageProps) {
+export function StatisticsPage({ durationFormat = "decimal_hours", calendarDays = NO_DAYS }: StatisticsPageProps) {
   const [preset, setPreset] = useState<RangePreset>(DEFAULT_RANGE_PRESET);
   const [draft, setDraft] = useState<DateRange>({ start: "", end: "" });
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
@@ -110,30 +116,12 @@ export function StatisticsPage({ durationFormat = "decimal_hours" }: StatisticsP
         </div>
         {preset === "custom" ? (
           <span className="stats-custom-range">
-            <input
-              className="stats-date num"
-              type="date"
-              aria-label="开始日期"
-              min={dataStartDate ?? undefined}
-              max={today}
-              value={draft.start}
-              onChange={(event) => {
-                const value = event.target.value;
-                setDraft((current) => ({ ...current, start: value }));
-              }}
-            />
-            <span aria-hidden="true">至</span>
-            <input
-              className="stats-date num"
-              type="date"
-              aria-label="结束日期"
-              min={dataStartDate ?? undefined}
-              max={today}
-              value={draft.end}
-              onChange={(event) => {
-                const value = event.target.value;
-                setDraft((current) => ({ ...current, end: value }));
-              }}
+            <RangeControl
+              value={draft}
+              today={today}
+              dataStartDate={dataStartDate}
+              days={calendarDays}
+              onChange={setDraft}
             />
             {draftError ? (
               <span className="stats-range-error" role="alert">

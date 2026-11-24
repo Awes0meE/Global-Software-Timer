@@ -493,19 +493,6 @@ describe("statistics range bar and ledgers", () => {
     },
   );
 
-  it("sets the date fields on --chip with an --edge line and the plain focus ring", () => {
-    const declarations = topLevel(".stats-date");
-    expect(declarations.background).toBe("var(--chip)");
-    expect(declarations["--muted"]).toBe("var(--ink-2)");
-    expect(normalize(declarations["box-shadow"])).toBe("inset 0 0 0 1px var(--edge)");
-    expect(normalize(topLevel(".stats-date:focus-visible")["box-shadow"])).toBe("var(--focus)");
-  });
-
-  // The calendar icon must follow the app theme (theme.ts sets :root's color-scheme), not the OS one.
-  it("lets the date fields inherit the theme's color-scheme", () => {
-    expect(topLevel(".stats-date")["color-scheme"]).toBeUndefined();
-  });
-
   // Spec「信号橙与强调色」: the range error is an alert, on an opaque wash (trade-off 23).
   it("shows the range error in the alert colours on an opaque wash", () => {
     const declarations = topLevel(".stats-range-error");

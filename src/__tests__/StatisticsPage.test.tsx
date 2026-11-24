@@ -584,28 +584,34 @@ describe("StatisticsPage", () => {
     ]);
   });
 
-  it("validates a custom range before requesting it", async () => {
+  it("picks a custom range in the calendar and requests it", async () => {
     invoke.mockResolvedValue(summary());
     await renderPage();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("radio", { name: "自定义" }));
     });
-    const start = screen.getByLabelText("开始日期");
-    const end = screen.getByLabelText("结束日期");
-    expect(start).toHaveAttribute("min", "2026-05-29");
-    expect(end).toHaveAttribute("max", "2026-11-21");
-
+    const key = screen.getByRole("button", { name: "统计区间 2026-11-15 至 2026-11-21，打开日历" });
+    expect(screen.queryByLabelText("开始日期")).not.toBeInTheDocument();
     await act(async () => {
-      fireEvent.change(start, { target: { value: "2026-11-20" } });
-      fireEvent.change(end, { target: { value: "2026-11-10" } });
+      fireEvent.click(key);
     });
-    expect(screen.getByText("开始日期不能晚于结束日期")).toBeInTheDocument();
+    const calendar = screen.getByRole("dialog", { name: "选择统计区间" });
+    // Bounded by today (Saturday 2026-11-21): later days cannot be picked.
+    expect(within(calendar).getByRole("button", { name: /^2026年11月22日/ })).toBeDisabled();
     const callsBefore = statisticsCalls().length;
 
+    // The later day first: the two clicks still make a forward range.
     await act(async () => {
-      fireEvent.change(start, { target: { value: "2026-11-01" } });
+      fireEvent.click(within(calendar).getByRole("button", { name: /^2026年11月10日/ }));
     });
+    expect(statisticsCalls()).toHaveLength(callsBefore);
+    await act(async () => {
+      fireEvent.click(within(calendar).getByRole("button", { name: /^2026年11月1日/ }));
+    });
+
+    expect(screen.queryByRole("dialog", { name: "选择统计区间" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "统计区间 2026-11-01 至 2026-11-10，打开日历" })).toHaveFocus();
     expect(statisticsCalls()).toHaveLength(callsBefore + 1);
     expect(lastStatisticsCall()).toEqual([
       "get_statistics_summary",

@@ -67,11 +67,6 @@ describe("glass switch tokens", () => {
 });
 
 describe("forced colors", () => {
-  // The statistics date fields inherit the app theme's color-scheme outside contrast themes.
-  it("lets the date fields' calendar icon follow the contrast palette", () => {
-    expect(declarationsFor(".stats-date", FORCED)["color-scheme"]).toBe("light dark");
-  });
-
   // Forced colours do not touch filter, so the light theme's navy icon hairline would be the one theme colour
   // left on icons in a contrast palette.
   it("drops the light theme's icon hairline", () => {

@@ -2329,12 +2329,6 @@ mark {
     outline-offset: -1px;
   }
 
-  /* The date fields follow the app theme's color-scheme, but a contrast theme can pair a light app
-     theme with a dark palette; let the calendar icon follow the palette instead. */
-  .stats-date {
-    color-scheme: light dark;
-  }
-
   /* Buttons and the round keys are drawn as a fill with an inset-shadow edge (or, for 添加, a solid fill),
      which forced colours remove; an inset outline (as on the toggle) keeps them visible without changing
      their box, and follows the round keys' curve. :focus-visible below wins. */
