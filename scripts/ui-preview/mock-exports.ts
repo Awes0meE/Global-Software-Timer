@@ -1,11 +1,14 @@
 // Preview stand-ins for the export commands. Nothing touches the disk: saves
 // resolve to a fake Downloads path. ?export=cancel makes every dialog cancel,
-// ?export=fail makes every save fail (for the 保存失败 toast).
+// ?export=fail makes every save fail (for the 保存失败 toast), ?export=invalid and
+// ?export=toolarge make the settings import pick reject with that error. The
+// import id is single use, like the app's.
 import type { SettingsImportPreview, SettingsImportResult } from "../../src/api";
 import { formatLocalDate } from "../../src/statisticsRange";
 
 const DOWNLOADS = "C:\\Users\\demo\\Downloads\\";
 const IMPORT_ID = "preview-import";
+let pendingImport: string | null = null;
 const mode = new URLSearchParams(window.location.search).get("export");
 
 export interface MockLists {
@@ -59,9 +62,14 @@ export function exportCommand(
     case "backup_all_data":
       return { value: save(`GST-数据备份-${today}.db`) };
     case "pick_settings_import":
-      return { value: mode === "cancel" ? null : plan(lists) };
+      if (mode === "invalid") throw "settings_import_invalid";
+      if (mode === "toolarge") throw "settings_import_too_large";
+      if (mode === "cancel") return { value: null };
+      pendingImport = IMPORT_ID;
+      return { value: plan(lists) };
     case "apply_settings_import": {
-      if (args.importId !== IMPORT_ID) throw "settings_import_expired";
+      if (pendingImport === null || args.importId !== pendingImport) throw "settings_import_expired";
+      pendingImport = null;
       const preview = plan(lists);
       for (const change of preview.changes) {
         lists.settings[change.key] = change.to;
