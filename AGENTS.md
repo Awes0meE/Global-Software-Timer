@@ -141,6 +141,13 @@ v0.4.2 additionally includes:
 - The header and panel `更多` buttons are removed (no placeholder header buttons); the `后台` e-ink strip is taller.
 - No tracking or schema change (still schema 3). Binding decisions: `docs/superpowers/specs/2026-11-24-v042-date-browsing-and-exports-design.md`.
 
+v0.4.3 additionally includes:
+
+- Shareable 1080×1440 PNG posters: `日报海报` (the viewed day, from the `概览` `导出日报` menu) and `成就海报` (one software's highest focus milestone, from the `成就` `导出成就` key and its picker dialog). Posters follow the app's resolved theme and never show program paths.
+- `统计` `导出报表` becomes a menu: `区间汇总` (every software in the range, plus `后台` and `使用天数`) and `每日明细` CSV. A used day is focus ≥ 300 s; window-only or background-only days never count.
+- Posters are rendered with `modern-screenshot` 4.7.0 (loaded only when exporting) and the bundled poster-only fonts Inter and Noto Sans SC (SIL OFL 1.1, GB2312 subset); the app UI keeps its fonts. PNGs are saved by `save_binary_export` through the native dialog; the `gsticon` protocol sends CORS headers only to the app's own origins.
+- No tracking or schema change (still schema 3), no network. Binding decisions: `docs/superpowers/specs/2026-11-25-v043-posters-and-reports-design.md`.
+
 v0.1 excludes:
 
 - macOS implementation.
