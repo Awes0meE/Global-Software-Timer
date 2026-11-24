@@ -3,6 +3,9 @@ import type {
   AchievementsSummary,
   AppUsageRow,
   BackgroundPageSummary,
+  BackgroundRow,
+  CalendarDay,
+  CalendarSummary,
   DashboardSummary,
   HeatmapDays,
   IdleOpenRow,
@@ -97,6 +100,7 @@ export function dashboardSummary(hidden: Set<string>): DashboardSummary {
     product_title: "全局软件计时器",
     locale: "zh-CN",
     usage_date: dateOf(todayNumber()),
+    is_today: true,
     most_used: apps[0] ?? null,
     recorded_today_seconds: DEMO_RECORDED_TODAY * k,
     active_today_seconds: DEMO_ACTIVE_TODAY * k,
@@ -133,10 +137,7 @@ export function softwareSummary(focused: Set<string>, hidden: Set<string>): Soft
   };
 }
 
-export const backgroundSummary: BackgroundPageSummary = {
-  logical_cores: 8,
-  running_count: 3,
-  rows: [
+const backgroundRows: BackgroundRow[] = [
     {
       family_key: "sync-helper",
       display_name: "Sync Helper",
@@ -185,8 +186,17 @@ export const backgroundSummary: BackgroundPageSummary = {
       today_running_seconds: 28800,
       today_cpu_seconds: 4,
     },
-  ],
-};
+];
+
+export function backgroundSummary(): BackgroundPageSummary {
+  return {
+    logical_cores: 8,
+    running_count: backgroundRows.filter((row) => row.is_running).length,
+    rows: backgroundRows,
+    usage_date: dateOf(todayNumber()),
+    is_today: true,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Statistics and achievements: a synthetic history counted back from today.
@@ -654,4 +664,142 @@ export function emptyAchievementsSummary(heatmapDays: HeatmapDays): Achievements
     new_software: [],
     dormant_software: [],
   };
+}
+
+// ---------------------------------------------------------------------------
+// Date browsing (v0.4.2): the header calendar and past days on 概览 / 后台.
+// The calendar's spread follows the approved mockup: recording starts on
+// 2026-09-03, weekdays mostly 1 to 7 active hours, weekends lighter, a few
+// days without a record, so all four ink levels show. Past-day summaries are
+// derived from the same days; today matches the live dashboard readings.
+
+const CALENDAR_START = Date.UTC(2026, 8, 3) / DAY_MS;
+// Same string as DAY_INVALID_DATE in src/api.ts. Only types may be imported from there: the API module
+// imports @tauri-apps/api/core, which is this preview mock, so a value import would be circular.
+const DAY_INVALID_DATE = "day_invalid_date";
+
+function calendarStart(today: number): number {
+  return Math.min(CALENDAR_START, today);
+}
+
+function calendarDay(today: number, day: number): { recorded: number; active: number } | null {
+  if (day < calendarStart(today) || day > today) return null;
+  if (day === today) {
+    const share = dayScale();
+    const recorded = Math.round(DEMO_RECORDED_TODAY * share);
+    return recorded > 0 ? { recorded, active: Math.round(DEMO_ACTIVE_TODAY * share) } : null;
+  }
+  const n = noise(`cal:${day}`);
+  if (n < 0.08) return null;
+  const hours = isWeekend(day)
+    ? n < 0.45 ? 0.04 : n < 0.8 ? 0.4 + n * 0.6 : 1.2 + n * 1.5
+    : n < 0.2 ? 0.3 + n * 2 : n < 0.55 ? 1 + n * 3 : 3 + n * 4.5;
+  const active = Math.round(hours * hour);
+  const recorded = Math.round(active * (1.25 + 0.3 * noise(`cal-recorded:${day}`)) + 0.2 * hour);
+  return { recorded, active };
+}
+
+export function calendarSummary(): CalendarSummary {
+  const today = todayNumber();
+  const days: CalendarDay[] = dayNumbers(calendarStart(today), today).flatMap((day) => {
+    const usage = calendarDay(today, day);
+    return usage ? [{ date: dateOf(day), recorded_seconds: usage.recorded, active_seconds: usage.active }] : [];
+  });
+  return {
+    today: dateOf(today),
+    data_start_date: dateOf(calendarStart(today)),
+    streak_threshold_seconds: STREAK_MIN_ACTIVE_SECONDS,
+    days,
+  };
+}
+
+export function emptyCalendarSummary(): CalendarSummary {
+  return { today: dateOf(todayNumber()), data_start_date: null, streak_threshold_seconds: STREAK_MIN_ACTIVE_SECONDS, days: [] };
+}
+
+/**
+ * The day number a date-browsing command asks for, or null for today (the live path). Like the backend,
+ * a malformed or future date rejects with the plain string `day_invalid_date`.
+ */
+export function viewedPastDay(date: unknown): number | null {
+  if (date === undefined || date === null) return null;
+  const today = todayNumber();
+  const day = typeof date === "string" ? parseDay(date) : null;
+  if (day === null || day > today) throw DAY_INVALID_DATE;
+  return day === today ? null : day;
+}
+
+/** `empty` is the preview's ?empty switch: no history at all. */
+export function pastDashboardSummary(hidden: Set<string>, day: number, empty: boolean): DashboardSummary {
+  const today = todayNumber();
+  const usage = empty ? null : calendarDay(today, day);
+  const ratio = usage ? usage.active / DEMO_ACTIVE_TODAY : 0;
+  const apps: AppUsageRow[] = !usage
+    ? []
+    : seeds
+        .filter((seed) => !hidden.has(seed.key))
+        .map((seed, index) => {
+          const n = noise(`dash:${seed.key}:${day}`);
+          const ran = n >= 0.25 && seed.today > 0;
+          const todaySeconds = ran ? Math.min(20 * hour, Math.round(seed.today * Math.max(ratio, 0.05) * (0.5 + n))) : 0;
+          return {
+            app_id: index + 1,
+            display_name: seed.name,
+            process_name: seed.process,
+            icon_url: seed.icon,
+            total_seconds: Math.max(todaySeconds, Math.round(seed.total * Math.max(0.05, 1 - (today - day) / 120))),
+            today_seconds: todaySeconds,
+            active_today_seconds: Math.min(todaySeconds, Math.round(seed.active * ratio * (0.5 + n))),
+            status: "closed" as const,
+            is_running: false,
+          };
+        })
+        .filter((row) => row.today_seconds > 0 || row.active_today_seconds > 0)
+        .sort((left, right) => right.total_seconds - left.total_seconds);
+  // Like the backend: the most active app that day, then the longest running, then by name.
+  const mostUsed =
+    [...apps].sort(
+      (left, right) =>
+        right.active_today_seconds - left.active_today_seconds ||
+        right.today_seconds - left.today_seconds ||
+        compareText(left.display_name, right.display_name),
+    )[0] ?? null;
+
+  return {
+    last_scan_succeeded: true,
+    product_title: "全局软件计时器",
+    locale: "zh-CN",
+    usage_date: dateOf(day),
+    is_today: false,
+    most_used: mostUsed,
+    recorded_today_seconds: usage?.recorded ?? 0,
+    active_today_seconds: usage?.active ?? 0,
+    apps,
+  };
+}
+
+/** A past day's stored rows: peaks, nothing running, no current CPU. */
+export function pastBackgroundSummary(day: number, empty: boolean): BackgroundPageSummary {
+  const usage = empty ? null : calendarDay(todayNumber(), day);
+  const rows: BackgroundRow[] = !usage
+    ? []
+    : backgroundRows
+        .map((row) => ({ row, n: noise(`bg:${row.family_key}:${day}`) }))
+        .filter(({ n }) => n >= 0.2)
+        .map(({ row, n }) => ({
+          ...row,
+          is_running: false,
+          process_count: row.process_count + (n > 0.6 ? 1 : 0),
+          cpu_percent: null,
+          memory_bytes: Math.round(row.memory_bytes * (1 + 0.5 * n)),
+          today_running_seconds: Math.round(row.today_running_seconds * (0.3 + n)),
+          today_cpu_seconds: Math.round(row.today_cpu_seconds * (0.3 + n) * 10) / 10,
+        }))
+        .sort((left, right) => right.today_cpu_seconds - left.today_cpu_seconds);
+
+  return { logical_cores: 8, running_count: 0, rows, usage_date: dateOf(day), is_today: false };
+}
+
+function compareText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }

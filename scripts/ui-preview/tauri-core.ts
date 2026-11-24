@@ -3,11 +3,16 @@ import type { HeatmapDays } from "../../src/api";
 import {
   achievementsSummary,
   backgroundSummary,
+  calendarSummary,
   dashboardSummary,
   emptyAchievementsSummary,
+  emptyCalendarSummary,
   emptyStatisticsSummary,
+  pastBackgroundSummary,
+  pastDashboardSummary,
   softwareSummary,
   statisticsSummary,
+  viewedPastDay,
 } from "./mock-data";
 
 const params = new URLSearchParams(window.location.search);
@@ -36,6 +41,10 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
 
   switch (command) {
     case "get_dashboard_summary": {
+      const pastDay = viewedPastDay(args.date);
+      if (pastDay !== null) {
+        return pastDashboardSummary(hidden, pastDay, empty) as T;
+      }
       if (empty) {
         return { ...dashboardSummary(hidden), apps: [], most_used: null, recorded_today_seconds: 0, active_today_seconds: 0 } as T;
       }
@@ -47,8 +56,16 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
         active_today_seconds: summary.active_today_seconds + extra,
       } as T;
     }
-    case "get_background_page_summary":
-      return (empty ? { ...backgroundSummary, running_count: 0, rows: [] } : backgroundSummary) as T;
+    case "get_background_page_summary": {
+      const pastDay = viewedPastDay(args.date);
+      if (pastDay !== null) {
+        return pastBackgroundSummary(pastDay, empty) as T;
+      }
+      const summary = backgroundSummary();
+      return (empty ? { ...summary, running_count: 0, rows: [] } : summary) as T;
+    }
+    case "get_calendar_summary":
+      return (empty ? emptyCalendarSummary() : calendarSummary()) as T;
     case "get_software_page_summary":
       return (empty ? { focused: [], hidden: [], discovered: [] } : softwareSummary(focused, hidden)) as T;
     case "get_statistics_summary": {
