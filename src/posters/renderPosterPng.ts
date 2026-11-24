@@ -42,6 +42,36 @@ function pngSize(bytes: Uint8Array): { width: number; height: number } | null {
 }
 
 /**
+ * The PNG without its `pHYs` chunk. modern-screenshot tags a scale-2 capture as 192 DPI, which makes Word,
+ * PowerPoint and print previews place the 1080×1440 poster at half its size; without the tag they use the
+ * pixel size. Chunks are walked by their lengths (CRCs are per chunk, so the rest stays valid); bytes that
+ * cannot be walked are returned unchanged.
+ */
+export function withoutPhysChunk(bytes: Uint8Array): Uint8Array {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const kept: Uint8Array[] = [bytes.subarray(0, 8)];
+  let offset = 8;
+  let dropped = false;
+  while (offset < bytes.length) {
+    if (offset + 12 > bytes.length) return bytes;
+    const end = offset + 12 + view.getUint32(offset);
+    if (end > bytes.length) return bytes;
+    const type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
+    if (type === "pHYs") dropped = true;
+    else kept.push(bytes.subarray(offset, end));
+    offset = end;
+  }
+  if (!dropped) return bytes;
+  const out = new Uint8Array(kept.reduce((sum, part) => sum + part.length, 0));
+  let at = 0;
+  for (const part of kept) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return out;
+}
+
+/**
  * Renders a mounted poster root (`.gst-poster`, laid out at 540×720 and not `display: none`) to PNG bytes.
  * Waits for the poster fonts, every image's decode and two animation frames before capturing.
  */
@@ -66,7 +96,7 @@ export async function renderPosterPng(element: HTMLElement): Promise<Uint8Array>
     type: "image/png",
     font: { cssText: fontCss },
   });
-  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const bytes = withoutPhysChunk(new Uint8Array(await blob.arrayBuffer()));
 
   const size = pngSize(bytes);
   if (!size || size.width !== POSTER_WIDTH * POSTER_SCALE || size.height !== POSTER_HEIGHT * POSTER_SCALE) {

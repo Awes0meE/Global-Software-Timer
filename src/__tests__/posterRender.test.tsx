@@ -9,7 +9,14 @@ import { capturePoster } from "../posters/capturePoster";
 import { DailyPoster } from "../posters/DailyPoster";
 import { iconToDataUrl } from "../posters/iconToDataUrl";
 import type { AchievementPosterModel, DailyPosterModel } from "../posters/models";
-import { FRAME_TIMEOUT_MS, nextFrame, POSTER_BASE_COLORS, POSTER_SCALE, renderPosterPng } from "../posters/renderPosterPng";
+import {
+  FRAME_TIMEOUT_MS,
+  nextFrame,
+  POSTER_BASE_COLORS,
+  POSTER_SCALE,
+  renderPosterPng,
+  withoutPhysChunk,
+} from "../posters/renderPosterPng";
 import posterCss from "../posters/posters.css?raw";
 
 const PNG_DATA_URL = "data:image/png;base64,iVBORw0KGgo=";
@@ -103,6 +110,40 @@ describe("AchievementPoster", () => {
   });
 });
 
+/** A PNG chunk: length, type, data and a CRC (zeros: the reader here does not check it). */
+function chunk(type: string, data: number[]): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(12 + data.length);
+  new DataView(bytes.buffer).setUint32(0, data.length);
+  bytes.set(Array.from(type, (char) => char.charCodeAt(0)), 4);
+  bytes.set(data, 8);
+  return bytes;
+}
+
+function concat(...parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
+  const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
+}
+
+describe("withoutPhysChunk", () => {
+  it("removes only the pHYs chunk and keeps every other byte", () => {
+    const ihdr = chunk("IHDR", Array.from({ length: 13 }, (_, index) => index));
+    const signature = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const png = concat(signature, ihdr, chunk("pHYs", [0, 0, 29, 135, 0, 0, 29, 135, 1]), chunk("IDAT", [1, 2, 3]), chunk("IEND", []));
+
+    expect(Array.from(withoutPhysChunk(png))).toEqual(Array.from(concat(signature, ihdr, chunk("IDAT", [1, 2, 3]), chunk("IEND", []))));
+  });
+
+  it("returns bytes it cannot walk unchanged", () => {
+    const truncated = concat(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), new Uint8Array([0, 0, 0, 99, 0x49]));
+    expect(withoutPhysChunk(truncated)).toBe(truncated);
+  });
+});
+
 describe("renderPosterPng", () => {
   it("captures at an explicit scale of 2 with the theme's base colour and the embedded poster fonts", async () => {
     stubFetch(async () => new Response(new Blob(["font"]), { status: 200 }));
@@ -132,6 +173,17 @@ describe("renderPosterPng", () => {
     const { container } = render(<DailyPoster model={daily} theme="light" />);
     await renderPosterPng(container.querySelector<HTMLElement>(".gst-poster") as HTMLElement);
     expect(domToBlob.mock.calls[0][1]).toMatchObject({ backgroundColor: "#f3f3f8", scale: 2 });
+  });
+
+  it("drops the capture's 192 DPI pHYs chunk, so documents place the poster at its pixel size", async () => {
+    stubFetch(async () => new Response(new Blob(["font"]), { status: 200 }));
+    const head = new Uint8Array(await fakePng(1080, 1440).arrayBuffer());
+    domToBlob.mockResolvedValue(new Blob([concat(head, chunk("pHYs", [0, 0, 29, 135, 0, 0, 29, 135, 1]), chunk("IEND", []))]));
+    const { container } = render(<DailyPoster model={daily} theme="dark" />);
+
+    const bytes = await renderPosterPng(container.querySelector<HTMLElement>(".gst-poster") as HTMLElement);
+
+    expect(Array.from(bytes)).toEqual(Array.from(concat(head, chunk("IEND", []))));
   });
 
   it("rejects a capture that is not 1080x1440", async () => {
