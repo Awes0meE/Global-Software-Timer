@@ -1027,6 +1027,11 @@ main > p[role="status"] {
   border-top: 1px solid var(--rule);
 }
 
+/* A past day's 4th column is the 当日活跃 duration, as wide as the 当日 column it never exceeds. */
+.usage-row.is-past {
+  grid-template-columns: minmax(0, 1fr) 128px 112px 112px;
+}
+
 .usage-row > .num {
   text-align: right;
   font-size: var(--type-table-number);
@@ -2148,6 +2153,10 @@ mark {
   .usage-row {
     grid-template-columns: minmax(0, 1fr) 120px 104px 92px;
     gap: 10px;
+  }
+
+  .usage-row.is-past {
+    grid-template-columns: minmax(0, 1fr) 120px 104px 104px;
   }
 
   .focused-table,
