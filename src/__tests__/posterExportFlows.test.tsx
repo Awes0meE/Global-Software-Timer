@@ -263,7 +263,8 @@ describe("导出成就", () => {
       "Windows Terminal 10 小时",
     ]);
     expect(selectedName(list)).toBe("Microsoft Excel 100 小时");
-    expect(list).toHaveFocus();
+    // The first open loads the lazy dialog, so its focus effect can run just after the dialog shows.
+    await waitFor(() => expect(list).toHaveFocus());
     expect(list.getAttribute("aria-activedescendant")).toBe(
       within(list).getByRole("option", { name: "Microsoft Excel 100 小时" }).id,
     );
