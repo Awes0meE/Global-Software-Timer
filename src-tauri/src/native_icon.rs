@@ -13,11 +13,18 @@ const NATIVE_EXTRACT_SIZE: u32 = 256;
 const ICON_FORMAT_VERSION: u8 = 2;
 const RETRY_DELAY: Duration = Duration::from_secs(60);
 const DISK_CACHE_MAX_AGE: Duration = Duration::from_secs(90 * 24 * 60 * 60);
-const PNG_SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
+pub(crate) const PNG_SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
 
 /// Webview protocol that serves cached icons, so summaries carry a short URL
 /// instead of the image itself.
 pub const URI_SCHEME: &str = "gsticon";
+
+/// The bundled app's page origin: Tauri serves `tauri://localhost` as
+/// `http://tauri.localhost` on Windows (`useHttpsScheme` is off).
+#[cfg(any(windows, target_os = "android"))]
+pub const APP_ORIGIN: &str = "http://tauri.localhost";
+#[cfg(not(any(windows, target_os = "android")))]
+pub const APP_ORIGIN: &str = "tauri://localhost";
 
 pub type IconBytes = Arc<Vec<u8>>;
 /// Receives the icon once it is known; `None` means there is no icon.
@@ -80,15 +87,43 @@ pub fn resolve_icon(request_path: &str, waiter: IconWaiter) {
     store().resolve(key, waiter);
 }
 
-pub fn icon_response(icon: Option<IconBytes>) -> tauri::http::Response<Vec<u8>> {
+/// The dev server's origin (`build.devUrl`), in debug builds only.
+pub fn dev_server_origin(dev_url: Option<&tauri::Url>) -> Option<String> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    let origin = dev_url?.origin();
+    origin.is_tuple().then(|| origin.ascii_serialization())
+}
+
+/// The request's `Origin` when it is one of the app's own pages, so posters
+/// can `fetch` icons; any other origin (or none) gets no CORS header.
+pub fn allowed_cors_origin<'a>(
+    origin: Option<&'a str>,
+    dev_origin: Option<&str>,
+) -> Option<&'a str> {
+    origin.filter(|origin| *origin == APP_ORIGIN || dev_origin == Some(*origin))
+}
+
+/// `allow_origin` comes from `allowed_cors_origin`. Every response varies by
+/// `Origin`, so a cached icon without the CORS header is never reused for a
+/// `fetch` that needs it.
+pub fn icon_response(
+    icon: Option<IconBytes>,
+    allow_origin: Option<&str>,
+) -> tauri::http::Response<Vec<u8>> {
+    let mut builder = tauri::http::Response::builder().header("Vary", "Origin");
+    if let Some(origin) = allow_origin {
+        builder = builder.header("Access-Control-Allow-Origin", origin);
+    }
     let response = match icon {
         // The key changes with the executable, so a served icon never goes stale.
-        Some(bytes) => tauri::http::Response::builder()
+        Some(bytes) => builder
             .status(200)
             .header("Content-Type", "image/png")
             .header("Cache-Control", "max-age=31536000, immutable")
             .body(bytes.as_ref().clone()),
-        None => tauri::http::Response::builder()
+        None => builder
             .status(404)
             .header("Cache-Control", "no-store")
             .body(Vec::new()),
@@ -1136,6 +1171,86 @@ mod alpha_tests {
         let image = image::load_from_memory(&png).expect("decode").to_rgba8();
         assert_eq!(image.dimensions(), (super::ICON_SIZE, super::ICON_SIZE));
         assert_eq!(image.get_pixel(48, 48).0, [255, 255, 255, 128]);
+    }
+}
+
+#[cfg(test)]
+mod cors_tests {
+    use super::{allowed_cors_origin, dev_server_origin, icon_response, APP_ORIGIN};
+    use std::sync::Arc;
+
+    const DEV: Option<&str> = Some("http://localhost:1420");
+
+    #[test]
+    fn the_production_origin_matches_the_tauri_webview() {
+        #[cfg(windows)]
+        assert_eq!(APP_ORIGIN, "http://tauri.localhost");
+        assert_eq!(
+            allowed_cors_origin(Some(APP_ORIGIN), None),
+            Some(APP_ORIGIN)
+        );
+        assert_eq!(allowed_cors_origin(Some(APP_ORIGIN), DEV), Some(APP_ORIGIN));
+    }
+
+    #[test]
+    fn the_dev_server_origin_is_allowed_only_when_given() {
+        assert_eq!(
+            allowed_cors_origin(Some("http://localhost:1420"), DEV),
+            Some("http://localhost:1420")
+        );
+        assert_eq!(
+            allowed_cors_origin(Some("http://localhost:1420"), None),
+            None
+        );
+    }
+
+    #[test]
+    fn other_or_missing_origins_get_no_cors_header() {
+        for origin in [
+            "https://tauri.localhost",
+            "http://tauri.localhost.evil.example",
+            "http://TAURI.localhost",
+            "http://localhost:1421",
+            "http://localhost",
+            "http://gsticon.localhost",
+            "null",
+            "",
+        ] {
+            assert_eq!(allowed_cors_origin(Some(origin), DEV), None, "{origin}");
+        }
+        assert_eq!(allowed_cors_origin(None, DEV), None);
+    }
+
+    #[test]
+    fn the_dev_origin_comes_from_the_configured_dev_url() {
+        let dev_url = tauri::Url::parse("http://localhost:1420/").unwrap();
+        // Tests build with debug assertions, like `tauri dev`.
+        assert_eq!(
+            dev_server_origin(Some(&dev_url)).as_deref(),
+            Some("http://localhost:1420")
+        );
+        assert_eq!(dev_server_origin(None), None);
+        let opaque = tauri::Url::parse("data:text/html,x").unwrap();
+        assert_eq!(dev_server_origin(Some(&opaque)), None);
+    }
+
+    #[test]
+    fn icon_responses_carry_the_allowed_origin_and_always_vary_by_origin() {
+        let icon = Some(Arc::new(b"png".to_vec()));
+        let allowed = icon_response(icon.clone(), Some(APP_ORIGIN));
+        assert_eq!(allowed.status(), 200);
+        assert_eq!(allowed.headers()["Access-Control-Allow-Origin"], APP_ORIGIN);
+        assert_eq!(allowed.headers()["Vary"], "Origin");
+        assert_eq!(allowed.headers()["Content-Type"], "image/png");
+        assert_eq!(allowed.body(), b"png");
+
+        let other = icon_response(icon, None);
+        assert!(other.headers().get("Access-Control-Allow-Origin").is_none());
+        assert_eq!(other.headers()["Vary"], "Origin");
+
+        let missing = icon_response(None, Some(APP_ORIGIN));
+        assert_eq!(missing.status(), 404);
+        assert_eq!(missing.headers()["Access-Control-Allow-Origin"], APP_ORIGIN);
     }
 }
 

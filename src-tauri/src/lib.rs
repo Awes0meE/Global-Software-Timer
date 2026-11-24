@@ -51,10 +51,22 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .register_asynchronous_uri_scheme_protocol(
             native_icon::URI_SCHEME,
-            |_context, request, responder| {
+            |context, request, responder| {
+                let dev_origin = native_icon::dev_server_origin(
+                    context.app_handle().config().build.dev_url.as_ref(),
+                );
+                let request_origin = request
+                    .headers()
+                    .get(tauri::http::header::ORIGIN)
+                    .and_then(|value| value.to_str().ok());
+                let allow_origin =
+                    native_icon::allowed_cors_origin(request_origin, dev_origin.as_deref())
+                        .map(str::to_owned);
                 native_icon::resolve_icon(
                     request.uri().path(),
-                    Box::new(move |icon| responder.respond(native_icon::icon_response(icon))),
+                    Box::new(move |icon| {
+                        responder.respond(native_icon::icon_response(icon, allow_origin.as_deref()))
+                    }),
                 );
             },
         )
