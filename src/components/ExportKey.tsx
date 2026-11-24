@@ -27,9 +27,11 @@ interface ExportKeyProps<Id extends string> {
   disabled?: boolean;
   /**
    * One-item key only: the reason it cannot act now (成就's 暂无里程碑). The key stays focusable but
-   * `aria-disabled` and dimmed, ignores presses and shows this in the tooltip bubble.
+   * `aria-disabled` and dimmed, ignores presses and shows this in the tooltip bubble. `null`: the key can
+   * become unavailable on this page but is not now; it keeps the same wrapper, so the button is not
+   * remounted (and keeps focus) when that changes.
    */
-  unavailable?: string;
+  unavailable?: string | null;
 }
 
 /** The page header's export key: a one-format key, or a key with a caret that opens a glass menu. */
@@ -77,7 +79,12 @@ export function ExportKey<Id extends string>({
         ) : null}
       </button>
     );
-    return unavailable ? <UnavailableTooltip message={unavailable}>{key}</UnavailableTooltip> : key;
+    if (unavailable === undefined) return key;
+    return (
+      <UnavailableTooltip message={unavailable ?? undefined} active={unavailable !== null}>
+        {key}
+      </UnavailableTooltip>
+    );
   }
 
   const onTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {

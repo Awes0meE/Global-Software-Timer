@@ -79,6 +79,8 @@
   height: 56px;
   margin: 0 8px;
   padding: 0 8px;
+  /* A double-click saves; it must not also select the name under the pointer. */
+  user-select: none;
   border-radius: 7px;
   cursor: default;
   transition: background-color 120ms var(--ease), box-shadow 120ms var(--ease);

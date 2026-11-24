@@ -552,8 +552,14 @@ export default function App() {
     exports.busy ||
     (activePage === "statistics" && statisticsScope === null) ||
     (activePage === "achievements" && milestoneSoftware === null && !milestones.failed);
-  const exportUnavailable = activePage === "achievements" && milestoneSoftware?.length === 0 ? "暂无里程碑" : undefined;
+  // On 成就 the key is always given a value (null while usable), so it keeps its wrapper and focus.
+  const exportUnavailable =
+    activePage !== "achievements" ? undefined : milestoneSoftware?.length === 0 ? "暂无里程碑" : null;
   const showPosterDialog = posterDialogOpen && activePage === "achievements" && (milestoneSoftware?.length ?? 0) > 0;
+  // Leaving 成就, or the list emptying, ends the dialog's visit: it must not come back by itself later.
+  useEffect(() => {
+    if (posterDialogOpen && !showPosterDialog) setPosterDialogOpen(false);
+  }, [posterDialogOpen, showPosterDialog]);
   const { handleExport, saveAchievementPoster, showToast } = exports;
   const { reload: reloadMilestones } = milestones;
 
@@ -567,10 +573,11 @@ export default function App() {
         if (milestoneSoftware.length > 0) setPosterDialogOpen(true);
         return;
       }
-      // The last read failed: try again before opening.
+      // The last read failed: try again before opening. A read overtaken by a newer one says nothing; that
+      // one's answer updates the key.
       void reloadMilestones().then((software) => {
-        if (software === null) showToast("无法读取成就", { tone: "error" });
-        else if (software.length > 0) setPosterDialogOpen(true);
+        if (software === "failed") showToast("无法读取成就", { tone: "error" });
+        else if (software !== "superseded" && software.length > 0) setPosterDialogOpen(true);
       });
     },
     [handleExport, milestoneSoftware, reloadMilestones, showToast],

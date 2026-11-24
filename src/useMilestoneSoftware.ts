@@ -10,8 +10,11 @@ export interface MilestoneSoftwareState {
   software: MilestoneSoftware[] | null;
   /** The last read failed (an earlier list, if any, is kept). */
   failed: boolean;
-  /** Reads the list again now; resolves to it, or null when the read fails. */
-  reload: () => Promise<MilestoneSoftware[] | null>;
+  /**
+   * Reads the list again now; resolves to it, to "failed" when this read failed, or to "superseded" when a
+   * newer read (a poll, a switch change) or closing the page made this one moot.
+   */
+  reload: () => Promise<MilestoneSoftware[] | "failed" | "superseded">;
 }
 
 /**
@@ -25,20 +28,21 @@ export function useMilestoneSoftware(includeHidden: boolean | null): MilestoneSo
   const scopeRef = useRef(includeHidden);
   scopeRef.current = includeHidden;
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (): Promise<MilestoneSoftware[] | "failed" | "superseded"> => {
     const scope = scopeRef.current;
-    if (scope === null) return null;
+    if (scope === null) return "superseded";
     const request = ++requestRef.current;
     try {
       const software = await getMilestoneSoftware(scope);
       // An answer for an earlier switch setting, or after the page closed, is dropped.
-      if (request !== requestRef.current || scopeRef.current !== scope) return null;
+      if (request !== requestRef.current || scopeRef.current !== scope) return "superseded";
       setLoaded({ includeHidden: scope, software });
       setFailed(false);
       return software;
     } catch {
-      if (request === requestRef.current) setFailed(true);
-      return null;
+      if (request !== requestRef.current) return "superseded";
+      setFailed(true);
+      return "failed";
     }
   }, []);
 

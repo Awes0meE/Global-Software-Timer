@@ -20,13 +20,18 @@ interface UnavailableControlProps {
 interface Props {
   children: ReactElement<UnavailableControlProps>;
   message?: string;
+  /**
+   * False leaves the control as it is, inside the same wrapper, so a control that becomes unavailable
+   * later (成就's 导出成就) is not remounted, and does not lose focus, when that changes.
+   */
+  active?: boolean;
 }
 
-export function UnavailableTooltip({ children, message = unavailableTooltipMessage }: Props) {
+export function UnavailableTooltip({ children, message = unavailableTooltipMessage, active = true }: Props) {
   const [isVisible, setIsVisible] = useState(false);
   const tooltipId = useId();
 
-  const unavailableChild = cloneElement(children, {
+  const unavailableChild = !active ? children : cloneElement(children, {
     "aria-describedby": isVisible ? tooltipId : undefined,
     "aria-disabled": true,
     disabled: false,
@@ -55,7 +60,7 @@ export function UnavailableTooltip({ children, message = unavailableTooltipMessa
       onMouseLeave={() => setIsVisible(false)}
     >
       {unavailableChild}
-      {isVisible ? (
+      {active && isVisible ? (
         <span className="unavailable-tooltip-bubble" id={tooltipId} role="tooltip">
           {message}
         </span>

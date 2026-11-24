@@ -111,7 +111,11 @@ export function useExportActions({ context, beforeSettingsImport, onSettingsImpo
         if (action === "settings-export") return exportSettingsFile();
         if (action === "data-backup") return backupAllData();
         if (isCsvExportAction(action)) return buildCsvExport(action, current).then(saveTextExport);
-        return loadPosterExports().then(({ saveDailyPoster }) => saveDailyPoster(current.viewedDate, current.today));
+        if (action === "overview-poster") {
+          return loadPosterExports().then(({ saveDailyPoster }) => saveDailyPoster(current.viewedDate, current.today));
+        }
+        const unhandled: never = action;
+        return Promise.reject(new Error(`unknown export action: ${String(unhandled)}`));
       };
       void runSave(save);
     },

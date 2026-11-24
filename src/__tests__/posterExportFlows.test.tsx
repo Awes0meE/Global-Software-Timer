@@ -20,7 +20,12 @@ vi.mock("../posters/renderPosterPng", () => ({ renderPosterPng }));
 
 import App from "../App";
 import type { MilestoneSoftware } from "../api";
-import { defaultMilestoneKey, orderMilestoneSoftware, TYPEAHEAD_RESET_MS } from "../components/AchievementPosterDialog";
+import {
+  AchievementPosterDialog,
+  defaultMilestoneKey,
+  orderMilestoneSoftware,
+  TYPEAHEAD_RESET_MS,
+} from "../components/AchievementPosterDialog";
 
 const TODAY = "2026-11-24";
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
@@ -258,6 +263,8 @@ describe("导出成就", () => {
     // The live preview is the real poster for the selection.
     expect(within(dialog).getByRole("img", { name: "成就海报 Microsoft Excel 专注里程碑 100 小时" })).toHaveClass("gst-poster");
     expect(document.querySelector(".app-shell")).toHaveAttribute("inert");
+    // The toast stays live (under the scrim), so what a save says is still announced.
+    expect(document.querySelector(".toast")).not.toHaveAttribute("inert");
     expect(mockInvoke).toHaveBeenCalledWith("get_milestone_software", { includeHidden: false });
   });
 
@@ -369,6 +376,7 @@ describe("导出成就", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "保存图片" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("保存失败"));
     expect(dialog).toBeInTheDocument();
+    expect(screen.getByRole("alert").closest("[inert]")).toBeNull();
   });
 
   it("ignores a second save while one is under way", async () => {
@@ -413,6 +421,62 @@ describe("导出成就", () => {
     expect(screen.queryByRole("dialog", { name: "成就海报" })).not.toBeInTheDocument();
   });
 
+  it("keeps focus on the key when the list it waited for is empty", async () => {
+    let answer: (list: MilestoneSoftware[]) => void = () => {};
+    overrides.get_milestone_software = () => new Promise((resolve) => (answer = resolve));
+    const key = await openAchievements();
+    await waitFor(() => expect(key).toHaveAttribute("aria-busy", "true"));
+    act(() => key.focus());
+
+    act(() => answer([]));
+    await waitFor(() => expect(key).toHaveAttribute("aria-disabled", "true"));
+    expect(key.isConnected).toBe(true);
+    expect(key).toHaveFocus();
+  });
+
+  it("reads the list again on a click after a failed read, and says 无法读取成就 when that fails too", async () => {
+    let fail = true;
+    overrides.get_milestone_software = () => {
+      if (fail) throw "milestones_unavailable";
+      return MILESTONES;
+    };
+    const key = await openAchievements();
+    await waitFor(() => expect(calls("get_milestone_software")).toHaveLength(1));
+    await waitFor(() => expect(key).not.toHaveAttribute("aria-busy"));
+
+    await userEvent.click(key);
+    await waitFor(() => expect(document.querySelector('.toast [role="alert"]')).toHaveTextContent("无法读取成就"));
+    expect(calls("get_milestone_software")).toHaveLength(2);
+    expect(screen.queryByRole("dialog", { name: "成就海报" })).not.toBeInTheDocument();
+
+    fail = false;
+    await userEvent.click(key);
+    expect(await screen.findByRole("dialog", { name: "成就海报" })).toBeInTheDocument();
+    expect(calls("get_milestone_software")).toHaveLength(3);
+  });
+
+  it("says nothing when a newer read overtakes the click's retry", async () => {
+    const answers: { resolve: (list: MilestoneSoftware[]) => void; reject: (error: unknown) => void }[] = [];
+    overrides.get_milestone_software = () =>
+      new Promise<MilestoneSoftware[]>((resolve, reject) => answers.push({ resolve, reject }));
+    const key = await openAchievements();
+    await waitFor(() => expect(answers).toHaveLength(1));
+    await act(async () => answers[0].reject("milestones_unavailable"));
+    await waitFor(() => expect(key).not.toHaveAttribute("aria-busy"));
+
+    await userEvent.click(key);
+    await waitFor(() => expect(answers).toHaveLength(2));
+    // The window comes back: the poll reads again while the click's read is still out.
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await waitFor(() => expect(answers).toHaveLength(3));
+    await act(async () => answers[2].resolve(MILESTONES));
+    await act(async () => answers[1].reject("milestones_unavailable"));
+
+    expect(document.querySelector('.toast [role="alert"]')).toHaveTextContent("");
+    expect(key).not.toHaveAttribute("aria-busy");
+    expect(screen.queryByRole("dialog", { name: "成就海报" })).not.toBeInTheDocument();
+  });
+
   it("stays busy while the milestone list loads", async () => {
     let answer: (list: MilestoneSoftware[]) => void = () => {};
     overrides.get_milestone_software = () => new Promise((resolve) => (answer = resolve));
@@ -425,5 +489,26 @@ describe("导出成就", () => {
     act(() => answer(MILESTONES));
     await waitFor(() => expect(key).not.toHaveAttribute("aria-busy"));
     expect(key).not.toHaveAttribute("aria-disabled");
+  });
+});
+
+describe("成就海报 list refresh", () => {
+  it("keeps the selection while that software is still listed, and falls back to the default otherwise", async () => {
+    const props = { theme: "light" as const, busy: false, onSave: vi.fn(), onCancel: vi.fn() };
+    const { rerender } = render(<AchievementPosterDialog software={MILESTONES} {...props} />);
+    const list = screen.getByRole("listbox", { name: "成就海报" });
+    await userEvent.click(within(list).getByRole("option", { name: "Typora 50 小时" }));
+    expect(selectedName(list)).toBe("Typora 50 小时");
+
+    // Typora is still listed (Chrome moved on, Word is new): the selection stays.
+    const word = milestone("word", "Microsoft Word", 100, "2026-11-23", 120);
+    const refreshed = MILESTONES.map((row) => (row.identity_key === "chrome" ? { ...row, tier_hours: 1000 } : row));
+    rerender(<AchievementPosterDialog software={[...refreshed, word]} {...props} />);
+    expect(selectedName(list)).toBe("Typora 50 小时");
+
+    // Typora is gone: back to the default, the latest milestone (Word).
+    rerender(<AchievementPosterDialog software={[...refreshed.filter((row) => row.identity_key !== "typora"), word]} {...props} />);
+    expect(selectedName(list)).toBe("Microsoft Word 100 小时");
+    expect(screen.getByRole("img", { name: /成就海报 Microsoft Word/ })).toBeInTheDocument();
   });
 });
