@@ -331,7 +331,7 @@ describe("App", () => {
     expect(within(recentPanel).getByText("0.8小时")).toBeInTheDocument();
     expect(within(recentPanel).getByRole("img", { name: "前台运行" })).toHaveClass("running");
     expect(within(recentPanel).getByRole("img", { name: "托盘运行" })).toHaveClass("tray");
-    expect(screen.getByRole("button", { name: "导出日报 CSV" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导出日报" })).toHaveAttribute("aria-haspopup", "menu");
     const readout = screen.getByRole("region", { name: "今日总览" });
     expect(within(readout).getByText("今日记录")).toBeInTheDocument();
     expect(within(readout).getByText("今日活跃")).toBeInTheDocument();
@@ -408,8 +408,8 @@ describe("App", () => {
     expect(windowActions).toBeInTheDocument();
     expect(within(windowActions as HTMLElement).queryByRole("button", { name: "设置" })).not.toBeInTheDocument();
     expect(within(windowActions as HTMLElement).queryByRole("button", { name: "统计" })).not.toBeInTheDocument();
-    expect(within(windowActions as HTMLElement).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
-      "导出日报 CSV",
+    expect(within(windowActions as HTMLElement).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "导出日报",
     ]);
   });
 
@@ -439,16 +439,16 @@ describe("App", () => {
   });
 
   it.each([
-    { label: "概览", keys: ["导出日报 CSV"] },
+    { label: "概览", keys: ["导出日报"] },
     { label: "软件", keys: ["导出软件清单 CSV"] },
     { label: "后台", keys: ["导出后台记录 CSV"] },
-    { label: "统计", keys: ["导出报表 CSV"] },
-    { label: "成就", keys: [] },
+    { label: "统计", keys: ["导出报表"] },
+    { label: "成就", keys: ["导出成就 PNG"] },
     { label: "设置", keys: ["迁移与备份"] },
   ])("gives $label its export key and no 更多 or placeholder buttons", async ({ label, keys }) => {
     const invokeDefault = mockInvoke.getMockImplementation()!;
     mockInvoke.mockImplementation((name, invokeArgs) =>
-      name === "get_statistics_summary" || name === "get_achievements_summary"
+      name === "get_statistics_summary" || name === "get_achievements_summary" || name === "get_milestone_software"
         ? new Promise(() => {})
         : name === "get_software_page_summary"
           ? Promise.resolve({ focused: [], hidden: [], discovered: [] })
@@ -1805,7 +1805,7 @@ describe("App", () => {
     render(<App />);
 
     expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "导出日报 CSV" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导出日报" })).toBeInTheDocument();
   });
 
   it("shows software-specific icons for known applications", async () => {

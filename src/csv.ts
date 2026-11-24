@@ -79,3 +79,8 @@ export function backgroundFileName(date: string): string {
 export function statisticsFileName(start: string, end: string): string {
   return `GST-统计-${start}至${end}.csv`;
 }
+
+/** 统计 每日明细 for an inclusive range. */
+export function statisticsDailyFileName(start: string, end: string): string {
+  return `GST-统计每日明细-${start}至${end}.csv`;
+}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { ChevronDown, FileDown, FileSpreadsheet, type LucideIcon } from "lucide-react";
+import { UnavailableTooltip } from "./UnavailableTooltip";
 import { usePixelSnap, usePopover } from "./usePopover";
 import "./HeaderControls.css";
 
@@ -24,6 +25,11 @@ interface ExportKeyProps<Id extends string> {
   /** A save is under way: the key reports busy and ignores presses, without looking disabled. */
   busy?: boolean;
   disabled?: boolean;
+  /**
+   * One-item key only: the reason it cannot act now (成就's 暂无里程碑). The key stays focusable but
+   * `aria-disabled` and dimmed, ignores presses and shows this in the tooltip bubble.
+   */
+  unavailable?: string;
 }
 
 /** The page header's export key: a one-format key, or a key with a caret that opens a glass menu. */
@@ -34,6 +40,7 @@ export function ExportKey<Id extends string>({
   onSelect,
   busy = false,
   disabled = false,
+  unavailable,
 }: ExportKeyProps<Id>) {
   const { open, setOpen, toggle, closeToTrigger, rootRef, triggerRef } = usePopover();
   const snap = usePixelSnap(open, rootRef, "end");
@@ -50,7 +57,7 @@ export function ExportKey<Id extends string>({
 
   if (items.length === 1) {
     const [only] = items;
-    return (
+    const key = (
       <button
         type="button"
         className="hk hk-solo hk-export"
@@ -70,6 +77,7 @@ export function ExportKey<Id extends string>({
         ) : null}
       </button>
     );
+    return unavailable ? <UnavailableTooltip message={unavailable}>{key}</UnavailableTooltip> : key;
   }
 
   const onTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {

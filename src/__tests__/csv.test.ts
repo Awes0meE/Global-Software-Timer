@@ -8,6 +8,7 @@ import {
   dailyReportFileName,
   formatHours,
   softwareListFileName,
+  statisticsDailyFileName,
   statisticsFileName,
   toCsv,
 } from "../csv";
@@ -70,6 +71,7 @@ describe("export file names", () => {
     expect(softwareListFileName("2026-11-24")).toBe("GST-软件清单-2026-11-24.csv");
     expect(backgroundFileName("2026-11-17")).toBe("GST-后台-2026-11-17.csv");
     expect(statisticsFileName("2026-11-01", "2026-11-24")).toBe("GST-统计-2026-11-01至2026-11-24.csv");
+    expect(statisticsDailyFileName("2026-11-01", "2026-11-24")).toBe("GST-统计每日明细-2026-11-01至2026-11-24.csv");
   });
 });
 

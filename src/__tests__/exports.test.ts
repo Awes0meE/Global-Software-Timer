@@ -12,11 +12,14 @@ import type {
   DashboardSummary,
   SoftwarePageRow,
   SoftwarePageSummary,
+  StatisticsExport,
+  StatisticsExportSoftware,
   StatisticsSummary,
 } from "../api";
 import { BACKGROUND_CSV_COLUMNS, DAILY_REPORT_CSV_COLUMNS, SOFTWARE_LIST_CSV_COLUMNS } from "../csv";
 import {
   STATISTICS_CSV_COLUMNS,
+  STATISTICS_DAILY_CSV_COLUMNS,
   backgroundCsv,
   buildCsvExport,
   dailyReportCsv,
@@ -24,6 +27,7 @@ import {
   isCsvExportAction,
   softwareListCsv,
   statisticsCsv,
+  statisticsDailyCsv,
 } from "../exports";
 
 const H = 3600;
@@ -153,6 +157,37 @@ function statistics(overrides: Partial<StatisticsSummary> = {}): StatisticsSumma
   };
 }
 
+function exportSoftware(key: string, name: string, process: string, focused: number, window: number, background: number, usedDays: number): StatisticsExportSoftware {
+  return {
+    identity_key: key,
+    display_name: name,
+    process_name: process,
+    focused_seconds: focused,
+    window_seconds: window,
+    background_seconds: background,
+    used_days: usedDays,
+  };
+}
+
+function statisticsExport(overrides: Partial<StatisticsExport> = {}): StatisticsExport {
+  return {
+    start: "2026-11-01",
+    end: "2026-11-24",
+    software: [
+      exportSoftware("code", "Visual Studio Code", "Code.exe", 30 * H, 40 * H, 2 * H, 18),
+      exportSoftware("chat", "微信", "Weixin.exe", 0.25 * H, 60 * H, 50 * H, 1),
+      exportSoftware("music", "网易云音乐", "cloudmusic.exe", 0, 9 * H, 30 * H, 0),
+      exportSoftware("onedrive", "OneDrive", "OneDrive.exe", 0, 0, 240 * H, 0),
+    ],
+    days: [
+      { date: "2026-11-01", identity_key: "code", display_name: "Visual Studio Code", process_name: "Code.exe", focused_seconds: 2 * H, window_seconds: 3 * H, background_seconds: 0 },
+      { date: "2026-11-01", identity_key: "onedrive", display_name: "OneDrive", process_name: "OneDrive.exe", focused_seconds: 0, window_seconds: 0, background_seconds: 10 * H },
+      { date: "2026-11-02", identity_key: "chat", display_name: "=微信", process_name: "Weixin.exe", focused_seconds: 900, window_seconds: 4 * H, background_seconds: 1800 },
+    ],
+    ...overrides,
+  };
+}
+
 describe("dailyReportCsv", () => {
   it("lists the overview rows for the summary's day with hours to two decimals", () => {
     const rows = parse(dailyReportCsv(dashboard()));
@@ -240,15 +275,11 @@ describe("backgroundCsv", () => {
 });
 
 describe("statisticsCsv", () => {
-  it("lists ranked software first, then the 开着没用 and 会话 ledgers' others, leaving unknown figures empty", () => {
-    const names = new Map([
-      ["code", "Code.exe"],
-      ["chat", "Weixin.exe"],
-    ]);
-    const rows = parse(statisticsCsv(statistics(), names));
+  it("lists every software of the export in its order, with the ledgers' figures where they have them", () => {
+    const rows = parse(statisticsCsv(statistics(), statisticsExport()));
 
-    expect(rows[0]).toEqual([...STATISTICS_CSV_COLUMNS]);
     // The page's 名次 column shows the change in rank, and its legend calls the window figure 窗口开着.
+    expect(rows[0]).toEqual([...STATISTICS_CSV_COLUMNS]);
     expect(rows[0]).toEqual([
       "软件名称",
       "进程名",
@@ -259,18 +290,51 @@ describe("statisticsCsv", () => {
       "打开次数",
       "平均单次(小时)",
       "最长单次(小时)",
+      "后台(小时)",
+      "使用天数",
     ]);
     expect(rows.slice(1)).toEqual([
-      ["Visual Studio Code", "Code.exe", "1", "30.00", "40.00", "", "12", "2.50", "6.00"],
-      ["微信", "Weixin.exe", "2", "0.25", "60.00", "59.75", "", "", ""],
-      ["网易云音乐", "", "", "0.00", "9.00", "9.00", "", "", ""],
-      ["记事本", "", "", "", "", "", "3", "0.03", "0.03"],
+      ["Visual Studio Code", "Code.exe", "1", "30.00", "40.00", "", "12", "2.50", "6.00", "2.00", "18"],
+      ["微信", "Weixin.exe", "2", "0.25", "60.00", "59.75", "", "", "", "50.00", "1"],
+      ["网易云音乐", "cloudmusic.exe", "", "0.00", "9.00", "9.00", "", "", "", "30.00", "0"],
+      // Background-only software is listed, with no used days.
+      ["OneDrive", "OneDrive.exe", "", "0.00", "0.00", "", "", "", "", "240.00", "0"],
+    ]);
+  });
+
+  it("lists software beyond the top 20 that the ranking ledger leaves out", () => {
+    const software = Array.from({ length: 25 }, (_, index) =>
+      exportSoftware(`app${index}`, `App ${index}`, `app${index}.exe`, (25 - index) * H, (25 - index) * H, 0, 1),
+    );
+    const rows = parse(statisticsCsv(statistics(), statisticsExport({ software })));
+
+    expect(rows).toHaveLength(26);
+    expect(rows[25]).toEqual(["App 24", "app24.exe", "", "1.00", "1.00", "", "", "", "", "0.00", "1"]);
+  });
+
+  it("writes only the header for a range without software", () => {
+    const csv = statisticsCsv(statistics({ ranking: [], idle_open: [], sessions: [] }), statisticsExport({ software: [] }));
+    expect(csv).toBe(`${STATISTICS_CSV_COLUMNS.join(",")}\r\n`);
+  });
+});
+
+describe("statisticsDailyCsv", () => {
+  it("lists one row per date and software in the export's order, guarding formula-like names", () => {
+    const csv = statisticsDailyCsv(statisticsExport());
+    expect(csv.startsWith("﻿")).toBe(false);
+    const rows = parse(csv);
+
+    expect(rows[0]).toEqual(["日期", "软件名称", "进程名", "焦点(小时)", "窗口开着(小时)", "后台(小时)"]);
+    expect(rows[0]).toEqual([...STATISTICS_DAILY_CSV_COLUMNS]);
+    expect(rows.slice(1)).toEqual([
+      ["2026-11-01", "Visual Studio Code", "Code.exe", "2.00", "3.00", "0.00"],
+      ["2026-11-01", "OneDrive", "OneDrive.exe", "0.00", "0.00", "10.00"],
+      ["2026-11-02", "'=微信", "Weixin.exe", "0.25", "4.00", "0.50"],
     ]);
   });
 
   it("writes only the header for a range without software", () => {
-    const csv = statisticsCsv(statistics({ ranking: [], idle_open: [], sessions: [] }));
-    expect(csv).toBe(`${STATISTICS_CSV_COLUMNS.join(",")}\r\n`);
+    expect(statisticsDailyCsv(statisticsExport({ days: [] }))).toBe(`${STATISTICS_DAILY_CSV_COLUMNS.join(",")}\r\n`);
   });
 });
 
@@ -285,10 +349,13 @@ describe("formatLocalDateTime", () => {
 describe("buildCsvExport", () => {
   const context = { viewedDate: "2026-11-24", today: "2026-11-24", statistics: null };
 
-  it("only treats the four page CSVs as CSV exports", () => {
-    expect(["overview-csv", "software-csv", "background-csv", "statistics-csv"].every((id) => isCsvExportAction(id as never))).toBe(true);
+  it("only treats the five page CSVs as CSV exports", () => {
+    const csv = ["overview-csv", "software-csv", "background-csv", "statistics-csv", "statistics-daily-csv"] as const;
+    expect(csv.every((id) => isCsvExportAction(id))).toBe(true);
     expect(isCsvExportAction("settings-export")).toBe(false);
     expect(isCsvExportAction("data-backup")).toBe(false);
+    expect(isCsvExportAction("overview-poster")).toBe(false);
+    expect(isCsvExportAction("achievements-poster")).toBe(false);
   });
 
   it("reads today's overview through the live path and names the file after that day", async () => {
@@ -327,40 +394,34 @@ describe("buildCsvExport", () => {
     expect(file.suggestedName).toBe("GST-软件清单-2026-11-24.csv");
   });
 
-  it("reads the 统计 page's range with its hidden switch and adds process names", async () => {
+  it("reads the 统计 page's range with its hidden switch for 区间汇总", async () => {
     mockInvoke.mockImplementation(async (command: string) =>
-      command === "get_statistics_summary"
-        ? statistics()
-        : { focused: [softwareRow({ identity_key: "code" })], hidden: [], discovered: [] },
+      command === "get_statistics_summary" ? statistics() : statisticsExport(),
     );
+    const scope = { start: "2026-11-01", end: "2026-11-24", includeHidden: true };
 
-    const file = await buildCsvExport("statistics-csv", {
-      ...context,
-      statistics: { start: "2026-11-01", end: "2026-11-24", includeHidden: true },
-    });
+    const file = await buildCsvExport("statistics-csv", { ...context, statistics: scope });
 
-    expect(mockInvoke).toHaveBeenCalledWith("get_statistics_summary", { start: "2026-11-01", end: "2026-11-24", includeHidden: true });
-    expect(file.suggestedName).toBe("GST-统计-2026-11-01至2026-11-24.csv");
-    expect(file.contents.split("\r\n")[1]).toBe("Visual Studio Code,Code.exe,1,30.00,40.00,,12,2.50,6.00");
+    expect(mockInvoke).toHaveBeenCalledWith("get_statistics_summary", scope);
+    expect(mockInvoke).toHaveBeenCalledWith("get_statistics_export", scope);
+    expect(file).toMatchObject({ suggestedName: "GST-统计-2026-11-01至2026-11-24.csv", filterName: "CSV", extension: "csv" });
+    expect(file.contents).toBe(statisticsCsv(statistics(), statisticsExport()));
   });
 
-  it("still saves the 统计 file without process names when the software list fails", async () => {
-    mockInvoke.mockImplementation(async (command: string) => {
-      if (command === "get_statistics_summary") return statistics({ start: "2026-11-18", end: "2026-11-24" });
-      throw new Error("software list unavailable");
-    });
+  it("reads only the export for 每日明细 and names it for the range", async () => {
+    mockInvoke.mockResolvedValue(statisticsExport({ start: "2026-11-18", end: "2026-11-24" }));
+    const scope = { start: "2026-11-18", end: "2026-11-24", includeHidden: false };
 
-    const file = await buildCsvExport("statistics-csv", {
-      ...context,
-      statistics: { start: "2026-11-18", end: "2026-11-24", includeHidden: false },
-    });
+    const file = await buildCsvExport("statistics-daily-csv", { ...context, statistics: scope });
 
-    expect(file.suggestedName).toBe("GST-统计-2026-11-18至2026-11-24.csv");
-    expect(file.contents.split("\r\n")[1]).toBe("Visual Studio Code,,1,30.00,40.00,,12,2.50,6.00");
+    expect(mockInvoke.mock.calls).toEqual([["get_statistics_export", scope]]);
+    expect(file.suggestedName).toBe("GST-统计每日明细-2026-11-18至2026-11-24.csv");
+    expect(file.contents).toBe(statisticsDailyCsv(statisticsExport()));
   });
 
   it("refuses a 统计 export before the page has reported its range", async () => {
     await expect(buildCsvExport("statistics-csv", context)).rejects.toThrow("statistics_scope_unknown");
+    await expect(buildCsvExport("statistics-daily-csv", context)).rejects.toThrow("statistics_scope_unknown");
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 

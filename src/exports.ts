@@ -5,12 +5,14 @@ import {
   getBackgroundPageSummary,
   getDashboardSummary,
   getSoftwarePageSummary,
+  getStatisticsExport,
   getStatisticsSummary,
   type BackgroundPageSummary,
   type DashboardSummary,
   type SaveTextExportArgs,
   type SoftwarePageRow,
   type SoftwarePageSummary,
+  type StatisticsExport,
   type StatisticsSummary,
 } from "./api";
 import {
@@ -22,6 +24,7 @@ import {
   dailyReportFileName,
   formatHours,
   softwareListFileName,
+  statisticsDailyFileName,
   statisticsFileName,
   toCsv,
   type CsvValue,
@@ -32,7 +35,7 @@ import { formatLocalDate } from "./statisticsRange";
 
 export type CsvExportAction = Extract<
   ExportActionId,
-  "overview-csv" | "software-csv" | "background-csv" | "statistics-csv"
+  "overview-csv" | "software-csv" | "background-csv" | "statistics-csv" | "statistics-daily-csv"
 >;
 
 /** The 统计 page's current selection: an inclusive local-date range and its 包含隐藏软件 switch. */
@@ -60,12 +63,31 @@ export const STATISTICS_CSV_COLUMNS = [
   "打开次数",
   "平均单次(小时)",
   "最长单次(小时)",
+  "后台(小时)",
+  "使用天数",
+] as const;
+
+export const STATISTICS_DAILY_CSV_COLUMNS = [
+  "日期",
+  "软件名称",
+  "进程名",
+  "焦点(小时)",
+  "窗口开着(小时)",
+  "后台(小时)",
 ] as const;
 
 const MEBIBYTE = 1024 * 1024;
 
+const CSV_EXPORT_ACTIONS: ReadonlySet<ExportActionId> = new Set<CsvExportAction>([
+  "overview-csv",
+  "software-csv",
+  "background-csv",
+  "statistics-csv",
+  "statistics-daily-csv",
+]);
+
 export function isCsvExportAction(action: ExportActionId): action is CsvExportAction {
-  return action === "overview-csv" || action === "software-csv" || action === "background-csv" || action === "statistics-csv";
+  return CSV_EXPORT_ACTIONS.has(action);
 }
 
 /** 日报: the rows the 概览 table lists for `summary.usage_date` (the backend already leaves hidden software out). */
@@ -131,65 +153,47 @@ export function backgroundCsv(summary: BackgroundPageSummary): string {
 }
 
 /**
- * 统计 区间汇总: one row per software the page's 区间排行, 开着没用 and 会话 ledgers list, ranked software
- * first. A figure a ledger does not hold for that software is left empty. `processNames` maps identity keys
- * to process names (the statistics summary has none).
+ * 统计 区间汇总 (spec v0.4.3 E): one row per software with any focus, window or background time in the
+ * range, in the export's order (focus, then window, highest first, then name). 焦点, 窗口开着, 后台 and
+ * 使用天数 come from the export; 排名, 开着没用 and the session figures from the page's ledgers, left empty
+ * for a software those ledgers do not list.
  */
-export function statisticsCsv(summary: StatisticsSummary, processNames: ReadonlyMap<string, string> = new Map()): string {
-  interface Entry {
-    name: string;
-    rank?: number;
-    focused?: number;
-    window?: number;
-    idle?: number;
-    launches?: number;
-    average?: number;
-    longest?: number;
-  }
-  const entries = new Map<string, Entry>();
-  const entry = (key: string, name: string) => {
-    let current = entries.get(key);
-    if (!current) {
-      current = { name };
-      entries.set(key, current);
-    }
-    return current;
-  };
-
-  for (const row of summary.ranking) {
-    Object.assign(entry(row.identity_key, row.display_name), {
-      rank: row.rank,
-      focused: row.focused_seconds,
-      window: row.window_seconds,
-    });
-  }
-  for (const row of summary.idle_open) {
-    const current = entry(row.identity_key, row.display_name);
-    current.focused ??= row.focused_seconds;
-    current.window ??= row.window_seconds;
-    current.idle = row.idle_seconds;
-  }
-  for (const row of summary.sessions) {
-    Object.assign(entry(row.identity_key, row.display_name), {
-      launches: row.launch_count,
-      average: row.average_seconds,
-      longest: row.longest_seconds,
-    });
-  }
-
+export function statisticsCsv(summary: StatisticsSummary, data: StatisticsExport): string {
+  const ranks = new Map(summary.ranking.map((row) => [row.identity_key, row.rank]));
+  const idle = new Map(summary.idle_open.map((row) => [row.identity_key, row.idle_seconds]));
+  const sessions = new Map(summary.sessions.map((row) => [row.identity_key, row]));
   const hours = (seconds: number | undefined) => (seconds === undefined ? null : formatHours(seconds));
-  const rows = Array.from(entries, ([key, row]): CsvValue[] => [
-    row.name,
-    processNames.get(key) ?? null,
-    row.rank ?? null,
-    hours(row.focused),
-    hours(row.window),
-    hours(row.idle),
-    row.launches ?? null,
-    hours(row.average),
-    hours(row.longest),
-  ]);
+
+  const rows = data.software.map((row): CsvValue[] => {
+    const session = sessions.get(row.identity_key);
+    return [
+      row.display_name,
+      row.process_name,
+      ranks.get(row.identity_key) ?? null,
+      formatHours(row.focused_seconds),
+      formatHours(row.window_seconds),
+      hours(idle.get(row.identity_key)),
+      session?.launch_count ?? null,
+      hours(session?.average_seconds),
+      hours(session?.longest_seconds),
+      formatHours(row.background_seconds),
+      row.used_days,
+    ];
+  });
   return toCsv(STATISTICS_CSV_COLUMNS, rows);
+}
+
+/** 统计 每日明细: one row per date × software with any time, in the export's order (date, then focus). */
+export function statisticsDailyCsv(data: StatisticsExport): string {
+  const rows = data.days.map((row): CsvValue[] => [
+    row.date,
+    row.display_name,
+    row.process_name,
+    formatHours(row.focused_seconds),
+    formatHours(row.window_seconds),
+    formatHours(row.background_seconds),
+  ]);
+  return toCsv(STATISTICS_DAILY_CSV_COLUMNS, rows);
 }
 
 /** Fetches the summary behind a page's CSV export and returns what `saveTextExport` needs. */
@@ -212,28 +216,24 @@ export async function buildCsvExport(action: CsvExportAction, context: CsvExport
       return csvFile(backgroundFileName(summary.usage_date), backgroundCsv(summary));
     }
     case "statistics-csv": {
-      const scope = context.statistics;
-      if (!scope) throw new Error("statistics_scope_unknown");
-      const [summary, software] = await Promise.all([
-        getStatisticsSummary(scope),
-        // Process names only; the file is still useful without them.
-        getSoftwarePageSummary().catch(() => null),
-      ]);
-      return csvFile(statisticsFileName(summary.start, summary.end), statisticsCsv(summary, processNameMap(software)));
+      const scope = statisticsScope(context);
+      const [summary, data] = await Promise.all([getStatisticsSummary(scope), getStatisticsExport(scope)]);
+      return csvFile(statisticsFileName(data.start, data.end), statisticsCsv(summary, data));
+    }
+    case "statistics-daily-csv": {
+      const data = await getStatisticsExport(statisticsScope(context));
+      return csvFile(statisticsDailyFileName(data.start, data.end), statisticsDailyCsv(data));
     }
   }
 }
 
-function csvFile(suggestedName: string, contents: string): SaveTextExportArgs {
-  return { suggestedName, filterName: CSV_FILTER.filterName, extension: CSV_FILTER.extension, contents };
+function statisticsScope(context: CsvExportContext): StatisticsScope {
+  if (!context.statistics) throw new Error("statistics_scope_unknown");
+  return context.statistics;
 }
 
-function processNameMap(summary: SoftwarePageSummary | null): Map<string, string> {
-  const names = new Map<string, string>();
-  for (const row of summary ? [...summary.focused, ...summary.hidden, ...summary.discovered] : []) {
-    if (!names.has(row.identity_key)) names.set(row.identity_key, row.process_name);
-  }
-  return names;
+function csvFile(suggestedName: string, contents: string): SaveTextExportArgs {
+  return { suggestedName, filterName: CSV_FILTER.filterName, extension: CSV_FILTER.extension, contents };
 }
 
 /** An RFC 3339 timestamp as local "YYYY-MM-DD HH:MM"; empty for never or an unreadable value. */

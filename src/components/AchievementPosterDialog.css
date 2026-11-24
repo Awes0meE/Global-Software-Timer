@@ -1,0 +1,172 @@
+/* v0.4.3 成就海报 dialog (approved mock picker.html): the glass .dialog with the live poster on the left and
+   the milestone list box on the right. The selected row is an accent-tinted fill with a 1px accent outline. */
+
+.poster-dialog {
+  --poster-thumb-ring: rgba(20, 30, 60, 0.1);
+  --poster-sel-fill: color-mix(in srgb, var(--accent) 14%, transparent);
+  --poster-sel-ring: color-mix(in srgb, var(--accent) 55%, transparent);
+  display: grid;
+  gap: 16px;
+  width: min(676px, 100%);
+  padding: 24px;
+}
+
+:root[data-theme="dark"] .poster-dialog {
+  --poster-thumb-ring: rgba(255, 255, 255, 0.1);
+  --poster-sel-fill: color-mix(in srgb, var(--accent) 19%, transparent);
+  --poster-sel-ring: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+/* Focus rests on the dialog itself only after a click on its text; the list and the keys carry the ring. */
+.poster-dialog:focus {
+  outline: none;
+}
+
+.poster-dialog h2 {
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+/* The preview and the list share a top edge; the action row sits below both. */
+.poster-dialog-body {
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+/* The real AchievementPoster (540×720) shown at half size. */
+.poster-thumb {
+  width: 270px;
+  height: 360px;
+  overflow: hidden;
+  border-radius: var(--radius-screen);
+  box-shadow: 0 0 0 1px var(--poster-thumb-ring), 0 8px 22px -10px rgba(0, 0, 0, 0.45);
+}
+
+.poster-thumb-scale {
+  width: 540px;
+  height: 720px;
+  transform: scale(0.5);
+  transform-origin: 0 0;
+}
+
+/* Ruled box: the border clips the scroller to the inner radius; six rows fit before it scrolls. */
+.poster-list-box {
+  overflow: hidden;
+  border: 1px solid var(--edge-strong);
+  border-radius: var(--radius-key);
+}
+
+.poster-list {
+  max-height: 358px;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  list-style: none;
+  outline: none;
+  scroll-padding-block: 6px;
+}
+
+/* Rows inset 8px; the rules span the row, so the selection and the rules share one inset. */
+.poster-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  margin: 0 8px;
+  padding: 0 8px;
+  border-radius: 7px;
+  cursor: default;
+  transition: background-color 120ms var(--ease), box-shadow 120ms var(--ease);
+}
+
+.poster-row + .poster-row::before {
+  content: "";
+  position: absolute;
+  top: -0.5px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--rule);
+}
+
+.poster-row:is(.is-selected, :hover)::before,
+.poster-row:is(.is-selected, :hover) + .poster-row::before {
+  display: none;
+}
+
+.poster-row:hover:not(.is-selected) {
+  background: var(--chip);
+}
+
+.poster-row.is-selected {
+  background: var(--poster-sel-fill);
+  box-shadow: inset 0 0 0 1px var(--poster-sel-ring);
+}
+
+/* The list has keyboard focus: the app's focus ring on the selected row, over its fill and outline. */
+.poster-list:focus-visible .poster-row.is-selected {
+  box-shadow: inset 0 0 0 1px var(--poster-sel-ring), var(--focus);
+}
+
+.poster-row-name {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.poster-row-tier {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.poster-row-tier b {
+  color: var(--ink-2);
+  font-family: var(--font-num);
+  font-size: 16px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.poster-row-tier small {
+  color: var(--muted);
+  font-size: var(--type-label);
+}
+
+.poster-dialog .dialog-actions {
+  margin-top: 4px;
+}
+
+.poster-dialog .button[aria-busy="true"] {
+  cursor: progress;
+}
+
+@media (forced-colors: active) {
+  .poster-thumb,
+  .poster-list-box {
+    outline: 1px solid CanvasText;
+  }
+
+  .poster-row + .poster-row::before {
+    background: CanvasText;
+  }
+
+  .poster-row.is-selected {
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
+
+  .poster-list:focus-visible .poster-row.is-selected {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

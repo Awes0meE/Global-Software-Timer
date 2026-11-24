@@ -111,7 +111,7 @@
   background-color: color-mix(in srgb, var(--ink) 5%, transparent);
 }
 
-.hk-solo:hover:not(:disabled) {
+.hk-solo:hover:not(:disabled, [aria-disabled="true"]) {
   background-color: color-mix(in srgb, var(--nk-fill) 100%, var(--ink) 4%);
 }
 
@@ -124,7 +124,7 @@
   box-shadow: var(--hk-groove), inset 0 2px 3px var(--nk-lo);
 }
 
-.hk-solo:active:not(:disabled),
+.hk-solo:active:not(:disabled, [aria-disabled="true"]),
 .hk-solo[aria-expanded="true"] {
   --muted: var(--ink-2);
   background-color: var(--chip);
@@ -135,6 +135,21 @@
 .hk:disabled {
   color: color-mix(in srgb, var(--ink-2) 32%, transparent);
   cursor: default;
+}
+
+/* A key that cannot act now but keeps its tooltip (成就's 导出成就 with 暂无里程碑): dimmed like a disabled
+   key, icon and tag included, and still focusable. */
+.hk[aria-disabled="true"],
+.hk[aria-disabled="true"] > svg:first-child,
+.hk[aria-disabled="true"] .hk-tag {
+  color: color-mix(in srgb, var(--ink-2) 32%, transparent);
+  cursor: default;
+}
+
+/* A header key has no room above it: its tooltip opens below, as the menus do. */
+.page-header .unavailable-tooltip-bubble {
+  top: calc(100% + 8px);
+  bottom: auto;
 }
 
 .hk[aria-busy="true"] {
@@ -617,6 +632,17 @@
   .hk-tag {
     outline: 1px solid CanvasText;
     outline-offset: -1px;
+  }
+
+  .hk[aria-disabled="true"],
+  .hk[aria-disabled="true"] > svg:first-child,
+  .hk[aria-disabled="true"] .hk-tag {
+    color: GrayText;
+  }
+
+  .hk-solo[aria-disabled="true"]:not(:focus-visible),
+  .hk[aria-disabled="true"] .hk-tag {
+    outline-color: GrayText;
   }
 
   .glass-pop,

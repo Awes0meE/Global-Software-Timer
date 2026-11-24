@@ -81,6 +81,32 @@ const defaults: Record<string, Handler> = {
     idle_open: [],
     sessions: [],
   }),
+  get_statistics_export: (args) => ({
+    start: args?.start,
+    end: args?.end,
+    software: [
+      {
+        identity_key: "code",
+        display_name: "Visual Studio Code",
+        process_name: "Code.exe",
+        focused_seconds: 7200,
+        window_seconds: 10800,
+        background_seconds: 1800,
+        used_days: 4,
+      },
+    ],
+    days: [
+      {
+        date: "2026-11-24",
+        identity_key: "code",
+        display_name: "Visual Studio Code",
+        process_name: "Code.exe",
+        focused_seconds: 7200,
+        window_seconds: 10800,
+        background_seconds: 1800,
+      },
+    ],
+  }),
   save_text_export: (args) => `C:\\Users\\demo\\Downloads\\${String(args?.suggestedName)}`,
   reveal_saved_file: () => undefined,
   export_settings_file: () => "C:\\Users\\demo\\Downloads\\GST-设置-2026-11-24.json",
@@ -131,16 +157,30 @@ async function openPage(name: string) {
   await userEvent.click(await screen.findByRole("button", { name }));
 }
 
-async function pickFromMenu(item: string) {
-  await userEvent.click(await screen.findByRole("button", { name: "迁移与备份" }));
-  await userEvent.click(within(screen.getByRole("menu", { name: "迁移与备份" })).getByRole("menuitem", { name: new RegExp(item) }));
+async function pickFromMenu(item: string, key = "迁移与备份") {
+  await userEvent.click(await screen.findByRole("button", { name: key }));
+  await userEvent.click(within(screen.getByRole("menu", { name: key })).getByRole("menuitem", { name: new RegExp(item) }));
+}
+
+function menuRows(key: string): string[] {
+  return within(screen.getByRole("menu", { name: key }))
+    .getAllByRole("menuitem")
+    .map((row) => row.textContent ?? "");
 }
 
 describe("page CSV exports", () => {
-  it("saves 概览's 日报 straight from the key and offers to show the file", async () => {
+  it("offers 日报海报 and 当日明细 under 概览's 导出日报", async () => {
     render(<App />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "导出日报 CSV" }));
+    await userEvent.click(await screen.findByRole("button", { name: "导出日报" }));
+
+    expect(menuRows("导出日报")).toEqual(["日报海报PNG", "当日明细CSV"]);
+  });
+
+  it("saves 概览's 当日明细 from the menu and offers to show the file", async () => {
+    render(<App />);
+
+    await pickFromMenu("当日明细", "导出日报");
 
     await waitFor(() => expect(calls("save_text_export")).toHaveLength(1));
     const [, args] = calls("save_text_export")[0];
@@ -158,7 +198,7 @@ describe("page CSV exports", () => {
     render(<App />);
 
     await userEvent.click(await screen.findByRole("button", { name: "前一天" }));
-    await userEvent.click(screen.getByRole("button", { name: "导出日报 CSV" }));
+    await pickFromMenu("当日明细", "导出日报");
 
     await waitFor(() => expect(calls("save_text_export")).toHaveLength(1));
     expect(mockInvoke).toHaveBeenCalledWith("get_dashboard_summary", { date: "2026-11-23" });
@@ -187,27 +227,60 @@ describe("page CSV exports", () => {
     expect(calls("save_text_export")[0][1]).toMatchObject({ suggestedName: "GST-软件清单-2026-11-24.csv" });
   });
 
+  it("offers 区间汇总 and 每日明细 under 统计's 导出报表", async () => {
+    render(<App />);
+    await openPage("统计");
+
+    await userEvent.click(await screen.findByRole("button", { name: "导出报表" }));
+
+    expect(menuRows("导出报表")).toEqual(["区间汇总CSV", "每日明细CSV"]);
+  });
+
   it("exports the 统计 range the page shows, with its hidden switch", async () => {
     render(<App />);
     await openPage("统计");
 
     await userEvent.click(await screen.findByRole("switch", { name: "包含隐藏软件" }));
-    await userEvent.click(screen.getByRole("button", { name: "导出报表 CSV" }));
+    await pickFromMenu("区间汇总", "导出报表");
 
     await waitFor(() => expect(calls("save_text_export")).toHaveLength(1));
+    const scope = { start: "2026-11-18", end: "2026-11-24", includeHidden: true };
     const statisticsCalls = calls("get_statistics_summary");
-    expect(statisticsCalls[statisticsCalls.length - 1][1]).toEqual({ start: "2026-11-18", end: "2026-11-24", includeHidden: true });
-    expect(calls("save_text_export")[0][1]).toMatchObject({ suggestedName: "GST-统计-2026-11-18至2026-11-24.csv" });
+    expect(statisticsCalls[statisticsCalls.length - 1][1]).toEqual(scope);
+    expect(calls("get_statistics_export")).toEqual([["get_statistics_export", scope]]);
+    const [, args] = calls("save_text_export")[0];
+    expect(args).toMatchObject({ suggestedName: "GST-统计-2026-11-18至2026-11-24.csv" });
+    expect(args.contents).toBe(
+      "软件名称,进程名,排名,焦点(小时),窗口开着(小时),开着没用(小时),打开次数,平均单次(小时),最长单次(小时),后台(小时),使用天数\r\n" +
+        "Visual Studio Code,Code.exe,,2.00,3.00,,,,,0.50,4\r\n",
+    );
+  });
+
+  it("exports the 统计 每日明细 for the range the page shows", async () => {
+    render(<App />);
+    await openPage("统计");
+
+    await pickFromMenu("每日明细", "导出报表");
+
+    await waitFor(() => expect(calls("save_text_export")).toHaveLength(1));
+    expect(calls("get_statistics_export")).toEqual([
+      ["get_statistics_export", { start: "2026-11-18", end: "2026-11-24", includeHidden: false }],
+    ]);
+    const [, args] = calls("save_text_export")[0];
+    expect(args).toMatchObject({ suggestedName: "GST-统计每日明细-2026-11-18至2026-11-24.csv" });
+    expect(args.contents).toBe(
+      "日期,软件名称,进程名,焦点(小时),窗口开着(小时),后台(小时)\r\n2026-11-24,Visual Studio Code,Code.exe,2.00,3.00,0.50\r\n",
+    );
   });
 
   it("does nothing visible when the save dialog is cancelled", async () => {
     overrides.save_text_export = () => null;
     render(<App />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "导出日报 CSV" }));
+    await pickFromMenu("当日明细", "导出日报");
 
     await waitFor(() => expect(calls("save_text_export")).toHaveLength(1));
-    await waitFor(() => expect(screen.getByRole("button", { name: "导出日报 CSV" })).not.toHaveAttribute("aria-busy"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "导出日报" })).not.toHaveAttribute("aria-busy"));
     expect(screen.getByRole("status")).toHaveTextContent("");
     expect(screen.getByRole("alert")).toHaveTextContent("");
   });
@@ -218,7 +291,7 @@ describe("page CSV exports", () => {
     };
     render(<App />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "导出日报 CSV" }));
+    await pickFromMenu("当日明细", "导出日报");
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("保存失败"));
     expect(screen.queryByRole("button", { name: "在文件夹中显示" })).not.toBeInTheDocument();
@@ -228,8 +301,9 @@ describe("page CSV exports", () => {
     let finish: (path: string | null) => void = () => {};
     overrides.save_text_export = () => new Promise((resolve) => (finish = resolve));
     render(<App />);
+    await openPage("软件");
 
-    const key = await screen.findByRole("button", { name: "导出日报 CSV" });
+    const key = await screen.findByRole("button", { name: "导出软件清单 CSV" });
     await userEvent.click(key);
     await waitFor(() => expect(key).toHaveAttribute("aria-busy", "true"));
     await userEvent.click(key);

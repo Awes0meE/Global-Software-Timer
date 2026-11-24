@@ -19,13 +19,21 @@ const RECENT_NAME_COUNT = 3;
 
 interface AchievementsPageProps {
   durationFormat?: DurationFormat;
+  /** Reports the 包含隐藏软件 switch, for the header's 导出成就 key; null once unmounted. */
+  onIncludeHiddenChange?: (includeHidden: boolean | null) => void;
 }
 
-export function AchievementsPage({ durationFormat = "decimal_hours" }: AchievementsPageProps) {
+export function AchievementsPage({ durationFormat = "decimal_hours", onIncludeHiddenChange }: AchievementsPageProps) {
   const [heatmapDays, setHeatmapDays] = useState<HeatmapDays>(90);
   const [includeHidden, setIncludeHidden] = useState(false);
   const [summary, setSummary] = useState<AchievementsSummary | null>(null);
   const [fetchError, setFetchError] = useState(false);
+
+  useEffect(() => {
+    onIncludeHiddenChange?.(includeHidden);
+  }, [onIncludeHiddenChange, includeHidden]);
+
+  useEffect(() => () => onIncludeHiddenChange?.(null), [onIncludeHiddenChange]);
 
   useEffect(() => {
     // Responses for an earlier range or switch setting arrive after this flag flips and are dropped.

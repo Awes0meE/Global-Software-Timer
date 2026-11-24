@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DatabaseBackup, FileInput, FileOutput } from "lucide-react";
 import { DateControl } from "../components/DateControl";
@@ -481,22 +482,49 @@ describe("ExportKey", () => {
   });
 });
 
-describe("page export keys (decision C)", () => {
-  it("gives the data pages a one-format CSV key and 设置 a three-row menu; 成就 has none", () => {
-    expect(PAGE_EXPORTS.overview.label).toBe("导出日报");
+describe("page export keys (v0.4.2 C, v0.4.3 C to E)", () => {
+  const rows = (page: keyof typeof PAGE_EXPORTS) => PAGE_EXPORTS[page].items.map((item) => [item.title, item.format ?? null]);
+
+  it("gives 软件 and 后台 a one-format CSV key, 成就 a one-format PNG key, and the others menus", () => {
     expect(PAGE_EXPORTS.software.label).toBe("导出软件清单");
     expect(PAGE_EXPORTS.background.label).toBe("导出后台记录");
-    expect(PAGE_EXPORTS.statistics.label).toBe("导出报表");
-    for (const page of ["overview", "software", "background", "statistics"] as const) {
+    for (const page of ["software", "background"] as const) {
       expect(PAGE_EXPORTS[page].items.map((item) => item.format)).toEqual(["CSV"]);
     }
+    expect(PAGE_EXPORTS.achievements.label).toBe("导出成就");
+    expect(rows("achievements")).toEqual([["成就海报", "PNG"]]);
+    expect(PAGE_EXPORTS.overview.label).toBe("导出日报");
+    expect(rows("overview")).toEqual([
+      ["日报海报", "PNG"],
+      ["当日明细", "CSV"],
+    ]);
+    expect(PAGE_EXPORTS.statistics.label).toBe("导出报表");
+    expect(rows("statistics")).toEqual([
+      ["区间汇总", "CSV"],
+      ["每日明细", "CSV"],
+    ]);
     expect(PAGE_EXPORTS.settings.label).toBe("迁移与备份");
-    expect(PAGE_EXPORTS.settings.items.map((item) => [item.title, item.format ?? null])).toEqual([
+    expect(rows("settings")).toEqual([
       ["导出设置", "JSON"],
       ["导入设置…", null],
       ["备份全部数据", "DB"],
     ]);
-    expect(Object.keys(PAGE_EXPORTS)).not.toContain("achievements");
+  });
+
+  it("shows an unavailable one-format key dimmed with its reason, and ignores presses", async () => {
+    const onSelect = vi.fn();
+    render(<ExportKey label="导出成就" items={[{ id: "a", title: "成就海报", format: "PNG" }]} unavailable="暂无里程碑" onSelect={onSelect} />);
+
+    const key = screen.getByRole("button", { name: "导出成就 PNG" });
+    expect(key).toHaveAttribute("aria-disabled", "true");
+    expect(key).not.toBeDisabled();
+    await userEvent.hover(key);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("暂无里程碑");
+    expect(key).toHaveAccessibleDescription("暂无里程碑");
+    await userEvent.click(key);
+    key.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });
 

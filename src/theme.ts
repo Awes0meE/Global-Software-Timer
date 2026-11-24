@@ -72,3 +72,8 @@ export function applyThemePreference(preference: ThemePreference): () => void {
 export function paintInitialTheme() {
   paint(resolveTheme(readCachedThemePreference(), systemPrefersDark()));
 }
+
+/** The theme painted now (`data-theme` on <html>), e.g. for posters, which follow the app. */
+export function paintedTheme(): ResolvedTheme {
+  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
+}

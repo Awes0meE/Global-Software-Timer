@@ -27,6 +27,7 @@ import {
   type CloseBehavior,
   type DashboardSummary,
   type DurationFormat,
+  type MilestoneSoftware,
   type ThemePreference,
 } from "./api";
 import clockMark from "./assets/gst-clock.svg";
@@ -42,9 +43,10 @@ import { TodayReadout } from "./components/TodayReadout";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
 import type { StatisticsScope } from "./exports";
 import { startTransparencyWatch } from "./glass";
-import { pageExport } from "./pageExports";
-import { applyThemePreference, readCachedThemePreference } from "./theme";
+import { pageExport, type ExportActionId } from "./pageExports";
+import { applyThemePreference, paintedTheme, readCachedThemePreference } from "./theme";
 import { useExportActions } from "./useExportActions";
+import { useMilestoneSoftware } from "./useMilestoneSoftware";
 import { answersDay, isDayInvalidDate, useLocalToday } from "./viewedDay";
 import { startVisiblePolling } from "./visiblePolling";
 
@@ -58,6 +60,10 @@ const warmStatisticsPage = () => { void loadStatisticsPage().catch(() => {}); };
 const loadAchievementsPage = () => import("./components/AchievementsPage");
 const AchievementsPage = lazy(() => loadAchievementsPage().then(({ AchievementsPage }) => ({ default: AchievementsPage })));
 const warmAchievementsPage = () => { void loadAchievementsPage().catch(() => {}); };
+// The 成就海报 dialog draws the posters: loaded when it first opens.
+const AchievementPosterDialog = lazy(() =>
+  import("./components/AchievementPosterDialog").then(({ AchievementPosterDialog }) => ({ default: AchievementPosterDialog })),
+);
 const pageWarmers: Partial<Record<PageId, () => void>> = {
   software: warmSoftwarePage,
   statistics: warmStatisticsPage,
@@ -125,6 +131,9 @@ export default function App() {
   const [dataStartDate, setDataStartDate] = useState<string | null>(null);
   // The 统计 page's range and 包含隐藏软件 switch, for its 导出报表 key.
   const [statisticsScope, setStatisticsScope] = useState<StatisticsScope | null>(null);
+  // The 成就 page's 包含隐藏软件 switch (null while the page is not shown), for its 导出成就 key.
+  const [achievementsIncludeHidden, setAchievementsIncludeHidden] = useState<boolean | null>(null);
+  const [posterDialogOpen, setPosterDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Today's live scan for the sidebar lamp; it stays live while 概览/后台 show a past day.
   const [liveScan, setLiveScan] = useState<LiveScan>({ succeeded: null, failed: false });
@@ -532,12 +541,50 @@ export default function App() {
   // The wording follows the summary on screen, so labels and figures always name the same day.
   const shownPastDay = shownSummary?.is_today === false;
   const exports = useExportActions({
-    csvContext: { viewedDate, today, statistics: statisticsScope },
+    context: { viewedDate, today, statistics: statisticsScope },
     beforeSettingsImport: settleSettingsWrites,
     onSettingsImported: reloadImportedSettings,
   });
-  // 导出报表 waits for the 统计 page to report its range.
-  const exportBusy = exports.busy || (activePage === "statistics" && statisticsScope === null);
+  const milestones = useMilestoneSoftware(activePage === "achievements" ? achievementsIncludeHidden : null);
+  const milestoneSoftware = milestones.software;
+  // 导出报表 waits for the 统计 page to report its range; 导出成就 for the milestone list.
+  const exportBusy =
+    exports.busy ||
+    (activePage === "statistics" && statisticsScope === null) ||
+    (activePage === "achievements" && milestoneSoftware === null && !milestones.failed);
+  const exportUnavailable = activePage === "achievements" && milestoneSoftware?.length === 0 ? "暂无里程碑" : undefined;
+  const showPosterDialog = posterDialogOpen && activePage === "achievements" && (milestoneSoftware?.length ?? 0) > 0;
+  const { handleExport, saveAchievementPoster, showToast } = exports;
+  const { reload: reloadMilestones } = milestones;
+
+  const handleHeaderExport = useCallback(
+    (action: ExportActionId) => {
+      if (action !== "achievements-poster") {
+        handleExport(action);
+        return;
+      }
+      if (milestoneSoftware !== null) {
+        if (milestoneSoftware.length > 0) setPosterDialogOpen(true);
+        return;
+      }
+      // The last read failed: try again before opening.
+      void reloadMilestones().then((software) => {
+        if (software === null) showToast("无法读取成就", { tone: "error" });
+        else if (software.length > 0) setPosterDialogOpen(true);
+      });
+    },
+    [handleExport, milestoneSoftware, reloadMilestones, showToast],
+  );
+
+  const handleSavePoster = useCallback(
+    (software: MilestoneSoftware) => {
+      void saveAchievementPoster(software).then((outcome) => {
+        // A cancelled save dialog or a failure (toast) leaves the poster dialog open.
+        if (outcome === "saved") setPosterDialogOpen(false);
+      });
+    },
+    [saveAchievementPoster],
+  );
 
   const recording = !liveScan.failed && liveScan.succeeded === true;
   const recordingLabel = liveScan.failed ? "记录状态未知"
@@ -623,7 +670,8 @@ export default function App() {
                   icon={headerExport.icon}
                   items={headerExport.items}
                   busy={exportBusy}
-                  onSelect={exports.handleExport}
+                  unavailable={exportUnavailable}
+                  onSelect={handleHeaderExport}
                 />
               ) : null}
             </div>
@@ -665,7 +713,7 @@ export default function App() {
             </Suspense>
           ) : activePage === "achievements" ? (
             <Suspense fallback={<main id="achievements-content"><p role="status">正在读取成就…</p></main>}>
-              <AchievementsPage durationFormat={durationFormat} />
+              <AchievementsPage durationFormat={durationFormat} onIncludeHiddenChange={setAchievementsIncludeHidden} />
             </Suspense>
           ) : (
             <main
@@ -696,6 +744,18 @@ export default function App() {
       </div>
 
       <Toast toast={exports.toast} onDismiss={exports.dismissToast} />
+
+      {showPosterDialog && milestoneSoftware ? (
+        <Suspense fallback={null}>
+          <AchievementPosterDialog
+            software={milestoneSoftware}
+            theme={paintedTheme()}
+            busy={exports.busy}
+            onSave={handleSavePoster}
+            onCancel={() => setPosterDialogOpen(false)}
+          />
+        </Suspense>
+      ) : null}
 
       {exports.importPreview ? (
         <SettingsImportDialog
