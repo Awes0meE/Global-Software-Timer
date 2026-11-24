@@ -455,14 +455,39 @@ pub fn sanitize_file_name(name: &str) -> String {
             ch => ch,
         })
         .collect();
-    let cleaned = cleaned
-        .trim_matches(|ch| ch == '.' || ch == ' ')
-        .to_string();
+    let cleaned = cap_file_name(cleaned.trim_matches(|ch| ch == '.' || ch == ' '));
     if cleaned.is_empty() {
         "GST-export".to_string()
     } else {
         cleaned
     }
+}
+
+/// Longest suggested file name in UTF-16 units, well below Windows' 255 per
+/// path component even after `png_file_name` appends `.png`.
+pub const MAX_FILE_NAME_UTF16: usize = 200;
+
+/// Cuts an over-long name on a character boundary to `MAX_FILE_NAME_UTF16`,
+/// keeping a short extension such as `.csv` or `.png`.
+fn cap_file_name(name: &str) -> String {
+    let units = |text: &str| text.encode_utf16().count();
+    if units(name) <= MAX_FILE_NAME_UTF16 {
+        return name.to_string();
+    }
+    let (stem, extension) = match name.rsplit_once('.') {
+        Some((stem, extension)) if valid_extension(extension) => (stem, &name[stem.len()..]),
+        _ => (name, ""),
+    };
+    let budget = MAX_FILE_NAME_UTF16 - extension.len();
+    let mut used = 0;
+    let cut: String = stem
+        .chars()
+        .take_while(|ch| {
+            used += ch.len_utf16();
+            used <= budget
+        })
+        .collect();
+    format!("{}{extension}", cut.trim_end_matches(['.', ' ']))
 }
 
 /// Extensions are short ASCII alphanumerics such as `csv`.
@@ -1376,6 +1401,32 @@ mod tests {
         );
         assert_eq!(png_file_name(r"..\a/b:c?.png"), "_a_b_c_.png");
         assert_eq!(png_file_name(""), "GST-export.png");
+    }
+
+    #[test]
+    fn over_long_file_names_are_cut_on_a_char_boundary_keeping_the_extension() {
+        let units = |text: &str| text.encode_utf16().count();
+        let short = format!("GST-成就-{}-2026-11-20.png", "名".repeat(10));
+        assert_eq!(png_file_name(&short), short);
+
+        let long = format!("GST-成就-{}-2026-11-20.png", "名".repeat(400));
+        let capped = png_file_name(&long);
+        assert_eq!(units(&capped), MAX_FILE_NAME_UTF16);
+        assert!(capped.starts_with("GST-成就-名名"));
+        assert!(capped.ends_with("名.png"));
+
+        // Without an extension, png_file_name appends one after the cap.
+        let bare = png_file_name(&"a".repeat(300));
+        assert_eq!(bare, format!("{}.png", "a".repeat(MAX_FILE_NAME_UTF16)));
+
+        // A surrogate pair is never split, and a CSV keeps its extension.
+        let emoji = sanitize_file_name(&format!("{}.csv", "😀".repeat(150)));
+        assert!(units(&emoji) <= MAX_FILE_NAME_UTF16);
+        assert_eq!(emoji, format!("{}.csv", "😀".repeat(98)));
+
+        // Trailing dots or spaces left by the cut are trimmed.
+        let dotted = sanitize_file_name(&format!("{}. .x{}", "a".repeat(197), "b".repeat(50)));
+        assert_eq!(dotted, "a".repeat(197));
     }
 
     #[test]
