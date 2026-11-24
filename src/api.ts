@@ -351,6 +351,8 @@ export async function setAutostartEnabled(enabled: boolean): Promise<void> {
 /** Error strings the export commands reject with. */
 export const EXPORT_ERRORS = {
   unknownPath: "export_unknown_path",
+  invalidRequest: "export_invalid_request",
+  targetIsDatabase: "export_target_is_database",
   importInvalid: "settings_import_invalid",
   importTooLarge: "settings_import_too_large",
   importExpired: "settings_import_expired",

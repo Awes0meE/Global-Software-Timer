@@ -18,7 +18,7 @@ describe("toCsv", () => {
   });
 
   it("does not add a BOM (Rust adds it when writing)", () => {
-    expect(toCsv(["日期"], []).startsWith("﻿")).toBe(false);
+    expect(toCsv(["日期"], []).startsWith("\uFEFF")).toBe(false);
     expect(toCsv(["日期"], [])).toBe("日期\r\n");
   });
 
