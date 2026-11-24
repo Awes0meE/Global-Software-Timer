@@ -345,6 +345,75 @@ export async function setAutostartEnabled(enabled: boolean): Promise<void> {
   }
 }
 
+// Exports. Save and open dialogs run in Rust; each call resolves to the saved
+// path, or null when the user cancels the dialog.
+
+/** Error strings the export commands reject with. */
+export const EXPORT_ERRORS = {
+  unknownPath: "export_unknown_path",
+  importInvalid: "settings_import_invalid",
+  importTooLarge: "settings_import_too_large",
+  importExpired: "settings_import_expired",
+} as const;
+
+export interface SaveTextExportArgs {
+  /** File name offered in the save dialog, e.g. "GST-日报-2026-11-24.csv". */
+  suggestedName: string;
+  /** Dialog filter label, e.g. "CSV". */
+  filterName: string;
+  /** Extension without the dot, e.g. "csv". */
+  extension: string;
+  /** Text without a BOM; Rust writes it as UTF-8 with a BOM. */
+  contents: string;
+}
+
+export async function saveTextExport(args: SaveTextExportArgs): Promise<string | null> {
+  return invoke<string | null>("save_text_export", { ...args });
+}
+
+/** Shows the file in Explorer; only paths saved in this app session are accepted. */
+export async function revealSavedFile(path: string): Promise<void> {
+  return invoke("reveal_saved_file", { path });
+}
+
+export async function exportSettingsFile(): Promise<string | null> {
+  return invoke<string | null>("export_settings_file");
+}
+
+export type SettingsImportKey = "theme" | "duration_format" | "close_behavior";
+
+/** `from` / `to` are stored values such as "dark" or "hours_minutes". */
+export interface SettingChange {
+  key: SettingsImportKey;
+  from: string;
+  to: string;
+}
+
+export interface SettingsImportResult {
+  focused_added: number;
+  hidden_added: number;
+  unmatched: number;
+  conflicts: number;
+}
+
+export interface SettingsImportPreview extends SettingsImportResult {
+  import_id: string;
+  changes: SettingChange[];
+}
+
+/** Opens the file picker and previews the import; null when cancelled. */
+export async function pickSettingsImport(): Promise<SettingsImportPreview | null> {
+  return invoke<SettingsImportPreview | null>("pick_settings_import");
+}
+
+export async function applySettingsImport(importId: string): Promise<SettingsImportResult> {
+  return invoke<SettingsImportResult>("apply_settings_import", { importId });
+}
+
+export async function backupAllData(): Promise<string | null> {
+  return invoke<string | null>("backup_all_data");
+}
+
 function normalizeCloseBehavior(value: unknown): CloseBehavior {
   return value === "exit" || value === "minimize_to_tray" ? value : "minimize_to_tray";
 }

@@ -13,12 +13,18 @@ vi.mock("@tauri-apps/plugin-autostart", () => ({
 }));
 
 import {
+  applySettingsImport,
+  backupAllData,
   DAY_INVALID_DATE,
+  exportSettingsFile,
   getAchievementsSummary,
   getAppSettings,
   getBackgroundPageSummary,
   getCalendarSummary,
   getDashboardSummary,
+  pickSettingsImport,
+  revealSavedFile,
+  saveTextExport,
   getStatisticsSummary,
   setDurationFormatPreference,
   setThemePreference,
@@ -160,5 +166,55 @@ describe("api settings", () => {
     await setThemePreference("light");
 
     expect(mockInvoke).toHaveBeenCalledWith("set_theme_preference", { theme: "light" });
+  });
+});
+
+describe("api exports", () => {
+  afterEach(() => {
+    mockInvoke.mockReset();
+  });
+
+  it("saves text exports with the camelCase argument names Tauri expects", async () => {
+    const saved = "C:\\Users\\demo\\Downloads\\GST-日报-2026-11-24.csv";
+    mockInvoke.mockResolvedValue(saved);
+
+    await expect(
+      saveTextExport({
+        suggestedName: "GST-日报-2026-11-24.csv",
+        filterName: "CSV",
+        extension: "csv",
+        contents: "日期\r\n",
+      }),
+    ).resolves.toBe(saved);
+
+    expect(mockInvoke).toHaveBeenCalledWith("save_text_export", {
+      suggestedName: "GST-日报-2026-11-24.csv",
+      filterName: "CSV",
+      extension: "csv",
+      contents: "日期\r\n",
+    });
+  });
+
+  it("passes cancelled dialogs through as null", async () => {
+    mockInvoke.mockResolvedValue(null);
+
+    await expect(exportSettingsFile()).resolves.toBeNull();
+    await expect(backupAllData()).resolves.toBeNull();
+    await expect(pickSettingsImport()).resolves.toBeNull();
+
+    expect(mockInvoke).toHaveBeenNthCalledWith(1, "export_settings_file");
+    expect(mockInvoke).toHaveBeenNthCalledWith(2, "backup_all_data");
+    expect(mockInvoke).toHaveBeenNthCalledWith(3, "pick_settings_import");
+  });
+
+  it("reveals a saved file and applies an import by id", async () => {
+    mockInvoke.mockResolvedValueOnce(undefined);
+    await revealSavedFile("C:\\x.csv");
+    expect(mockInvoke).toHaveBeenLastCalledWith("reveal_saved_file", { path: "C:\\x.csv" });
+
+    const result = { focused_added: 2, hidden_added: 1, unmatched: 0, conflicts: 0 };
+    mockInvoke.mockResolvedValueOnce(result);
+    await expect(applySettingsImport("import-1")).resolves.toBe(result);
+    expect(mockInvoke).toHaveBeenLastCalledWith("apply_settings_import", { importId: "import-1" });
   });
 });
