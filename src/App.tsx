@@ -112,6 +112,10 @@ const themeOptions: { value: ThemePreference; label: string }[] = [
   { value: "dark", label: "深色" },
 ];
 
+/** Pauses between retries of a failed calendar-bounds read: 5 s, doubling up to a minute. */
+const calendarRetryFirstMs = 5000;
+const calendarRetryMaxMs = 60000;
+
 export default function App() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [activePage, setActivePage] = useState<PageId>("overview");
@@ -495,17 +499,27 @@ export default function App() {
   const contentId = `${activePage}-content`;
 
   // Read again when the day changes: a fresh install gets its data start on the first recorded day.
+  // A failed read (the database busy at login, say) is retried with a growing pause, so the calendar
+  // does not offer today only for the rest of the day; a null start after a good read means no data yet.
   useEffect(() => {
     let current = true;
-    getCalendarSummary()
-      .then((calendar) => {
-        if (current) setDataStartDate(calendar?.data_start_date ?? null);
-      })
-      .catch(() => {
-        // Without it the calendar offers today only; the pages still load.
-      });
+    let retry: number | undefined;
+    let pauseMs = calendarRetryFirstMs;
+    const read = () => {
+      getCalendarSummary()
+        .then((calendar) => {
+          if (current) setDataStartDate(calendar?.data_start_date ?? null);
+        })
+        .catch(() => {
+          if (!current) return;
+          retry = window.setTimeout(read, pauseMs);
+          pauseMs = Math.min(pauseMs * 2, calendarRetryMaxMs);
+        });
+    };
+    read();
     return () => {
       current = false;
+      window.clearTimeout(retry);
     };
   }, [today]);
 

@@ -2283,6 +2283,28 @@ describe("App date browsing", () => {
     expect(screen.queryByRole("button", { name: "今天" })).not.toBeInTheDocument();
   });
 
+  it("reads the calendar bounds again after a failed read", async () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 24, 10, 0, 0) });
+    const answer = mockInvoke.getMockImplementation()!;
+    let calendarReads = 0;
+    mockInvoke.mockImplementation(async (command: string, args: DayArgs) => {
+      if (command === "get_calendar_summary" && ++calendarReads === 1) throw new Error("database is busy");
+      return answer(command, args);
+    });
+    render(<App />);
+    await flush();
+    expect(screen.getByRole("button", { name: "前一天" })).toBeDisabled();
+
+    await flush(30000);
+    expect(calendarReads).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole("button", { name: "前一天" })).toBeEnabled();
+
+    // A successful read is not repeated.
+    const reads = calendarReads;
+    await flush(120000);
+    expect(calendarReads).toBe(reads);
+  });
+
   it("stays on a picked past day across midnight", async () => {
     vi.useFakeTimers({ now: new Date(2026, 10, 24, 23, 59, 50) });
     render(<App />);
