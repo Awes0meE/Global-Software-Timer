@@ -36,8 +36,8 @@ async function fontDataUrl(url: string): Promise<string> {
   if (!response.ok) {
     throw new Error("poster_font_unavailable");
   }
-  const blob = await response.blob();
-  return blobToDataUrl(new Blob([blob], { type: "font/woff2" }));
+  // Rebuild the Blob from bytes: wrapping the fetched Blob ties it to fetch's own Blob class.
+  return blobToDataUrl(new Blob([await response.arrayBuffer()], { type: "font/woff2" }));
 }
 
 let embedCss: Promise<string> | null = null;

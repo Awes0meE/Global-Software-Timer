@@ -146,7 +146,7 @@ describe("withoutPhysChunk", () => {
 
 describe("renderPosterPng", () => {
   it("captures at an explicit scale of 2 with the theme's base colour and the embedded poster fonts", async () => {
-    stubFetch(async () => new Response(new Blob(["font"]), { status: 200 }));
+    stubFetch(async () => new Response("font", { status: 200 }));
     domToBlob.mockResolvedValue(fakePng(1080, 1440));
     const { container } = render(<AchievementPoster model={achievement} theme="dark" />);
     const poster = container.querySelector<HTMLElement>(".gst-poster") as HTMLElement;
@@ -168,7 +168,7 @@ describe("renderPosterPng", () => {
   });
 
   it("uses the light base colour for a light poster", async () => {
-    stubFetch(async () => new Response(new Blob(["font"]), { status: 200 }));
+    stubFetch(async () => new Response("font", { status: 200 }));
     domToBlob.mockResolvedValue(fakePng(1080, 1440));
     const { container } = render(<DailyPoster model={daily} theme="light" />);
     await renderPosterPng(container.querySelector<HTMLElement>(".gst-poster") as HTMLElement);
@@ -176,7 +176,7 @@ describe("renderPosterPng", () => {
   });
 
   it("drops the capture's 192 DPI pHYs chunk, so documents place the poster at its pixel size", async () => {
-    stubFetch(async () => new Response(new Blob(["font"]), { status: 200 }));
+    stubFetch(async () => new Response("font", { status: 200 }));
     const head = new Uint8Array(await fakePng(1080, 1440).arrayBuffer());
     domToBlob.mockResolvedValue(new Blob([concat(head, chunk("pHYs", [0, 0, 29, 135, 0, 0, 29, 135, 1]), chunk("IEND", []))]));
     const { container } = render(<DailyPoster model={daily} theme="dark" />);
@@ -187,7 +187,7 @@ describe("renderPosterPng", () => {
   });
 
   it("rejects a capture that is not 1080x1440", async () => {
-    stubFetch(async () => new Response(new Blob(["font"]), { status: 200 }));
+    stubFetch(async () => new Response("font", { status: 200 }));
     domToBlob.mockResolvedValue(fakePng(540, 720));
     const { container } = render(<DailyPoster model={daily} theme="dark" />);
     await expect(renderPosterPng(container.querySelector<HTMLElement>(".gst-poster") as HTMLElement)).rejects.toThrow(
@@ -236,7 +236,7 @@ describe("renderPosterPng", () => {
   });
 
   it("captures a poster mounted off screen and removes it afterwards", async () => {
-    stubFetch(async () => new Response(new Blob(["font"]), { status: 200 }));
+    stubFetch(async () => new Response("font", { status: 200 }));
     let host: HTMLElement | null = null;
     domToBlob.mockImplementation(async (node: HTMLElement) => {
       host = node.parentElement;
@@ -318,7 +318,7 @@ describe("poster fonts", () => {
     const fetchMock = stubFetch(async () => new Response("missing", { status: 404 }));
     await expect(posterFontEmbedCss()).rejects.toThrow("poster_font_unavailable");
 
-    fetchMock.mockImplementation(async () => new Response(new Blob(["font"]), { status: 200 }));
+    fetchMock.mockImplementation(async () => new Response("font", { status: 200 }));
     await expect(posterFontEmbedCss()).resolves.toContain("data:font/woff2;base64,");
   });
 

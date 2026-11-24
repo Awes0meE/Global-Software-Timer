@@ -7,10 +7,9 @@ export const ICON_FETCH_TIMEOUT_MS = 3000;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 /** True when the body is non-empty and starts with the PNG signature (an empty or corrupt body is not an icon). */
-async function looksLikePng(blob: Blob): Promise<boolean> {
-  if (blob.size <= PNG_SIGNATURE.length) return false;
-  const head = new Uint8Array(await blob.slice(0, PNG_SIGNATURE.length).arrayBuffer());
-  return PNG_SIGNATURE.every((byte, index) => head[index] === byte);
+function looksLikePng(bytes: Uint8Array): boolean {
+  if (bytes.length <= PNG_SIGNATURE.length) return false;
+  return PNG_SIGNATURE.every((byte, index) => bytes[index] === byte);
 }
 
 function readAsDataUrl(blob: Blob): Promise<string> {
@@ -32,11 +31,12 @@ export async function iconToDataUrl(url: string, timeoutMs = ICON_FETCH_TIMEOUT_
     if (!response.ok || type.split(";")[0].trim().toLowerCase() !== "image/png") {
       return null;
     }
-    const blob = await response.blob();
-    if (!(await looksLikePng(blob))) {
+    // Read bytes rather than a Blob, so the data: URL comes from a Blob built here (see fonts.ts).
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (!looksLikePng(bytes)) {
       return null;
     }
-    const dataUrl = await readAsDataUrl(blob.type === "image/png" ? blob : new Blob([blob], { type: "image/png" }));
+    const dataUrl = await readAsDataUrl(new Blob([bytes], { type: "image/png" }));
     return dataUrl.startsWith("data:image/png") ? dataUrl : null;
   } catch {
     return null;
