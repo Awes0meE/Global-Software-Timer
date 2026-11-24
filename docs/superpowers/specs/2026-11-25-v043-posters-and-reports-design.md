@@ -212,6 +212,7 @@ MilestoneSoftware {
   - The `成就海报` dialog: default selection, keyboard, typeahead, Enter / Esc, double-click, focus return, the disabled key and its tooltip, the hidden switch.
   - The `概览` and `统计` export menus list exactly their items.
 - **Manual / preview**: the poster route and the probe screenshots of section "Acceptance criteria" 10, compared side by side with the approved mock PNGs; one real save through the dialog in the built app is left to the user's acceptance pass.
+- **User acceptance pass (criterion 8)**: no automated test runs a real webview, so the allowed origins (`http://tauri.localhost` in the installed build, `http://localhost:1420` in `tauri dev`) are checked by hand: export a `成就海报` and a `日报海报` in the installed build and in `tauri dev`, and confirm the real software icons are embedded, not letter tiles. In `tauri dev` the console also prints the first `gsticon` request's `Origin` once (debug builds only).
 
 ## Docs to update
 
