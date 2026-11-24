@@ -1,5 +1,6 @@
 // Preview-only poster route: ?poster=daily|achievement&theme=dark|light[&software=<identity key>][&name=<text>][&date=YYYY-MM-DD]
-// shows one poster alone at 540×720 (top left) for screenshots, from the preview's synthetic data only.
+// [&scale=<k>] shows one poster alone at 540×720 (top left) for screenshots, from the preview's synthetic data only;
+// &scale shows it under transform: scale(k), as the 成就海报 dialog does (0.5 -> 270×360).
 // window.__posterReady turns true once fonts, icons and layout are settled (the probe waits for it);
 // window.__renderPoster() renders the PNG exactly as an export does and resolves to its data: URL.
 import { useEffect, useRef, useState } from "react";
@@ -77,7 +78,10 @@ async function loadPoster(params: URLSearchParams): Promise<Poster> {
 
   const summary = await getDashboardSummary(params.get("date") ?? undefined);
   const model = dailyPosterModel(summary, summary.usage_date, summary.is_today);
-  return { kind: "daily", model: { ...model, columns: await withIcons(model.columns, iconToDataUrl) } };
+  const columns = await withIcons(model.columns, iconToDataUrl);
+  // &name=<text> renames the first tray column (shrink, ellipsis).
+  const name = params.get("name");
+  return { kind: "daily", model: { ...model, columns: columns.map((column, index) => (index === 0 && name ? { ...column, name } : column)) } };
 }
 
 function PosterRoute({ params }: { params: URLSearchParams }) {
@@ -107,11 +111,15 @@ function PosterRoute({ params }: { params: URLSearchParams }) {
   }, [poster]);
 
   if (!poster) return null;
-  return poster.kind === "daily" ? (
-    <DailyPoster ref={node} model={poster.model} theme={theme} />
-  ) : (
-    <AchievementPoster ref={node} model={poster.model} theme={theme} />
-  );
+  const element =
+    poster.kind === "daily" ? (
+      <DailyPoster ref={node} model={poster.model} theme={theme} />
+    ) : (
+      <AchievementPoster ref={node} model={poster.model} theme={theme} />
+    );
+  const scale = Number(params.get("scale"));
+  if (!(scale > 0) || scale === 1) return element;
+  return <div style={{ transform: `scale(${scale})`, transformOrigin: "0 0", width: 540, height: 720 }}>{element}</div>;
 }
 
 export function mountPosterRoute(params: URLSearchParams) {
