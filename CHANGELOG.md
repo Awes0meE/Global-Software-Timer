@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.2 - 2026-11-25
 
 - Look at a past day on `概览` and `后台`. The page header has a date key group (`‹ 前一天`, the date, `› 后一天`) whose date key opens a calendar; a `今天` key appears while a past day is shown. A past day is a read-only view of what was stored: the readout and table read `当日记录`, `当日活跃` and `当日`, the `正在运行` panel is hidden and `当日分布` fills the right rail, and `后台` shows that day's peak process count and memory instead of current CPU and status. The viewed day is not saved, so the app opens on today again after a restart; today's view stays live and follows midnight.
 - The calendar is a plain date picker printed on an e-ink screen: Monday first, a month view behind the `2026年11月` caption, and only today, the selected day, other-month days and days outside the recorded range (after today or before the first record) marked. The `统计` custom range now opens the same calendar in range mode instead of two date boxes.

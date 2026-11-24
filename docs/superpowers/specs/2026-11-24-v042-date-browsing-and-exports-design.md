@@ -1,6 +1,6 @@
 # v0.4.2 Date Browsing and Exports Design
 
-Status: binding. All product decisions below (A–J) were approved by the user on 2026-11-24, for version v0.4.2. The previous release spec is `2026-11-22-glass-eink-redesign-design.md` (v0.4.0, shipped; v0.4.1 was a polish release on the same design). The version number stays `0.4.1` on `feat/v0.4.2` until the user approves the release bump.
+Status: binding. All product decisions below (A–J) were approved by the user on 2026-11-24, for version v0.4.2. The previous release spec is `2026-11-22-glass-eink-redesign-design.md` (v0.4.0, shipped; v0.4.1 was a polish release on the same design). Shipped in v0.4.2 (2026-11-25).
 
 This spec is written in English; every UI string is given in Chinese exactly as it must appear.
 
@@ -157,7 +157,7 @@ Today uses approved variant B, `加高屏幕`: a taller screen (about 104–112p
 
 ## J. Not in v0.4.2
 
-Posters (`日报海报`, `成就海报`), `统计` `每日明细` CSV and `区间报告` PNG, `成就` export, `从备份恢复`, new Settings customisation options (主题色, 透明度, ...). The version number stays `0.4.1` in this branch; the release bump happens later with the user's OK.
+Posters (`日报海报`, `成就海报`), `统计` `每日明细` CSV and `区间报告` PNG, `成就` export, `从备份恢复`, new Settings customisation options (主题色, 透明度, ...).
 
 ## API contract
 
