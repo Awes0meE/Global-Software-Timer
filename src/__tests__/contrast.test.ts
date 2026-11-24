@@ -264,36 +264,48 @@ describe.each(THEMES)("contrast in the %s theme", (theme) => {
     });
   });
 
-  // v0.4.2 calendar: each heat level's digits on its cell, over every stop of the e-ink paper.
+  // v0.4.2 calendar (a plain date picker on the e-ink paper): the picked day's digits on solid ink, and the
+  // range band's digits over every stop of the paper. Plain and today digits are --eink-ink on the paper,
+  // and pickable outside-month digits --eink-mid, both covered above.
   it.each([
-    ["level 0", "--eink-dim", "color-mix(in srgb, var(--eink-ink) 9%, transparent)"],
-    ["level 1", "--eink-ink", "var(--eink-heat-1)"],
-    ["level 2", "--eink-paper-solid", "color-mix(in srgb, var(--eink-ink) 70%, transparent)"],
-    ["level 3 and the shown day", "--eink-paper-solid", "var(--eink-ink)"],
-    // Range mode: every middle day on --chip; outside-month middle days in dim digits.
-    ["range middle", "--eink-ink", "var(--chip)"],
-    ["outside-month range middle", "--eink-dim", "var(--chip)"],
-  ])("prints the calendar's %s digits legibly", (_level, digits, cell) => {
+    ["picked day and range ends", "--eink-paper-solid", "var(--eink-ink)", TEXT],
+    ["range middle", "--eink-ink", "color-mix(in srgb, var(--eink-ink) 12%, transparent)", TEXT],
+    ["range middle under the pointer", "--eink-ink", "color-mix(in srgb, var(--eink-ink) 24%, transparent)", TEXT],
+    // --eink-mid on the band drops to about 2.6:1 on the dark paper, so outside-month middles take --eink-dim.
+    ["outside-month range middle", "--eink-dim", "color-mix(in srgb, var(--eink-ink) 12%, transparent)", TEXT],
+  ] as const)("prints the calendar's %s digits legibly", (_state, digits, cell, threshold) => {
     const tokens = themeTokens(theme);
     const text = parseColor(token(theme, digits));
     const fill = parseColor(resolve(cell, tokens));
     paperStops(theme).forEach((stop, index) => {
       const ratio = contrast(text, over(fill, stop));
-      expect(ratio, `${theme}: ${digits} on ${cell} over paper stop ${index} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(TEXT);
+      expect(ratio, `${theme}: ${digits} on ${cell} over paper stop ${index} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(threshold);
     });
   });
 
-  // react-day-picker marks a range's middle days selected too, so the middles must not take the shown
-  // day's solid ink, and their own rule must print the digits measured above.
-  it("keeps range middles off the shown day's solid ink", () => {
+  // react-day-picker marks a range's middle days selected too, so the middles must not take the picked
+  // day's solid ink, and the band tints are the ones measured above.
+  it("keeps range middles off the picked day's solid ink", () => {
     const rules = allRules().filter((rule) => rule.file === "HeaderControls.css" && rule.atRules.length === 0);
     const selected = rules.filter((rule) => /\.rdp-selected/.test(rule.selector) && rule.declarations.background === "var(--eink-ink)");
     expect(selected.length).toBeGreaterThan(0);
     selected.forEach((rule) => rule.selectors.forEach((selector) => expect(selector).toContain(":not(.rdp-range_middle)")));
 
+    const grid = rules.find((rule) => rule.selector === ".lcd-cal");
+    expect(grid?.declarations["--cal-band"]).toBe("color-mix(in srgb, var(--eink-ink) 12%, transparent)");
+    expect(grid?.declarations["--cal-band-hover"]).toBe("color-mix(in srgb, var(--eink-ink) 24%, transparent)");
     const middle = rules.find((rule) => rule.selectors.includes(".lcd-cal .rdp-range_middle .rdp-day_button"));
-    expect(middle?.declarations.background).toBe("var(--chip)");
+    expect(middle?.declarations.background).toBe("var(--cal-band)");
     expect(middle?.declarations.color).toBe("var(--eink-ink)");
+    const outside = rules.find((rule) => rule.selectors.includes(".lcd-cal .rdp-range_middle.rdp-outside .rdp-day_button"));
+    expect(outside?.declarations.color).toBe("var(--eink-dim)");
+  });
+
+  // The calendar is a plain picker: no rule paints per-day data (heat levels, record dots, dashed days).
+  it("paints no per-day data in the calendar", () => {
+    const rules = allRules().filter((rule) => rule.file === "HeaderControls.css");
+    rules.forEach((rule) => expect(rule.selector).not.toMatch(/cal-lv|cal-future|cal-before-data/));
+    rules.forEach((rule) => Object.values(rule.declarations).forEach((value) => expect(value).not.toMatch(/dashed|eink-heat/)));
   });
 
   // Plan trade-off 3, P-b (user, 2026-11-23): passed ticks under the pointer are mixed half way to the

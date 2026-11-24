@@ -1,6 +1,6 @@
 import { CalendarDays, ChevronDown } from "lucide-react";
 import type { DateRange } from "../statisticsRange";
-import { RangeCalendar, type CalendarDayActivity } from "./DayCalendar";
+import { RangeCalendar } from "./DayCalendar";
 import { usePixelSnap, usePopover } from "./usePopover";
 import "./HeaderControls.css";
 
@@ -11,13 +11,11 @@ interface RangeControlProps {
   today: string;
   /** The first day with records, or `null` before the first record. */
   dataStartDate: string | null;
-  days: readonly CalendarDayActivity[];
-  thresholdSeconds?: number;
   onChange: (range: DateRange) => void;
 }
 
 /** 统计 自定义: one key showing the range; it opens the calendar in range mode (two clicks: start, end). */
-export function RangeControl({ value, today, dataStartDate, days, thresholdSeconds, onChange }: RangeControlProps) {
+export function RangeControl({ value, today, dataStartDate, onChange }: RangeControlProps) {
   const { open, toggle, closeToTrigger, rootRef, triggerRef } = usePopover();
   const snap = usePixelSnap(open, rootRef, "start");
 
@@ -41,13 +39,11 @@ export function RangeControl({ value, today, dataStartDate, days, thresholdSecon
         <ChevronDown size={14} className="hk-caret" aria-hidden="true" />
       </button>
       {open ? (
-        <div className="glass-pop hk-cal-pop" role="dialog" aria-label="选择统计区间" style={snap}>
+        <div className="glass-pop hk-cal-pop paper" role="dialog" aria-label="选择统计区间" style={snap}>
           <RangeCalendar
             range={value}
             today={today}
             dataStartDate={dataStartDate}
-            days={days}
-            thresholdSeconds={thresholdSeconds}
             onSelect={(range) => {
               closeToTrigger();
               onChange(range);

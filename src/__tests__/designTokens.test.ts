@@ -223,10 +223,13 @@ describe("glass and e-ink limits", () => {
     }
   });
 
-  // Spec 墨水屏配方「文字」: --eink-mid only draws graphics.
+  // Spec 墨水屏配方「文字」: --eink-mid only draws graphics. One exception, decision A4 (user, 2026-11-24):
+  // the calendar prints the pickable days of the next or previous month in --eink-mid.
+  const EINK_MID_TEXT = [".lcd-cal .rdp-outside .rdp-day_button"];
   it("never sets text in --eink-mid", () => {
     const fills: string[] = [];
     for (const rule of allRules()) {
+      if (rule.atRules.length === 0 && rule.selectors.every((selector) => EINK_MID_TEXT.includes(selector))) continue;
       expect(rule.declarations.color ?? "", rule.selector).not.toContain(EINK_MID);
       if ((rule.declarations.fill ?? "").includes(EINK_MID)) fills.push(...rule.selectors);
     }
@@ -246,6 +249,8 @@ describe("glass and e-ink limits", () => {
       ".active-help-popover",
       ".trend-tip",
       ".glass-pop",
+      // The calendar popover restates the .glass-pop lift over .paper (its surface is the e-ink paper).
+      ".glass-pop.hk-cal-pop",
       ".toast",
     ];
     const users = selectorsUsing(SHADE);

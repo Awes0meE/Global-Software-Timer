@@ -1,23 +1,12 @@
 // The date-picking calendar of the header date key and the 统计 自定义 range, built on react-day-picker
-// (MIT, https://daypicker.dev; its stylesheet is not imported, HeaderControls.css styles it). The month is
-// printed on an e-ink screen, each day inked by that day's active time like the achievements heatmap.
+// (MIT, https://daypicker.dev; its stylesheet is not imported, HeaderControls.css styles it). A plain date
+// picker printed on the popover's e-ink screen: no per-day data (the heatmap lives on the 成就 page).
 import { createContext, useContext, useMemo, useRef, useState, type HTMLAttributes, type TableHTMLAttributes } from "react";
 import { DayPicker, useDayPicker, type CalendarMonth, type Matcher, type PropsBase } from "react-day-picker";
 import { zhCN } from "react-day-picker/locale";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { DateRange } from "../statisticsRange";
 import { formatLocalDate } from "../statisticsRange";
-import { heatLevel } from "./ActivityHeatmap";
-
-/** One recorded day; days without a record are left out. */
-export interface CalendarDayActivity {
-  /** Local date, `YYYY-MM-DD`. */
-  date: string;
-  active_seconds: number;
-}
-
-/** Same filter as `statistics::STREAK_MIN_ACTIVE_SECONDS`: under 5 active minutes is 没用. */
-export const DEFAULT_THRESHOLD_SECONDS = 300;
 
 const WEEKDAYS = "日一二三四五六";
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -133,10 +122,10 @@ function CaptionKeys({
   );
 }
 
-/** The day grid, printed on its e-ink screen. */
-function ScreenGrid(props: TableHTMLAttributes<HTMLTableElement>) {
+/** The day grid, printed in pixel type straight on the popover's e-ink surface. */
+function DayGrid(props: TableHTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="paper lcd-cal">
+    <div className="lcd-cal">
       <table {...props} />
     </div>
   );
@@ -216,23 +205,15 @@ interface FrameProps {
   initialMonth: Date;
   today: string;
   dataStartDate: string | null;
-  days: readonly CalendarDayActivity[];
-  thresholdSeconds: number;
   /** Renders the day view from the props both calendars share. */
   children: (shared: SharedProps) => JSX.Element;
 }
 
 /** Shown month, the month view and the DayPicker props both calendars share. */
-function CalendarFrame({ initialMonth, today, dataStartDate, days, thresholdSeconds, children }: FrameProps) {
+function CalendarFrame({ initialMonth, today, dataStartDate, children }: FrameProps) {
   const range = useMemo(() => bounds(today, dataStartDate), [today, dataStartDate]);
   const [month, setMonth] = useState(() => startOfMonth(initialMonth));
   const [view, setView] = useState<"days" | "months">("days");
-
-  const levels = useMemo(() => {
-    const byDate = new Map<string, number>();
-    for (const day of days) byDate.set(day.date, heatLevel(day.active_seconds, thresholdSeconds));
-    return byDate;
-  }, [days, thresholdSeconds]);
 
   const caption = useMemo<CaptionState>(
     () => ({ openMonths: () => setView("months"), firstMonth: startOfMonth(range.first), lastMonth: startOfMonth(range.today) }),
@@ -253,8 +234,6 @@ function CalendarFrame({ initialMonth, today, dataStartDate, days, thresholdSeco
     );
   }
 
-  const inRange = (date: Date) => date >= range.first && date <= range.today;
-  const level = (date: Date) => (inRange(date) ? levels.get(formatLocalDate(date)) : undefined);
   const disabled: Matcher[] = [{ after: range.today }, { before: range.first }];
 
   const shared: SharedProps = {
@@ -271,23 +250,7 @@ function CalendarFrame({ initialMonth, today, dataStartDate, days, thresholdSeco
     showOutsideDays: true,
     fixedWeeks: true,
     autoFocus: true,
-    components: { MonthCaption: CaptionKeys, MonthGrid: ScreenGrid },
-    modifiers: {
-      lv0: (date: Date) => level(date) === 0,
-      lv1: (date: Date) => level(date) === 1,
-      lv2: (date: Date) => level(date) === 2,
-      lv3: (date: Date) => level(date) === 3,
-      future: (date: Date) => date > range.today,
-      beforeData: (date: Date) => date < range.first,
-    },
-    modifiersClassNames: {
-      lv0: "cal-lv0",
-      lv1: "cal-lv1",
-      lv2: "cal-lv2",
-      lv3: "cal-lv3",
-      future: "cal-future",
-      beforeData: "cal-before-data",
-    },
+    components: { MonthCaption: CaptionKeys, MonthGrid: DayGrid },
     formatters: {
       formatCaption: monthCaption,
       formatWeekdayName: (date: Date) => WEEKDAYS[date.getDay()],
@@ -303,9 +266,6 @@ interface CalendarDataProps {
   today: string;
   /** The first day with records, or `null` before the first record. */
   dataStartDate: string | null;
-  days: readonly CalendarDayActivity[];
-  /** Active seconds below which a recorded day counts as 没用 (heat level 0). */
-  thresholdSeconds?: number;
 }
 
 interface DayCalendarProps extends CalendarDataProps {
@@ -314,10 +274,10 @@ interface DayCalendarProps extends CalendarDataProps {
   onSelect: (date: string) => void;
 }
 
-export function DayCalendar({ selected, onSelect, thresholdSeconds = DEFAULT_THRESHOLD_SECONDS, ...data }: DayCalendarProps) {
+export function DayCalendar({ selected, onSelect, ...data }: DayCalendarProps) {
   const selectedDate = parseLocalDate(selected) ?? parseLocalDate(data.today) ?? new Date();
   return (
-    <CalendarFrame initialMonth={selectedDate} thresholdSeconds={thresholdSeconds} {...data}>
+    <CalendarFrame initialMonth={selectedDate} {...data}>
       {(shared) => (
         <DayPicker {...shared} mode="single" required selected={selectedDate} onSelect={(date) => onSelect(formatLocalDate(date))} />
       )}
@@ -332,12 +292,12 @@ interface RangeCalendarProps extends CalendarDataProps {
 }
 
 /** Two clicks pick a range: the first sets one end (shown alone), the second the other. */
-export function RangeCalendar({ range, onSelect, thresholdSeconds = DEFAULT_THRESHOLD_SECONDS, ...data }: RangeCalendarProps) {
+export function RangeCalendar({ range, onSelect, ...data }: RangeCalendarProps) {
   const [anchor, setAnchor] = useState<Date | null>(null);
   const from = parseLocalDate(range.start) ?? undefined;
   const to = parseLocalDate(range.end) ?? undefined;
   return (
-    <CalendarFrame initialMonth={to ?? parseLocalDate(data.today) ?? new Date()} thresholdSeconds={thresholdSeconds} {...data}>
+    <CalendarFrame initialMonth={to ?? parseLocalDate(data.today) ?? new Date()} {...data}>
       {(shared) => (
         <DayPicker
           {...shared}

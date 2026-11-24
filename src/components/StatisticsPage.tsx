@@ -11,7 +11,6 @@ import {
   type RangePreset,
 } from "../statisticsRange";
 import { startVisiblePolling } from "../visiblePolling";
-import type { CalendarDayActivity } from "./DayCalendar";
 import { RangeControl } from "./RangeControl";
 import { StatisticsLedgers } from "./StatisticsLedgers";
 import { TrendRecorder } from "./TrendRecorder";
@@ -19,23 +18,13 @@ import "./StatisticsPage.css";
 
 interface StatisticsPageProps {
   durationFormat?: DurationFormat;
-  /** Each recorded day's active time, which shades the 自定义 calendar. */
-  calendarDays?: readonly CalendarDayActivity[];
-  /** Active seconds below which a recorded day counts as 没用 in that calendar (heat level 0). */
-  calendarThresholdSeconds?: number;
 }
-
-const NO_DAYS: readonly CalendarDayActivity[] = [];
 
 const PRESETS: RangePreset[] = ["last7", "thisWeek", "thisMonth", "last30", "thisYear", "custom"];
 // The range includes today, so its numbers keep growing while the page is open.
 const POLL_INTERVAL_MS = 60_000;
 
-export function StatisticsPage({
-  durationFormat = "decimal_hours",
-  calendarDays = NO_DAYS,
-  calendarThresholdSeconds,
-}: StatisticsPageProps) {
+export function StatisticsPage({ durationFormat = "decimal_hours" }: StatisticsPageProps) {
   const [preset, setPreset] = useState<RangePreset>(DEFAULT_RANGE_PRESET);
   const [draft, setDraft] = useState<DateRange>({ start: "", end: "" });
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
@@ -126,8 +115,6 @@ export function StatisticsPage({
               value={draft}
               today={today}
               dataStartDate={dataStartDate}
-              days={calendarDays}
-              thresholdSeconds={calendarThresholdSeconds}
               onChange={setDraft}
             />
             {draftError ? (

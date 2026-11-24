@@ -17,6 +17,7 @@ import {
   applyWindowCloseChoice,
   getAppSettings,
   getAutostartEnabled,
+  getCalendarSummary,
   getDashboardSummary,
   setAutostartPreference,
   setAutostartEnabled,
@@ -32,7 +33,6 @@ import clockMark from "./assets/gst-clock.svg";
 import { AppUsageTable } from "./components/AppUsageTable";
 import { BackgroundPage } from "./components/BackgroundPage";
 import { DateControl } from "./components/DateControl";
-import type { CalendarDayActivity } from "./components/DayCalendar";
 import { ExportKey } from "./components/ExportKey";
 import { RecentActivity } from "./components/RecentActivity";
 import { TodayMix } from "./components/TodayMix";
@@ -90,15 +90,6 @@ const pageTitles: Record<PageId, string> = {
 // 单日日期键只对按「某一天」看数据的页面有意义；软件、统计、成就有自己的时间范围，设置页不看数据。
 const pagesWithDateControl: ReadonlySet<PageId> = new Set<PageId>(["overview", "background"]);
 
-/** What the header calendar shades and where it starts; filled from get_calendar_summary. */
-interface CalendarData {
-  dataStartDate: string | null;
-  days: readonly CalendarDayActivity[];
-  thresholdSeconds?: number;
-}
-
-const emptyCalendar: CalendarData = { dataStartDate: null, days: [] };
-
 const themeOptions: { value: ThemePreference; label: string }[] = [
   { value: "system", label: "跟随系统" },
   { value: "light", label: "浅色" },
@@ -110,7 +101,8 @@ export default function App() {
   const [activePage, setActivePage] = useState<PageId>("overview");
   // The day 概览 and 后台 show; null is today, so it follows midnight. Never persisted.
   const [pickedDate, setPickedDate] = useState<string | null>(null);
-  const [calendar] = useState<CalendarData>(emptyCalendar);
+  // The first day the header calendar offers; null until get_calendar_summary finds a record.
+  const [dataStartDate, setDataStartDate] = useState<string | null>(null);
   // The save toast; its live regions stay mounted so a new message is announced.
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -409,6 +401,22 @@ export default function App() {
 
   const contentId = `${activePage}-content`;
   const today = formatLocalDate(new Date());
+
+  // Read again when the day changes: a fresh install gets its data start on the first recorded day.
+  useEffect(() => {
+    let current = true;
+    getCalendarSummary()
+      .then((calendar) => {
+        if (current) setDataStartDate(calendar?.data_start_date ?? null);
+      })
+      .catch(() => {
+        // Without it the calendar offers today only; the pages still load.
+      });
+    return () => {
+      current = false;
+    };
+  }, [today]);
+
   const viewedDate = pickedDate !== null && pickedDate < today ? pickedDate : today;
   const headerExport = pageExport(activePage);
 
@@ -484,9 +492,7 @@ export default function App() {
               <DateControl
                 value={viewedDate}
                 today={today}
-                dataStartDate={calendar.dataStartDate}
-                days={calendar.days}
-                thresholdSeconds={calendar.thresholdSeconds}
+                dataStartDate={dataStartDate}
                 onChange={(date) => setPickedDate(date < today ? date : null)}
               />
             ) : null}
@@ -531,11 +537,7 @@ export default function App() {
             <BackgroundPage durationFormat={durationFormat} />
           ) : activePage === "statistics" ? (
             <Suspense fallback={<main id="statistics-content"><p role="status">正在读取统计…</p></main>}>
-              <StatisticsPage
-                durationFormat={durationFormat}
-                calendarDays={calendar.days}
-                calendarThresholdSeconds={calendar.thresholdSeconds}
-              />
+              <StatisticsPage durationFormat={durationFormat} />
             </Suspense>
           ) : activePage === "achievements" ? (
             <Suspense fallback={<main id="achievements-content"><p role="status">正在读取成就…</p></main>}>

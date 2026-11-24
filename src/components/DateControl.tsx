@@ -1,5 +1,5 @@
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
-import { DayCalendar, addLocalDays, spokenDate, weekdayLabel, type CalendarDayActivity } from "./DayCalendar";
+import { DayCalendar, addLocalDays, spokenDate, weekdayLabel } from "./DayCalendar";
 import { usePixelSnap, usePopover } from "./usePopover";
 import "./HeaderControls.css";
 
@@ -10,13 +10,11 @@ interface DateControlProps {
   today: string;
   /** The first day with records, or `null` before the first record. */
   dataStartDate: string | null;
-  days: readonly CalendarDayActivity[];
-  thresholdSeconds?: number;
   onChange: (date: string) => void;
 }
 
 /** The 概览 / 后台 header date key: [‹][date ⌄][›], a 今天 key on a past day, and the calendar popover. */
-export function DateControl({ value, today, dataStartDate, days, thresholdSeconds, onChange }: DateControlProps) {
+export function DateControl({ value, today, dataStartDate, onChange }: DateControlProps) {
   const { open, toggle, closeToTrigger, rootRef, triggerRef } = usePopover();
   const snap = usePixelSnap(open, rootRef, "start");
   const isToday = value >= today;
@@ -73,13 +71,11 @@ export function DateControl({ value, today, dataStartDate, days, thresholdSecond
         </button>
       )}
       {open ? (
-        <div className="glass-pop hk-cal-pop" role="dialog" aria-label="选择日期" style={snap}>
+        <div className="glass-pop hk-cal-pop paper" role="dialog" aria-label="选择日期" style={snap}>
           <DayCalendar
             selected={value}
             today={today}
             dataStartDate={dataStartDate}
-            days={days}
-            thresholdSeconds={thresholdSeconds}
             onSelect={(date) => {
               closeToTrigger();
               onChange(date);

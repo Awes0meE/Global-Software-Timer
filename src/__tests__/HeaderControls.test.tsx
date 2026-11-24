@@ -13,22 +13,12 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const H = 3600;
-const DAYS = [
-  { date: "2026-11-02", active_seconds: 60 }, // under 5 minutes: level 0
-  { date: "2026-11-03", active_seconds: 20 * 60 }, // level 1
-  { date: "2026-11-04", active_seconds: 2 * H }, // level 2
-  { date: "2026-11-05", active_seconds: 5 * H }, // level 3
-  { date: "2026-10-30", active_seconds: 5 * H }, // October, shown as an outside day
-];
-
 function renderDateControl(overrides: Partial<Parameters<typeof DateControl>[0]> = {}) {
   const onChange = vi.fn();
   const props = {
     value: "2026-11-24",
     today: "2026-11-24",
     dataStartDate: "2026-10-28",
-    days: DAYS,
     onChange,
     ...overrides,
   };
@@ -129,25 +119,29 @@ describe("DateControl", () => {
     const calendar = openCalendar();
 
     expect(day(calendar, /^2026年11月25日/)).toBeDisabled();
-    expect(cellOf(day(calendar, /^2026年11月25日/))).toHaveClass("cal-future");
     // October days from the 26th lead the first week; the data starts on the 28th.
     expect(day(calendar, /^2026年10月27日/)).toBeDisabled();
-    expect(cellOf(day(calendar, /^2026年10月27日/))).toHaveClass("cal-before-data");
     const outside = day(calendar, /^2026年10月30日/);
     expect(outside).toBeEnabled();
     expect(cellOf(outside)).toHaveClass("rdp-outside");
   });
 
-  it("shades recorded days by the heatmap levels and leaves the others unshaded", () => {
+  it("is a plain date picker printed straight on the popover's e-ink surface", () => {
     renderDateControl({ value: "2026-11-17" });
     const calendar = openCalendar();
 
-    expect(cellOf(day(calendar, /^2026年11月2日/))).toHaveClass("cal-lv0");
-    expect(cellOf(day(calendar, /^2026年11月3日/))).toHaveClass("cal-lv1");
-    expect(cellOf(day(calendar, /^2026年11月4日/))).toHaveClass("cal-lv2");
-    expect(cellOf(day(calendar, /^2026年11月5日/))).toHaveClass("cal-lv3");
-    const plain = cellOf(day(calendar, /^2026年11月6日/));
-    expect(plain.className).not.toMatch(/cal-lv/);
+    // The popover itself is the e-ink paper; the grid has no framed screen of its own.
+    expect(calendar).toHaveClass("glass-pop", "hk-cal-pop", "paper");
+    expect(calendar.querySelectorAll(".paper")).toHaveLength(0);
+    expect(calendar.querySelector(".lcd-cal > table")).not.toBeNull();
+    // No per-day data: every cell carries only react-day-picker's own day states.
+    const cells = Array.from(calendar.querySelectorAll("td"));
+    expect(cells).toHaveLength(42);
+    cells.forEach((cell) =>
+      cell.classList.forEach((name) =>
+        expect(name).toMatch(/^rdp-(day|outside|today|selected|disabled|focused)$/),
+      ),
+    );
   });
 
   it("picks a day, closes and returns focus to the date key", () => {
@@ -215,7 +209,7 @@ describe("DateControl", () => {
     // October 2026 starts on a Thursday: Monday 28 September leads the first week.
     const leading = day(calendar, /^2026年9月28日/);
     expect(leading).toBeDisabled();
-    expect(cellOf(leading)).toHaveClass("rdp-outside", "cal-before-data");
+    expect(cellOf(leading)).toHaveClass("rdp-outside", "rdp-disabled");
     expect(cellOf(leading)).not.toHaveClass("rdp-hidden");
   });
 
@@ -258,7 +252,6 @@ describe("RangeControl", () => {
         value={{ start: "2026-11-15", end: "2026-11-21" }}
         today="2026-11-24"
         dataStartDate="2026-10-28"
-        days={DAYS}
         onChange={onChange}
       />,
     );
@@ -276,22 +269,23 @@ describe("RangeControl", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("shades the range's days with the given 没用 threshold", () => {
+  it("marks the range's ends and middle days for the band", () => {
     render(
       <RangeControl
         value={{ start: "2026-11-01", end: "2026-11-21" }}
         today="2026-11-24"
         dataStartDate="2026-10-28"
-        days={DAYS}
-        thresholdSeconds={30 * 60}
         onChange={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /^统计区间/ }));
     const calendar = screen.getByRole("dialog", { name: "选择统计区间" });
-    // 20 active minutes is level 1 at the default 5 minutes, level 0 under a 30-minute threshold.
-    const middle = cellOf(day(calendar, /^2026年11月3日/));
-    expect(middle).toHaveClass("rdp-range_middle", "cal-lv0");
+
+    expect(calendar).toHaveClass("paper");
+    expect(cellOf(day(calendar, /^2026年11月1日/))).toHaveClass("rdp-range_start", "rdp-selected");
+    expect(cellOf(day(calendar, /^2026年11月3日/))).toHaveClass("rdp-range_middle");
+    expect(cellOf(day(calendar, /^2026年11月21日/))).toHaveClass("rdp-range_end", "rdp-selected");
+    expect(cellOf(day(calendar, /^2026年11月22日/))).not.toHaveClass("rdp-selected");
   });
 });
 

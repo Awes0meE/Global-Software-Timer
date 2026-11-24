@@ -195,6 +195,28 @@
   transform-origin: top left;
 }
 
+/* The calendar popover is one e-ink screen edge to edge: the e-ink paper (the dark theme's gradient) in
+   place of the glass; .paper adds the grain and the matte finish. styles.css loads after this sheet, so
+   the popover's position, shape and lift are restated over .paper's. */
+.glass-pop.hk-cal-pop {
+  position: absolute;
+  border-radius: var(--radius-dialog);
+  background: var(--eink-paper);
+  /* Under the dark gradient, and all that is left of it in forced colours (which drop gradients). */
+  background-color: var(--eink-paper-solid);
+  color: var(--eink-ink);
+  box-shadow:
+    0 0 0 1px var(--edge-strong),
+    0 4px 10px -4px var(--shade),
+    0 22px 44px -14px var(--shade-deep);
+}
+
+/* Above the grain and the finish. */
+.hk-cal-pop > * {
+  position: relative;
+  z-index: 1;
+}
+
 .hk-menu {
   right: 0;
   transform-origin: top right;
@@ -346,8 +368,14 @@
   transform: rotate(180deg);
 }
 
-/* The day grid's e-ink screen (.paper paints the paper, its grain and its finish). */
+/* The day grid, in pixel type straight on the popover's e-ink surface. */
 .lcd-cal {
+  /* Hover and the range band: faint ink tints of the paper. */
+  --cal-hover: color-mix(in srgb, var(--eink-ink) 14%, transparent);
+  --cal-band: color-mix(in srgb, var(--eink-ink) 12%, transparent);
+  --cal-band-hover: color-mix(in srgb, var(--eink-ink) 24%, transparent);
+  /* A band cell reaches half the spacing to each side, so a range's cells meet across the gaps. */
+  --cal-reach: calc(var(--cal-spacing) / 2);
   padding: 4px 6px 6px;
   font-family: var(--font-pixel);
   font-size: 12px;
@@ -355,8 +383,6 @@
 }
 
 .lcd-cal > table {
-  position: relative;
-  z-index: 1;
   border-collapse: separate;
   border-spacing: var(--cal-spacing);
 }
@@ -388,100 +414,75 @@
   cursor: pointer;
 }
 
+/* Pickable days of the next or previous month. */
+.lcd-cal .rdp-outside .rdp-day_button {
+  color: var(--eink-mid);
+}
+
+/* Days after today or before the data start. */
 .lcd-cal .rdp-day_button:disabled {
+  color: color-mix(in srgb, var(--eink-ink) 28%, transparent);
   cursor: default;
 }
 
-/* The achievements heatmap's four ink levels; level 1 is a step lighter in the dark theme, under its
-   near-white digits. */
-.lcd-cal .cal-lv0 .rdp-day_button {
-  background: color-mix(in srgb, var(--eink-ink) 9%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--eink-ink) 20%, transparent);
-  color: var(--eink-dim);
-}
-
-.lcd-cal .cal-lv1 .rdp-day_button {
-  background: var(--eink-heat-1);
-}
-
-.lcd-cal .cal-lv2 .rdp-day_button {
-  background: color-mix(in srgb, var(--eink-ink) 70%, transparent);
-  color: var(--eink-paper-solid);
-}
-
-.lcd-cal .cal-lv3 .rdp-day_button {
-  background: var(--eink-ink);
-  color: var(--eink-paper-solid);
-}
-
-/* Days still to come: the heatmap's dashed empty box; days before the records: dim type, no box. */
-.lcd-cal .cal-future:not(.rdp-outside) .rdp-day_button {
-  outline: 1px dashed color-mix(in srgb, var(--eink-ink) 42%, transparent);
-  outline-offset: -1px;
-  color: color-mix(in srgb, var(--eink-ink) 45%, transparent);
-}
-
-.lcd-cal .cal-before-data .rdp-day_button {
-  color: color-mix(in srgb, var(--eink-ink) 38%, transparent);
-}
-
-/* Days of the next or previous month: never shaded; dim when they can be picked, fainter when not. */
-.lcd-cal .rdp-outside .rdp-day_button {
-  background: none;
-  box-shadow: none;
-  outline: none;
-  color: color-mix(in srgb, var(--eink-ink) 26%, transparent);
-}
-
-.lcd-cal .rdp-outside:not(.rdp-disabled) .rdp-day_button {
-  color: var(--eink-dim);
-}
-
 .lcd-cal .rdp-day_button:not(:disabled):hover {
-  outline: 1px dotted var(--eink-ink);
-  outline-offset: 1px;
+  background: var(--cal-hover);
 }
 
-/* Today: a 1px frame, kept under the pointer. */
-.lcd-cal .rdp-today .rdp-day_button,
-.lcd-cal .rdp-today .rdp-day_button:hover {
+/* Today: a 1px ink frame. */
+.lcd-cal .rdp-today .rdp-day_button {
   outline: 1px solid var(--eink-ink);
-  outline-offset: 1px;
+  outline-offset: -1px;
 }
 
-/* The shown day (and a range's ends): solid ink with a 2px ring 1px off it, inside the 6px gap.
-   react-day-picker also marks every day inside a range selected; those are the range middles below. */
-.lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button,
-.lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button:hover {
-  background: var(--eink-ink);
-  box-shadow: none;
-  color: var(--eink-paper-solid);
-  outline: 2px solid var(--eink-ink);
-  outline-offset: 1px;
-}
-
-/* Range mode: the days between the ends sit on --chip inside a 1px frame, so the range reads as one band
-   (their level shading gives way to it); the next or previous month's days keep dim digits. */
-.lcd-cal .rdp-range_middle .rdp-day_button,
-.lcd-cal .rdp-range_middle .rdp-day_button:hover {
-  --muted: var(--ink-2);
-  background: var(--chip);
-  box-shadow: none;
+/* Range mode: the days between the ends sit on a faint ink band that runs across the gaps within a week
+   (react-day-picker also marks them selected, so they stay off the solid ink below). */
+/* Square where band cells meet, so no rounded corner notches the band. */
+.lcd-cal .rdp-range_middle .rdp-day_button {
+  border-radius: 0;
+  background: var(--cal-band);
+  box-shadow: calc(-1 * var(--cal-reach)) 0 0 var(--cal-band), var(--cal-reach) 0 0 var(--cal-band);
   color: var(--eink-ink);
-  outline: 1px solid var(--eink-ink);
-  outline-offset: 1px;
 }
 
+.lcd-cal .rdp-range_middle .rdp-day_button:hover {
+  background: var(--cal-band-hover);
+}
+
+/* --eink-mid would drop under 3:1 on the band over the dark paper. */
 .lcd-cal .rdp-range_middle.rdp-outside .rdp-day_button {
   color: var(--eink-dim);
 }
 
-/* The focus ring outranks every rest and hover rule above. */
-.lcd-cal .rdp-day_button:focus-visible,
-.lcd-cal .rdp-day_button:focus-visible:hover,
-.lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button:focus-visible,
-.lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button:focus-visible:hover {
-  box-shadow: none;
+/* The band stops at the week's edges. */
+.lcd-cal .rdp-range_middle:first-child .rdp-day_button {
+  box-shadow: var(--cal-reach) 0 0 var(--cal-band);
+}
+
+.lcd-cal .rdp-range_middle:last-child .rdp-day_button {
+  box-shadow: calc(-1 * var(--cal-reach)) 0 0 var(--cal-band);
+}
+
+/* The picked day, and a range's ends: solid ink with paper-coloured digits. */
+.lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button,
+.lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button:hover {
+  background: var(--eink-ink);
+  color: var(--eink-paper-solid);
+}
+
+/* A range's ends reach into the band toward each other. */
+.lcd-cal .rdp-range_start:not(.rdp-range_end, :last-child) .rdp-day_button {
+  border-radius: 2px 0 0 2px;
+  box-shadow: var(--cal-reach) 0 0 var(--cal-band);
+}
+
+.lcd-cal .rdp-range_end:not(.rdp-range_start, :first-child) .rdp-day_button {
+  border-radius: 0 2px 2px 0;
+  box-shadow: calc(-1 * var(--cal-reach)) 0 0 var(--cal-band);
+}
+
+/* The focus ring outranks the today frame above. */
+.lcd-cal .rdp-day_button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
@@ -577,7 +578,7 @@
 }
 
 /* Contrast themes: keys and popovers lose their paint; they get system-colour outlines, and the calendar's
-   levels become CanvasText patterns. */
+   day states become system colours. */
 @media (forced-colors: active) {
   .hk-group,
   .hk-solo,
@@ -618,37 +619,26 @@
     outline-offset: -2px;
   }
 
-  /* The levels keep their own colours: dotted, dashed, then a solid CanvasText fill. */
-  .lcd-cal :is(.cal-lv1, .cal-lv2, .cal-lv3):not(.rdp-outside) .rdp-day_button {
-    forced-color-adjust: none;
-    background: Canvas;
-    color: CanvasText;
-  }
-
-  .lcd-cal .cal-lv1:not(.rdp-selected, .rdp-outside, .rdp-today) .rdp-day_button {
-    outline: 1px dotted CanvasText;
-    outline-offset: -1px;
-  }
-
-  .lcd-cal .cal-lv2:not(.rdp-selected, .rdp-outside, .rdp-today) .rdp-day_button {
-    outline: 2px dashed CanvasText;
-    outline-offset: -2px;
-  }
-
-  .lcd-cal .cal-lv3:not(.rdp-outside) .rdp-day_button {
-    background: CanvasText;
-    color: Canvas;
-  }
-
   /* Disabled days print in GrayText, so the pickable ones stand apart. */
   .lcd-cal .rdp-disabled .rdp-day_button {
     color: GrayText;
   }
 
-  .lcd-cal .rdp-today .rdp-day_button,
-  .lcd-cal .rdp-today .rdp-day_button:hover {
+  /* Forced colours drop the hover tint; a dotted frame takes its place. */
+  .lcd-cal .rdp-day_button:not(:disabled):hover {
+    outline: 1px dotted CanvasText;
+    outline-offset: -1px;
+  }
+
+  /* A range's middle days: a 1px Highlight frame between the solid Highlight ends. */
+  .lcd-cal .rdp-range_middle .rdp-day_button {
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
+
+  .lcd-cal .rdp-today .rdp-day_button {
     outline: 1px solid CanvasText;
-    outline-offset: 1px;
+    outline-offset: -1px;
   }
 
   .lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button,
@@ -656,23 +646,9 @@
     forced-color-adjust: none;
     background: Highlight;
     color: HighlightText;
-    outline: 2px solid Highlight;
-    outline-offset: 1px;
   }
 
-  /* A range's middle days: plain Canvas in a 1px Highlight frame, between the solid Highlight ends. */
-  .lcd-cal .rdp-selected.rdp-range_middle .rdp-day_button,
-  .lcd-cal .rdp-selected.rdp-range_middle .rdp-day_button:hover {
-    background: Canvas;
-    color: CanvasText;
-    outline: 1px solid Highlight;
-    outline-offset: 1px;
-  }
-
-  .lcd-cal .rdp-day_button:focus-visible,
-  .lcd-cal .rdp-day_button:focus-visible:hover,
-  .lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button:focus-visible,
-  .lcd-cal .rdp-selected:not(.rdp-range_middle) .rdp-day_button:focus-visible:hover {
+  .lcd-cal .rdp-day_button:focus-visible {
     outline: 2px solid CanvasText;
     outline-offset: 1px;
   }
