@@ -7,10 +7,13 @@ import {
   dashboardSummary,
   emptyAchievementsSummary,
   emptyCalendarSummary,
+  emptyStatisticsExport,
   emptyStatisticsSummary,
+  milestoneSoftware,
   pastBackgroundSummary,
   pastDashboardSummary,
   softwareSummary,
+  statisticsExport,
   statisticsSummary,
   viewedPastDay,
 } from "./mock-data";
@@ -74,6 +77,13 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
       const end = args.end as string;
       return (empty ? emptyStatisticsSummary(start, end) : statisticsSummary(start, end, args.includeHidden === true, hidden)) as T;
     }
+    case "get_statistics_export": {
+      const start = args.start as string;
+      const end = args.end as string;
+      return (empty ? emptyStatisticsExport(start, end) : statisticsExport(start, end, args.includeHidden === true, hidden)) as T;
+    }
+    case "get_milestone_software":
+      return (empty ? [] : milestoneSoftware(args.includeHidden === true, hidden)) as T;
     case "get_achievements_summary": {
       const heatmapDays = args.heatmapDays as HeatmapDays;
       return (empty ? emptyAchievementsSummary(heatmapDays) : achievementsSummary(heatmapDays, args.includeHidden === true, hidden)) as T;

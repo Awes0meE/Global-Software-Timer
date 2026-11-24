@@ -9,12 +9,16 @@ import type {
   HeatmapDays,
   IdleOpenRow,
   MilestoneRow,
+  MilestoneSoftware,
   RankingRow,
   SessionStatRow,
   SoftwarePageRow,
   SoftwarePageSummary,
   SoftwareRef,
   StatisticsDay,
+  StatisticsExport,
+  StatisticsExportDay,
+  StatisticsExportSoftware,
   StatisticsSummary,
 } from "../../src/api";
 
@@ -531,15 +535,16 @@ export function emptyStatisticsSummary(start: string, end: string): StatisticsSu
 
 // Focus totals are hand-picked so the shelf shows every state: a tier reached
 // today (100 hours), no tier yet, and the 6666-hour ultimate tier (demo only).
-const milestoneSeeds: { key: string; hours: number; reachedOffset: number | null }[] = [
-  { key: "code", hours: 6702.4, reachedOffset: 2 },
-  { key: "chrome", hours: 742.5, reachedOffset: 41 },
-  { key: "excel", hours: 100.3, reachedOffset: 0 },
-  { key: "typora", hours: 63.4, reachedOffset: 20 },
-  { key: "matlab", hours: 55.1, reachedOffset: 63 },
-  { key: "terminal", hours: 18.6, reachedOffset: 6 },
-  { key: "snipaste", hours: 12.1, reachedOffset: 90 },
-  { key: "notion", hours: 7.2, reachedOffset: null },
+// `usedDays` counts all-time days with at least 5 minutes of focus (成就海报).
+const milestoneSeeds: { key: string; hours: number; reachedOffset: number | null; usedDays: number }[] = [
+  { key: "code", hours: 6702.4, reachedOffset: 2, usedDays: 151 },
+  { key: "chrome", hours: 742.5, reachedOffset: 41, usedDays: 148 },
+  { key: "excel", hours: 100.3, reachedOffset: 0, usedDays: 97 },
+  { key: "typora", hours: 63.4, reachedOffset: 20, usedDays: 46 },
+  { key: "matlab", hours: 55.1, reachedOffset: 63, usedDays: 52 },
+  { key: "terminal", hours: 18.6, reachedOffset: 6, usedDays: 17 },
+  { key: "snipaste", hours: 12.1, reachedOffset: 90, usedDays: 35 },
+  { key: "notion", hours: 7.2, reachedOffset: null, usedDays: 9 },
 ];
 
 function checkHeatmapDays(heatmapDays: number) {
@@ -649,6 +654,92 @@ export function achievementsSummary(
     new_software: newSoftware.sort(byDateDescending),
     dormant_software: dormantSoftware.sort(byDateDescending),
   };
+}
+
+/** The 成就海报 list: software with a tier reached, by tier, then total focus. */
+export function milestoneSoftware(includeHidden: boolean, hidden: Set<string>): MilestoneSoftware[] {
+  const today = todayNumber();
+  return milestoneSeeds
+    .filter((seed) => includeHidden || !hidden.has(seed.key))
+    .flatMap((seed) => {
+      const tier = MILESTONE_HOURS.filter((hours) => hours <= seed.hours).pop();
+      if (tier === undefined || seed.reachedOffset === null) return [];
+      return [
+        {
+          ...identity(seed.key),
+          process_name: seedByKey.get(seed.key)?.process ?? "",
+          tier_hours: tier,
+          reached_on: dateOf(today - seed.reachedOffset),
+          total_focused_seconds: Math.round(seed.hours * hour),
+          used_days: seed.usedDays,
+        },
+      ];
+    })
+    .sort((left, right) => right.tier_hours - left.tier_hours || right.total_focused_seconds - left.total_focused_seconds);
+}
+
+// Typical background hours a day for software that keeps running without a window.
+const BACKGROUND_HOURS: Record<string, number> = { wechat: 3, cloudmusic: 2, snipaste: 8, steam: 4, chrome: 0.5 };
+
+function exportNames(key: string) {
+  return { identity_key: key, display_name: identity(key).display_name, process_name: seedByKey.get(key)?.process ?? "" };
+}
+
+/** The 统计 CSV data, from the same synthetic days as statisticsSummary. */
+export function statisticsExport(start: string, end: string, includeHidden: boolean, hidden: Set<string>): StatisticsExport {
+  const { first, last } = parseRange(start, end);
+  const today = todayNumber();
+  const models = visibleModels(includeHidden, hidden);
+  const days: StatisticsExportDay[] = [];
+  for (const day of dayNumbers(first, last)) {
+    const rows: StatisticsExportDay[] = [];
+    for (const model of models) {
+      const usage = softwareDay(model, today, day);
+      if (!usage) continue;
+      const share = machineDay(today, day)?.share ?? 1;
+      const background = Math.round(
+        (BACKGROUND_HOURS[model.key] ?? 0) * hour * (0.5 + noise(`background:${model.key}:${today - day}`)) * share,
+      );
+      if (usage.focus === 0 && usage.window === 0 && background === 0) continue;
+      rows.push({
+        date: dateOf(day),
+        ...exportNames(model.key),
+        focused_seconds: usage.focus,
+        window_seconds: usage.window,
+        background_seconds: background,
+      });
+    }
+    rows.sort((left, right) => right.focused_seconds - left.focused_seconds || compareNames(left.identity_key, right.identity_key));
+    days.push(...rows);
+  }
+
+  const totals = new Map<string, StatisticsExportSoftware>();
+  for (const row of days) {
+    const total = totals.get(row.identity_key) ?? {
+      ...exportNames(row.identity_key),
+      focused_seconds: 0,
+      window_seconds: 0,
+      background_seconds: 0,
+      used_days: 0,
+    };
+    total.focused_seconds += row.focused_seconds;
+    total.window_seconds += row.window_seconds;
+    total.background_seconds += row.background_seconds;
+    if (row.focused_seconds >= STREAK_MIN_ACTIVE_SECONDS) total.used_days += 1;
+    totals.set(row.identity_key, total);
+  }
+  const software = [...totals.values()].sort(
+    (left, right) =>
+      right.focused_seconds - left.focused_seconds ||
+      right.window_seconds - left.window_seconds ||
+      compareNames(left.identity_key, right.identity_key),
+  );
+  return { start, end, software, days };
+}
+
+export function emptyStatisticsExport(start: string, end: string): StatisticsExport {
+  parseRange(start, end);
+  return { start, end, software: [], days: [] };
 }
 
 export function emptyAchievementsSummary(heatmapDays: HeatmapDays): AchievementsSummary {
