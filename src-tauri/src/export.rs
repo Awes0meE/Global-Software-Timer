@@ -16,6 +16,8 @@ use std::fmt::Write as _;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use tauri::http::HeaderMap;
+use tauri::ipc::InvokeBody;
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_dialog::DialogExt;
 
@@ -29,6 +31,13 @@ const SETTINGS_IMPORT_EXPIRED: &str = "settings_import_expired";
 const EXPORT_UNKNOWN_PATH: &str = "export_unknown_path";
 const EXPORT_INVALID_REQUEST: &str = "export_invalid_request";
 const EXPORT_TARGET_IS_DATABASE: &str = "export_target_is_database";
+const EXPORT_TOO_LARGE: &str = "export_too_large";
+const EXPORT_NOT_PNG: &str = "export_not_png";
+
+/// Largest PNG `save_binary_export` accepts; a 1080×1440 poster is far smaller.
+pub const PNG_EXPORT_MAX_BYTES: usize = 32 * 1024 * 1024;
+/// Request header carrying the suggested file name, percent-encoded UTF-8.
+pub const FILE_NAME_HEADER: &str = "x-gst-file-name";
 
 const UTF8_BOM: &[u8] = b"\xEF\xBB\xBF";
 
@@ -461,6 +470,67 @@ pub fn valid_extension(extension: &str) -> bool {
     (1..=10).contains(&extension.len()) && extension.chars().all(|ch| ch.is_ascii_alphanumeric())
 }
 
+/// Strictly decodes `encodeURIComponent` output: every `%` starts a two-digit
+/// hex escape, and the bytes must be UTF-8.
+pub fn percent_decode_utf8(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let hex = |byte: u8| char::from(byte).to_digit(16);
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = hex(*bytes.get(index + 1)?)?;
+            let low = hex(*bytes.get(index + 2)?)?;
+            decoded.push(u8::try_from(high * 16 + low).ok()?);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+/// A sanitized file name ending in `.png` (any case), added when missing.
+pub fn png_file_name(name: &str) -> String {
+    let name = sanitize_file_name(name);
+    if name.to_lowercase().ends_with(".png") {
+        name
+    } else {
+        format!("{name}.png")
+    }
+}
+
+/// Size cap first, then the 8-byte PNG signature.
+pub fn check_png_bytes(bytes: &[u8]) -> Result<(), String> {
+    if bytes.len() > PNG_EXPORT_MAX_BYTES {
+        return Err(EXPORT_TOO_LARGE.to_string());
+    }
+    if !bytes.starts_with(crate::native_icon::PNG_SIGNATURE) {
+        return Err(EXPORT_NOT_PNG.to_string());
+    }
+    Ok(())
+}
+
+/// Validates a `save_binary_export` call before any dialog opens: a raw body,
+/// a decodable file-name header, at most `PNG_EXPORT_MAX_BYTES`, a PNG.
+/// Returns the suggested file name and the PNG bytes.
+pub fn png_export_request<'a>(
+    body: &'a InvokeBody,
+    headers: &HeaderMap,
+) -> Result<(String, &'a [u8]), String> {
+    let InvokeBody::Raw(bytes) = body else {
+        return Err(EXPORT_INVALID_REQUEST.to_string());
+    };
+    let name = headers
+        .get(FILE_NAME_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(percent_decode_utf8)
+        .ok_or_else(|| EXPORT_INVALID_REQUEST.to_string())?;
+    check_png_bytes(bytes)?;
+    Ok((png_file_name(&name), bytes))
+}
+
 pub fn with_utf8_bom(contents: &str) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(UTF8_BOM.len() + contents.len());
     bytes.extend_from_slice(UTF8_BOM);
@@ -602,6 +672,29 @@ pub async fn save_text_export(
         let state = app.state::<AppState>();
         ensure_not_database(&path, &state.db_path)?;
         write_file_replacing(&path, &with_utf8_bom(&contents))?;
+        let saved = path_string(&path);
+        state.export_session.remember_saved(&saved);
+        Ok(Some(saved))
+    })
+    .await
+}
+
+/// Saves a PNG sent as the raw IPC body, with the suggested file name in the
+/// `x-gst-file-name` header; returns the saved path, `None` when cancelled.
+#[tauri::command]
+pub async fn save_binary_export(
+    app: AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> Result<Option<String>, String> {
+    let (suggested_name, bytes) = png_export_request(request.body(), request.headers())?;
+    let bytes = bytes.to_vec();
+    blocking(move || {
+        let Some(path) = pick_save_path(&app, &suggested_name, "PNG 图片", "png") else {
+            return Ok(None);
+        };
+        let state = app.state::<AppState>();
+        ensure_not_database(&path, &state.db_path)?;
+        write_file_replacing(&path, &bytes)?;
         let saved = path_string(&path);
         state.export_session.remember_saved(&saved);
         Ok(Some(saved))
@@ -1237,6 +1330,114 @@ mod tests {
         assert!(!valid_extension(""));
         assert!(!valid_extension("c.sv"));
         assert!(!valid_extension("exe\\x"));
+    }
+
+    const PNG: &[u8] = b"\x89PNG\r\n\x1a\n";
+
+    fn name_header(value: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(FILE_NAME_HEADER, value.parse().unwrap());
+        headers
+    }
+
+    fn png_body(extra: usize) -> InvokeBody {
+        let mut bytes = PNG.to_vec();
+        bytes.resize(PNG.len() + extra, 0);
+        InvokeBody::Raw(bytes)
+    }
+
+    #[test]
+    fn file_name_headers_are_strictly_percent_decoded() {
+        // encodeURIComponent("GST-成就-VS Code-2026-11-20.png")
+        assert_eq!(
+            percent_decode_utf8("GST-%E6%88%90%E5%B0%B1-VS%20Code-2026-11-20.png").as_deref(),
+            Some("GST-成就-VS Code-2026-11-20.png")
+        );
+        assert_eq!(percent_decode_utf8("a%2Fb%3a%25").as_deref(), Some("a/b:%"));
+        assert_eq!(percent_decode_utf8("").as_deref(), Some(""));
+        for bad in ["%", "%4", "%zz", "%+1", "%E6%88", "%FF", "a%2"] {
+            assert_eq!(percent_decode_utf8(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn png_file_names_are_sanitized_and_end_in_png() {
+        assert_eq!(
+            png_file_name("GST-日报-2026-11-25.png"),
+            "GST-日报-2026-11-25.png"
+        );
+        assert_eq!(
+            png_file_name("GST-日报-2026-11-25.PNG"),
+            "GST-日报-2026-11-25.PNG"
+        );
+        assert_eq!(
+            png_file_name("GST-成就-Node.js-2026-11-20"),
+            "GST-成就-Node.js-2026-11-20.png"
+        );
+        assert_eq!(png_file_name(r"..\a/b:c?.png"), "_a_b_c_.png");
+        assert_eq!(png_file_name(""), "GST-export.png");
+    }
+
+    #[test]
+    fn png_bytes_are_capped_at_32_mib_and_need_the_signature() {
+        let mut at_cap = PNG.to_vec();
+        at_cap.resize(PNG_EXPORT_MAX_BYTES, 0);
+        assert_eq!(check_png_bytes(&at_cap), Ok(()));
+        at_cap.push(0);
+        assert_eq!(
+            check_png_bytes(&at_cap),
+            Err("export_too_large".to_string())
+        );
+        assert_eq!(check_png_bytes(PNG), Ok(()));
+        for bytes in [
+            &b""[..],
+            b"\x89PNG\r\n\x1a",
+            b"GIF89a....",
+            b"\x89PNG\r\n\x1a\x0b",
+        ] {
+            assert_eq!(check_png_bytes(bytes), Err("export_not_png".to_string()));
+        }
+    }
+
+    #[test]
+    fn png_export_requests_need_a_raw_body_and_a_valid_name_header() {
+        let headers = name_header("GST-%E6%97%A5%E6%8A%A5-2026-11-25");
+        let body = png_body(4);
+        let (name, bytes) = png_export_request(&body, &headers).unwrap();
+        assert_eq!(name, "GST-日报-2026-11-25.png");
+        assert_eq!(bytes.len(), PNG.len() + 4);
+
+        let json = InvokeBody::Json(serde_json::json!({ "bytes": [137, 80, 78, 71] }));
+        assert_eq!(
+            png_export_request(&json, &headers),
+            Err("export_invalid_request".to_string())
+        );
+        assert_eq!(
+            png_export_request(&body, &HeaderMap::new()),
+            Err("export_invalid_request".to_string())
+        );
+        assert_eq!(
+            png_export_request(&body, &name_header("%E6%88")),
+            Err("export_invalid_request".to_string())
+        );
+        // A raw non-ASCII header value is not what encodeURIComponent sends.
+        let mut raw_name = HeaderMap::new();
+        raw_name.insert(
+            FILE_NAME_HEADER,
+            tauri::http::HeaderValue::from_bytes("日报.png".as_bytes()).unwrap(),
+        );
+        assert_eq!(
+            png_export_request(&body, &raw_name),
+            Err("export_invalid_request".to_string())
+        );
+        assert_eq!(
+            png_export_request(&InvokeBody::Raw(b"not a png".to_vec()), &headers),
+            Err("export_not_png".to_string())
+        );
+        assert_eq!(
+            png_export_request(&png_body(PNG_EXPORT_MAX_BYTES), &headers),
+            Err("export_too_large".to_string())
+        );
     }
 
     #[test]

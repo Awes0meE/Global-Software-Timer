@@ -26,6 +26,7 @@ import {
   getStatisticsExport,
   pickSettingsImport,
   revealSavedFile,
+  saveBinaryExport,
   saveTextExport,
   getStatisticsSummary,
   setDurationFormatPreference,
@@ -218,6 +219,19 @@ describe("api exports", () => {
       extension: "csv",
       contents: "日期\r\n",
     });
+  });
+
+  it("saves PNG bytes as the raw body with the percent-encoded name header", async () => {
+    const saved = "C:\Users\demo\Downloads\GST-成就-VS Code-2026-11-20.png";
+    mockInvoke.mockResolvedValue(saved);
+    const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+    await expect(saveBinaryExport(bytes, "GST-成就-VS Code-2026-11-20.png")).resolves.toBe(saved);
+
+    expect(mockInvoke).toHaveBeenCalledWith("save_binary_export", bytes, {
+      headers: { "x-gst-file-name": "GST-%E6%88%90%E5%B0%B1-VS%20Code-2026-11-20.png" },
+    });
+    expect(mockInvoke.mock.calls[0][1]).toBe(bytes);
   });
 
   it("passes cancelled dialogs through as null", async () => {

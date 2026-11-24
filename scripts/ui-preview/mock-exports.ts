@@ -2,7 +2,8 @@
 // resolve to a fake Downloads path. ?export=cancel makes every dialog cancel,
 // ?export=fail makes every save fail (for the 保存失败 toast), ?export=invalid and
 // ?export=toolarge make the settings import pick reject with that error. The
-// import id is single use, like the app's.
+// import id is single use, like the app's. save_binary_export checks its raw body
+// and name header like the app before "saving".
 import type { SettingsImportPreview, SettingsImportResult } from "../../src/api";
 import { formatLocalDate } from "../../src/statisticsRange";
 
@@ -43,6 +44,24 @@ function plan(lists: MockLists): SettingsImportPreview {
     unmatched: IMPORT_UNMATCHED,
     conflicts,
   };
+}
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const PNG_EXPORT_MAX_BYTES = 32 * 1024 * 1024;
+
+/** save_binary_export: a raw PNG body and a percent-encoded x-gst-file-name header. */
+export function saveBinaryExport(body: unknown, options?: { headers?: HeadersInit }): string | null {
+  const header = new Headers(options?.headers).get("x-gst-file-name");
+  let name: string | null = null;
+  try {
+    name = header === null ? null : decodeURIComponent(header);
+  } catch {
+    // Malformed percent-encoding: rejected below like the app does.
+  }
+  if (!(body instanceof Uint8Array) || name === null) throw "export_invalid_request";
+  if (body.length > PNG_EXPORT_MAX_BYTES) throw "export_too_large";
+  if (!PNG_SIGNATURE.every((byte, index) => body[index] === byte)) throw "export_not_png";
+  return save(/\.png$/i.test(name) ? name : `${name || "GST-export"}.png`);
 }
 
 /** Answers an export command, or returns `undefined` for any other command. */

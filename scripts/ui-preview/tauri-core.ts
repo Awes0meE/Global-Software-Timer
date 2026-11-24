@@ -17,7 +17,7 @@ import {
   statisticsSummary,
   viewedPastDay,
 } from "./mock-data";
-import { exportCommand } from "./mock-exports";
+import { exportCommand, saveBinaryExport } from "./mock-exports";
 
 const params = new URLSearchParams(window.location.search);
 const empty = params.has("empty");
@@ -38,8 +38,14 @@ const settings: Record<string, unknown> = {
 const tick = params.has("tick") && !empty;
 let dashboardCalls = 0;
 
-export async function invoke<T>(command: string, args: Record<string, unknown> = {}): Promise<T> {
+export async function invoke<T>(
+  command: string,
+  body: Record<string, unknown> | Uint8Array = {},
+  options?: { headers?: HeadersInit },
+): Promise<T> {
   await new Promise((resolve) => window.setTimeout(resolve, 60));
+  if (command === "save_binary_export") return saveBinaryExport(body, options) as T;
+  const args = body as Record<string, unknown>;
   const keys = (args.identityKeys as string[] | undefined) ?? [];
   const key = args.identityKey as string | undefined;
 

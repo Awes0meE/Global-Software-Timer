@@ -411,6 +411,8 @@ export const EXPORT_ERRORS = {
   unknownPath: "export_unknown_path",
   invalidRequest: "export_invalid_request",
   targetIsDatabase: "export_target_is_database",
+  tooLarge: "export_too_large",
+  notPng: "export_not_png",
   importInvalid: "settings_import_invalid",
   importTooLarge: "settings_import_too_large",
   importExpired: "settings_import_expired",
@@ -429,6 +431,20 @@ export interface SaveTextExportArgs {
 
 export async function saveTextExport(args: SaveTextExportArgs): Promise<string | null> {
   return invoke<string | null>("save_text_export", { ...args });
+}
+
+/** Request header for the suggested file name of `saveBinaryExport`. */
+export const FILE_NAME_HEADER = "x-gst-file-name";
+
+/**
+ * Saves PNG bytes (at most 32 MiB) through the native dialog. The bytes go as
+ * the raw IPC body and the suggested name, e.g. "GST-日报-2026-11-25.png", as a
+ * percent-encoded header.
+ */
+export async function saveBinaryExport(bytes: Uint8Array, suggestedName: string): Promise<string | null> {
+  return invoke<string | null>("save_binary_export", bytes, {
+    headers: { [FILE_NAME_HEADER]: encodeURIComponent(suggestedName) },
+  });
 }
 
 /** Shows the file in Explorer; only paths saved in this app session are accepted. */

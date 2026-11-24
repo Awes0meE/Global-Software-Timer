@@ -126,6 +126,7 @@ pub fn run() {
             commands::set_theme_preference,
             commands::apply_window_close_choice,
             export::save_text_export,
+            export::save_binary_export,
             export::reveal_saved_file,
             export::export_settings_file,
             export::pick_settings_import,
