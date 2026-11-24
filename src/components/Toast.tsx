@@ -21,14 +21,26 @@ interface ToastProps {
   onDismiss: () => void;
 }
 
+/** `:hover` / `:focus-visible` when the engine knows them; false otherwise. */
+function matchesState(element: Element | null, selector: string): boolean {
+  try {
+    return element?.matches(selector) ?? false;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * A glass toast at the bottom of the window. It stays mounted, with empty status and alert regions, so a
  * screen reader hears a message put into them; the glass shows only while there is a message. It hides
- * itself after `durationMs`, but not while the pointer rests on it or focus is inside it, so its key
- * stays reachable.
+ * itself after `durationMs`, but not while the pointer rests on it or keyboard focus is inside it, so its
+ * key stays reachable. Focus left on the key by a click does not hold it.
  */
 export function Toast({ toast, durationMs = TOAST_DURATION_MS, onDismiss }: ToastProps) {
   const [held, setHeld] = useState({ hover: false, focus: false });
+  const boxRef = useRef<HTMLDivElement>(null);
+  // Focus that arrives while the pointer is pressed on the toast comes from a click, not the keyboard.
+  const pressedRef = useRef(false);
   const dismissRef = useRef(onDismiss);
   dismissRef.current = onDismiss;
   const paused = held.hover || held.focus;
@@ -41,9 +53,21 @@ export function Toast({ toast, durationMs = TOAST_DURATION_MS, onDismiss }: Toas
     return () => window.clearTimeout(timer);
   }, [id, paused, durationMs]);
 
-  // A toast that leaves under the pointer or with focus must not hold the next one.
+  // Each new toast starts from what holds it now: a key that held the last one may be gone without a
+  // focusout ever reaching React, and that must not hold this one.
   useEffect(() => {
-    if (id === undefined) setHeld({ hover: false, focus: false });
+    const box = boxRef.current;
+    const active = document.activeElement;
+    setHeld({
+      hover: id !== undefined && matchesState(box, ":hover"),
+      focus:
+        id !== undefined &&
+        !pressedRef.current &&
+        active !== null &&
+        active !== box &&
+        (box?.contains(active) ?? false) &&
+        matchesState(active, ":focus-visible"),
+    });
   }, [id]);
 
   const isError = toast?.tone === "error";
@@ -52,10 +76,26 @@ export function Toast({ toast, durationMs = TOAST_DURATION_MS, onDismiss }: Toas
 
   return (
     <div
+      ref={boxRef}
       className={`toast${toast ? "" : " is-idle"}${isError ? " is-error" : ""}`}
       onPointerEnter={() => setHeld((current) => ({ ...current, hover: true }))}
-      onPointerLeave={() => setHeld((current) => ({ ...current, hover: false }))}
-      onFocus={() => setHeld((current) => ({ ...current, focus: true }))}
+      onPointerLeave={() => {
+        pressedRef.current = false;
+        setHeld((current) => ({ ...current, hover: false }));
+      }}
+      onPointerDown={() => {
+        pressedRef.current = true;
+      }}
+      onPointerUp={() => {
+        pressedRef.current = false;
+      }}
+      onPointerCancel={() => {
+        pressedRef.current = false;
+      }}
+      onFocus={(event) => {
+        const keyboard = !pressedRef.current && matchesState(event.target, ":focus-visible");
+        setHeld((current) => ({ ...current, focus: keyboard }));
+      }}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           setHeld((current) => ({ ...current, focus: false }));

@@ -462,6 +462,47 @@ describe("Toast", () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
+  it("holds while keyboard focus is on its key, and lets the next toast go once that key is gone", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    const { rerender } = render(<Toast toast={saved(1)} onDismiss={onDismiss} />);
+    // Tab onto the key: keyboard focus, so :focus-visible.
+    fireEvent.keyDown(document.body, { key: "Tab" });
+    act(() => {
+      screen.getByRole("button", { name: "在文件夹中显示" }).focus();
+    });
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    // 无法打开文件夹 replaces it with no key: the focused key goes away without a focusout.
+    rerender(<Toast toast={{ id: 2, message: "无法打开文件夹", tone: "error" }} onDismiss={onDismiss} />);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not hold for focus a click leaves on its key", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    render(<Toast toast={saved(1)} onDismiss={onDismiss} />);
+    const key = screen.getByRole("button", { name: "在文件夹中显示" });
+    fireEvent.pointerDown(key);
+    act(() => {
+      key.focus();
+    });
+    fireEvent.pointerUp(key);
+    fireEvent.click(key);
+    expect(key).toHaveFocus();
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
   it("reads a failure as an alert", () => {
     render(<Toast toast={{ id: 1, message: "保存失败", tone: "error" }} onDismiss={() => {}} />);
     expect(screen.getByRole("alert")).toHaveTextContent("保存失败");
