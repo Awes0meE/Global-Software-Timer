@@ -504,7 +504,6 @@ p {
   margin-left: auto;
 }
 
-.header-button,
 .button,
 .panel-link,
 .text-action {
@@ -524,7 +523,6 @@ p {
   transition: box-shadow 120ms var(--ease), background-color 120ms var(--ease);
 }
 
-.header-button:hover,
 .button:hover:not(:disabled),
 .panel-link:not([aria-disabled="true"]):hover,
 .text-action:hover {
@@ -532,7 +530,6 @@ p {
   background: var(--on);
 }
 
-.header-button:active,
 .button:active:not(:disabled, .button-primary),
 .panel-link:not([aria-disabled="true"]):active,
 .text-action:active {
@@ -542,8 +539,6 @@ p {
 
 /* Unavailable buttons keep the resting key and label, and hovering or pressing changes nothing
    (decision 1B, 2026-11-23). */
-.header-button[aria-disabled="true"],
-.header-button[aria-disabled="true"]:is(:hover, :active),
 .panel-link[aria-disabled="true"] {
   --muted: inherit;
   background: var(--glass-2);
@@ -565,7 +560,7 @@ p {
 }
 
 /* The button rules above set their own box-shadow, which would hide the global focus ring. */
-:is(.header-button, .button, .panel-link, .text-action):focus-visible {
+:is(.button, .panel-link, .text-action):focus-visible {
   box-shadow: inset 0 0 0 1px var(--edge), var(--focus);
 }
 
@@ -675,13 +670,8 @@ p {
   letter-spacing: 0.06em;
 }
 
-.panel-head .panel-count:last-child,
-.panel-head .unavailable-tooltip {
+.panel-head .panel-count:last-child {
   margin-left: auto;
-}
-
-.panel-head .panel-count + .unavailable-tooltip {
-  margin-left: 0;
 }
 
 .recent-panel .panel-count {
@@ -1284,17 +1274,6 @@ main > p[role="status"] {
 .page-header {
   position: relative;
   z-index: 3;
-}
-
-.page-header .unavailable-tooltip-bubble {
-  top: calc(100% + 8px);
-  bottom: auto;
-}
-
-.window-actions .unavailable-tooltip:last-child .unavailable-tooltip-bubble {
-  right: 0;
-  left: auto;
-  transform: none;
 }
 
 .side-nav .unavailable-tooltip-bubble {
@@ -2332,7 +2311,7 @@ mark {
   /* Buttons and the round keys are drawn as a fill with an inset-shadow edge (or, for 添加, a solid fill),
      which forced colours remove; an inset outline (as on the toggle) keeps them visible without changing
      their box, and follows the round keys' curve. :focus-visible below wins. */
-  :is(.header-button, .button, .panel-link, .text-action, .panel-add-button, .active-help-button, .software-remove-button) {
+  :is(.button, .panel-link, .text-action, .panel-add-button, .active-help-button, .software-remove-button) {
     outline: 1px solid ButtonText;
     outline-offset: -1px;
   }
@@ -2347,7 +2326,7 @@ mark {
   }
 
   /* An unavailable button's edge matches its GrayText label; an aria-disabled one can still take focus. */
-  :is(.header-button, .button, .panel-link, .text-action, .panel-add-button):is(:disabled, [aria-disabled="true"]):not(:focus-visible) {
+  :is(.button, .panel-link, .text-action, .panel-add-button):is(:disabled, [aria-disabled="true"]):not(:focus-visible) {
     outline-color: GrayText;
   }
 

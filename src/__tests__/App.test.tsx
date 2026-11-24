@@ -331,7 +331,7 @@ describe("App", () => {
     expect(within(recentPanel).getByText("0.8小时")).toBeInTheDocument();
     expect(within(recentPanel).getByRole("img", { name: "前台运行" })).toHaveClass("running");
     expect(within(recentPanel).getByRole("img", { name: "托盘运行" })).toHaveClass("tray");
-    expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导出日报 CSV" })).toBeInTheDocument();
     const readout = screen.getByRole("region", { name: "今日总览" });
     expect(within(readout).getByText("今日记录")).toBeInTheDocument();
     expect(within(readout).getByText("今日活跃")).toBeInTheDocument();
@@ -408,7 +408,9 @@ describe("App", () => {
     expect(windowActions).toBeInTheDocument();
     expect(within(windowActions as HTMLElement).queryByRole("button", { name: "设置" })).not.toBeInTheDocument();
     expect(within(windowActions as HTMLElement).queryByRole("button", { name: "统计" })).not.toBeInTheDocument();
-    expect(within(windowActions as HTMLElement).getByRole("button", { name: "更多" })).toBeInTheDocument();
+    expect(within(windowActions as HTMLElement).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+      "导出日报 CSV",
+    ]);
   });
 
   it.each([
@@ -418,7 +420,7 @@ describe("App", () => {
     { label: "统计", shown: false },
     { label: "成就", shown: false },
     { label: "设置", shown: false },
-  ])("shows the header date button on $label: $shown", async ({ label, shown }) => {
+  ])("shows the header date key on $label: $shown", async ({ label, shown }) => {
     const invokeDefault = mockInvoke.getMockImplementation()!;
     mockInvoke.mockImplementation((name, invokeArgs) =>
       name === "get_statistics_summary" || name === "get_achievements_summary"
@@ -432,7 +434,49 @@ describe("App", () => {
     }
 
     expect(await screen.findByRole("heading", { level: 2, name: label })).toBeInTheDocument();
-    expect(container.querySelector(".page-header .date-control") !== null).toBe(shown);
+    const header = container.querySelector(".page-header") as HTMLElement;
+    expect(within(header).queryByRole("group", { name: "查看日期" }) !== null).toBe(shown);
+  });
+
+  it.each([
+    { label: "概览", keys: ["导出日报 CSV"] },
+    { label: "软件", keys: ["导出软件清单 CSV"] },
+    { label: "后台", keys: ["导出后台记录 CSV"] },
+    { label: "统计", keys: ["导出报表 CSV"] },
+    { label: "成就", keys: [] },
+    { label: "设置", keys: ["迁移与备份"] },
+  ])("gives $label its export key and no 更多 or placeholder buttons", async ({ label, keys }) => {
+    const invokeDefault = mockInvoke.getMockImplementation()!;
+    mockInvoke.mockImplementation((name, invokeArgs) =>
+      name === "get_statistics_summary" || name === "get_achievements_summary"
+        ? new Promise(() => {})
+        : name === "get_software_page_summary"
+          ? Promise.resolve({ focused: [], hidden: [], discovered: [] })
+          : invokeDefault(name, invokeArgs),
+    );
+    const { container } = render(<App />);
+
+    if (label !== "概览") {
+      await userEvent.click(await screen.findByRole("button", { name: label }));
+    }
+
+    expect(await screen.findByRole("heading", { level: 2, name: label })).toBeInTheDocument();
+    const actions = container.querySelector(".page-header .window-actions") as HTMLElement;
+    expect(within(actions).queryAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual(keys);
+    const header = container.querySelector(".page-header") as HTMLElement;
+    expect(header.querySelector('[aria-disabled="true"]')).toBeNull();
+    expect(screen.queryByRole("button", { name: /更多/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps the viewed date at today until another day is picked", async () => {
+    render(<App />);
+
+    const group = await screen.findByRole("group", { name: "查看日期" });
+    const today = new Date();
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    expect(within(group).getByRole("button", { name: /，打开日历$/ })).toHaveTextContent(iso);
+    expect(within(group).getByRole("button", { name: "后一天" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "今天" })).not.toBeInTheDocument();
   });
 
   it("shows and hides an unfinished-feature tooltip on unavailable controls", async () => {
@@ -441,11 +485,6 @@ describe("App", () => {
     expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
     const unavailableButtons = [
       screen.getByRole("button", { name: "时间轴" }),
-      screen.getByRole("button", { name: "更多" }),
-      screen.getByRole("button", { name: /查看更多今日分布/ }),
-      screen.getByRole("button", { name: /查看更多正在运行/ }),
-      screen.getByRole("button", { name: /\d{4}-\d{2}-\d{2}/ }),
-      screen.getByRole("button", { name: "导出" }),
     ];
 
     for (const button of unavailableButtons) {
@@ -1766,7 +1805,7 @@ describe("App", () => {
     render(<App />);
 
     expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "更多" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导出日报 CSV" })).toBeInTheDocument();
   });
 
   it("shows software-specific icons for known applications", async () => {

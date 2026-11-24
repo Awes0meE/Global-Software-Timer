@@ -78,7 +78,7 @@ const COMBOS: Combo[] = [
   // The statistics range bar's date fields (task 8).
   { name: "--ink on chip over B", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--chip"), s.B)] },
   { name: "--ink on glass-2 over B", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--glass-2"), s.B)] },
-  // Header button labels, including the unavailable ones (decision 1B, 2026-11-23).
+  // Keys on the glass-2 surface straight on the background (decision 1B, 2026-11-23).
   { name: "--ink-2 on glass-2 over B", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--glass-2"), s.B)] },
   { name: "--ink-2 on --on over B", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--on"), s.B)] },
   { name: "--ink on --on over B", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--on"), s.B)] },
@@ -93,7 +93,7 @@ const COMBOS: Combo[] = [
   { name: "--muted on G", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.G] },
   { name: "--muted on S", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.S] },
   { name: "--ink-2 on chip over G", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--chip"), s.G)] },
-  // Also the in-panel control labels (更多, 编辑) on their --glass-2 key (decision 3C, 2026-11-23).
+  // Also the in-panel control labels (编辑, 查看名单) on their --glass-2 key (decision 3C, 2026-11-23).
   { name: "--ink-2 on glass-2 over G", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--glass-2"), s.G)] },
   { name: "--ink-2 on --on over G", threshold: TEXT, pair: (s) => [s.colour("--ink-2"), over(s.colour("--on"), s.G)] },
   {

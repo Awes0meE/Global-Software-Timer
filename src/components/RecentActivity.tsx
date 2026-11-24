@@ -2,7 +2,6 @@ import type { AppUsageRow, DurationFormat } from "../api";
 import { formatDurationZh } from "../i18n";
 import { StatusBadge } from "./AppUsageTable";
 import { SoftwareIcon } from "./SoftwareIcon";
-import { UnavailableTooltip } from "./UnavailableTooltip";
 
 interface Props {
   apps: AppUsageRow[];
@@ -19,11 +18,6 @@ export function RecentActivity({ apps, durationFormat = "decimal_hours" }: Props
       <header className="panel-head">
         <h2>正在运行</h2>
         <span className="panel-count">{runningApps.length}</span>
-        <UnavailableTooltip>
-          <button className="panel-link" type="button" aria-label="查看更多正在运行">
-            更多
-          </button>
-        </UnavailableTooltip>
       </header>
 
       <div className="recent-scroll" role="region" aria-label="正在运行列表" tabIndex={0}>

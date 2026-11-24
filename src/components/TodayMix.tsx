@@ -1,6 +1,5 @@
 import type { AppUsageRow, DurationFormat } from "../api";
 import { formatDurationZh } from "../i18n";
-import { UnavailableTooltip } from "./UnavailableTooltip";
 
 interface Props {
   apps: AppUsageRow[];
@@ -24,11 +23,6 @@ export function TodayMix({ apps, durationFormat = "decimal_hours" }: Props) {
     <aside className="panel mix-panel" aria-label="今日分布">
       <header className="panel-head">
         <h2>今日分布</h2>
-        <UnavailableTooltip>
-          <button className="panel-link" type="button" aria-label="查看更多今日分布">
-            更多
-          </button>
-        </UnavailableTooltip>
       </header>
       <p className="mix-total num">{formatDurationZh(total, durationFormat)}</p>
       <div className="mix-plate">

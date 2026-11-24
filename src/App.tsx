@@ -3,14 +3,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import packageJson from "../package.json";
 import {
   BarChart3,
-  CalendarDays,
-  ChevronDown,
   Clock3,
   Cpu,
-  Download,
   History,
   LayoutDashboard,
-  Menu,
   MonitorCog,
   Power,
   Settings,
@@ -35,11 +31,16 @@ import {
 import clockMark from "./assets/gst-clock.svg";
 import { AppUsageTable } from "./components/AppUsageTable";
 import { BackgroundPage } from "./components/BackgroundPage";
+import { DateControl } from "./components/DateControl";
+import type { CalendarDayActivity } from "./components/DayCalendar";
+import { ExportKey } from "./components/ExportKey";
 import { RecentActivity } from "./components/RecentActivity";
 import { TodayMix } from "./components/TodayMix";
 import { TodayReadout } from "./components/TodayReadout";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
 import { startTransparencyWatch } from "./glass";
+import { pageExport, type ExportActionId } from "./pageExports";
+import { formatLocalDate } from "./statisticsRange";
 import { applyThemePreference, readCachedThemePreference } from "./theme";
 import { startVisiblePolling } from "./visiblePolling";
 
@@ -85,8 +86,17 @@ const pageTitles: Record<PageId, string> = {
   settings: "设置",
 };
 
-// 单日日期按钮只对按「某一天」看数据的页面有意义；软件、统计、成就有自己的时间范围，设置页不看数据。
+// 单日日期键只对按「某一天」看数据的页面有意义；软件、统计、成就有自己的时间范围，设置页不看数据。
 const pagesWithDateControl: ReadonlySet<PageId> = new Set<PageId>(["overview", "background"]);
+
+/** What the header calendar shades and where it starts; filled from get_calendar_summary. */
+interface CalendarData {
+  dataStartDate: string | null;
+  days: readonly CalendarDayActivity[];
+  thresholdSeconds?: number;
+}
+
+const emptyCalendar: CalendarData = { dataStartDate: null, days: [] };
 
 const themeOptions: { value: ThemePreference; label: string }[] = [
   { value: "system", label: "跟随系统" },
@@ -97,6 +107,9 @@ const themeOptions: { value: ThemePreference; label: string }[] = [
 export default function App() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [activePage, setActivePage] = useState<PageId>("overview");
+  // The day 概览 and 后台 show; null is today, so it follows midnight. Never persisted.
+  const [pickedDate, setPickedDate] = useState<string | null>(null);
+  const [calendar] = useState<CalendarData>(emptyCalendar);
   const [error, setError] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -387,7 +400,14 @@ export default function App() {
     }
   };
 
+  const handleExport = useCallback((_action: ExportActionId) => {
+    // The exports are wired to the backend in a later task.
+  }, []);
+
   const contentId = `${activePage}-content`;
+  const today = formatLocalDate(new Date());
+  const viewedDate = pickedDate !== null && pickedDate < today ? pickedDate : today;
+  const headerExport = pageExport(activePage);
 
   const recording = !error && summary?.last_scan_succeeded === true;
   const recordingLabel = error ? "记录状态未知"
@@ -458,27 +478,25 @@ export default function App() {
           <header className="page-header">
             <h2>{pageTitles[activePage]}</h2>
             {pagesWithDateControl.has(activePage) ? (
-              <UnavailableTooltip>
-                <button className="header-button date-control" type="button">
-                  <CalendarDays size={16} aria-hidden="true" />
-                  <span className="num">{formatTodayDate()}</span>
-                  <ChevronDown size={14} aria-hidden="true" />
-                </button>
-              </UnavailableTooltip>
+              <DateControl
+                value={viewedDate}
+                today={today}
+                dataStartDate={calendar.dataStartDate}
+                days={calendar.days}
+                thresholdSeconds={calendar.thresholdSeconds}
+                onChange={(date) => setPickedDate(date < today ? date : null)}
+              />
             ) : null}
             <div className="window-actions">
-              <UnavailableTooltip>
-                <button className="header-button" type="button">
-                  <Download size={16} aria-hidden="true" />
-                  导出
-                </button>
-              </UnavailableTooltip>
-              <UnavailableTooltip>
-                <button className="header-button" type="button">
-                  <Menu size={16} aria-hidden="true" />
-                  更多
-                </button>
-              </UnavailableTooltip>
+              {headerExport ? (
+                <ExportKey
+                  key={activePage}
+                  label={headerExport.label}
+                  icon={headerExport.icon}
+                  items={headerExport.items}
+                  onSelect={handleExport}
+                />
+              ) : null}
             </div>
           </header>
 
@@ -510,7 +528,7 @@ export default function App() {
             <BackgroundPage durationFormat={durationFormat} />
           ) : activePage === "statistics" ? (
             <Suspense fallback={<main id="statistics-content"><p role="status">正在读取统计…</p></main>}>
-              <StatisticsPage durationFormat={durationFormat} />
+              <StatisticsPage durationFormat={durationFormat} calendarDays={calendar.days} />
             </Suspense>
           ) : activePage === "achievements" ? (
             <Suspense fallback={<main id="achievements-content"><p role="status">正在读取成就…</p></main>}>
@@ -754,13 +772,4 @@ function SettingSwitchRow({
       </div>
     </div>
   );
-}
-
-function formatTodayDate(): string {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
 }

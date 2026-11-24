@@ -102,23 +102,14 @@ describe("glass panel edge (decision 2A)", () => {
   });
 });
 
+// v0.4.2 removed the header's placeholder buttons; an unavailable in-panel link keeps decision 1B.
 describe("unavailable buttons (decision 1B)", () => {
-  const DISABLED = [
-    '.header-button[aria-disabled="true"]',
-    '.header-button[aria-disabled="true"]:is(:hover, :active)',
-    '.panel-link[aria-disabled="true"]',
-  ];
-
-  it.each(DISABLED)("%s keeps the --glass-2 key with an --ink-2 label", (selector) => {
-    const declarations = topLevel(selector);
-    expect(declarations.background, selector).toBe("var(--glass-2)");
-    expect(declarations.color, selector).toBe("var(--ink-2)");
+  it('.panel-link[aria-disabled="true"] keeps the --glass-2 key with an --ink-2 label', () => {
+    const declarations = topLevel('.panel-link[aria-disabled="true"]');
+    expect(declarations.background).toBe("var(--glass-2)");
+    expect(declarations.color).toBe("var(--ink-2)");
     // The resting 1px --edge line comes from the shared button rule and is not taken away.
-    expect(declarations["box-shadow"], selector).toBeUndefined();
-  });
-
-  it("keeps the inset --edge line on header buttons", () => {
-    expect(normalize(topLevel(".header-button")["box-shadow"])).toBe("inset 0 0 0 1px var(--edge)");
+    expect(declarations["box-shadow"]).toBeUndefined();
   });
 });
 

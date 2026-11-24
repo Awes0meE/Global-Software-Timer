@@ -520,7 +520,7 @@ describe("forced colors: e-ink inks, keys, buttons and scrollers", () => {
   });
 
   const BUTTONS =
-    ":is(.header-button, .button, .panel-link, .text-action, .panel-add-button, .active-help-button, .software-remove-button)";
+    ":is(.button, .panel-link, .text-action, .panel-add-button, .active-help-button, .software-remove-button)";
 
   it("outlines the buttons and round keys, whose fill and edge forced colours remove", () => {
     const declarations = declarationsFor(BUTTONS, FORCED);
@@ -536,7 +536,7 @@ describe("forced colors: e-ink inks, keys, buttons and scrollers", () => {
   // An unavailable button's edge is GrayText, but never over the focus ring (aria-disabled keys take focus).
   it("draws an unavailable button's edge in GrayText unless it is focused", () => {
     const disabled =
-      ':is(.header-button, .button, .panel-link, .text-action, .panel-add-button):is(:disabled, [aria-disabled="true"]):not(:focus-visible)';
+      ':is(.button, .panel-link, .text-action, .panel-add-button):is(:disabled, [aria-disabled="true"]):not(:focus-visible)';
     const declarations = declarationsFor(disabled, FORCED);
     expect(declarations["outline-color"]).toBe("GrayText");
     expect(Object.keys(declarations)).toEqual(["outline-color"]);
