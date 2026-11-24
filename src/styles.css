@@ -83,6 +83,8 @@
   --eink-ink: #0b0b0a;
   --eink-dim: #45443f;
   --eink-mid: #7c7b76;
+  /* Calendar days and months that cannot be picked: about 28% ink. */
+  --eink-off: rgba(11, 11, 10, 0.28);
   --eink-track: rgba(11, 11, 10, 0.12);
   --eink-ghost: rgba(11, 11, 10, 0.04);
   --eink-grain: 0.06;
@@ -169,6 +171,8 @@
   --eink-ink: #f7f7f9;
   --eink-dim: #c4c1ca;
   --eink-mid: #85828b;
+  /* About 20% here, so the --eink-mid days of the next or previous month still read as pickable. */
+  --eink-off: rgba(247, 247, 249, 0.2);
   --eink-track: rgba(247, 247, 249, 0.14);
   --eink-ghost: rgba(247, 247, 249, 0.05);
   --eink-grain: 0.45;

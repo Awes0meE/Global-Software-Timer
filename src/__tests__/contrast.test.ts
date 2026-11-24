@@ -283,6 +283,21 @@ describe.each(THEMES)("contrast in the %s theme", (theme) => {
     });
   });
 
+  // Pickable outside-month days (--eink-mid) must read apart from disabled days (--eink-off) on the paper:
+  // in the dark theme 28% ink sat too close to --eink-mid, so --eink-off is lighter there.
+  it("keeps pickable outside-month days apart from disabled days", () => {
+    const mid = parseColor(token(theme, "--eink-mid"));
+    const off = parseColor(token(theme, "--eink-off"));
+    paperStops(theme).forEach((stop, index) => {
+      const ratio = contrast(mid, over(off, stop));
+      expect(ratio, `${theme}: --eink-mid against --eink-off over paper stop ${index} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(1.9);
+    });
+    const disabled = (selector: string) =>
+      allRules().find((rule) => rule.atRules.length === 0 && rule.selectors.includes(selector))?.declarations.color;
+    expect(disabled(".lcd-cal .rdp-day_button:disabled")).toBe("var(--eink-off)");
+    expect(disabled(".cal-month:disabled")).toBe("var(--eink-off)");
+  });
+
   // react-day-picker marks a range's middle days selected too, so the middles must not take the picked
   // day's solid ink, and the band tints are the ones measured above.
   it("keeps range middles off the picked day's solid ink", () => {

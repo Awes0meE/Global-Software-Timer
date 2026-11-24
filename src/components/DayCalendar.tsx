@@ -175,7 +175,7 @@ function MonthView({ shown, bounds: { first, today }, onPick, onClose }: MonthVi
           <ChevronRight size={16} aria-hidden="true" />
         </button>
       </div>
-      <div className="cal-month-grid" role="group" aria-label={`${year}年`}>
+      <div className="cal-month-grid lcd-months" role="group" aria-label={`${year}年`}>
         {Array.from({ length: 12 }, (_, month) => {
           const index = year * 12 + month;
           const current = index === monthIndex(shown);
@@ -183,7 +183,7 @@ function MonthView({ shown, bounds: { first, today }, onPick, onClose }: MonthVi
             <button
               key={month}
               type="button"
-              className={`cal-key cal-month${current ? " is-current" : ""}`}
+              className={`cal-month${current ? " is-current" : ""}`}
               disabled={index < lo || index > hi}
               aria-pressed={current}
               // The current month takes focus, so the keyboard lands where the day view was.

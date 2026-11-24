@@ -421,7 +421,7 @@
 
 /* Days after today or before the data start. */
 .lcd-cal .rdp-day_button:disabled {
-  color: color-mix(in srgb, var(--eink-ink) 28%, transparent);
+  color: var(--eink-off);
   cursor: default;
 }
 
@@ -504,29 +504,43 @@
   padding: 4px var(--cal-caption-inset);
 }
 
+/* Months print like days: pixel type on the paper, the shown month in solid ink with a paper-coloured
+   label. The caption and the ‹ › keys stay the only raised keys on the screen. */
+.lcd-months {
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  line-height: 12px;
+}
+
 .cal-month {
   height: 36px;
-  font-family: var(--font-ui);
-  font-weight: 400;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--eink-ink);
+  font: inherit;
+  cursor: pointer;
 }
 
-.cal-month:not(:disabled):not(.is-current) {
-  background: transparent;
-  box-shadow: none;
+.cal-month:not(:disabled):hover {
+  background: color-mix(in srgb, var(--eink-ink) 14%, transparent);
 }
 
-.cal-month:not(:disabled):not(.is-current):hover {
-  --muted: var(--ink-2);
-  background-color: var(--chip);
-  box-shadow: 0 0 0 1px var(--nk-hover-rim);
-}
-
-.cal-month.is-current {
-  font-weight: 650;
+.cal-month.is-current,
+.cal-month.is-current:hover {
+  background: var(--eink-ink);
+  color: var(--eink-paper-solid);
 }
 
 .cal-month:disabled {
-  box-shadow: none;
+  color: var(--eink-off);
+  cursor: default;
+}
+
+.cal-month:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /* ---------- Toast ---------- */
@@ -621,8 +635,32 @@
   }
 
   /* Disabled days print in GrayText, so the pickable ones stand apart. */
-  .lcd-cal .rdp-disabled .rdp-day_button {
+  .lcd-cal .rdp-disabled .rdp-day_button,
+  .cal-month:disabled {
     color: GrayText;
+  }
+
+  /* A disabled ‹ or › keeps its frame, in GrayText, so the pair stays symmetrical. */
+  .cal-key:disabled {
+    outline: 1px solid GrayText;
+    outline-offset: -1px;
+  }
+
+  .cal-month:not(:disabled):hover {
+    outline: 1px dotted CanvasText;
+    outline-offset: -1px;
+  }
+
+  .cal-month.is-current,
+  .cal-month.is-current:hover {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .cal-month:focus-visible {
+    outline: 2px solid CanvasText;
+    outline-offset: 1px;
   }
 
   /* Forced colours drop the hover tint; a dotted frame takes its place. */

@@ -203,6 +203,24 @@ describe("DateControl", () => {
     expect(within(calendar).getByRole("button", { name: "上个月" })).toBeDisabled();
   });
 
+  it("prints the month view like the day grid: pixel type on the paper, no raised keys", () => {
+    renderDateControl({ value: "2026-11-17" });
+    const calendar = openCalendar();
+    fireEvent.click(within(calendar).getByRole("button", { name: "2026年11月，选择年月" }));
+    const months = within(calendar).getByRole("group", { name: "2026年" });
+
+    expect(months).toHaveClass("lcd-months");
+    within(months)
+      .getAllByRole("button")
+      .forEach((month) => expect(month).not.toHaveClass("cal-key"));
+    expect(within(months).getByRole("button", { name: "11月" })).toHaveClass("cal-month", "is-current");
+    const rule = (selector: string) =>
+      parseRules(allCss()["HeaderControls.css"]).rules.find(
+        (candidate) => candidate.atRules.length === 0 && candidate.selectors.includes(selector),
+      )?.declarations;
+    expect(rule(".cal-month.is-current")).toMatchObject({ background: "var(--eink-ink)", color: "var(--eink-paper-solid)" });
+  });
+
   it("closes the whole popover on Escape in the month view and returns focus to the date key", () => {
     const { onChange } = renderDateControl({ value: "2026-11-17" });
     const calendar = openCalendar();
