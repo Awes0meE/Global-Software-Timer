@@ -531,11 +531,12 @@
 
 /* ---------- Toast ---------- */
 
+/* Under the modal scrim (40): while a dialog is open the toast and its key sit dimmed behind it. */
 .toast {
   position: fixed;
   right: 28px;
   bottom: 24px;
-  z-index: 60;
+  z-index: 35;
   display: flex;
   align-items: center;
   min-height: 48px;

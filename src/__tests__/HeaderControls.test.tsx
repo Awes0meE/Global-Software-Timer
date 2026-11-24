@@ -7,6 +7,7 @@ import { ExportKey, type ExportKeyItem } from "../components/ExportKey";
 import { RangeControl } from "../components/RangeControl";
 import { Toast } from "../components/Toast";
 import { PAGE_EXPORTS } from "../pageExports";
+import { allCss, parseRules } from "./support/css";
 
 afterEach(() => {
   cleanup();
@@ -501,6 +502,16 @@ describe("Toast", () => {
       vi.advanceTimersByTime(6000);
     });
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("sits under the modal scrim, so a dialog dims it like the rest of the app", () => {
+    const zIndex = (file: string, selector: string) =>
+      Number(
+        parseRules(allCss()[file]).rules.find(
+          (rule) => rule.atRules.length === 0 && rule.selectors.includes(selector) && rule.declarations["z-index"],
+        )?.declarations["z-index"],
+      );
+    expect(zIndex("HeaderControls.css", ".toast")).toBeLessThan(zIndex("styles.css", ".modal-backdrop"));
   });
 
   it("reads a failure as an alert", () => {

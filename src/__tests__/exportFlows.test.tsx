@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -338,6 +338,58 @@ describe("迁移与备份", () => {
     expect(within(dialog).getByRole("button", { name: "取消" })).toHaveFocus();
     await userEvent.tab({ shift: true });
     expect(within(dialog).getByRole("button", { name: "导入" })).toHaveFocus();
+  });
+
+  it("keeps focus in the import preview after a click on its text", async () => {
+    render(<App />);
+    await openPage("设置");
+    await pickFromMenu("导入设置");
+
+    const dialog = await screen.findByRole("dialog", { name: "导入设置" });
+    await userEvent.click(within(dialog).getByText("特别关注"));
+    expect(dialog).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    expect(within(dialog).getByRole("button", { name: "导入" })).toHaveFocus();
+
+    await userEvent.click(within(dialog).getByText("隐藏软件"));
+    await userEvent.tab();
+    expect(within(dialog).getByRole("button", { name: "取消" })).toHaveFocus();
+  });
+
+  it("keeps Tab and Esc working once focus has left the preview, and makes the app behind inert", async () => {
+    render(<App />);
+    await openPage("设置");
+    await pickFromMenu("导入设置");
+
+    const dialog = await screen.findByRole("dialog", { name: "导入设置" });
+    const shell = document.querySelector(".app-shell") as HTMLElement;
+    expect(shell).toHaveAttribute("inert");
+    expect(document.querySelector(".toast")).toHaveAttribute("inert");
+
+    // A press on the scrim keeps focus on the key it was on.
+    await userEvent.click(dialog.parentElement as HTMLElement);
+    expect(within(dialog).getByRole("button", { name: "取消" })).toHaveFocus();
+
+    // Focus that reaches the page behind anyway is pulled back in.
+    act(() => {
+      screen.getByRole("button", { name: "概览" }).focus();
+    });
+    expect(within(dialog).getByRole("button", { name: "取消" })).toHaveFocus();
+
+    // With focus on nothing, Tab steps into the dialog and Esc still closes it.
+    act(() => {
+      (document.activeElement as HTMLElement).blur();
+    });
+    expect(document.body).toHaveFocus();
+    await userEvent.tab();
+    expect(within(dialog).getByRole("button", { name: "取消" })).toHaveFocus();
+    act(() => {
+      (document.activeElement as HTMLElement).blur();
+    });
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "导入设置" })).not.toBeInTheDocument();
+    expect(shell).not.toHaveAttribute("inert");
+    expect(screen.getByRole("button", { name: "迁移与备份" })).toHaveFocus();
   });
 
   it("does nothing when the import file dialog is cancelled", async () => {
