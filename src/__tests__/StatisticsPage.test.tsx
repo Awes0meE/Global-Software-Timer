@@ -584,6 +584,19 @@ describe("StatisticsPage", () => {
     ]);
   });
 
+  it("does not repeat the custom range beside its key, only the comparison", async () => {
+    invoke.mockResolvedValue(summary());
+    await renderPage();
+    const caption = () => document.querySelector(".stats-range-caption") as HTMLElement;
+    expect(caption()).toHaveTextContent("2026-11-15 至 11-21");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("radio", { name: "自定义" }));
+    });
+    expect(screen.getByRole("button", { name: "统计区间 2026-11-15 至 2026-11-21，打开日历" })).toBeInTheDocument();
+    expect(caption()).toHaveTextContent(/^对比 11-08 至 11-14$/);
+  });
+
   it("picks a custom range in the calendar and requests it", async () => {
     invoke.mockResolvedValue(summary());
     await renderPage();

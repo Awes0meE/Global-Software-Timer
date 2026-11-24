@@ -138,7 +138,11 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
             正在读取 {start} 至 {shortEnd(start, end)}…
           </span>
         ) : shown ? (
-          <RangeCaption summary={shown} />
+          // In 自定义 the range key already shows the range it answers; the caption keeps the comparison.
+          <RangeCaption
+            summary={shown}
+            showRange={!(preset === "custom" && shown.start === draft.start && shown.end === draft.end)}
+          />
         ) : null}
         <span className="stats-hidden-toggle">
           <span aria-hidden="true">包含隐藏软件</span>
@@ -188,7 +192,7 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
   );
 }
 
-function RangeCaption({ summary }: { summary: StatisticsSummary }) {
+function RangeCaption({ summary, showRange }: { summary: StatisticsSummary; showRange: boolean }) {
   const comparison = summary.system_comparison_available
     ? `对比 ${shortRange(summary.start, summary.previous_start, summary.previous_end)}`
     : summary.data_start_date
@@ -197,8 +201,12 @@ function RangeCaption({ summary }: { summary: StatisticsSummary }) {
 
   return (
     <span className="stats-range-caption num">
-      {summary.start} 至 {shortEnd(summary.start, summary.end)}
-      <i aria-hidden="true" />
+      {showRange ? (
+        <>
+          {summary.start} 至 {shortEnd(summary.start, summary.end)}
+          <i aria-hidden="true" />
+        </>
+      ) : null}
       {comparison}
     </span>
   );
