@@ -270,7 +270,7 @@ describe.each(THEMES)("contrast in the %s theme", (theme) => {
     ["level 1", "--eink-ink", "var(--eink-heat-1)"],
     ["level 2", "--eink-paper-solid", "color-mix(in srgb, var(--eink-ink) 70%, transparent)"],
     ["level 3 and the shown day", "--eink-paper-solid", "var(--eink-ink)"],
-    // Range mode: middle days without a level, and outside-month middle days, on --chip.
+    // Range mode: every middle day on --chip; outside-month middle days in dim digits.
     ["range middle", "--eink-ink", "var(--chip)"],
     ["outside-month range middle", "--eink-dim", "var(--chip)"],
   ])("prints the calendar's %s digits legibly", (_level, digits, cell) => {
@@ -291,7 +291,7 @@ describe.each(THEMES)("contrast in the %s theme", (theme) => {
     expect(selected.length).toBeGreaterThan(0);
     selected.forEach((rule) => rule.selectors.forEach((selector) => expect(selector).toContain(":not(.rdp-range_middle)")));
 
-    const middle = rules.find((rule) => rule.selectors.some((selector) => selector.startsWith(".lcd-cal .rdp-range_middle:not(")));
+    const middle = rules.find((rule) => rule.selectors.includes(".lcd-cal .rdp-range_middle .rdp-day_button"));
     expect(middle?.declarations.background).toBe("var(--chip)");
     expect(middle?.declarations.color).toBe("var(--eink-ink)");
   });

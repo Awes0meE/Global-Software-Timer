@@ -460,20 +460,16 @@
   outline-offset: 1px;
 }
 
-/* Range mode: the days between the ends keep their level's ink inside a 1px frame; days without a
-   level, and the next or previous month's days, sit on --chip. */
+/* Range mode: the days between the ends sit on --chip inside a 1px frame, so the range reads as one band
+   (their level shading gives way to it); the next or previous month's days keep dim digits. */
 .lcd-cal .rdp-range_middle .rdp-day_button,
 .lcd-cal .rdp-range_middle .rdp-day_button:hover {
-  outline: 1px solid var(--eink-ink);
-  outline-offset: 1px;
-}
-
-.lcd-cal .rdp-range_middle:not(.cal-lv0, .cal-lv1, .cal-lv2, .cal-lv3) .rdp-day_button,
-.lcd-cal .rdp-range_middle.rdp-outside .rdp-day_button {
   --muted: var(--ink-2);
   background: var(--chip);
   box-shadow: none;
   color: var(--eink-ink);
+  outline: 1px solid var(--eink-ink);
+  outline-offset: 1px;
 }
 
 .lcd-cal .rdp-range_middle.rdp-outside .rdp-day_button {
@@ -659,9 +655,11 @@
     outline-offset: 1px;
   }
 
-  /* A range's middle days keep their level pattern inside a 1px Highlight frame. */
-  .lcd-cal .rdp-range_middle .rdp-day_button,
-  .lcd-cal .rdp-range_middle .rdp-day_button:hover {
+  /* A range's middle days: plain Canvas in a 1px Highlight frame, between the solid Highlight ends. */
+  .lcd-cal .rdp-selected.rdp-range_middle .rdp-day_button,
+  .lcd-cal .rdp-selected.rdp-range_middle .rdp-day_button:hover {
+    background: Canvas;
+    color: CanvasText;
     outline: 1px solid Highlight;
     outline-offset: 1px;
   }
