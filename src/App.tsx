@@ -68,6 +68,19 @@ const defaultDurationFormat: DurationFormat = "decimal_hours";
 
 type PageId = "overview" | "settings" | "software" | "background" | "statistics" | "achievements";
 
+/** The tracker's latest scan as today's live summary reports it; `failed` means that read itself failed. */
+interface LiveScan {
+  succeeded: boolean | null;
+  failed: boolean;
+}
+
+const liveScanOf = (summary: DashboardSummary): LiveScan => ({
+  succeeded: summary.last_scan_succeeded ?? null,
+  failed: false,
+});
+
+const failedScan = (scan: LiveScan): LiveScan => ({ ...scan, failed: true });
+
 const navItems = [
   { id: "overview", label: "概览", icon: LayoutDashboard, available: true },
   { id: "software", label: "软件", icon: SquareStack, available: true },
@@ -106,6 +119,8 @@ export default function App() {
   // The save toast; its live regions stay mounted so a new message is announced.
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Today's live scan for the sidebar lamp; it stays live while 概览/后台 show a past day.
+  const [liveScan, setLiveScan] = useState<LiveScan>({ succeeded: null, failed: false });
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [autostartLoaded, setAutostartLoaded] = useState(false);
@@ -139,11 +154,17 @@ export default function App() {
     try {
       const nextSummary = await getDashboardSummary(day ?? undefined);
 
+      if (day === null && dashboardMountedRef.current) {
+        setLiveScan(liveScanOf(nextSummary));
+      }
       if (isCurrent() && answersDay(nextSummary, day)) {
         setSummary(nextSummary);
         setError(null);
       }
     } catch (reason) {
+      if (day === null && dashboardMountedRef.current) {
+        setLiveScan(failedScan);
+      }
       if (!isCurrent()) {
         return;
       }
@@ -153,6 +174,16 @@ export default function App() {
         return;
       }
       setError(dashboardLoadError);
+    }
+  }, []);
+
+  // On a past day the page is read once, but the lamp still follows today's live scan.
+  const loadLiveScan = useCallback(async () => {
+    try {
+      const live = await getDashboardSummary();
+      if (dashboardMountedRef.current) setLiveScan(liveScanOf(live));
+    } catch {
+      if (dashboardMountedRef.current) setLiveScan(failedScan);
     }
   }, []);
 
@@ -167,14 +198,16 @@ export default function App() {
   // Today stays live and is read again right after midnight (`today` changes); a past day is read once.
   useEffect(() => {
     dashboardDayRef.current = viewedDay;
+    // A failed read for the previous day says nothing about the day being read now.
+    setError(null);
 
     if (viewedDay !== null) {
       void loadDashboard();
-      return undefined;
+      return startVisiblePolling(loadLiveScan, dashboardRefreshIntervalMs);
     }
 
     return startVisiblePolling(loadDashboard, dashboardRefreshIntervalMs);
-  }, [viewedDay, today, loadDashboard]);
+  }, [viewedDay, today, loadDashboard, loadLiveScan]);
 
   useEffect(() => {
     let cancelled = false;
@@ -441,13 +474,18 @@ export default function App() {
   }, [today]);
 
   const headerExport = pageExport(activePage);
+  // Until the picked day's read lands, the figures on screen are another day's: they show dimmed and
+  // busy, and after a failed read only the warning shows, so the header date never heads other figures.
+  const summaryIsForView = summary !== null && answersDay(summary, viewedDay);
+  const shownSummary = summaryIsForView || !error ? summary : null;
+  const summaryIsStale = shownSummary !== null && !summaryIsForView;
   // The wording follows the summary on screen, so labels and figures always name the same day.
-  const shownPastDay = summary?.is_today === false;
+  const shownPastDay = shownSummary?.is_today === false;
 
-  const recording = !error && summary?.last_scan_succeeded === true;
-  const recordingLabel = error ? "记录状态未知"
+  const recording = !liveScan.failed && liveScan.succeeded === true;
+  const recordingLabel = liveScan.failed ? "记录状态未知"
     : recording ? "正在记录"
-    : summary?.last_scan_succeeded === false ? "采样失败，正在重试" : "等待首次采样";
+    : liveScan.succeeded === false ? "采样失败，正在重试" : "等待首次采样";
 
   return (
     <div className="desktop-root">
@@ -572,19 +610,23 @@ export default function App() {
               <AchievementsPage durationFormat={durationFormat} />
             </Suspense>
           ) : (
-            <main className="overview-page" id="overview-content">
+            <main
+              className={`overview-page${summaryIsStale ? " is-stale" : ""}`}
+              id="overview-content"
+              aria-busy={summaryIsStale || undefined}
+            >
               {error ? <div className="warning" role="alert">{error}</div> : null}
-              {summary ? (
+              {shownSummary ? (
                 <>
-                  <TodayReadout summary={summary} durationFormat={durationFormat} />
+                  <TodayReadout summary={shownSummary} durationFormat={durationFormat} />
 
                   <div className="overview-grid">
-                    <AppUsageTable apps={summary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
+                    <AppUsageTable apps={shownSummary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
                     {/* Nothing runs on a past day: 当日分布 takes the whole rail. */}
                     <div className={`right-rail${shownPastDay ? " is-past" : ""}`}>
-                      <TodayMix apps={summary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
+                      <TodayMix apps={shownSummary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
                       {shownPastDay ? null : (
-                        <RecentActivity apps={summary.apps} durationFormat={durationFormat} />
+                        <RecentActivity apps={shownSummary.apps} durationFormat={durationFormat} />
                       )}
                     </div>
                   </div>

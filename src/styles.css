@@ -734,6 +734,11 @@ main > p[role="status"] {
   grid-template-rows: auto minmax(300px, 1fr);
 }
 
+/* Another day's figures wait, dimmed, for the picked day's read. */
+.overview-page.is-stale > :not(.warning) {
+  opacity: 0.45;
+}
+
 .readout {
   padding: 12px;
 }

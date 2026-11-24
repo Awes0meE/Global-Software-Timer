@@ -2184,7 +2184,7 @@ describe("App date browsing", () => {
     expect(screen.queryByText(/保持 GST 在托盘运行/)).not.toBeInTheDocument();
   });
 
-  it("stops polling on a past day and polls again back on today", async () => {
+  it("reads a past day once and polls today again back on today", async () => {
     vi.useFakeTimers({ now: new Date(2026, 10, 24, 10, 0, 0) });
     render(<App />);
     await flush(10000);
@@ -2192,13 +2192,80 @@ describe("App date browsing", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "前一天" }));
     await flush(30000);
-    expect(dashboardCalls.slice(3)).toEqual(["2026-11-23"]);
+    // The page reads the past day once; the undated reads only feed the sidebar lamp.
+    expect(dashboardCalls.slice(3).filter((date) => date !== undefined)).toEqual(["2026-11-23"]);
     expect(screen.getByRole("region", { name: "当日总览" })).toBeInTheDocument();
 
+    const backOnToday = dashboardCalls.length;
     fireEvent.click(screen.getByRole("button", { name: "今天" }));
     await flush(5000);
-    expect(dashboardCalls.slice(4)).toEqual([undefined, undefined]);
+    expect(dashboardCalls.slice(backOnToday)).toEqual([undefined, undefined]);
     expect(screen.getByRole("region", { name: "今日总览" })).toBeInTheDocument();
+  });
+
+  it("keeps the sidebar lamp live while a past day is shown", async () => {
+    let liveScanSucceeded: boolean | null = true;
+    const invokeDefault = mockInvoke.getMockImplementation()!;
+    mockInvoke.mockImplementation(async (command: string, args: DayArgs) => {
+      const answer = await invokeDefault(command, args);
+      return command === "get_dashboard_summary" && !args?.date
+        ? { ...(answer as object), last_scan_succeeded: liveScanSucceeded }
+        : answer;
+    });
+    vi.useFakeTimers({ now: new Date(2026, 10, 24, 10, 0, 0) });
+    const { container } = render(<App />);
+    const lamp = () => container.querySelector(".live-status");
+    await flush();
+    expect(lamp()).toHaveTextContent("正在记录");
+
+    fireEvent.click(screen.getByRole("button", { name: "前一天" }));
+    await flush();
+    expect(screen.getByRole("region", { name: "当日总览" })).toBeInTheDocument();
+
+    liveScanSucceeded = false;
+    await flush(5000);
+    expect(lamp()).toHaveTextContent("采样失败，正在重试");
+    expect(screen.getByRole("region", { name: "当日总览" })).toBeInTheDocument();
+
+    liveScanSucceeded = true;
+    await flush(5000);
+    expect(lamp()).toHaveTextContent("正在记录");
+  });
+
+  it("keeps the lamp and drops the other day's figures when a past day cannot be read", async () => {
+    pastDayAnswer = () => Promise.reject(new Error("database is temporarily locked"));
+    const { container } = render(<App />);
+    expect(await screen.findByRole("region", { name: "今日总览" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "前一天" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "前一天" }));
+
+    expect(await screen.findByText("无法读取本地数据")).toHaveAttribute("role", "alert");
+    expect(screen.queryByRole("region", { name: "今日总览" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "当日总览" })).not.toBeInTheDocument();
+    expect(container.querySelector(".live-status")).toHaveTextContent("正在记录");
+  });
+
+  it("marks the other day's figures busy until the picked day's read lands", async () => {
+    let answerPastDay!: () => void;
+    pastDayAnswer = (date) => new Promise((resolve) => {
+      answerPastDay = () => resolve(pastDashboard(date));
+    });
+    const { container } = render(<App />);
+    expect(await screen.findByRole("region", { name: "今日总览" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "前一天" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "前一天" }));
+
+    const page = container.querySelector("#overview-content");
+    expect(page).toHaveAttribute("aria-busy", "true");
+    expect(page).toHaveClass("is-stale");
+    expect(screen.getByRole("region", { name: "今日总览" })).toBeInTheDocument();
+
+    await act(async () => {
+      answerPastDay();
+    });
+    expect(screen.getByRole("region", { name: "当日总览" })).toBeInTheDocument();
+    expect(page).not.toHaveAttribute("aria-busy");
+    expect(page).not.toHaveClass("is-stale");
   });
 
   it("follows midnight to the new day while on today", async () => {
@@ -2228,7 +2295,7 @@ describe("App date browsing", () => {
     expect(dateKey()).toHaveTextContent("2026-11-23");
     expect(screen.getByRole("button", { name: "今天" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "当日总览" })).toBeInTheDocument();
-    expect(dashboardCalls.filter((date) => date === undefined)).toHaveLength(1);
+    expect(new Set(dashboardCalls.filter((date) => date !== undefined))).toEqual(new Set(["2026-11-23"]));
   });
 
   it("returns to today when the backend refuses the day", async () => {
@@ -2240,7 +2307,10 @@ describe("App date browsing", () => {
 
     await waitFor(() => expect(screen.queryByRole("button", { name: "今天" })).not.toBeInTheDocument());
     expect(dateKey()).toHaveTextContent(localDate(new Date()));
-    await waitFor(() => expect(dashboardCalls.slice(todayCalls)).toEqual([shiftDays(localDate(new Date()), -1), undefined]));
+    // The past day, the lamp's live read beside it, then today's read.
+    await waitFor(() =>
+      expect(dashboardCalls.slice(todayCalls)).toEqual([shiftDays(localDate(new Date()), -1), undefined, undefined]),
+    );
     expect(screen.queryByText("无法读取本地数据")).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "今日总览" })).toBeInTheDocument();
   });
