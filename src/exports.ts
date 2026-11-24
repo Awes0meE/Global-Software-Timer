@@ -53,9 +53,9 @@ export interface CsvExportContext {
 export const STATISTICS_CSV_COLUMNS = [
   "软件名称",
   "进程名",
-  "名次",
+  "排名",
   "焦点(小时)",
-  "窗口(小时)",
+  "窗口开着(小时)",
   "开着没用(小时)",
   "打开次数",
   "平均单次(小时)",

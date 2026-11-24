@@ -248,6 +248,18 @@ describe("statisticsCsv", () => {
     const rows = parse(statisticsCsv(statistics(), names));
 
     expect(rows[0]).toEqual([...STATISTICS_CSV_COLUMNS]);
+    // The page's 名次 column shows the change in rank, and its legend calls the window figure 窗口开着.
+    expect(rows[0]).toEqual([
+      "软件名称",
+      "进程名",
+      "排名",
+      "焦点(小时)",
+      "窗口开着(小时)",
+      "开着没用(小时)",
+      "打开次数",
+      "平均单次(小时)",
+      "最长单次(小时)",
+    ]);
     expect(rows.slice(1)).toEqual([
       ["Visual Studio Code", "Code.exe", "1", "30.00", "40.00", "", "12", "2.50", "6.00"],
       ["微信", "Weixin.exe", "2", "0.25", "60.00", "59.75", "", "", ""],
