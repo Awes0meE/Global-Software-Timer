@@ -4,10 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockInvoke = vi.hoisted(() => vi.fn());
 const renderPosterPng = vi.hoisted(() => vi.fn());
+const closeRequest = vi.hoisted(() => ({ handler: null as null | ((event: { preventDefault: () => void }) => Promise<void>) }));
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mockInvoke }));
 vi.mock("@tauri-apps/api/window", () => ({
-  getCurrentWindow: () => ({ onCloseRequested: () => Promise.resolve(() => {}), setTheme: () => Promise.resolve() }),
+  getCurrentWindow: () => ({
+    onCloseRequested: (handler: (event: { preventDefault: () => void }) => Promise<void>) => {
+      closeRequest.handler = handler;
+      return Promise.resolve(() => {});
+    },
+    setTheme: () => Promise.resolve(),
+  }),
 }));
 vi.mock("@tauri-apps/plugin-autostart", () => ({
   disable: vi.fn(async () => {}),
@@ -358,6 +365,31 @@ describe("导出成就", () => {
     expect(list).toHaveFocus();
     await userEvent.tab({ shift: true });
     expect(within(dialog).getByRole("button", { name: "保存图片" })).toHaveFocus();
+  });
+
+  it("hands Tab and Esc to the close dialog that opens over it, and gets focus back after", async () => {
+    overrides.get_app_settings = (args) => ({ ...(defaults.get_app_settings(args) as object), close_behavior_configured: false });
+    overrides.apply_window_close_choice = () => undefined;
+    const { dialog, list } = await openPicker();
+
+    await act(async () => {
+      await closeRequest.handler?.({ preventDefault: () => {} });
+    });
+    const closeDialog = screen.getByRole("dialog", { name: "关闭全局软件计时器" });
+    expect(within(closeDialog).getByRole("button", { name: "最小化到状态栏" })).toHaveFocus();
+    await userEvent.tab();
+    expect(within(closeDialog).getByRole("button", { name: "退出软件" })).toHaveFocus();
+    await userEvent.tab();
+    expect(within(closeDialog).getByRole("button", { name: "最小化到状态栏" })).toHaveFocus();
+    // Esc belongs to the top dialog: the poster dialog underneath stays open.
+    await userEvent.keyboard("{Escape}");
+    expect(dialog).toBeInTheDocument();
+    expect(dialog.closest("[inert]")).not.toBeNull();
+
+    await userEvent.click(within(closeDialog).getByRole("button", { name: "最小化到状态栏" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "关闭全局软件计时器" })).not.toBeInTheDocument());
+    expect(dialog.closest("[inert]")).toBeNull();
+    expect(list).toHaveFocus();
   });
 
   it("stays open when the save dialog is cancelled, and says 保存失败 when the save fails", async () => {

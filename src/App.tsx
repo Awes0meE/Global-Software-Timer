@@ -33,6 +33,7 @@ import {
 import clockMark from "./assets/gst-clock.svg";
 import { AppUsageTable } from "./components/AppUsageTable";
 import { BackgroundPage } from "./components/BackgroundPage";
+import { CloseChoiceDialog } from "./components/CloseChoiceDialog";
 import { DateControl } from "./components/DateControl";
 import { ExportKey } from "./components/ExportKey";
 import { RecentActivity } from "./components/RecentActivity";
@@ -774,38 +775,11 @@ export default function App() {
       ) : null}
 
       {closeDialogOpen ? (
-        <div className="modal-backdrop">
-          <section
-            className="dialog close-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="close-dialog-title"
-          >
-            <img className="dialog-mark" src={clockMark} alt="" width={40} height={40} />
-            <h2 id="close-dialog-title">关闭全局软件计时器</h2>
-            <p>请选择退出软件，或最小化后继续在右下角状态栏运行。</p>
-            <p className="dialog-hint">后续可在设置中更改。</p>
-            {closeDialogError ? <p className="dialog-error">{closeDialogError}</p> : null}
-            <div className="dialog-actions">
-              <button
-                type="button"
-                className="button button-secondary"
-                disabled={closeChoiceBusy}
-                onClick={() => void handleCloseChoice("exit")}
-              >
-                退出软件
-              </button>
-              <button
-                type="button"
-                className="button button-primary"
-                disabled={closeChoiceBusy}
-                onClick={() => void handleCloseChoice("minimize_to_tray")}
-              >
-                最小化到状态栏
-              </button>
-            </div>
-          </section>
-        </div>
+        <CloseChoiceDialog
+          error={closeDialogError}
+          busy={closeChoiceBusy}
+          onChoose={(choice) => void handleCloseChoice(choice)}
+        />
       ) : null}
     </div>
   );

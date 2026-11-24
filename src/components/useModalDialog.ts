@@ -18,8 +18,9 @@ interface ModalOptions {
  * handled for the whole document, so a click on the dialog's text or on the scrim cannot let focus out.
  * Focus starts on `initialFocus` and goes back to where it was (the key that opened the dialog) once the app
  * is no longer inert. A sibling marked `data-modal-keep` (the toast) stays out of the inert set, so what a
- * save says while the dialog is open (已保存, 保存失败) is still announced; it sits under the scrim and the
- * trap keeps focus in the dialog, so it cannot be clicked or tabbed to meanwhile.
+ * save says while the dialog is open (已保存, 保存失败) is still announced and seen: it is drawn above the
+ * scrim, though the trap keeps Tab in the dialog. While a later `.modal-backdrop` is up (the close choice
+ * opening over this dialog), this one yields Tab, focus and Esc to it.
  */
 export function useModalDialog(dialogRef: RefObject<HTMLElement | null>, { onCancel, busy, initialFocus }: ModalOptions) {
   const busyRef = useRef(busy);
@@ -48,11 +49,17 @@ export function useModalDialog(dialogRef: RefObject<HTMLElement | null>, { onCan
       Array.from(dialog.querySelectorAll<HTMLElement>(TAB_STOPS)).sort((left, right) =>
         left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
       );
+    // The top dialog is the last backdrop in the document; a dialog under another one handles nothing.
+    const covered = () => {
+      const backdrops = document.querySelectorAll(".modal-backdrop");
+      return backdrops[backdrops.length - 1] !== backdrop;
+    };
     const focusInside = (last = false) => {
       const enabled = stops();
       (enabled.length === 0 ? dialog : last ? enabled[enabled.length - 1] : enabled[0]).focus();
     };
     const onKeyDown = (event: KeyboardEvent) => {
+      if (covered()) return;
       if (event.key === "Escape") {
         event.preventDefault();
         if (!busyRef.current) cancelRef.current();
@@ -77,6 +84,7 @@ export function useModalDialog(dialogRef: RefObject<HTMLElement | null>, { onCan
       }
     };
     const onFocusIn = (event: FocusEvent) => {
+      if (covered()) return;
       if (event.target instanceof Node && !dialog.contains(event.target)) focusInside();
     };
     const first = initialFocusRef.current?.current;
