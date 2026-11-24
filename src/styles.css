@@ -2234,10 +2234,18 @@ mark {
     background: Canvas;
   }
 
-  /* A dialog's primary key (保存图片, 导入, 最小化到状态栏) stays marked apart from 取消, as its fill does. */
+  /* A dialog's primary key (保存图片, 导入, 最小化到状态栏) stays marked apart from 取消, as its fill does.
+     Not adjusted, or the forced text backplate (Canvas) would hide the HighlightText label. */
   .dialog .button-primary:not(:disabled) {
+    forced-color-adjust: none;
     background: Highlight;
     color: HighlightText;
+    box-shadow: none;
+  }
+
+  .dialog .button-primary:not(:disabled):focus-visible {
+    outline: 2px solid CanvasText;
+    outline-offset: 2px;
   }
 
   .sidebar,
