@@ -186,9 +186,9 @@ describe("App", () => {
     mockInvoke.mockRejectedValue(new Error("database is temporarily locked"));
 
     render(<App />);
-    expect(screen.getByRole("status")).toHaveTextContent("正在读取概览");
+    expect(screen.getByText("正在读取概览…")).toHaveAttribute("role", "status");
     expect(screen.queryByText("还没有记录到软件")).not.toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toHaveTextContent("无法读取本地数据");
+    expect(await screen.findByText(/无法读取本地数据/)).toHaveAttribute("role", "alert");
     expect(screen.queryByText("还没有记录到软件")).not.toBeInTheDocument();
     expect(screen.queryByText("database is temporarily locked")).not.toBeInTheDocument();
   });

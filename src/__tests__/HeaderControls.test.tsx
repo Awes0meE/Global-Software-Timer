@@ -397,15 +397,28 @@ describe("page export keys (decision C)", () => {
 });
 
 describe("Toast", () => {
-  it("announces a status with its action key and hides itself after about 6 s", () => {
+  const saved = (id = 1) => ({ id, message: "已保存", action: { label: "在文件夹中显示", onClick: vi.fn() } });
+
+  it("keeps empty status and alert regions mounted before any message", () => {
+    render(<Toast toast={null} onDismiss={() => {}} />);
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(screen.getByRole("alert")).toBeEmptyDOMElement();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("puts a status into the mounted region, with its action key, and hides after about 6 s", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
-    const reveal = vi.fn();
-    render(<Toast message="已保存" action={{ label: "在文件夹中显示", onClick: reveal }} onDismiss={onDismiss} />);
+    const { rerender } = render(<Toast toast={null} onDismiss={onDismiss} />);
+    const region = screen.getByRole("status");
+    const toast = saved();
+    rerender(<Toast toast={toast} onDismiss={onDismiss} />);
 
-    expect(screen.getByRole("status")).toHaveTextContent("已保存");
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toHaveTextContent("已保存");
+    expect(screen.getByRole("alert")).toBeEmptyDOMElement();
     fireEvent.click(screen.getByRole("button", { name: "在文件夹中显示" }));
-    expect(reveal).toHaveBeenCalledTimes(1);
+    expect(toast.action.onClick).toHaveBeenCalledTimes(1);
 
     act(() => {
       vi.advanceTimersByTime(5999);
@@ -417,17 +430,38 @@ describe("Toast", () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
+  it("replaces the text node for the same message shown again, and times it again", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    const { rerender } = render(<Toast toast={saved(1)} onDismiss={onDismiss} />);
+    const first = screen.getByRole("status").firstChild;
+    act(() => {
+      vi.advanceTimersByTime(4000);
+    });
+    rerender(<Toast toast={saved(2)} onDismiss={onDismiss} />);
+    expect(screen.getByRole("status").firstChild).not.toBe(first);
+    act(() => {
+      vi.advanceTimersByTime(4000);
+    });
+    expect(onDismiss).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
   it("stays while the pointer rests on it", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
-    render(<Toast message="已保存" onDismiss={onDismiss} />);
+    render(<Toast toast={{ id: 1, message: "已保存" }} onDismiss={onDismiss} />);
+    const box = screen.getByRole("status").parentElement as HTMLElement;
 
-    fireEvent.pointerEnter(screen.getByRole("status"));
+    fireEvent.pointerEnter(box);
     act(() => {
       vi.advanceTimersByTime(10_000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
-    fireEvent.pointerLeave(screen.getByRole("status"));
+    fireEvent.pointerLeave(box);
     act(() => {
       vi.advanceTimersByTime(6000);
     });
@@ -435,7 +469,8 @@ describe("Toast", () => {
   });
 
   it("reads a failure as an alert", () => {
-    render(<Toast message="保存失败" tone="error" onDismiss={() => {}} />);
+    render(<Toast toast={{ id: 1, message: "保存失败", tone: "error" }} onDismiss={() => {}} />);
     expect(screen.getByRole("alert")).toHaveTextContent("保存失败");
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 });

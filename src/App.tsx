@@ -36,6 +36,7 @@ import type { CalendarDayActivity } from "./components/DayCalendar";
 import { ExportKey } from "./components/ExportKey";
 import { RecentActivity } from "./components/RecentActivity";
 import { TodayMix } from "./components/TodayMix";
+import { Toast, type ToastMessage } from "./components/Toast";
 import { TodayReadout } from "./components/TodayReadout";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
 import { startTransparencyWatch } from "./glass";
@@ -110,6 +111,8 @@ export default function App() {
   // The day 概览 and 后台 show; null is today, so it follows midnight. Never persisted.
   const [pickedDate, setPickedDate] = useState<string | null>(null);
   const [calendar] = useState<CalendarData>(emptyCalendar);
+  // The save toast; its live regions stay mounted so a new message is announced.
+  const [toast, setToast] = useState<ToastMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -558,6 +561,8 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
 
       {closeDialogOpen ? (
         <div className="modal-backdrop">

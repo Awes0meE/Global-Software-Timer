@@ -178,8 +178,16 @@ const COMBOS: Combo[] = [
   // Sticky table heads on --head-solid (decision E-B, 2026-11-23): --muted labels, --ink when sorted.
   { name: "--muted on head-solid", threshold: TEXT, pair: (s) => [s.colour("--muted"), s.colour("--head-solid")] },
   { name: "--ink on head-solid", threshold: TEXT, pair: (s) => [s.colour("--ink"), s.colour("--head-solid")] },
-  // The add-software dialog (task 6): its error line, search hits and the selected row's path.
+  // The add-software dialog (task 6): its error line, search hits and the selected row's path; also the
+  // v0.4.2 toast on --glass-solid (已保存 in --ink, 保存失败 in --alert-ink).
   { name: "--alert-ink on glass-solid", threshold: TEXT, pair: (s) => [s.colour("--alert-ink"), s.solid] },
+  // The toast's lit top edge: --glass-hi over --glass-solid.
+  { name: "--ink on toast top", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(s.colour("--glass-hi"), s.solid)] },
+  {
+    name: "--alert-ink on toast top",
+    threshold: TEXT,
+    pair: (s) => [s.colour("--alert-ink"), over(s.colour("--glass-hi"), s.solid)],
+  },
   {
     name: "--ink on accent 16% over glass-solid (mark)",
     threshold: TEXT,

@@ -541,7 +541,6 @@
   z-index: 60;
   display: flex;
   align-items: center;
-  gap: 14px;
   min-height: 48px;
   padding: 8px 8px 8px 16px;
   border-radius: var(--radius-dialog);
@@ -562,6 +561,20 @@
   font-weight: 600;
 }
 
+.toast-action {
+  margin-left: 14px;
+}
+
+/* No message: the empty live regions stay in place, with no glass and nothing to hit. */
+.toast.is-idle {
+  min-height: 0;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  pointer-events: none;
+  animation: none;
+}
+
 /* Contrast themes: keys and popovers lose their paint; they get system-colour outlines, and the calendar's
    levels become CanvasText patterns. */
 @media (forced-colors: active) {
@@ -578,7 +591,7 @@
   }
 
   .glass-pop,
-  .toast {
+  .toast:not(.is-idle) {
     outline: 1px solid CanvasText;
   }
 
