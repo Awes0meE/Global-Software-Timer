@@ -1,0 +1,121 @@
+// Preview-only poster route: ?poster=daily|achievement&theme=dark|light[&software=<identity key>][&name=<text>][&date=YYYY-MM-DD]
+// shows one poster alone at 540×720 (top left) for screenshots, from the preview's synthetic data only.
+// window.__posterReady turns true once fonts, icons and layout are settled (the probe waits for it);
+// window.__renderPoster() renders the PNG exactly as an export does and resolves to its data: URL.
+import { useEffect, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { invoke } from "@tauri-apps/api/core";
+import { getDashboardSummary } from "../../src/api";
+import {
+  AchievementPoster,
+  DailyPoster,
+  achievementPosterModel,
+  dailyPosterModel,
+  iconToDataUrl,
+  loadPosterFonts,
+  renderPosterPng,
+  withIcons,
+  type AchievementPosterModel,
+  type DailyPosterModel,
+  type MilestoneSoftware,
+  type PosterTheme,
+} from "../../src/posters";
+import { achievementsSummary } from "./mock-data";
+
+declare global {
+  interface Window {
+    __posterReady?: boolean;
+    __renderPoster?: () => Promise<string>;
+  }
+}
+
+// All-time days with at least 300 s of focus, invented to fit the demo focus totals.
+const DEMO_USED_DAYS: Record<string, number> = {
+  code: 1046,
+  chrome: 412,
+  excel: 58,
+  typora: 71,
+  matlab: 49,
+  terminal: 33,
+  snipaste: 90,
+};
+
+/** get_milestone_software from the preview mock, or derived from its achievements milestones. */
+async function milestoneSoftware(): Promise<MilestoneSoftware[]> {
+  try {
+    return await invoke<MilestoneSoftware[]>("get_milestone_software", { includeHidden: true });
+  } catch {
+    return achievementsSummary(365, true, new Set())
+      .milestones.filter((row) => row.reached_hours !== null && row.reached_on !== null)
+      .map((row) => ({
+        identity_key: row.identity_key,
+        display_name: row.display_name,
+        process_name: "",
+        icon_url: row.icon_url,
+        tier_hours: row.reached_hours as number,
+        reached_on: row.reached_on as string,
+        total_focused_seconds: row.focused_seconds,
+        used_days: DEMO_USED_DAYS[row.identity_key] ?? 0,
+      }))
+      .sort((left, right) => right.tier_hours - left.tier_hours || right.total_focused_seconds - left.total_focused_seconds);
+  }
+}
+
+type Poster = { kind: "daily"; model: DailyPosterModel } | { kind: "achievement"; model: AchievementPosterModel };
+
+async function loadPoster(params: URLSearchParams): Promise<Poster> {
+  if (params.get("poster") === "achievement") {
+    const list = await milestoneSoftware();
+    const wanted = params.get("software");
+    const latest = [...list].sort((left, right) => right.reached_on.localeCompare(left.reached_on))[0];
+    const software = list.find((item) => item.identity_key === wanted) ?? latest;
+    if (!software) throw new Error("poster route: no milestone software");
+    const [model] = await withIcons([achievementPosterModel(software)], iconToDataUrl);
+    // &name=<text> tries a long name (fit, two lines, ellipsis) on a real record.
+    return { kind: "achievement", model: { ...model, name: params.get("name") ?? model.name } };
+  }
+
+  const summary = await getDashboardSummary(params.get("date") ?? undefined);
+  const model = dailyPosterModel(summary, summary.usage_date, summary.is_today);
+  return { kind: "daily", model: { ...model, columns: await withIcons(model.columns, iconToDataUrl) } };
+}
+
+function PosterRoute({ params }: { params: URLSearchParams }) {
+  const theme: PosterTheme = params.get("theme") === "light" ? "light" : "dark";
+  const [poster, setPoster] = useState<Poster | null>(null);
+  const node = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void loadPoster(params).then(setPoster);
+  }, [params]);
+
+  useEffect(() => {
+    if (!poster || !node.current) return;
+    const element = node.current;
+    window.__renderPoster = async () => {
+      const bytes = await renderPosterPng(element);
+      let binary = "";
+      for (const byte of bytes) binary += String.fromCharCode(byte);
+      return `data:image/png;base64,${btoa(binary)}`;
+    };
+    void (async () => {
+      await loadPosterFonts();
+      await Promise.all(Array.from(element.querySelectorAll("img")).map((img) => img.decode().catch(() => undefined)));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      window.__posterReady = true;
+    })();
+  }, [poster]);
+
+  if (!poster) return null;
+  return poster.kind === "daily" ? (
+    <DailyPoster ref={node} model={poster.model} theme={theme} />
+  ) : (
+    <AchievementPoster ref={node} model={poster.model} theme={theme} />
+  );
+}
+
+export function mountPosterRoute(params: URLSearchParams) {
+  document.documentElement.style.cssText = "margin:0;background:#000;";
+  document.body.style.cssText = "margin:0;background:#000;";
+  createRoot(document.getElementById("root") as HTMLElement).render(<PosterRoute params={params} />);
+}

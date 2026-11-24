@@ -31,7 +31,8 @@
 //                and the page's own <main> show the page named by `?page=` (default 概览) and the <main> no
 //                longer says 正在读取, then waits for fonts again and --settle ms more (default 600; use 2500 when
 //                a transition such as the dial fill might still be running). file: URLs (mockups) skip this
-//                check. A --media feature that matchMedia does not report fails.
+//                check; the poster route (`?poster=`) waits for `window.__posterReady` instead. A --media
+//                feature that matchMedia does not report fails.
 // --focus        Emulates a focused page, so `el.focus()` in --eval matches :focus and :focus-visible (a
 //                headless page is otherwise never focused and no focus ring is drawn).
 // Errors         Exceptions, console.error and browser log errors (failed resource loads, CSP and other
@@ -116,7 +117,9 @@ function parseArgs(argv) {
   if (url.protocol !== "file:" && !localHosts.has(url.hostname)) {
     throw new ProbeExit(1, `only local preview URLs are allowed, got ${url.host}`);
   }
-  if (url.protocol !== "file:") {
+  if (url.protocol !== "file:" && url.searchParams.has("poster")) {
+    options.posterRoute = true;
+  } else if (url.protocol !== "file:") {
     options.pageId = url.searchParams.get("page") ?? "overview";
     options.pageLabel = PAGE_LABELS[options.pageId];
     if (!options.pageLabel) throw new ProbeExit(1, `unknown ?page=${options.pageId}`);
@@ -517,6 +520,9 @@ async function openPage(edge, options, errors) {
     }
     // Lazy pages bring their own CSS, which can request fonts only after the switch.
     await evaluate(page, "document.fonts.ready.then(() => true)");
+  } else if (options.posterRoute) {
+    const state = await waitFor(page, "({ ready: window.__posterReady === true })", 10000);
+    if (!state?.ready) throw new ProbeExit(3, "poster route not ready after 10s");
   }
   await sleep(options.settle);
 
