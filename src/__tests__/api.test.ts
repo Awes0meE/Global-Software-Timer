@@ -222,7 +222,7 @@ describe("api exports", () => {
   });
 
   it("saves PNG bytes as the raw body with the percent-encoded name header", async () => {
-    const saved = "C:\Users\demo\Downloads\GST-成就-VS Code-2026-11-20.png";
+    const saved = "C:\\Users\\demo\\Downloads\\GST-成就-VS Code-2026-11-20.png";
     mockInvoke.mockResolvedValue(saved);
     const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 

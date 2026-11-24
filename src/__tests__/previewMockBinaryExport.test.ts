@@ -27,4 +27,10 @@ describe("preview mock PNG save", () => {
     );
     await expect(saveBinaryExport(new Uint8Array([1, 2, 3]), "a.png")).rejects.toBe("export_not_png");
   });
+
+  it("rejects a body one byte over 32 MiB as export_too_large", async () => {
+    const tooLarge = new Uint8Array(32 * 1024 * 1024 + 1);
+    tooLarge.set(PNG);
+    await expect(saveBinaryExport(tooLarge, "a.png")).rejects.toBe("export_too_large");
+  });
 });
