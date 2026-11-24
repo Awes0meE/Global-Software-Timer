@@ -3304,6 +3304,61 @@ mod statistics_command_tests {
     }
 
     #[test]
+    fn statistics_export_focus_and_window_match_the_summary_ranking() {
+        let (_file, store) = migrated_store();
+        let (_, code) = software(&store, "Code.exe");
+        let (_, word) = software(&store, "Word.exe");
+        let (_, viewer) = software(&store, "Viewer.exe");
+        let (_, sync) = software(&store, "Sync.exe");
+        let (d1, d2, d3) = (date(2026, 11, 1), date(2026, 11, 2), date(2026, 11, 3));
+        for (day, focus) in [(d1, 2 * H), (d2, 299), (d3, H)] {
+            focus_day(&store, day, &code, focus);
+            window_day(&store, day, &code, focus + 600);
+        }
+        focus_day(&store, d2, &word, 1200);
+        window_day(&store, d2, &word, 3 * H);
+        background_day(&store, d3, &word, H);
+        // 只有窗口；只有后台
+        window_day(&store, d1, &viewer, 2 * H);
+        window_day(&store, d3, &viewer, H);
+        background_day(&store, d1, &sync, 5 * H);
+        background_day(&store, d2, &sync, 4 * H);
+
+        let summary = summary(&store, "2026-11-01", "2026-11-03", false);
+        let export = export(&store, "2026-11-01", "2026-11-03", false);
+
+        for rank in &summary.ranking {
+            let row = export
+                .software
+                .iter()
+                .find(|row| row.identity_key == rank.identity_key)
+                .expect("ranked software in the export");
+            assert_eq!(
+                (row.focused_seconds, row.window_seconds),
+                (rank.focused_seconds, rank.window_seconds),
+                "{}",
+                rank.identity_key
+            );
+        }
+        let mut ranked = keys(summary.ranking.iter().map(|row| &row.identity_key));
+        let mut exported = keys(
+            export
+                .software
+                .iter()
+                .filter(|row| row.focused_seconds != 0 || row.window_seconds != 0)
+                .map(|row| &row.identity_key),
+        );
+        ranked.sort_unstable();
+        exported.sort_unstable();
+        assert_eq!(ranked, exported);
+        assert_eq!(ranked.len(), 3);
+        assert!(export
+            .software
+            .iter()
+            .any(|row| row.identity_key == sync && row.background_seconds == 9 * H));
+    }
+
+    #[test]
     fn statistics_export_excludes_hidden_software_unless_requested() {
         let (_file, store) = migrated_store();
         let (_, code) = software(&store, "Code.exe");
