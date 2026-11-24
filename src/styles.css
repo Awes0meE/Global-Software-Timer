@@ -1008,17 +1008,19 @@ main > p[role="status"] {
   min-height: 0;
 }
 
-/* A past day has nothing running, so 当日分布 takes the whole rail and its list grows with it. */
+/* A past day has nothing running, so 当日分布 takes the whole rail. Its plate ends after its last row and
+   only grows (then scrolls) as far as the rail reaches, so a short list leaves no empty plate below. */
 .right-rail.is-past {
   grid-template-rows: minmax(0, 1fr);
 }
 
 .right-rail.is-past .mix-plate {
-  flex: 1;
+  flex: 0 1 auto;
 }
 
 .right-rail.is-past .mix-scroll {
-  flex: 1;
+  flex: 0 1 auto;
+  min-height: 0;
   max-height: none;
 }
 
