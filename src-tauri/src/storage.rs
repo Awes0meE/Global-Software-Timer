@@ -33,6 +33,9 @@ pub enum StoreError {
 
 pub type StoreResult<T> = Result<T, StoreError>;
 
+/// A day with its earliest and latest record time.
+pub type DayRecordedBounds = (NaiveDate, DateTime<Utc>, DateTime<Utc>);
+
 #[derive(Debug, Clone, Copy, Default)]
 struct SoftwareRuntimeSeconds {
     foreground_seconds: i64,
@@ -1026,9 +1029,9 @@ impl Store {
             Ok(())
         })();
 
-        let value = result?;
+        result?;
         transaction.commit()?;
-        Ok(value)
+        Ok(())
     }
 
     fn identity_exists_in_list(
@@ -1177,9 +1180,9 @@ impl Store {
             Ok(())
         })();
 
-        let value = result?;
+        result?;
         transaction.commit()?;
-        Ok(value)
+        Ok(())
     }
 
     pub fn all_sessions(&self) -> StoreResult<Vec<UsageSession>> {
@@ -2289,7 +2292,7 @@ impl Store {
         &self,
         start: NaiveDate,
         end: NaiveDate,
-    ) -> StoreResult<Vec<(NaiveDate, DateTime<Utc>, DateTime<Utc>)>> {
+    ) -> StoreResult<Vec<DayRecordedBounds>> {
         let mut stmt = self.conn.prepare(
             "SELECT usage_date, MIN(first_recorded_at), MAX(last_recorded_at)
              FROM daily_software_runtime_usage

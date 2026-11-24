@@ -3227,7 +3227,7 @@ mod timeline_command_tests {
         segment(&store, d, 10, 10, Some(&b), true, "focus_changed");
         segment(&store, d, 20, 10, None, true, "focus_changed");
         store
-            .add_hidden_software_identities(&[a.clone()])
+            .add_hidden_software_identities(std::slice::from_ref(&a))
             .expect("hide");
 
         let masked = summary(&store, d, false);
@@ -3258,7 +3258,7 @@ mod timeline_command_tests {
             .iter()
             .map(|s| s.identity_key.clone())
             .collect();
-        assert_eq!(software, [b.clone()]);
+        assert_eq!(software, std::slice::from_ref(&b));
 
         let full = summary(&store, d, true);
         assert_eq!(
@@ -3498,7 +3498,7 @@ mod timeline_command_tests {
                 .expect("span");
         }
         store
-            .add_hidden_software_identities(&[a.clone()])
+            .add_hidden_software_identities(std::slice::from_ref(&a))
             .expect("hide");
 
         let masked = summary(&store, d, false);
@@ -3507,7 +3507,7 @@ mod timeline_command_tests {
             .iter()
             .map(|e| e.identity_key.clone())
             .collect();
-        assert_eq!(keys, [b.clone()]);
+        assert_eq!(keys, std::slice::from_ref(&b));
         assert!(masked.software.iter().all(|s| s.identity_key != a));
 
         let full = summary(&store, d, true);

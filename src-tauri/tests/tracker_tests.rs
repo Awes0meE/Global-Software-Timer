@@ -1511,7 +1511,7 @@ fn timeline_records_hidden_list_and_tray_focus() {
     let code = rig.identity("Code.exe");
     rig.tracker
         .store()
-        .add_hidden_software_identities(&[code.clone()])
+        .add_hidden_software_identities(std::slice::from_ref(&code))
         .expect("hide");
     rig.tick(after(5), FIVE, &processes, Some(42), true);
     rig.tick(after(10), FIVE, &processes, Some(70), true);
@@ -1842,7 +1842,7 @@ fn timeline_window_spans_per_identity_not_per_process() {
     // Hiding only affects display; the span keeps growing.
     rig.tracker
         .store()
-        .add_hidden_software_identities(&[code.clone()])
+        .add_hidden_software_identities(std::slice::from_ref(&code))
         .expect("hide");
     rig.tick(after(5), FIVE, &second, Some(42), true);
 

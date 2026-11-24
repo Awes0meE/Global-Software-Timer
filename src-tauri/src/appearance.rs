@@ -80,7 +80,7 @@ mod tests {
             .and_then(|line| line.split_whitespace().last())
             .and_then(|hex| u32::from_str_radix(hex.trim_start_matches("0x"), 16).ok());
         // `reg` finding no value means the Windows default: on.
-        let expected = from_reg.map_or(true, |value| value != 0);
+        let expected = from_reg.is_none_or(|value| value != 0);
         assert_eq!(from_api, expected);
     }
 }
