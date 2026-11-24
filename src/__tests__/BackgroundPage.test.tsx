@@ -1,6 +1,7 @@
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DAY_INVALID_DATE } from "../api";
 import type { BackgroundPageSummary } from "../api";
 import { allCss, parseRules } from "./support/css";
 import {
@@ -10,6 +11,7 @@ import {
   formatCpuSeconds,
   formatPercent,
   nextBackgroundSort,
+  pastBackgroundReadings,
   sortBackgroundRows,
   splitReading,
 } from "../components/BackgroundPage";
@@ -18,6 +20,7 @@ const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   invoke.mockReset();
 });
@@ -53,6 +56,20 @@ const summary: BackgroundPageSummary = {
       today_cpu_seconds: 0.4,
     },
   ],
+};
+
+/** A past day: stored peaks and totals only, nothing running, no current CPU. */
+const pastSummary: BackgroundPageSummary = {
+  ...summary,
+  running_count: 0,
+  usage_date: "2026-11-17",
+  is_today: false,
+  rows: summary.rows.map((row, index) => ({
+    ...row,
+    is_running: false,
+    cpu_percent: null,
+    process_count: index === 0 ? 2 : 3,
+  })),
 };
 
 describe("BackgroundPage", () => {
@@ -268,7 +285,7 @@ describe("BackgroundPage", () => {
       render(<BackgroundPage />);
     });
 
-    expect(screen.queryByText(/已退出的进程显示今日峰值/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/其余显示当日峰值/)).not.toBeInTheDocument();
     expect(screen.getByRole("table")).not.toHaveAttribute("aria-describedby");
     const title = screen.getByRole("heading", { name: "后台进程" });
     const help = screen.getByRole("button", { name: "什么是后台进程" });
@@ -277,7 +294,9 @@ describe("BackgroundPage", () => {
     await user.click(help);
     const bubble = screen.getByRole("dialog", { name: "什么是后台进程？" });
     expect(bubble).toHaveTextContent("没有窗口、也不在托盘里的第三方程序");
-    expect(bubble).toHaveTextContent("内存显示当前占用，已退出的进程显示今日峰值。");
+    // Date-neutral: the same words fit today and a past day.
+    expect(bubble).toHaveTextContent("内存：运行中的进程显示当前占用，其余显示当日峰值。");
+    expect(bubble).not.toHaveTextContent(/今日|今天/);
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -311,6 +330,186 @@ describe("BackgroundPage", () => {
     expect(declarations.overflow).toBeUndefined();
     expect(declarations["overflow-x"]).toBe("clip");
     expect(declarations["overflow-y"]).toBe("visible");
+  });
+
+  it("reads a past day once, with the day's four readings and only its stored columns", async () => {
+    vi.useFakeTimers();
+    invoke.mockResolvedValue(pastSummary);
+    await act(async () => {
+      render(<BackgroundPage date="2026-11-17" />);
+    });
+
+    expect(invoke).toHaveBeenCalledWith("get_background_page_summary", { date: "2026-11-17" });
+    const strip = screen.getByRole("region", { name: "后台概况" }).querySelector(".background-strip");
+    expect(strip).toHaveClass("is-past");
+    expect([...strip!.querySelectorAll(".background-reading > span")].map((label) => label.textContent)).toEqual([
+      "当日 CPU 时间",
+      "当日出现",
+      "当日后台时长",
+      "峰值内存",
+    ]);
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+      "软件名称",
+      "峰值进程数",
+      "峰值内存",
+      "当日后台时长",
+      "当日 CPU 时间",
+    ]);
+    const row = screen.getByText("Updater").closest(".background-row") as HTMLElement;
+    expect([...row.querySelectorAll("td")].slice(1).map((cell) => cell.textContent)).toEqual([
+      "3",
+      "2.0 GB",
+      "0.0小时",
+      "<1秒",
+    ]);
+    expect(screen.queryByText(/运行中|已退出|今日|今天/)).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15000);
+    });
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("says when a past day has no background records", async () => {
+    invoke.mockResolvedValue({ ...pastSummary, rows: [] });
+    await act(async () => {
+      render(<BackgroundPage date="2026-11-17" />);
+    });
+
+    expect(screen.getByText("这一天没有后台记录。")).toBeInTheDocument();
+    expect(screen.queryByText("今天还没有记录到后台进程。")).not.toBeInTheDocument();
+  });
+
+  it("polls today, stops on a past day and polls again back on today", async () => {
+    vi.useFakeTimers();
+    invoke.mockImplementation(async (_command, args?: { date?: string }) =>
+      args?.date ? { ...pastSummary, usage_date: args.date } : summary,
+    );
+    const calls = () => invoke.mock.calls.length;
+    const view = render(<BackgroundPage />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(calls()).toBe(3);
+
+    view.rerender(<BackgroundPage date="2026-11-17" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20000);
+    });
+    expect(calls()).toBe(4);
+    expect(invoke).toHaveBeenLastCalledWith("get_background_page_summary", { date: "2026-11-17" });
+    expect(screen.getByRole("columnheader", { name: "峰值进程数" })).toBeInTheDocument();
+
+    view.rerender(<BackgroundPage />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(calls()).toBe(6);
+    expect(invoke).toHaveBeenLastCalledWith("get_background_page_summary");
+    expect(screen.getByRole("columnheader", { name: "当前 CPU" })).toBeInTheDocument();
+  });
+
+  it("drops a late answer for the day it has moved away from", async () => {
+    let answerToday!: (value: BackgroundPageSummary) => void;
+    invoke.mockImplementation((_command, args?: { date?: string }) =>
+      args?.date
+        ? Promise.resolve({ ...pastSummary, usage_date: args.date })
+        : new Promise((resolve) => {
+            answerToday = resolve;
+          }),
+    );
+    const view = render(<BackgroundPage />);
+    await act(async () => {
+      view.rerender(<BackgroundPage date="2026-11-17" />);
+    });
+    expect(await screen.findByRole("columnheader", { name: "峰值进程数" })).toBeInTheDocument();
+
+    await act(async () => {
+      answerToday(summary);
+    });
+    expect(screen.getByRole("columnheader", { name: "峰值进程数" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "当前 CPU" })).not.toBeInTheDocument();
+    expect(screen.queryByText("运行中")).not.toBeInTheDocument();
+  });
+
+  it("hands a refused date back, so the app can return to today", async () => {
+    invoke.mockRejectedValue(DAY_INVALID_DATE);
+    const onInvalidDate = vi.fn();
+    await act(async () => {
+      render(<BackgroundPage date="2999-01-01" onInvalidDate={onInvalidDate} />);
+    });
+
+    expect(onInvalidDate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("无法读取后台进程")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the default sort when a past day hides the sorted column", async () => {
+    invoke.mockImplementation(async (_command, args?: { date?: string }) =>
+      args?.date ? { ...pastSummary, usage_date: args.date } : summary,
+    );
+    const user = userEvent.setup();
+    const view = render(<BackgroundPage />);
+    const header = (label: string) => screen.getByRole("columnheader", { name: label });
+    await user.click(within(await screen.findByRole("columnheader", { name: "状态" })).getByRole("button"));
+    expect(header("状态")).toHaveAttribute("aria-sort", "descending");
+
+    await act(async () => {
+      view.rerender(<BackgroundPage date="2026-11-17" />);
+    });
+    expect(await screen.findByRole("columnheader", { name: "当日 CPU 时间" })).toHaveAttribute("aria-sort", "descending");
+
+    // A column a past day keeps stays sorted.
+    await user.click(within(header("峰值进程数")).getByRole("button"));
+    expect(header("峰值进程数")).toHaveAttribute("aria-sort", "descending");
+    const names = () => screen.getAllByRole("row").slice(1).map((row) => row.querySelector("strong")?.textContent);
+    expect(names()).toEqual(["Updater", "RazerCentralService"]);
+  });
+
+  it("sums a past day's four readings from its stored rows", () => {
+    expect(pastBackgroundReadings(pastSummary)).toEqual([
+      { label: "当日 CPU 时间", value: "2分钟" },
+      { label: "当日出现", value: "2 个" },
+      { label: "当日后台时长", value: "2.0小时" },
+      { label: "峰值内存", value: "2.1 GB" },
+    ]);
+    expect(pastBackgroundReadings({ ...pastSummary, rows: [] }).map((reading) => reading.value)).toEqual([
+      "0秒",
+      "0 个",
+      "0.0小时",
+      "0 MB",
+    ]);
+  });
+
+  it("sorts a past day's peak process counts on every row", () => {
+    const rows = pastSummary.rows;
+    const pick = (sorted: typeof rows) => sorted.map((row) => row.display_name);
+    expect(pick(sortBackgroundRows(rows, { key: "process_count", direction: "desc" }, true))).toEqual([
+      "Updater",
+      "RazerCentralService",
+    ]);
+    expect(pick(sortBackgroundRows(rows, { key: "process_count", direction: "asc" }, true))).toEqual([
+      "RazerCentralService",
+      "Updater",
+    ]);
+  });
+
+  // v0.4.2 加高屏幕: a taller screen keeps the 36px digits at every window width.
+  it("prints the strip on the taller screen, four equal cells on a past day", () => {
+    const rules = parseRules(allCss()["styles.css"]).rules;
+    const declared = (selector: string) =>
+      Object.assign({}, ...rules.filter((rule) => rule.selectors.includes(selector)).map((rule) => rule.declarations));
+    const height = Number.parseFloat(declared(".lcd.background-strip").height);
+    expect(height).toBeGreaterThanOrEqual(104);
+    expect(height).toBeLessThanOrEqual(112);
+    expect(declared(".lcd.background-strip.is-past")["grid-template-columns"]).toBe("repeat(4, minmax(0, 1fr))");
+    const sizes = rules
+      .filter((rule) => "--background-reading-size" in rule.declarations)
+      .map((rule) => [rule.atRules.join(" "), rule.declarations["--background-reading-size"]]);
+    expect(sizes).toEqual([
+      ["", "36px"],
+      ["@media (resolution: 1.25dppx)", "38.4px"],
+      ["@media (resolution: 1.5dppx)", "32px"],
+    ]);
   });
 
   it("formats small and large values readably", () => {

@@ -7,12 +7,17 @@ import {
   type DurationFormat,
 } from "../api";
 import { formatDurationZh } from "../i18n";
+import { answersDay, isDayInvalidDate } from "../viewedDay";
 import { startVisiblePolling } from "../visiblePolling";
 import { HelpPopover } from "./ActiveTimeHelpPopover";
 import { SoftwareIcon } from "./SoftwareIcon";
 
 interface BackgroundPageProps {
+  /** A past day's local `YYYY-MM-DD`, read once; omitted for today, which stays live. */
+  date?: string;
   durationFormat?: DurationFormat;
+  /** The backend refused `date` (malformed or in the future). */
+  onInvalidDate?: () => void;
 }
 
 export type BackgroundSortKey =
@@ -41,18 +46,28 @@ const COLUMNS: Array<{ key: BackgroundSortKey; label: string }> = [
   { key: "status", label: "状态" },
 ];
 
+/** A past day has no "now": no current CPU or running status, and its counts and memory are the day's peaks. */
+const PAST_COLUMNS: Array<{ key: BackgroundSortKey; label: string }> = [
+  { key: "name", label: "软件名称" },
+  { key: "process_count", label: "峰值进程数" },
+  { key: "memory", label: "峰值内存" },
+  { key: "running_seconds", label: "当日后台时长" },
+  { key: "cpu_seconds", label: "当日 CPU 时间" },
+];
+
 /** Matches the backend's own order, so the first paint does not reshuffle rows. */
 const DEFAULT_SORT: BackgroundSort = { key: "cpu_seconds", direction: "desc" };
 
 const nameCollator = new Intl.Collator("zh-Hans-CN", { numeric: true, sensitivity: "base" });
 
 /** Value to sort by; null means "no value shown" (e.g. "—") and always sorts last. */
-function sortValue(row: BackgroundRow, key: BackgroundSortKey): number | string | null {
+function sortValue(row: BackgroundRow, key: BackgroundSortKey, pastDay: boolean): number | string | null {
   switch (key) {
     case "name":
       return row.display_name;
     case "process_count":
-      return row.is_running ? row.process_count : null;
+      // Today shows the count only for running software; a past day shows every row's peak.
+      return row.is_running || pastDay ? row.process_count : null;
     case "cpu_percent":
       return row.cpu_percent;
     case "memory":
@@ -69,13 +84,17 @@ function sortValue(row: BackgroundRow, key: BackgroundSortKey): number | string 
 /**
  * Sorts rows like a spreadsheet column: "desc" is high to low (Z to A for
  * names), "asc" the reverse. Empty values stay at the bottom in both
- * directions, and ties keep the backend order.
+ * directions, and ties keep the backend order. `pastDay` sorts 峰值进程数 on every row's peak.
  */
-export function sortBackgroundRows(rows: BackgroundRow[], sort: BackgroundSort): BackgroundRow[] {
+export function sortBackgroundRows(
+  rows: BackgroundRow[],
+  sort: BackgroundSort,
+  pastDay = false,
+): BackgroundRow[] {
   const sign = sort.direction === "desc" ? -1 : 1;
   return [...rows].sort((left, right) => {
-    const a = sortValue(left, sort.key);
-    const b = sortValue(right, sort.key);
+    const a = sortValue(left, sort.key, pastDay);
+    const b = sortValue(right, sort.key, pastDay);
     if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1;
     const order = typeof a === "string" && typeof b === "string"
       ? nameCollator.compare(a, b)
@@ -90,35 +109,61 @@ export function nextBackgroundSort(current: BackgroundSort, key: BackgroundSortK
   return { key, direction: current.direction === "desc" ? "asc" : "desc" };
 }
 
-export function BackgroundPage({ durationFormat = "decimal_hours" }: BackgroundPageProps) {
+export function BackgroundPage({ date, durationFormat = "decimal_hours", onInvalidDate }: BackgroundPageProps) {
   const [summary, setSummary] = useState<BackgroundPageSummary | null>(null);
   const [fetchError, setFetchError] = useState(false);
   const [sort, setSort] = useState<BackgroundSort>(DEFAULT_SORT);
   const mountedRef = useRef(false);
+  // The day the latest request is for (null: today); answers for any other day are dropped.
+  const dayRef = useRef<string | null>(date ?? null);
+  const invalidDateRef = useRef(onInvalidDate);
+  invalidDateRef.current = onInvalidDate;
+  // The wording and columns follow the rows on screen, so they always name the same day.
+  const pastDay = summary?.is_today === false;
+  // A past day hides 当前 CPU and 状态; sorting by either falls back to the default.
+  if (pastDay && !PAST_COLUMNS.some((column) => column.key === sort.key)) {
+    setSort(DEFAULT_SORT);
+  }
   const sortedRows = useMemo(
-    () => (summary ? sortBackgroundRows(summary.rows, sort) : []),
+    () => (summary ? sortBackgroundRows(summary.rows, sort, summary.is_today === false) : []),
     [summary, sort],
   );
 
   const refresh = useCallback(async () => {
+    const day = dayRef.current;
+    const isCurrent = () => mountedRef.current && dayRef.current === day;
     try {
-      const next = await getBackgroundPageSummary();
-      if (!mountedRef.current) return;
+      const next = await getBackgroundPageSummary(day ?? undefined);
+      if (!isCurrent() || !answersDay(next, day)) return;
       setSummary(next);
       setFetchError(false);
-    } catch {
-      if (mountedRef.current) setFetchError(true);
+    } catch (reason) {
+      if (!isCurrent()) return;
+      if (day !== null && isDayInvalidDate(reason)) {
+        invalidDateRef.current?.();
+        return;
+      }
+      setFetchError(true);
     }
   }, []);
 
   useEffect(() => {
     mountedRef.current = true;
-    const stopPolling = startVisiblePolling(refresh, 5000);
     return () => {
       mountedRef.current = false;
-      stopPolling();
     };
-  }, [refresh]);
+  }, []);
+
+  // Today stays live; a past day's stored rows do not change, so they are read once.
+  useEffect(() => {
+    const day = date ?? null;
+    dayRef.current = day;
+    if (day !== null) {
+      void refresh();
+      return undefined;
+    }
+    return startVisiblePolling(refresh, 5000);
+  }, [date, refresh]);
 
   if (!summary) {
     return (
@@ -134,13 +179,19 @@ export function BackgroundPage({ durationFormat = "decimal_hours" }: BackgroundP
       {fetchError ? <div className="warning" role="alert">无法读取后台进程</div> : null}
 
       <section className="panel background-summary" aria-label="后台概况">
-        <div className="lcd background-strip">
-          {backgroundReadings(summary, durationFormat).map((reading) => (
+        <div className={`lcd background-strip${pastDay ? " is-past" : ""}`}>
+          {(pastDay ? pastBackgroundReadings : backgroundReadings)(summary, durationFormat).map((reading) => (
             <div className="background-reading" key={reading.label}>
               <span>{reading.label}</span>
               <p>
                 {splitReading(reading.value).map((part, index) =>
-                  part.unit ? <small key={index}>{part.text}</small> : <b key={index}>{part.text}</b>,
+                  part.unit ? (
+                    <small key={index} className={part.text === "%" ? "is-pct" : undefined}>
+                      {part.text}
+                    </small>
+                  ) : (
+                    <b key={index}>{part.text}</b>
+                  ),
                 )}
               </p>
             </div>
@@ -153,14 +204,14 @@ export function BackgroundPage({ durationFormat = "decimal_hours" }: BackgroundP
           <h2>后台进程</h2>
           <HelpPopover label="什么是后台进程" title="什么是后台进程？" align="start">
             <p>没有窗口、也不在托盘里的第三方程序。Windows 系统进程不列出；由正在使用的软件启动的子进程，算在那个软件名下。</p>
-            <p>内存显示当前占用，已退出的进程显示今日峰值。</p>
+            <p>内存：运行中的进程显示当前占用，其余显示当日峰值。</p>
           </HelpPopover>
         </header>
         <div className="usage-scroll" role="region" tabIndex={0} aria-label="后台进程明细">
-          <table className="background-table">
+          <table className={`background-table${pastDay ? " is-past" : ""}`}>
             <thead>
               <tr>
-                {COLUMNS.map((column) => (
+                {(pastDay ? PAST_COLUMNS : COLUMNS).map((column) => (
                   <SortableHeader
                     key={column.key}
                     label={column.label}
@@ -172,12 +223,17 @@ export function BackgroundPage({ durationFormat = "decimal_hours" }: BackgroundP
             </thead>
             <tbody>
               {sortedRows.map((row) => (
-                <BackgroundRowView key={row.family_key} row={row} durationFormat={durationFormat} />
+                <BackgroundRowView
+                  key={row.family_key}
+                  row={row}
+                  durationFormat={durationFormat}
+                  pastDay={pastDay}
+                />
               ))}
             </tbody>
           </table>
           {summary.rows.length === 0 && (
-            <div className="empty-state">今天还没有记录到后台进程。</div>
+            <div className="empty-state">{pastDay ? "这一天没有后台记录。" : "今天还没有记录到后台进程。"}</div>
           )}
         </div>
       </section>
@@ -226,9 +282,12 @@ function SortableHeader({
 function BackgroundRowView({
   row,
   durationFormat,
+  pastDay,
 }: {
   row: BackgroundRow;
   durationFormat: DurationFormat;
+  /** Only the day's stored peaks and totals: no current CPU and no status cells. */
+  pastDay: boolean;
 }) {
   return (
     <tr className="background-row">
@@ -241,17 +300,19 @@ function BackgroundRowView({
           </span>
         </div>
       </td>
-      <td>{row.is_running ? row.process_count : "—"}</td>
-      <td>{row.cpu_percent === null ? "—" : formatPercent(row.cpu_percent)}</td>
-      <td title={row.is_running ? "当前占用" : "今日峰值"}>{formatBytes(row.memory_bytes)}</td>
+      <td>{row.is_running || pastDay ? row.process_count : "—"}</td>
+      {pastDay ? null : <td>{row.cpu_percent === null ? "—" : formatPercent(row.cpu_percent)}</td>}
+      <td title={row.is_running ? "当前占用" : "当日峰值"}>{formatBytes(row.memory_bytes)}</td>
       <td>{formatDurationZh(row.today_running_seconds, durationFormat)}</td>
       <td>{formatCpuSeconds(row.today_cpu_seconds, durationFormat)}</td>
-      <td>
-        <span className={`status-badge ${row.is_running ? "background" : "closed"}`}>
-          <i className="lamp" aria-hidden="true" />
-          {row.is_running ? "运行中" : "已退出"}
-        </span>
-      </td>
+      {pastDay ? null : (
+        <td>
+          <span className={`status-badge ${row.is_running ? "background" : "closed"}`}>
+            <i className="lamp" aria-hidden="true" />
+            {row.is_running ? "运行中" : "已退出"}
+          </span>
+        </td>
+      )}
     </tr>
   );
 }
@@ -283,6 +344,24 @@ export function backgroundReadings(
       value: formatCpuSeconds(sum(summary.rows, (row) => row.today_cpu_seconds), durationFormat),
     },
     { label: "今日出现", value: `${summary.rows.length} 个` },
+  ];
+}
+
+/**
+ * The four figures of a past day's strip: what that day added up to. Nothing ran "now" on a past day, so
+ * the live figures go; 峰值内存 adds up each software's peak of the day, like the 峰值内存 column.
+ */
+export function pastBackgroundReadings(
+  summary: BackgroundPageSummary,
+  durationFormat: DurationFormat = "decimal_hours",
+): BackgroundReading[] {
+  const sum = (value: (row: BackgroundRow) => number) =>
+    summary.rows.reduce((total, row) => total + value(row), 0);
+  return [
+    { label: "当日 CPU 时间", value: formatCpuSeconds(sum((row) => row.today_cpu_seconds), durationFormat) },
+    { label: "当日出现", value: `${summary.rows.length} 个` },
+    { label: "当日后台时长", value: formatDurationZh(sum((row) => row.today_running_seconds), durationFormat) },
+    { label: "峰值内存", value: formatBytes(sum((row) => row.memory_bytes)) },
   ];
 }
 
