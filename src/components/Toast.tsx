@@ -78,6 +78,8 @@ export function Toast({ toast, durationMs = TOAST_DURATION_MS, onDismiss }: Toas
   return (
     <div
       ref={boxRef}
+      // Stays live while a glass dialog is open (useModalDialog), so a save's result is still announced.
+      data-modal-keep=""
       className={`toast${toast ? "" : " is-idle"}${isError ? " is-error" : ""}`}
       onPointerEnter={() => setHeld((current) => ({ ...current, hover: true }))}
       onPointerLeave={() => {

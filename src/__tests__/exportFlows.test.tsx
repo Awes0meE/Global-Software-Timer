@@ -445,7 +445,8 @@ describe("迁移与备份", () => {
     const dialog = await screen.findByRole("dialog", { name: "导入设置" });
     const shell = document.querySelector(".app-shell") as HTMLElement;
     expect(shell).toHaveAttribute("inert");
-    expect(document.querySelector(".toast")).toHaveAttribute("inert");
+    // The toast stays live under the scrim, so 导入失败 / 已导入 are announced as the dialog closes.
+    expect(document.querySelector(".toast")).not.toHaveAttribute("inert");
 
     // A press on the scrim keeps focus on the key it was on.
     await userEvent.click(dialog.parentElement as HTMLElement);

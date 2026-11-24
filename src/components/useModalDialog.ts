@@ -14,10 +14,12 @@ interface ModalOptions {
 
 /**
  * Makes `dialogRef` (a dialog inside `.modal-backdrop`) modal, for the v0.4.2 glass dialogs: the rest of the
- * app (the page, the sidebar, a toast still showing) is inert while it is open, and Tab, Esc and focus are
+ * app (the page, the sidebar) is inert while it is open, and Tab, Esc and focus are
  * handled for the whole document, so a click on the dialog's text or on the scrim cannot let focus out.
  * Focus starts on `initialFocus` and goes back to where it was (the key that opened the dialog) once the app
- * is no longer inert.
+ * is no longer inert. A sibling marked `data-modal-keep` (the toast) stays out of the inert set, so what a
+ * save says while the dialog is open (已保存, 保存失败) is still announced; it sits under the scrim and the
+ * trap keeps focus in the dialog, so it cannot be clicked or tabbed to meanwhile.
  */
 export function useModalDialog(dialogRef: RefObject<HTMLElement | null>, { onCancel, busy, initialFocus }: ModalOptions) {
   const busyRef = useRef(busy);
@@ -34,7 +36,10 @@ export function useModalDialog(dialogRef: RefObject<HTMLElement | null>, { onCan
     if (!dialog || !backdrop?.parentElement) return undefined;
     const madeInert = Array.from(backdrop.parentElement.children).filter(
       (element): element is HTMLElement =>
-        element !== backdrop && element instanceof HTMLElement && !element.hasAttribute("inert"),
+        element !== backdrop &&
+        element instanceof HTMLElement &&
+        !element.hasAttribute("inert") &&
+        !element.hasAttribute("data-modal-keep"),
     );
     for (const element of madeInert) element.setAttribute("inert", "");
 
