@@ -560,14 +560,15 @@
 
 /* ---------- Toast ---------- */
 
-/* Under the modal scrim (40): while a dialog is open the toast and its key sit dimmed behind it. Inset
-   well inside the page gutter (28px / 24px), so it floats over the panels instead of sitting in a
-   panel's corner. */
+/* Above the modal scrim (40), below the help popovers (50): what a save says while a glass dialog is
+   open (保存失败 under the 成就海报 dialog) stays readable; the dialog's trap keeps Tab off it. Inset well
+   inside the page gutter (28px / 24px), so it floats over the panels instead of sitting in a panel's
+   corner. */
 .toast {
   position: fixed;
   right: 48px;
   bottom: 44px;
-  z-index: 35;
+  z-index: 45;
   display: flex;
   align-items: center;
   gap: 8px;

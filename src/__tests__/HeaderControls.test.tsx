@@ -641,14 +641,15 @@ describe("Toast", () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
-  it("sits under the modal scrim, so a dialog dims it like the rest of the app", () => {
+  it("sits above the modal scrim and below the help popovers, so 保存失败 stays readable over a dialog", () => {
     const zIndex = (file: string, selector: string) =>
       Number(
         parseRules(allCss()[file]).rules.find(
           (rule) => rule.atRules.length === 0 && rule.selectors.includes(selector) && rule.declarations["z-index"],
         )?.declarations["z-index"],
       );
-    expect(zIndex("HeaderControls.css", ".toast")).toBeLessThan(zIndex("styles.css", ".modal-backdrop"));
+    expect(zIndex("HeaderControls.css", ".toast")).toBeGreaterThan(zIndex("styles.css", ".modal-backdrop"));
+    expect(zIndex("HeaderControls.css", ".toast")).toBeLessThan(zIndex("styles.css", ".active-help-popover"));
   });
 
   it("marks a message with a status icon that screen readers skip, and none while idle", () => {
