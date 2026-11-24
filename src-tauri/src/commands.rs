@@ -20,7 +20,10 @@ const DEFAULT_THEME: ThemePreference = ThemePreference::System;
 const STATISTICS_INVALID_RANGE: &str = "statistics_invalid_range";
 const ACHIEVEMENTS_INVALID_HEATMAP_DAYS: &str = "achievements_invalid_heatmap_days";
 const TIMELINE_INVALID_DATE: &str = "timeline_invalid_date";
+const DAY_INVALID_DATE: &str = "day_invalid_date";
 
+/// The `today_*` readings belong to `usage_date`, which is a past day when
+/// `is_today` is false.
 #[derive(Debug, Clone, Serialize)]
 pub struct DashboardSummary {
     pub last_scan_succeeded: Option<bool>,
@@ -28,6 +31,7 @@ pub struct DashboardSummary {
     pub locale: String,
     /// The local calendar date ("YYYY-MM-DD") the today readings below belong to.
     pub usage_date: String,
+    pub is_today: bool,
     pub most_used: Option<AppUsageRow>,
     pub recorded_today_seconds: i64,
     pub active_today_seconds: i64,
@@ -47,12 +51,33 @@ pub struct AppUsageRow {
     pub is_running: bool,
 }
 
+/// On a past day the rows are that day's stored totals and peaks only.
 #[derive(Debug, Clone, Serialize)]
 pub struct BackgroundPageSummary {
     /// Logical processors; `cpu_percent` is already divided by this.
     pub logical_cores: u32,
     pub running_count: usize,
     pub rows: Vec<BackgroundRowDto>,
+    /// The local date ("YYYY-MM-DD") the rows belong to.
+    pub usage_date: String,
+    pub is_today: bool,
+}
+
+/// Dates are local `YYYY-MM-DD`. `days` holds the stored days from the data
+/// start to today, in date order; days without a record are absent.
+#[derive(Debug, Clone, Serialize)]
+pub struct CalendarSummary {
+    pub today: String,
+    pub data_start_date: Option<String>,
+    pub streak_threshold_seconds: i64,
+    pub days: Vec<CalendarDay>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CalendarDay {
+    pub date: String,
+    pub recorded_seconds: i64,
+    pub active_seconds: i64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -311,20 +336,29 @@ pub struct AppSettings {
 }
 
 // Summaries use a read-only transaction and the last published process sample.
+/// `date` is a local `YYYY-MM-DD`; missing means today.
 #[tauri::command(async)]
-pub fn get_dashboard_summary(state: State<'_, AppState>) -> Result<DashboardSummary, String> {
+pub fn get_dashboard_summary(
+    state: State<'_, AppState>,
+    date: Option<String>,
+) -> Result<DashboardSummary, String> {
     let live = crate::app_state::lock_recovering(&state.live).clone();
     let store = crate::app_state::lock_recovering(&state.summary_store);
+    let day = SummaryDay::resolve_in(date.as_deref(), Utc::now(), &Local)?;
     let transaction = store.savepoint().map_err(|error| error.to_string())?;
-    let now_utc = Utc::now();
-    let summary = dashboard_summary_from_store(
-        &store,
-        local_day_start_utc(),
-        now_utc,
-        &live.statuses,
-        live.last_scan_succeeded,
-    )
-    .map_err(|error| error.to_string())?;
+    let summary =
+        dashboard_summary_from_store(&store, day, &live.statuses, live.last_scan_succeeded)
+            .map_err(|error| error.to_string())?;
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(summary)
+}
+
+#[tauri::command(async)]
+pub fn get_calendar_summary(state: State<'_, AppState>) -> Result<CalendarSummary, String> {
+    let store = crate::app_state::lock_recovering(&state.summary_store);
+    let transaction = store.savepoint().map_err(|error| error.to_string())?;
+    let summary = calendar_summary_from_store(&store, Local::now().date_naive())
+        .map_err(|error| error.to_string())?;
     transaction.commit().map_err(|error| error.to_string())?;
     Ok(summary)
 }
@@ -376,21 +410,43 @@ pub fn get_achievements_summary(
     Ok(summary)
 }
 
+/// `date` is a local `YYYY-MM-DD`; missing means today.
 #[tauri::command(async)]
 pub fn get_background_page_summary(
     state: State<'_, AppState>,
+    date: Option<String>,
 ) -> Result<BackgroundPageSummary, String> {
     let live = crate::app_state::lock_recovering(&state.live).clone();
     let store = crate::app_state::lock_recovering(&state.summary_store);
-    let stored = store
-        .background_usage_for_date(Local::now().date_naive())
-        .map_err(|error| error.to_string())?;
+    let day = SummaryDay::resolve_in(date.as_deref(), Utc::now(), &Local)?;
     let cores = std::thread::available_parallelism()
         .map(|count| count.get() as u32)
         .unwrap_or(1);
-    let rows = background_rows(stored, live.background.clone(), cores);
+    let transaction = store.savepoint().map_err(|error| error.to_string())?;
+    let summary = background_page_summary_from_store(&store, day, live.background.clone(), cores)
+        .map_err(|error| error.to_string())?;
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(summary)
+}
+
+/// Today: stored totals with the live sample on top. A past day: its stored
+/// totals and peaks only. Before the data start: no rows.
+fn background_page_summary_from_store(
+    store: &Store,
+    day: SummaryDay,
+    live: Vec<BackgroundProcessGroup>,
+    logical_cores: u32,
+) -> Result<BackgroundPageSummary, StoreError> {
+    let (stored, live) = if day.is_today {
+        (store.background_usage_for_date(day.date)?, live)
+    } else if has_data_on(store, day.date)? {
+        (store.background_usage_for_date(day.date)?, Vec::new())
+    } else {
+        (Vec::new(), Vec::new())
+    };
+    let rows = background_rows(stored, live, logical_cores);
     Ok(BackgroundPageSummary {
-        logical_cores: cores,
+        logical_cores,
         running_count: rows.iter().filter(|(row, _)| row.is_running).count(),
         rows: rows
             .into_iter()
@@ -399,6 +455,8 @@ pub fn get_background_page_summary(
                 ..row
             })
             .collect(),
+        usage_date: day.date.to_string(),
+        is_today: day.is_today,
     })
 }
 
@@ -692,26 +750,40 @@ fn software_list_command_error(error: StoreError) -> String {
     }
 }
 
+/// Live statuses apply to today only; on a past day every app is closed.
 fn dashboard_summary_from_store(
     store: &Store,
-    day_start_utc: DateTime<Utc>,
-    now_utc: DateTime<Utc>,
+    day: SummaryDay,
     runtime_status_by_app_id: &HashMap<i64, AppRuntimeStatus>,
     last_scan_succeeded: Option<bool>,
 ) -> Result<DashboardSummary, StoreError> {
-    let usage_date = day_start_utc.with_timezone(&Local).date_naive();
-    let apps = store
-        .app_usage_summary_for_date(day_start_utc, now_utc, usage_date)?
+    let no_statuses = HashMap::new();
+    let (summaries, daily_usage, statuses) = if day.is_today {
+        (
+            store.app_usage_summary_for_date(day.start, day.until, day.date)?,
+            store.daily_system_usage(day.date)?,
+            runtime_status_by_app_id,
+        )
+    } else if has_data_on(store, day.date)? {
+        (
+            store.app_usage_summary_for_past_day(day.start, day.until, day.date)?,
+            store.daily_system_usage(day.date)?,
+            &no_statuses,
+        )
+    } else {
+        (Vec::new(), None, &no_statuses)
+    };
+    let apps = summaries
         .into_iter()
-        .map(|summary| AppUsageRow::from_summary(summary, runtime_status_by_app_id))
+        .map(|summary| AppUsageRow::from_summary(summary, statuses))
         .collect::<Vec<_>>();
-    let daily_usage = store.daily_system_usage(usage_date)?;
 
     Ok(DashboardSummary {
         last_scan_succeeded,
         product_title: "全局软件计时器".to_string(),
         locale: "zh-CN".to_string(),
-        usage_date: usage_date.format("%Y-%m-%d").to_string(),
+        usage_date: day.date.to_string(),
+        is_today: day.is_today,
         most_used: most_used_today(&apps),
         recorded_today_seconds: daily_usage
             .as_ref()
@@ -769,13 +841,78 @@ fn software_page_summary_from_store(
     })
 }
 
+/// Days before the first `daily_system_usage` row have no data to show.
+fn has_data_on(store: &Store, date: NaiveDate) -> Result<bool, StoreError> {
+    Ok(store.data_start_date()?.is_some_and(|start| date >= start))
+}
+
+fn calendar_summary_from_store(
+    store: &Store,
+    today: NaiveDate,
+) -> Result<CalendarSummary, StoreError> {
+    let data_start = store.data_start_date()?;
+    let days = match data_start {
+        Some(start) => store.daily_system_usage_range(start, today)?,
+        None => Vec::new(),
+    };
+    Ok(CalendarSummary {
+        today: today.to_string(),
+        data_start_date: data_start.map(|date| date.to_string()),
+        streak_threshold_seconds: statistics::STREAK_MIN_ACTIVE_SECONDS,
+        days: days
+            .into_iter()
+            .map(|usage| CalendarDay {
+                date: usage.date.to_string(),
+                recorded_seconds: usage.recorded_seconds,
+                active_seconds: usage.active_seconds,
+            })
+            .collect(),
+    })
+}
+
+/// The local day a date-browsing summary reads: today up to `now`, or a past
+/// day up to its end.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SummaryDay {
+    date: NaiveDate,
+    start: DateTime<Utc>,
+    until: DateTime<Utc>,
+    is_today: bool,
+}
+
+impl SummaryDay {
+    /// `date` is the requested local `YYYY-MM-DD` in `tz`; `None` means today.
+    fn resolve_in<Tz: TimeZone>(
+        date: Option<&str>,
+        now: DateTime<Utc>,
+        tz: &Tz,
+    ) -> Result<Self, String> {
+        let today = now.with_timezone(tz).date_naive();
+        let date = parse_view_date(date, today)?;
+        let (start, end) = local_date_bounds_in(date, tz);
+        let is_today = date == today;
+        Ok(Self {
+            date,
+            start,
+            until: if is_today { now } else { end },
+            is_today,
+        })
+    }
+}
+
+/// `None` is today. A malformed date or one after today is `day_invalid_date`.
+fn parse_view_date(value: Option<&str>, today: NaiveDate) -> Result<NaiveDate, String> {
+    let Some(value) = value else {
+        return Ok(today);
+    };
+    parse_local_date(value)
+        .filter(|date| *date <= today)
+        .ok_or_else(|| DAY_INVALID_DATE.to_string())
+}
+
+/// DST-safe: where midnight is skipped, the day starts at its first local hour.
 fn local_day_start_utc() -> DateTime<Utc> {
-    let local_date = Local::now().date_naive();
-    let local_midnight = Local
-        .from_local_datetime(&local_date.and_hms_opt(0, 0, 0).expect("valid midnight"))
-        .single()
-        .unwrap_or_else(Local::now);
-    local_midnight.with_timezone(&Utc)
+    local_date_start_utc(Local::now().date_naive())
 }
 
 /// The instant `date` starts in local time.
@@ -1666,9 +1803,19 @@ mod tests {
     };
     use crate::domain::AppRuntimeStatus;
     use crate::storage::{Store, StoreError};
-    use chrono::{Duration, NaiveDate, TimeZone, Utc};
+    use chrono::{DateTime, Duration, Local, NaiveDate, TimeZone, Utc};
     use std::collections::HashMap;
     use tempfile::NamedTempFile;
+
+    /// Today read from `start` up to `now`, dated by the local date of `start`.
+    fn today_view(start: DateTime<Utc>, now: DateTime<Utc>) -> super::SummaryDay {
+        super::SummaryDay {
+            date: start.with_timezone(&Local).date_naive(),
+            start,
+            until: now,
+            is_today: true,
+        }
+    }
 
     /// Run in a fresh process to include cold icon-cache behavior.
     #[test]
@@ -1958,8 +2105,10 @@ mod tests {
 
         let summary = dashboard_summary_from_store(
             &store,
-            Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
-            Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
+            today_view(
+                Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
+            ),
             &HashMap::new(),
             Some(true),
         )
@@ -2002,8 +2151,7 @@ mod tests {
 
         let summary = dashboard_summary_from_store(
             &store,
-            day_start,
-            day_start + Duration::minutes(30),
+            today_view(day_start, day_start + Duration::minutes(30)),
             &HashMap::new(),
             Some(true),
         )
@@ -2057,8 +2205,10 @@ mod tests {
 
         let summary = dashboard_summary_from_store(
             &store,
-            Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
-            Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap(),
+            today_view(
+                Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2026, 5, 29, 9, 0, 0).unwrap(),
+            ),
             &HashMap::new(),
             Some(true),
         )
@@ -2094,8 +2244,10 @@ mod tests {
 
         let summary = dashboard_summary_from_store(
             &store,
-            Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
-            Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
+            today_view(
+                Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
+            ),
             &statuses,
             Some(true),
         )
@@ -2138,8 +2290,10 @@ mod tests {
 
         let summary = dashboard_summary_from_store(
             &store,
-            Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
-            Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
+            today_view(
+                Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2026, 5, 29, 8, 2, 0).unwrap(),
+            ),
             &statuses,
             Some(true),
         )
@@ -3541,5 +3695,564 @@ mod timeline_command_tests {
             )]
         );
         assert_eq!(window_shape(&result, &key), (vec![], 0));
+    }
+}
+
+#[cfg(test)]
+mod day_view_tests {
+    use super::{
+        background_page_summary_from_store, calendar_summary_from_store,
+        dashboard_summary_from_store, local_date_bounds_in, parse_view_date, SummaryDay,
+        DAY_INVALID_DATE,
+    };
+    use crate::background::BackgroundProcessGroup;
+    use crate::domain::AppRuntimeStatus;
+    use crate::storage::Store;
+    use chrono::{
+        DateTime, Duration, FixedOffset, Local, MappedLocalTime, NaiveDate, NaiveDateTime,
+        TimeZone, Utc,
+    };
+    use std::collections::HashMap;
+    use tempfile::NamedTempFile;
+
+    /// UTC-4, then at local midnight starting 2026-09-06 the clocks jump to
+    /// 01:00 (UTC-3), so that day has no midnight and lasts 23 hours.
+    #[derive(Debug, Clone, Copy)]
+    struct MidnightGap;
+
+    impl MidnightGap {
+        fn before() -> FixedOffset {
+            FixedOffset::west_opt(4 * 3600).unwrap()
+        }
+
+        fn after() -> FixedOffset {
+            FixedOffset::west_opt(3 * 3600).unwrap()
+        }
+
+        fn switch_local() -> NaiveDateTime {
+            date(2026, 9, 6).and_hms_opt(0, 0, 0).unwrap()
+        }
+    }
+
+    impl TimeZone for MidnightGap {
+        type Offset = FixedOffset;
+
+        fn from_offset(_: &FixedOffset) -> Self {
+            MidnightGap
+        }
+
+        fn offset_from_local_date(&self, local: &NaiveDate) -> MappedLocalTime<FixedOffset> {
+            self.offset_from_local_datetime(&local.and_hms_opt(0, 0, 0).unwrap())
+        }
+
+        fn offset_from_local_datetime(
+            &self,
+            local: &NaiveDateTime,
+        ) -> MappedLocalTime<FixedOffset> {
+            let switch = Self::switch_local();
+            if *local < switch {
+                MappedLocalTime::Single(Self::before())
+            } else if *local < switch + Duration::hours(1) {
+                MappedLocalTime::None
+            } else {
+                MappedLocalTime::Single(Self::after())
+            }
+        }
+
+        fn offset_from_utc_date(&self, utc: &NaiveDate) -> FixedOffset {
+            self.offset_from_utc_datetime(&utc.and_hms_opt(0, 0, 0).unwrap())
+        }
+
+        fn offset_from_utc_datetime(&self, utc: &NaiveDateTime) -> FixedOffset {
+            // Local midnight at UTC-4 is 04:00 UTC.
+            if *utc < Self::switch_local() + Duration::hours(4) {
+                Self::before()
+            } else {
+                Self::after()
+            }
+        }
+    }
+
+    fn date(year: i32, month: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(year, month, day).unwrap()
+    }
+
+    fn utc(value: &str) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(value)
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    fn migrated_store() -> (NamedTempFile, Store) {
+        let file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(file.path()).expect("open store");
+        store.migrate().expect("migrate");
+        (file, store)
+    }
+
+    fn app(store: &Store, name: &str) -> i64 {
+        store
+            .upsert_app(
+                &format!("{name}.exe"),
+                &format!(r"X:\Fixtures\{name}\{name}.exe"),
+                name,
+            )
+            .expect("app")
+            .id
+    }
+
+    fn closed_session(store: &Store, app_id: i64, start: DateTime<Utc>, end: DateTime<Utc>) {
+        let id = store.start_session(app_id, start).expect("start");
+        store
+            .close_session(id, end, "process_closed", false)
+            .expect("close");
+    }
+
+    /// A local past day read through the machine's own time zone.
+    fn past_day(day: NaiveDate) -> SummaryDay {
+        let (start, end) = local_date_bounds_in(day, &Local);
+        SummaryDay {
+            date: day,
+            start,
+            until: end,
+            is_today: false,
+        }
+    }
+
+    fn group(key: &str, count: u32, memory: u64, cpu: f32) -> BackgroundProcessGroup {
+        BackgroundProcessGroup {
+            family_key: key.into(),
+            display_name: key.into(),
+            process_name: format!("{key}.exe"),
+            executable_path: format!(r"X:\Fixtures\{key}.exe"),
+            process_count: count,
+            cpu_percent: cpu,
+            memory_bytes: memory,
+        }
+    }
+
+    #[test]
+    fn parse_view_date_accepts_today_and_past_days_only() {
+        let today = date(2026, 11, 24);
+        assert_eq!(parse_view_date(None, today), Ok(today));
+        assert_eq!(parse_view_date(Some("2026-11-24"), today), Ok(today));
+        assert_eq!(
+            parse_view_date(Some("2025-01-31"), today),
+            Ok(date(2025, 1, 31))
+        );
+        for bad in [
+            "2026-11-25",
+            "2027-01-01",
+            "",
+            "2026-1-05",
+            "2026-02-30",
+            "20261124",
+            "+2026-11-24",
+            "yesterday",
+        ] {
+            assert_eq!(
+                parse_view_date(Some(bad), today),
+                Err(DAY_INVALID_DATE.to_string()),
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn summary_day_reads_today_until_now_and_a_past_day_to_its_end() {
+        let east = FixedOffset::east_opt(8 * 3600).unwrap();
+        let now = utc("2026-11-24T05:30:00Z"); // 13:30 local
+
+        let today = SummaryDay::resolve_in(None, now, &east).unwrap();
+        assert_eq!(
+            today,
+            SummaryDay {
+                date: date(2026, 11, 24),
+                start: utc("2026-11-23T16:00:00Z"),
+                until: now,
+                is_today: true,
+            }
+        );
+        assert_eq!(
+            SummaryDay::resolve_in(Some("2026-11-24"), now, &east).unwrap(),
+            today
+        );
+
+        let past = SummaryDay::resolve_in(Some("2026-11-20"), now, &east).unwrap();
+        assert_eq!(
+            past,
+            SummaryDay {
+                date: date(2026, 11, 20),
+                start: utc("2026-11-19T16:00:00Z"),
+                until: utc("2026-11-20T16:00:00Z"),
+                is_today: false,
+            }
+        );
+
+        // "Today" is the local date of `now`, not the UTC one.
+        let late_evening = utc("2026-11-24T17:00:00Z"); // 01:00 on the 25th locally
+        assert!(
+            SummaryDay::resolve_in(Some("2026-11-25"), late_evening, &east)
+                .unwrap()
+                .is_today
+        );
+        assert_eq!(
+            SummaryDay::resolve_in(Some("2026-11-25"), now, &east),
+            Err(DAY_INVALID_DATE.to_string())
+        );
+    }
+
+    #[test]
+    fn summary_day_uses_dst_safe_bounds_for_a_day_without_midnight() {
+        let gap_day = date(2026, 9, 6);
+        assert_eq!(
+            local_date_bounds_in(gap_day, &MidnightGap),
+            (utc("2026-09-06T04:00:00Z"), utc("2026-09-07T03:00:00Z"))
+        );
+        assert_eq!(
+            local_date_bounds_in(date(2026, 9, 5), &MidnightGap).1,
+            utc("2026-09-06T04:00:00Z")
+        );
+
+        let later = utc("2026-09-10T12:00:00Z");
+        let past = SummaryDay::resolve_in(Some("2026-09-06"), later, &MidnightGap).unwrap();
+        assert_eq!(past.until - past.start, Duration::hours(23));
+        assert!(!past.is_today);
+
+        let on_the_day = utc("2026-09-06T12:00:00Z");
+        let today = SummaryDay::resolve_in(None, on_the_day, &MidnightGap).unwrap();
+        assert_eq!(today.date, gap_day);
+        assert_eq!(today.start, utc("2026-09-06T04:00:00Z"));
+        assert_eq!(today.until, on_the_day);
+        assert!(today.is_today);
+    }
+
+    #[test]
+    fn past_day_dashboard_clips_to_the_day_and_lists_only_that_days_software() {
+        let (_file, store) = migrated_store();
+        let day = date(2026, 11, 20);
+        let view = past_day(day);
+        let crossing = app(&store, "Crossing");
+        let earlier = app(&store, "Earlier");
+        let later = app(&store, "Later");
+        let open = app(&store, "Open");
+        let active_only = app(&store, "ActiveOnly");
+
+        // 22:00 the evening before until 02:00: 2 h that day, 4 h in total.
+        closed_session(
+            &store,
+            crossing,
+            view.start - Duration::hours(2),
+            view.start + Duration::hours(2),
+        );
+        // A later session of the same software is not part of that day's 累计.
+        closed_session(
+            &store,
+            crossing,
+            view.until + Duration::hours(30),
+            view.until + Duration::hours(40),
+        );
+        closed_session(
+            &store,
+            earlier,
+            view.start - Duration::hours(30),
+            view.start - Duration::hours(20),
+        );
+        closed_session(
+            &store,
+            later,
+            view.until + Duration::hours(1),
+            view.until + Duration::hours(3),
+        );
+        // Still open: started at 21:00 and last seen two days later.
+        let open_id = store
+            .start_session(open, view.until - Duration::hours(3))
+            .unwrap();
+        store
+            .heartbeat_session(open_id, view.until + Duration::hours(48))
+            .unwrap();
+        // Active that day although its only session ran on the day before.
+        closed_session(
+            &store,
+            active_only,
+            view.start - Duration::hours(10),
+            view.start - Duration::hours(9),
+        );
+        store
+            .increment_daily_app_usage(day, active_only, 0, 120)
+            .unwrap();
+        store
+            .increment_daily_app_usage(day, crossing, 0, 900)
+            .unwrap();
+        store
+            .increment_daily_system_usage(day - Duration::days(3), 60, 60, 60)
+            .unwrap();
+        store
+            .increment_daily_system_usage(day, 7200, 1800, 9000)
+            .unwrap();
+        let live = HashMap::from([
+            (crossing, AppRuntimeStatus::Foreground),
+            (open, AppRuntimeStatus::Tray),
+        ]);
+
+        let summary = dashboard_summary_from_store(&store, view, &live, Some(true)).unwrap();
+
+        assert_eq!(summary.usage_date, "2026-11-20");
+        assert!(!summary.is_today);
+        assert_eq!(summary.last_scan_succeeded, Some(true));
+        assert_eq!(summary.recorded_today_seconds, 7200);
+        assert_eq!(summary.active_today_seconds, 1800);
+        let rows = summary
+            .apps
+            .iter()
+            .map(|row| {
+                (
+                    row.display_name.as_str(),
+                    row.today_seconds,
+                    row.active_today_seconds,
+                    row.total_seconds,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            rows,
+            vec![
+                ("Crossing", 2 * 3600, 900, 4 * 3600),
+                ("Open", 3 * 3600, 0, 3 * 3600),
+                ("ActiveOnly", 0, 120, 3600),
+            ]
+        );
+        assert!(summary
+            .apps
+            .iter()
+            .all(|row| row.status == AppRuntimeStatus::Closed && !row.is_running));
+        assert_eq!(summary.most_used.unwrap().display_name, "Crossing");
+    }
+
+    #[test]
+    fn past_day_dashboard_on_a_23_hour_day_clips_to_its_dst_bounds() {
+        let (_file, store) = migrated_store();
+        let gap_day = date(2026, 9, 6);
+        let view = SummaryDay::resolve_in(
+            Some("2026-09-06"),
+            utc("2026-09-10T12:00:00Z"),
+            &MidnightGap,
+        )
+        .unwrap();
+        let all_day = app(&store, "AllDay");
+        closed_session(
+            &store,
+            all_day,
+            utc("2026-09-05T20:00:00Z"),
+            utc("2026-09-07T10:00:00Z"),
+        );
+        store
+            .increment_daily_system_usage(gap_day, 60, 30, 60)
+            .unwrap();
+
+        let summary = dashboard_summary_from_store(&store, view, &HashMap::new(), None).unwrap();
+
+        assert_eq!(summary.usage_date, "2026-09-06");
+        assert_eq!(summary.apps.len(), 1);
+        assert_eq!(summary.apps[0].today_seconds, 23 * 3600);
+        assert_eq!(summary.apps[0].total_seconds, 31 * 3600);
+    }
+
+    #[test]
+    fn dashboard_before_the_data_start_is_empty() {
+        let (_file, store) = migrated_store();
+        let first = date(2026, 11, 20);
+        let view = past_day(first - Duration::days(1));
+        let legacy = app(&store, "Legacy");
+        closed_session(
+            &store,
+            legacy,
+            view.start + Duration::hours(1),
+            view.start + Duration::hours(2),
+        );
+
+        let no_data = dashboard_summary_from_store(&store, view, &HashMap::new(), None).unwrap();
+        assert!(no_data.apps.is_empty());
+
+        store
+            .increment_daily_system_usage(first, 60, 30, 60)
+            .unwrap();
+        let summary = dashboard_summary_from_store(&store, view, &HashMap::new(), None).unwrap();
+
+        assert_eq!(summary.usage_date, "2026-11-19");
+        assert!(!summary.is_today);
+        assert!(summary.apps.is_empty());
+        assert!(summary.most_used.is_none());
+        assert_eq!(summary.recorded_today_seconds, 0);
+        assert_eq!(summary.active_today_seconds, 0);
+    }
+
+    #[test]
+    fn today_dashboard_keeps_live_statuses_and_reports_is_today() {
+        let (_file, store) = migrated_store();
+        let day = date(2026, 11, 24);
+        let (start, _) = local_date_bounds_in(day, &Local);
+        let view = SummaryDay {
+            date: day,
+            start,
+            until: start + Duration::hours(10),
+            is_today: true,
+        };
+        let code = app(&store, "Code");
+        let id = store
+            .start_session(code, start + Duration::hours(8))
+            .unwrap();
+        store
+            .heartbeat_session(id, start + Duration::hours(9))
+            .unwrap();
+        let live = HashMap::from([(code, AppRuntimeStatus::Foreground)]);
+
+        let summary = dashboard_summary_from_store(&store, view, &live, Some(true)).unwrap();
+
+        assert!(summary.is_today);
+        assert_eq!(summary.usage_date, "2026-11-24");
+        assert_eq!(summary.apps[0].status, AppRuntimeStatus::Foreground);
+        assert!(summary.apps[0].is_running);
+        assert_eq!(summary.apps[0].today_seconds, 3600);
+    }
+
+    #[test]
+    fn past_day_background_shows_stored_peaks_without_the_live_sample() {
+        let (_file, store) = migrated_store();
+        let day = date(2026, 11, 20);
+        let view = past_day(day);
+        let at = view.start + Duration::hours(1);
+        store.increment_daily_system_usage(day, 60, 30, 60).unwrap();
+        store
+            .increment_daily_background_usage(day, &group("indexer", 2, 300, 50.0), 60, at)
+            .unwrap();
+        store
+            .increment_daily_background_usage(day, &group("indexer", 5, 100, 0.0), 60, at)
+            .unwrap();
+        store
+            .increment_daily_background_usage(
+                day + Duration::days(1),
+                &group("other", 1, 10, 10.0),
+                60,
+                at,
+            )
+            .unwrap();
+        let live = vec![group("indexer", 1, 50, 100.0), group("fresh", 1, 10, 5.0)];
+
+        let summary = background_page_summary_from_store(&store, view, live, 4).unwrap();
+
+        assert_eq!(summary.usage_date, "2026-11-20");
+        assert!(!summary.is_today);
+        assert_eq!(summary.running_count, 0);
+        assert_eq!(summary.logical_cores, 4);
+        assert_eq!(summary.rows.len(), 1);
+        let row = &summary.rows[0];
+        assert_eq!(row.family_key, "indexer");
+        assert!(!row.is_running);
+        assert_eq!(row.cpu_percent, None);
+        assert_eq!(row.process_count, 5);
+        assert_eq!(row.memory_bytes, 300);
+        assert_eq!(row.today_running_seconds, 120);
+        assert_eq!(row.today_cpu_seconds, 30.0);
+    }
+
+    #[test]
+    fn today_background_overlays_the_live_sample() {
+        let (_file, store) = migrated_store();
+        let day = date(2026, 11, 24);
+        let (start, _) = local_date_bounds_in(day, &Local);
+        let view = SummaryDay {
+            date: day,
+            start,
+            until: start + Duration::hours(10),
+            is_today: true,
+        };
+        store
+            .increment_daily_background_usage(day, &group("indexer", 2, 300, 50.0), 60, start)
+            .unwrap();
+
+        let summary = background_page_summary_from_store(
+            &store,
+            view,
+            vec![group("indexer", 1, 50, 100.0)],
+            4,
+        )
+        .unwrap();
+
+        assert!(summary.is_today);
+        assert_eq!(summary.usage_date, "2026-11-24");
+        assert_eq!(summary.running_count, 1);
+        assert_eq!(summary.rows[0].cpu_percent, Some(25.0));
+        assert_eq!(summary.rows[0].memory_bytes, 50);
+    }
+
+    #[test]
+    fn background_before_the_data_start_is_empty() {
+        let (_file, store) = migrated_store();
+        let day = date(2026, 11, 19);
+        store
+            .increment_daily_background_usage(
+                day,
+                &group("indexer", 2, 300, 50.0),
+                60,
+                utc("2026-11-19T04:00:00Z"),
+            )
+            .unwrap();
+        store
+            .increment_daily_system_usage(day + Duration::days(1), 60, 30, 60)
+            .unwrap();
+
+        let summary =
+            background_page_summary_from_store(&store, past_day(day), Vec::new(), 4).unwrap();
+
+        assert_eq!(summary.usage_date, "2026-11-19");
+        assert!(summary.rows.is_empty());
+        assert_eq!(summary.running_count, 0);
+    }
+
+    #[test]
+    fn calendar_summary_lists_stored_days_from_the_data_start_to_today() {
+        let (_file, store) = migrated_store();
+        let today = date(2026, 11, 24);
+
+        let empty = calendar_summary_from_store(&store, today).unwrap();
+        assert_eq!(empty.today, "2026-11-24");
+        assert_eq!(empty.data_start_date, None);
+        assert!(empty.days.is_empty());
+        assert_eq!(
+            empty.streak_threshold_seconds,
+            crate::statistics::STREAK_MIN_ACTIVE_SECONDS
+        );
+
+        store
+            .increment_daily_system_usage(date(2026, 9, 3), 3600, 1200, 4000)
+            .unwrap();
+        store
+            .increment_daily_system_usage(date(2026, 11, 22), 600, 0, 700)
+            .unwrap();
+        store
+            .increment_daily_system_usage(today, 7200, 5400, 7300)
+            .unwrap();
+        // A day after "today" (a clock change) stays out of the calendar.
+        store
+            .increment_daily_system_usage(date(2026, 11, 25), 60, 60, 60)
+            .unwrap();
+
+        let summary = calendar_summary_from_store(&store, today).unwrap();
+
+        assert_eq!(summary.data_start_date.as_deref(), Some("2026-09-03"));
+        let days = summary
+            .days
+            .iter()
+            .map(|day| (day.date.as_str(), day.recorded_seconds, day.active_seconds))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            days,
+            vec![
+                ("2026-09-03", 3600, 1200),
+                ("2026-11-22", 600, 0),
+                ("2026-11-24", 7200, 5400),
+            ]
+        );
     }
 }

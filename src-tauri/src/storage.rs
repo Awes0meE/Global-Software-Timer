@@ -1229,6 +1229,42 @@ impl Store {
         now_utc: DateTime<Utc>,
         usage_date: NaiveDate,
     ) -> StoreResult<Vec<AppUsageSummary>> {
+        self.app_usage_summary_until(day_start_utc, now_utc, usage_date, None)
+    }
+
+    /// A finished local day `day_start_utc..day_end_utc`: totals stop at the
+    /// day's end, nothing counts as running, and only software that ran or
+    /// was active that day is listed.
+    pub fn app_usage_summary_for_past_day(
+        &self,
+        day_start_utc: DateTime<Utc>,
+        day_end_utc: DateTime<Utc>,
+        usage_date: NaiveDate,
+    ) -> StoreResult<Vec<AppUsageSummary>> {
+        let summaries = self.app_usage_summary_until(
+            day_start_utc,
+            day_end_utc,
+            usage_date,
+            Some(day_end_utc),
+        )?;
+        Ok(summaries
+            .into_iter()
+            .filter(|summary| summary.today_seconds > 0 || summary.active_today_seconds > 0)
+            .map(|summary| AppUsageSummary {
+                is_running: false,
+                ..summary
+            })
+            .collect())
+    }
+
+    /// `totals_until` clips the all-time totals; `None` keeps every session whole.
+    fn app_usage_summary_until(
+        &self,
+        day_start_utc: DateTime<Utc>,
+        now_utc: DateTime<Utc>,
+        usage_date: NaiveDate,
+        totals_until: Option<DateTime<Utc>>,
+    ) -> StoreResult<Vec<AppUsageSummary>> {
         #[derive(Debug)]
         struct AppSessionRow {
             app_id: i64,
@@ -1362,7 +1398,15 @@ impl Store {
                 entry.process_name = row.process_name.clone();
                 entry.executable_path = row.executable_path.clone();
             }
-            entry.total_intervals.push((started_at, display_end));
+            match totals_until {
+                None => entry.total_intervals.push((started_at, display_end)),
+                Some(until) if display_end.min(until) > started_at => {
+                    entry
+                        .total_intervals
+                        .push((started_at, display_end.min(until)));
+                }
+                Some(_) => {}
+            }
             let today_start = started_at.max(day_start_utc);
             let today_end = display_end.min(now_utc);
             if today_end > today_start {
