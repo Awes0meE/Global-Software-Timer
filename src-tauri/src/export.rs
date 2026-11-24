@@ -10,7 +10,9 @@ use crate::commands::{
 use crate::storage::{Store, StoreError};
 use chrono::{Local, SecondsFormat};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -101,6 +103,8 @@ pub struct SettingsSection {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SettingsListEntry {
+    /// `identity_digest` of the local identity key, never the key itself: app
+    /// keys are built from the install path, which the file must not carry.
     #[serde(default)]
     pub identity_key: String,
     #[serde(default)]
@@ -184,9 +188,22 @@ fn count(value: usize) -> u32 {
     u32::try_from(value).unwrap_or(u32::MAX)
 }
 
-/// The settings file for the current store: effective settings (defaults
-/// included) and both lists in their on-screen order. No autostart, no usage
-/// history, no executable paths.
+/// `sha256:<hex>` of an identity key. One-way, so a shared settings file holds
+/// no install path or Windows user name, yet the same machine still matches
+/// its own identities exactly.
+pub fn identity_digest(identity_key: &str) -> String {
+    let mut text = String::with_capacity(7 + 64);
+    text.push_str("sha256:");
+    for byte in Sha256::digest(identity_key.as_bytes()) {
+        let _ = write!(text, "{byte:02x}");
+    }
+    text
+}
+
+/// The settings file for the current store: the settings the user chose
+/// (unchosen ones are null, so an import never turns a default into a choice)
+/// and both lists in their on-screen order. No autostart, no usage history, no
+/// executable paths.
 pub fn build_settings_file(
     store: &Store,
     app_version: &str,
@@ -203,7 +220,7 @@ pub fn build_settings_file(
             .filter_map(|key| {
                 let (display_name, process_name) = names.get(&key)?.clone();
                 Some(SettingsListEntry {
-                    identity_key: key,
+                    identity_key: identity_digest(&key),
                     display_name,
                     process_name,
                 })
@@ -217,9 +234,15 @@ pub fn build_settings_file(
         app_version: app_version.to_string(),
         exported_at: exported_at.to_string(),
         settings: SettingsSection {
-            theme: Some(settings.theme.as_str().to_string()),
-            duration_format: Some(settings.duration_format.as_str().to_string()),
-            close_behavior: Some(settings.close_behavior.as_str().to_string()),
+            theme: settings
+                .theme_configured
+                .then(|| settings.theme.as_str().to_string()),
+            duration_format: settings
+                .duration_format_configured
+                .then(|| settings.duration_format.as_str().to_string()),
+            close_behavior: settings
+                .close_behavior_configured
+                .then(|| settings.close_behavior.as_str().to_string()),
         },
         focused: entries(store.focused_software_identity_keys()?),
         hidden: entries(store.hidden_software_identity_keys()?),
@@ -238,13 +261,15 @@ pub fn parse_settings_file(bytes: &[u8]) -> Result<SettingsFile, String> {
     Ok(file)
 }
 
-/// Reads at most `SETTINGS_IMPORT_MAX_BYTES` from `path`.
+/// Reads at most `SETTINGS_IMPORT_MAX_BYTES` from `path`. A file that cannot
+/// be opened or read (missing, locked) is `settings_import_invalid`.
 pub fn read_settings_import(path: &Path) -> Result<Vec<u8>, String> {
-    let file = std::fs::File::open(path).map_err(|error| error.to_string())?;
+    let unreadable = |_| SETTINGS_IMPORT_INVALID.to_string();
+    let file = std::fs::File::open(path).map_err(unreadable)?;
     let mut bytes = Vec::new();
     file.take(SETTINGS_IMPORT_MAX_BYTES + 1)
         .read_to_end(&mut bytes)
-        .map_err(|error| error.to_string())?;
+        .map_err(unreadable)?;
     if bytes.len() as u64 > SETTINGS_IMPORT_MAX_BYTES {
         return Err(SETTINGS_IMPORT_TOO_LARGE.to_string());
     }
@@ -253,8 +278,9 @@ pub fn read_settings_import(path: &Path) -> Result<Vec<u8>, String> {
 
 /// Matches the file against the current store without writing anything.
 ///
-/// An entry matches a known identity by `identity_key`, else by `process_name`
-/// (case-insensitive; the most recently seen identity wins). Unmatched entries
+/// An entry matches a known identity whose `identity_digest` equals its
+/// `identity_key`, else by `process_name` (case-insensitive; the most recently
+/// seen identity wins). Unmatched entries
 /// are skipped. An identity already on the opposite list locally, or listed in
 /// both lists of the file, is a conflict and is skipped. Entries already on
 /// their list change nothing. Settings with unknown values are ignored.
@@ -308,7 +334,11 @@ pub fn plan_settings_import(store: &Store, file: &SettingsFile) -> Result<Import
     }
 
     let identities = store.software_identity_names()?;
-    let known_keys: HashSet<&str> = identities.iter().map(|(key, _, _)| key.as_str()).collect();
+    let by_digest: HashMap<String, &str> = identities
+        .iter()
+        .map(|(key, _, _)| (identity_digest(key), key.as_str()))
+        .collect();
+    // Identities come newest first, so the first one per process name wins.
     let mut by_process: HashMap<String, &str> = HashMap::new();
     for (key, _, process_name) in &identities {
         by_process
@@ -319,8 +349,8 @@ pub fn plan_settings_import(store: &Store, file: &SettingsFile) -> Result<Import
     let mut resolve = |entries: &[SettingsListEntry]| -> Vec<String> {
         let mut resolved: Vec<String> = Vec::new();
         for entry in entries {
-            let key = if known_keys.contains(entry.identity_key.as_str()) {
-                Some(entry.identity_key.as_str())
+            let key = if let Some(key) = by_digest.get(entry.identity_key.trim()) {
+                Some(*key)
             } else if entry.process_name.trim().is_empty() {
                 None
             } else {
@@ -558,13 +588,30 @@ pub async fn save_text_export(
     .await
 }
 
+/// The Windows directory's `explorer.exe` by absolute path, so an
+/// `explorer.exe` next to the app is never the one that runs.
+fn explorer_path() -> PathBuf {
+    explorer_path_in(
+        std::env::var_os("SystemRoot")
+            .or_else(|| std::env::var_os("windir"))
+            .map(PathBuf::from),
+    )
+}
+
+fn explorer_path_in(windows_dir: Option<PathBuf>) -> PathBuf {
+    windows_dir
+        .filter(|dir| dir.is_absolute())
+        .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
+        .join("explorer.exe")
+}
+
 /// Opens Explorer with the file selected, only for a path saved this session.
 #[tauri::command(async)]
 pub fn reveal_saved_file(state: tauri::State<'_, AppState>, path: String) -> Result<(), String> {
     if !state.export_session.was_saved(&path) {
         return Err(EXPORT_UNKNOWN_PATH.to_string());
     }
-    let mut command = std::process::Command::new("explorer");
+    let mut command = std::process::Command::new(explorer_path());
     #[cfg(windows)]
     {
         // Explorer parses its own command line; quote only the path part.
@@ -675,9 +722,10 @@ mod tests {
             .identity_key
     }
 
+    /// A file entry as `build_settings_file` writes it for `identity_key`.
     fn entry(identity_key: &str, process_name: &str) -> SettingsListEntry {
         SettingsListEntry {
-            identity_key: identity_key.to_string(),
+            identity_key: identity_digest(identity_key),
             display_name: process_name.to_string(),
             process_name: process_name.to_string(),
         }
@@ -695,8 +743,13 @@ mod tests {
         }
     }
 
+    /// A second connection to the store's file, for test-only schema tweaks.
+    fn raw_connection(db: &NamedTempFile) -> rusqlite::Connection {
+        rusqlite::Connection::open(db.path()).expect("raw connection")
+    }
+
     #[test]
-    fn settings_file_holds_effective_settings_and_lists_without_paths() {
+    fn settings_file_holds_chosen_settings_and_lists_without_paths() {
         let (_db, store) = migrated_store();
         let code = software(&store, "Code.exe");
         let excel = software(&store, "EXCEL.EXE");
@@ -721,24 +774,28 @@ mod tests {
         assert_eq!(file.kind, "gst-settings");
         assert_eq!(file.schema, 1);
         assert_eq!(file.settings.theme.as_deref(), Some("dark"));
-        assert_eq!(
-            file.settings.duration_format.as_deref(),
-            Some("decimal_hours")
-        );
-        assert_eq!(
-            file.settings.close_behavior.as_deref(),
-            Some("minimize_to_tray")
-        );
+        // Never chosen: left out (null), so an import keeps the target's choice.
+        assert_eq!(file.settings.duration_format, None);
+        assert_eq!(file.settings.close_behavior, None);
+        assert!(json["settings"]["close_behavior"].is_null());
         let focused: Vec<_> = file
             .focused
             .iter()
             .map(|item| item.identity_key.clone())
             .collect();
         assert_eq!(focused.len(), 2);
-        assert!(focused.contains(&code) && focused.contains(&excel));
+        assert!(focused.contains(&identity_digest(&code)));
+        assert!(focused.contains(&identity_digest(&excel)));
         assert_eq!(file.hidden.len(), 1);
-        assert_eq!(file.hidden[0].identity_key, drive);
+        assert_eq!(file.hidden[0].identity_key, identity_digest(&drive));
         assert_eq!(file.hidden[0].process_name, "onedrive.exe");
+        // The identity keys are install paths; none of them reaches the file.
+        assert!(code.contains("fixtures"), "{code}");
+        let text = serde_json::to_string(&file).unwrap().to_lowercase();
+        assert!(
+            !text.contains("fixtures") && !text.contains(":\\\\"),
+            "{text}"
+        );
         let mut top: Vec<_> = json.as_object().unwrap().keys().cloned().collect();
         top.sort();
         assert_eq!(
@@ -826,6 +883,37 @@ mod tests {
     }
 
     #[test]
+    fn an_unreadable_import_file_is_invalid() {
+        let dir = TempDir::new().unwrap();
+        assert_eq!(
+            read_settings_import(&dir.path().join("missing.json")),
+            Err("settings_import_invalid".to_string())
+        );
+        assert_eq!(
+            read_settings_import(dir.path()),
+            Err("settings_import_invalid".to_string())
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn explorer_runs_from_the_windows_directory() {
+        assert_eq!(
+            explorer_path_in(Some(PathBuf::from(r"D:\Windows"))),
+            PathBuf::from(r"D:\Windows\explorer.exe")
+        );
+        assert_eq!(
+            explorer_path_in(Some(PathBuf::from("Windows"))),
+            PathBuf::from(r"C:\Windows\explorer.exe")
+        );
+        assert_eq!(
+            explorer_path_in(None),
+            PathBuf::from(r"C:\Windows\explorer.exe")
+        );
+        assert!(explorer_path().is_absolute());
+    }
+
+    #[test]
     fn plan_lists_only_changed_valid_settings() {
         let (_db, store) = migrated_store();
         store.set_setting_value(THEME_SETTING_KEY, "dark").unwrap();
@@ -883,6 +971,114 @@ mod tests {
         let preview = plan.preview("id-1".to_string());
         assert_eq!(preview.import_id, "id-1");
         assert_eq!((preview.focused_added, preview.hidden_added), (2, 0));
+    }
+
+    #[test]
+    fn identity_digest_is_stable_and_one_way() {
+        assert_eq!(
+            identity_digest("known:wps-office"),
+            identity_digest("known:wps-office")
+        );
+        assert_ne!(identity_digest("app:a"), identity_digest("app:b"));
+        let digest = identity_digest(r"app:c:\users\demo\code.exe");
+        assert!(digest.starts_with("sha256:") && digest.len() == 7 + 64);
+        assert!(!digest.contains("demo"));
+        // SHA-256 of the empty string, so the format never drifts.
+        assert_eq!(
+            identity_digest(""),
+            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    #[test]
+    fn a_raw_identity_key_in_the_file_matches_only_by_process_name() {
+        let (_db, store) = migrated_store();
+        let code = software(&store, "Code.exe");
+        let mut raw = entry(&code, "");
+        raw.identity_key = code.clone();
+        let plan = plan_settings_import(&store, &file_with(vec![raw], vec![])).unwrap();
+        assert!(plan.focused_keys.is_empty());
+        assert_eq!(plan.unmatched, 1);
+    }
+
+    #[test]
+    fn process_name_fallback_picks_the_most_recently_seen_identity() {
+        let (db, store) = migrated_store();
+        let identity = |path: &str| {
+            let app_id = store.upsert_app("Code.exe", path, "Code.exe").unwrap().id;
+            store
+                .upsert_software_identity_for_app(app_id)
+                .unwrap()
+                .identity_key
+        };
+        let old = identity(r"X:\Old\Code\Code.exe");
+        let new = identity(r"Y:\New\Code\Code.exe");
+        assert_ne!(old, new);
+        let raw = raw_connection(&db);
+        for (key, seen) in [(&new, "2026-11-20 10:00:00"), (&old, "2026-11-01 10:00:00")] {
+            raw.execute(
+                "UPDATE software_identities SET last_seen_at = ?1 WHERE identity_key = ?2",
+                rusqlite::params![seen, key],
+            )
+            .unwrap();
+        }
+
+        let file = file_with(vec![entry("other-machine", "code.exe")], vec![]);
+        let plan = plan_settings_import(&store, &file).unwrap();
+
+        assert_eq!(plan.focused_keys, vec![new]);
+    }
+
+    #[test]
+    fn a_failed_apply_rolls_back_the_settings_and_list_writes() {
+        let (db, store) = migrated_store();
+        let code = software(&store, "Code.exe");
+        let drive = software(&store, "OneDrive.exe");
+        store.set_setting_value(THEME_SETTING_KEY, "dark").unwrap();
+        // Fails the last write of the apply: the hidden-list insert.
+        raw_connection(&db)
+            .execute_batch(
+                "CREATE TRIGGER fail_hidden_insert BEFORE INSERT ON hidden_software_identities
+                 BEGIN SELECT RAISE(ABORT, 'forced failure'); END;",
+            )
+            .unwrap();
+        let mut file = file_with(
+            vec![entry(&code, "Code.exe")],
+            vec![entry(&drive, "OneDrive.exe")],
+        );
+        file.settings.theme = Some("light".to_string());
+
+        assert!(apply_settings_file(&store, &file).is_err());
+
+        assert_eq!(
+            store.setting_value(THEME_SETTING_KEY).unwrap().as_deref(),
+            Some("dark")
+        );
+        assert!(store.focused_software_identity_keys().unwrap().is_empty());
+        assert!(store.hidden_software_identity_keys().unwrap().is_empty());
+    }
+
+    #[test]
+    fn importing_a_file_without_chosen_settings_keeps_the_local_choices() {
+        let (_db, source) = migrated_store();
+        let file = build_settings_file(&source, "0.4.1", "now").unwrap();
+        let (_target_db, target) = migrated_store();
+        target
+            .set_setting_value(CLOSE_BEHAVIOR_SETTING_KEY, "exit")
+            .unwrap();
+
+        let plan = plan_settings_import(&target, &file).unwrap();
+        assert!(plan.setting_changes().is_empty());
+        apply_settings_file(&target, &file).unwrap();
+
+        assert_eq!(
+            target
+                .setting_value(CLOSE_BEHAVIOR_SETTING_KEY)
+                .unwrap()
+                .as_deref(),
+            Some("exit")
+        );
+        assert_eq!(target.setting_value(THEME_SETTING_KEY).unwrap(), None);
     }
 
     #[test]
