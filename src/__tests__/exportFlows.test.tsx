@@ -15,7 +15,10 @@ vi.mock("@tauri-apps/plugin-autostart", () => ({
 }));
 
 import App from "../App";
+import { ACCENT_IDS, ACCENT_PRESETS, EINK_IDS, EINK_PALETTES, START_PAGE_IDS } from "../appearancePresets";
 import { importFacts } from "../components/SettingsImportDialog";
+import importDialogCss from "../components/SettingsImportDialog.css?raw";
+import { parseRules } from "./support/css";
 
 const TODAY = "2026-11-24";
 const SAVED = "C:\\Users\\demo\\Downloads\\GST-日报-2026-11-24.csv";
@@ -582,5 +585,63 @@ describe("importFacts", () => {
       { label: "本机没有的软件", value: "0" },
       { label: "已在另一列表", value: "1" },
     ]);
+  });
+
+  it("names the v0.4.4 display preferences and their values", () => {
+    const facts = importFacts({
+      import_id: "x",
+      changes: [
+        { key: "accent", from: "blue", to: "system" },
+        { key: "accent", from: "amber", to: "graphite" },
+        { key: "eink", from: "aurora", to: "warm" },
+        { key: "eink", from: "night", to: "forest" },
+        { key: "week_start", from: "monday", to: "sunday" },
+        { key: "start_page", from: "overview", to: "achievements" },
+        { key: "start_page", from: "software", to: "statistics" },
+        { key: "reduce_motion", from: "system", to: "reduce" },
+      ],
+      focused_added: 0,
+      hidden_added: 0,
+      unmatched: 0,
+      conflicts: 0,
+    });
+
+    expect(facts.slice(0, 8)).toEqual([
+      { label: "主题色", value: "蓝", to: "跟随 Windows" },
+      { label: "主题色", value: "琥珀", to: "石墨" },
+      { label: "墨水屏配色", value: "极光", to: "暖纸" },
+      { label: "墨水屏配色", value: "夜蓝", to: "墨绿" },
+      { label: "每周起始日", value: "周一", to: "周日" },
+      { label: "启动时打开", value: "概览", to: "成就" },
+      { label: "启动时打开", value: "软件", to: "统计" },
+      { label: "减少动画", value: "跟随系统", to: "开启" },
+    ]);
+  });
+
+  it("names every accent, palette and start page", () => {
+    const names = (key: "accent" | "eink" | "start_page", ids: readonly string[]) =>
+      importFacts({
+        import_id: "x",
+        changes: ids.map((id) => ({ key, from: id, to: id })),
+        focused_added: 0,
+        hidden_added: 0,
+        unmatched: 0,
+        conflicts: 0,
+      })
+        .slice(0, ids.length)
+        .map((fact) => fact.value);
+
+    expect(names("accent", ACCENT_IDS)).toEqual(ACCENT_PRESETS.map((preset) => preset.name));
+    expect(names("eink", EINK_IDS)).toEqual(EINK_PALETTES.map((palette) => palette.name));
+    expect(names("start_page", START_PAGE_IDS)).toEqual(["概览", "软件", "后台", "统计", "成就"]);
+  });
+});
+
+describe("SettingsImportDialog layout", () => {
+  it("scrolls inside the window when the preview is taller than a 760 px window", () => {
+    const dialog = parseRules(importDialogCss).rules.find((rule) => rule.selectors.includes(".import-dialog"));
+
+    expect(dialog?.declarations["max-height"]).toBe("calc(100vh - 48px)");
+    expect(dialog?.declarations["overflow-y"]).toBe("auto");
   });
 });

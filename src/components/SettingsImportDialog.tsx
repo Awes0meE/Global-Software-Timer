@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { SettingChange, SettingsImportPreview } from "../api";
+import { ACCENT_PRESETS, EINK_PALETTES, START_PAGE_NAMES } from "../appearancePresets";
 import { useModalDialog } from "./useModalDialog";
 import "./SettingsImportDialog.css";
 
@@ -15,12 +16,25 @@ const SETTING_LABELS: Record<string, string> = {
   theme: "主题",
   duration_format: "显示分钟数",
   close_behavior: "关闭窗口",
+  accent: "主题色",
+  eink: "墨水屏配色",
+  week_start: "每周起始日",
+  start_page: "启动时打开",
+  reduce_motion: "减少动画",
 };
+
+const names = (items: readonly { id: string; name: string }[]) =>
+  Object.fromEntries(items.map((item) => [item.id, item.name]));
 
 const VALUE_LABELS: Record<string, Record<string, string>> = {
   theme: { system: "跟随系统", light: "浅色", dark: "深色" },
   duration_format: { decimal_hours: "已关闭", hours_minutes: "已开启" },
   close_behavior: { minimize_to_tray: "最小化到后台", exit: "直接退出" },
+  accent: names(ACCENT_PRESETS),
+  eink: names(EINK_PALETTES),
+  week_start: { monday: "周一", sunday: "周日" },
+  start_page: START_PAGE_NAMES,
+  reduce_motion: { system: "跟随系统", reduce: "开启" },
 };
 
 function settingValue(change: SettingChange, value: string): string {
