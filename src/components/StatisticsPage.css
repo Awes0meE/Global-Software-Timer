@@ -68,7 +68,6 @@
 .stats-range-caption {
   color: var(--ink-2);
   font-size: 12px;
-  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
@@ -428,7 +427,6 @@
   min-height: 26px;
   color: var(--muted);
   font-size: 12px;
-  letter-spacing: 0.06em;
 }
 
 .stats-head span:not(:first-child) {

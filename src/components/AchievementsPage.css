@@ -47,7 +47,6 @@
   color: var(--ink-2);
   font-size: 15px;
   font-weight: 600;
-  letter-spacing: 0.02em;
 }
 
 .ach-readout-head .segmented {
@@ -360,7 +359,6 @@
 
 .ach-scope strong {
   font-weight: 500;
-  letter-spacing: 0.04em;
 }
 
 .ach-scope-rule {
@@ -406,7 +404,6 @@
   overflow: hidden;
   color: var(--ink-2);
   font-size: var(--type-label);
-  letter-spacing: 0.04em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

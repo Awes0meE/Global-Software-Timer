@@ -379,7 +379,6 @@ p {
 .brand h1 {
   font-size: 15px;
   font-weight: 600;
-  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
@@ -525,7 +524,6 @@ p {
   font-family: var(--font-ui);
   font-size: 22px;
   font-weight: 600;
-  letter-spacing: 0.01em;
 }
 
 .window-actions {
@@ -691,13 +689,11 @@ p {
   color: var(--ink-2);
   font-size: 15px;
   font-weight: 600;
-  letter-spacing: 0.02em;
 }
 
 .panel-count {
   color: var(--muted);
   font: 12px var(--font-num);
-  letter-spacing: 0.06em;
 }
 
 .panel-head .panel-count:last-child {
@@ -1082,7 +1078,6 @@ main > p[role="status"] {
   border-bottom: 1px solid var(--rule);
   color: var(--muted);
   font-size: 12px;
-  letter-spacing: 0.08em;
 }
 
 .usage-head span:nth-child(2),
@@ -1489,7 +1484,6 @@ main > p[role="status"] {
   background: var(--head-fill), var(--head-solid);
   color: var(--muted);
   font-size: 12px;
-  letter-spacing: 0.04em;
   /* A sticky, opaque head paints over the panel's inset outline, so it redraws the edge (decision 2A); that
      shows while its scroller is focused, otherwise the scroller's side clip lets the outline through. The
      raised-key lines follow. */
@@ -2628,7 +2622,6 @@ mark {
 }
 
 .background-table th {
-  letter-spacing: 0.08em;
   position: sticky;
   top: 0;
   z-index: 1;
