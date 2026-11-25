@@ -4,8 +4,10 @@
 
 use crate::app_state::{lock_recovering, lock_tracker, AppState};
 use crate::commands::{
-    app_settings_from_store, CloseBehavior, DurationFormat, ThemePreference,
-    CLOSE_BEHAVIOR_SETTING_KEY, DURATION_FORMAT_SETTING_KEY, THEME_SETTING_KEY,
+    app_settings_from_store, AccentPreference, CloseBehavior, DurationFormat, EinkPalette,
+    ReduceMotion, StartPage, ThemePreference, WeekStart, ACCENT_SETTING_KEY,
+    CLOSE_BEHAVIOR_SETTING_KEY, DURATION_FORMAT_SETTING_KEY, EINK_SETTING_KEY,
+    REDUCE_MOTION_SETTING_KEY, START_PAGE_SETTING_KEY, THEME_SETTING_KEY, WEEK_START_SETTING_KEY,
 };
 use crate::storage::{Store, StoreError};
 use chrono::{Local, SecondsFormat};
@@ -108,6 +110,16 @@ pub struct SettingsSection {
     pub duration_format: Option<String>,
     #[serde(default)]
     pub close_behavior: Option<String>,
+    #[serde(default)]
+    pub accent: Option<String>,
+    #[serde(default)]
+    pub eink: Option<String>,
+    #[serde(default)]
+    pub week_start: Option<String>,
+    #[serde(default)]
+    pub start_page: Option<String>,
+    #[serde(default)]
+    pub reduce_motion: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -255,6 +267,21 @@ pub fn build_settings_file(
             close_behavior: settings
                 .close_behavior_configured
                 .then(|| settings.close_behavior.as_str().to_string()),
+            accent: settings
+                .accent_configured
+                .then(|| settings.accent.as_str().to_string()),
+            eink: settings
+                .eink_configured
+                .then(|| settings.eink.as_str().to_string()),
+            week_start: settings
+                .week_start_configured
+                .then(|| settings.week_start.as_str().to_string()),
+            start_page: settings
+                .start_page_configured
+                .then(|| settings.start_page.as_str().to_string()),
+            reduce_motion: settings
+                .reduce_motion_configured
+                .then(|| settings.reduce_motion.as_str().to_string()),
         },
         focused: entries(store.focused_software_identity_keys()?),
         hidden: entries(store.hidden_software_identity_keys()?),
@@ -346,6 +373,61 @@ pub fn plan_settings_import(store: &Store, file: &SettingsFile) -> Result<Import
             .as_deref()
             .and_then(CloseBehavior::from_setting)
             .map(CloseBehavior::as_str),
+    );
+    plan_setting(
+        "accent",
+        ACCENT_SETTING_KEY,
+        current.accent_configured,
+        current.accent.as_str(),
+        file.settings
+            .accent
+            .as_deref()
+            .and_then(AccentPreference::from_setting)
+            .map(AccentPreference::as_str),
+    );
+    plan_setting(
+        "eink",
+        EINK_SETTING_KEY,
+        current.eink_configured,
+        current.eink.as_str(),
+        file.settings
+            .eink
+            .as_deref()
+            .and_then(EinkPalette::from_setting)
+            .map(EinkPalette::as_str),
+    );
+    plan_setting(
+        "week_start",
+        WEEK_START_SETTING_KEY,
+        current.week_start_configured,
+        current.week_start.as_str(),
+        file.settings
+            .week_start
+            .as_deref()
+            .and_then(WeekStart::from_setting)
+            .map(WeekStart::as_str),
+    );
+    plan_setting(
+        "start_page",
+        START_PAGE_SETTING_KEY,
+        current.start_page_configured,
+        current.start_page.as_str(),
+        file.settings
+            .start_page
+            .as_deref()
+            .and_then(StartPage::from_setting)
+            .map(StartPage::as_str),
+    );
+    plan_setting(
+        "reduce_motion",
+        REDUCE_MOTION_SETTING_KEY,
+        current.reduce_motion_configured,
+        current.reduce_motion.as_str(),
+        file.settings
+            .reduce_motion
+            .as_deref()
+            .and_then(ReduceMotion::from_setting)
+            .map(ReduceMotion::as_str),
     );
 
     let identities = store.software_identity_names()?;
@@ -956,7 +1038,28 @@ mod tests {
             .cloned()
             .collect();
         settings.sort();
-        assert_eq!(settings, ["close_behavior", "duration_format", "theme"]);
+        assert_eq!(
+            settings,
+            [
+                "accent",
+                "close_behavior",
+                "duration_format",
+                "eink",
+                "reduce_motion",
+                "start_page",
+                "theme",
+                "week_start"
+            ]
+        );
+        for key in [
+            "accent",
+            "eink",
+            "week_start",
+            "start_page",
+            "reduce_motion",
+        ] {
+            assert!(json["settings"][key].is_null(), "{key}");
+        }
         let mut fields: Vec<_> = json["hidden"][0]
             .as_object()
             .unwrap()
@@ -1052,6 +1155,136 @@ mod tests {
         assert!(explorer_path().is_absolute());
     }
 
+    /// The five display preferences set on `store` as the user would choose them.
+    fn choose_ui_preferences(store: &Store) {
+        for (key, value) in [
+            ("ui.accent", "rose"),
+            ("ui.eink", "night"),
+            ("ui.week_start", "sunday"),
+            ("ui.start_page", "background"),
+            ("ui.reduce_motion", "reduce"),
+        ] {
+            store.set_setting_value(key, value).unwrap();
+        }
+    }
+
+    #[test]
+    fn settings_file_carries_the_chosen_ui_preferences() {
+        let (_db, store) = migrated_store();
+        choose_ui_preferences(&store);
+
+        let file = build_settings_file(&store, "0.4.4", "now").unwrap();
+
+        assert_eq!(file.schema, 1);
+        assert_eq!(file.settings.accent.as_deref(), Some("rose"));
+        assert_eq!(file.settings.eink.as_deref(), Some("night"));
+        assert_eq!(file.settings.week_start.as_deref(), Some("sunday"));
+        assert_eq!(file.settings.start_page.as_deref(), Some("background"));
+        assert_eq!(file.settings.reduce_motion.as_deref(), Some("reduce"));
+        let json = serde_json::to_vec(&file).unwrap();
+        assert_eq!(parse_settings_file(&json).unwrap(), file);
+    }
+
+    #[test]
+    fn ui_preferences_round_trip_through_a_settings_file() {
+        let (_source_db, source) = migrated_store();
+        choose_ui_preferences(&source);
+        let json =
+            serde_json::to_vec(&build_settings_file(&source, "0.4.4", "now").unwrap()).unwrap();
+        let (_db, store) = migrated_store();
+
+        let file = parse_settings_file(&json).unwrap();
+        let mut changes: Vec<_> = plan_settings_import(&store, &file)
+            .unwrap()
+            .setting_changes()
+            .into_iter()
+            .map(|change| (change.key, change.from, change.to))
+            .collect();
+        changes.sort();
+        let owned =
+            |key: &str, from: &str, to: &str| (key.to_string(), from.to_string(), to.to_string());
+        assert_eq!(
+            changes,
+            [
+                owned("accent", "blue", "rose"),
+                owned("eink", "aurora", "night"),
+                owned("reduce_motion", "system", "reduce"),
+                owned("start_page", "overview", "background"),
+                owned("week_start", "monday", "sunday"),
+            ]
+        );
+        apply_settings_file(&store, &file).unwrap();
+
+        let after = app_settings_from_store(&store).unwrap();
+        assert_eq!(after.accent.as_str(), "rose");
+        assert_eq!(after.eink.as_str(), "night");
+        assert_eq!(after.week_start.as_str(), "sunday");
+        assert_eq!(after.start_page.as_str(), "background");
+        assert_eq!(after.reduce_motion.as_str(), "reduce");
+        assert!(
+            after.accent_configured
+                && after.eink_configured
+                && after.week_start_configured
+                && after.start_page_configured
+                && after.reduce_motion_configured
+        );
+    }
+
+    #[test]
+    fn an_older_settings_file_keeps_the_local_ui_preferences() {
+        let (_db, store) = migrated_store();
+        choose_ui_preferences(&store);
+        // As v0.4.2 and v0.4.3 wrote it: no display preferences at all.
+        let text = "{\"kind\":\"gst-settings\",\"schema\":1,\"app_version\":\"0.4.3\",\"settings\":{\"theme\":\"dark\",\"duration_format\":null,\"close_behavior\":\"exit\"},\"focused\":[],\"hidden\":[]}";
+        let file = parse_settings_file(text.as_bytes()).unwrap();
+        assert_eq!(file.settings.accent, None);
+
+        apply_settings_file(&store, &file).unwrap();
+
+        let after = app_settings_from_store(&store).unwrap();
+        assert_eq!(after.theme.as_str(), "dark");
+        assert_eq!(after.close_behavior.as_str(), "exit");
+        assert_eq!(after.accent.as_str(), "rose");
+        assert_eq!(after.eink.as_str(), "night");
+        assert_eq!(after.week_start.as_str(), "sunday");
+        assert_eq!(after.start_page.as_str(), "background");
+        assert_eq!(after.reduce_motion.as_str(), "reduce");
+    }
+
+    #[test]
+    fn unknown_future_ui_preference_values_are_dropped() {
+        let (_db, store) = migrated_store();
+        store.set_setting_value("ui.eink", "warm").unwrap();
+        let text = "{\"kind\":\"gst-settings\",\"schema\":1,\"settings\":{\"accent\":\"teal\",\"eink\":\"ocean\",\"week_start\":\"saturday\",\"start_page\":\"timeline\",\"reduce_motion\":\"always\",\"theme\":\"light\"}}";
+        let file = parse_settings_file(text.as_bytes()).unwrap();
+
+        let plan = plan_settings_import(&store, &file).unwrap();
+        assert_eq!(
+            plan.setting_changes(),
+            vec![SettingChange {
+                key: "theme".to_string(),
+                from: "system".to_string(),
+                to: "light".to_string(),
+            }]
+        );
+        apply_settings_file(&store, &file).unwrap();
+
+        let after = app_settings_from_store(&store).unwrap();
+        assert_eq!(after.eink.as_str(), "warm");
+        assert!(!after.accent_configured);
+        assert!(!after.week_start_configured);
+        assert!(!after.start_page_configured);
+        assert!(!after.reduce_motion_configured);
+        for key in [
+            "ui.accent",
+            "ui.week_start",
+            "ui.start_page",
+            "ui.reduce_motion",
+        ] {
+            assert_eq!(store.setting_value(key).unwrap(), None, "{key}");
+        }
+    }
+
     #[test]
     fn plan_lists_only_changed_valid_settings() {
         let (_db, store) = migrated_store();
@@ -1061,6 +1294,7 @@ mod tests {
             theme: Some("light".to_string()),
             duration_format: Some("decimal_hours".to_string()),
             close_behavior: Some("sideways".to_string()),
+            ..SettingsSection::default()
         };
 
         let plan = plan_settings_import(&store, &file).unwrap();
@@ -1085,6 +1319,7 @@ mod tests {
             theme: Some(before.theme.as_str().to_string()),
             duration_format: None,
             close_behavior: Some(before.close_behavior.as_str().to_string()),
+            ..SettingsSection::default()
         };
 
         // Nothing on screen changes, so the preview lists no setting rows...
