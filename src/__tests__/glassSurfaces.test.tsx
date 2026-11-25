@@ -968,7 +968,7 @@ describe("statistics recorder on e-ink paper", () => {
     expect(declarations.display).toBeUndefined();
     expect(declarations["grid-template-columns"]).toBeUndefined();
     expect(declarations.padding).toBeUndefined();
-    expect(declarations.margin).toBe("0 14px 14px");
+    expect(declarations.margin).toBe("0 var(--screen-inset) var(--screen-inset)");
     expect(allRules().filter((rule) => rule.selectors.some((selector) => selector.includes(".roller")))).toEqual([]);
   });
 
@@ -1018,7 +1018,7 @@ describe("statistics recorder on e-ink paper", () => {
     for (const rule of rules) {
       const label = `${rule.atRules.join(" ")} ${rule.selector}`;
       const tokens = Object.values(rule.declarations).join(" ").match(/var\(--[\w-]+/g) ?? [];
-      for (const used of tokens) expect(used, label).toMatch(/^var\(--(eink-|font-|radius-)/);
+      for (const used of tokens) expect(used, label).toMatch(/^var\(--(eink-|font-|radius-|screen-inset)/);
     }
     // Any dark-theme selector naming a recorder class anywhere (compound, descendant or pseudo-element).
     const classes = [...new Set(RECORDER.flatMap((selector) => selector.match(/\.[\w-]+/g) ?? []))];

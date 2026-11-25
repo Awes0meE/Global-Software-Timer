@@ -31,7 +31,7 @@
 /* The glass filter makes this the hidden table's containing block; a table ignores height: 1px,
    so clip it here or its full height becomes scrollable blank space. */
 .ach-readout {
-  padding: 0 12px 12px;
+  padding: 0 var(--screen-inset) var(--screen-inset);
   overflow: clip;
 }
 
@@ -40,7 +40,7 @@
   align-items: center;
   gap: 12px;
   min-height: 42px;
-  padding: 0 4px 0 6px;
+  padding: 0 8px 0 10px;
 }
 
 .ach-readout-head h2 {

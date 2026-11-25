@@ -397,7 +397,8 @@ const SPEC_TOKENS: Record<string, [light: string, dark: string]> = {
   "--eink-grain-blend": ["multiply", "soft-light"],
   "--radius-panel": ["16px", "16px"],
   "--radius-key": ["9px", "9px"],
-  "--radius-screen": ["11px", "11px"],
+  "--radius-screen": ["8px", "8px"],
+  "--screen-inset": ["8px", "8px"],
   "--radius-dialog": ["16px", "16px"],
 };
 
@@ -421,6 +422,15 @@ const SPEC_GLOW: Record<Theme, string[]> = {
 };
 
 describe("design tokens", () => {
+  // Apple HIG concentricity: a screen set into a panel shares its corner centre, so radius = panel radius - inset.
+  it("keeps the e-ink screen concentric with its panel", () => {
+    THEMES.forEach((theme) => {
+      const tokens = themeTokens(theme);
+      const px = (name: string) => Number.parseFloat(tokens[name] ?? "NaN");
+      expect(px("--radius-screen"), theme).toBe(px("--radius-panel") - px("--screen-inset"));
+    });
+  });
+
   it("matches the spec's token table", () => {
     THEMES.forEach((theme, column) => {
       const tokens = themeTokens(theme);

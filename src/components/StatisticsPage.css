@@ -217,7 +217,7 @@
 
 /* recorder: an e-ink paper strip, inset like the other plates */
 .recorder {
-  margin: 0 14px 14px;
+  margin: 0 var(--screen-inset) var(--screen-inset);
 }
 
 /* The paper takes the e-ink screen recipe (styles.css, incl. position and overflow); the chart sits above

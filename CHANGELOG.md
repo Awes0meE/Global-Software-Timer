@@ -4,6 +4,7 @@
 
 - The interface is set in Inter and Noto Sans SC (思源黑体) instead of Segoe UI, Microsoft YaHei UI and Bahnschrift. They are the same bundled font files the posters already use, so the installer does not grow. Both are variable fonts, so titles, software names and table heads now get a true semibold instead of YaHei's only bold, and every weight is one step lighter: titles and names 600, secondary emphasis 500, body 400. Numbers use Inter's tabular digits everywhere. The pixel font on the e-ink screens is unchanged.
 - The `今天` lamp under the `统计` trend chart no longer touches its date label.
+- E-ink screens now sit an even 8 px inside their panels on every page (they were 8 to 14 px) with 8 px corners, so screen and panel corners share one centre, as Apple's guidelines ask for nested shapes.
 
 ## v0.4.3 - 2026-11-25
 

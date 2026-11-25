@@ -66,7 +66,10 @@
   --radius-pill: 999px;
   --radius-key: 9px;
   --radius-panel: 16px;
-  --radius-screen: 11px;
+  /* An e-ink screen sits --screen-inset inside its panel and stays concentric with it (Apple HIG):
+     --radius-screen = --radius-panel - --screen-inset. */
+  --screen-inset: 8px;
+  --radius-screen: 8px;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --base: #eceef3;
   --glow:
@@ -772,7 +775,7 @@ main > p[role="status"] {
 }
 
 .readout {
-  padding: 12px;
+  padding: var(--screen-inset);
 }
 
 .lcd {
@@ -1165,7 +1168,7 @@ main > p[role="status"] {
 .software-icon-lg {
   width: 44px;
   height: 44px;
-  border-radius: var(--radius-screen);
+  border-radius: 11px;
 }
 
 /* Light glass can swallow white icons, so a loaded icon gets a hairline that follows its own alpha (and a
@@ -1901,7 +1904,7 @@ mark {
 .settings-readout {
   display: grid;
   flex: 0.65 0 auto;
-  padding: 10px;
+  padding: var(--screen-inset);
 }
 
 .settings-lcd {
@@ -2534,7 +2537,7 @@ mark {
   --background-reading-size: 36px;
   flex: none;
   min-width: 0;
-  padding: 8px;
+  padding: var(--screen-inset);
 }
 
 /* At 125% and 150% the digits span 48 physical pixels, a whole number per font pixel, like .lcd's. */
