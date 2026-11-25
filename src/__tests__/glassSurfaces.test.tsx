@@ -54,6 +54,7 @@ function topLevel(selector: string): Record<string, string> {
 }
 
 const REDUCED_MOTION = "@media (prefers-reduced-motion: reduce)";
+const MOTION_REDUCED = ':root[data-motion="reduced"]';
 
 /** Declarations of every rule directly inside `media` that lists `selector`, merged in source order. */
 function inMedia(media: string, selector: string): Record<string, string> {
@@ -362,8 +363,19 @@ describe("switches and segmented controls", () => {
     ],
     ["light", "--tg-well-off", "inset 0 2px 3px -1px rgba(20, 30, 60, 0.34), inset 0 -1px 0 rgba(255, 255, 255, 0.75)"],
     ["dark", "--tg-well-off", "inset 0 2px 3px -1px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.1)"],
-    ["light", "--tg-well-on", "inset 0 2px 3px -1px rgba(8, 30, 80, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.32)"],
-    ["dark", "--tg-well-on", "inset 0 2px 3px -1px rgba(0, 20, 60, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.28)"],
+    // v0.4.4 spec §B: the switched-on well is built from the accent instead of a fixed navy.
+    [
+      "light",
+      "--tg-well-on",
+      "inset 0 2px 3px -1px color-mix(in srgb, color-mix(in srgb, var(--accent) 30%, #000) 50%, transparent), " +
+        "inset 0 -1px 0 rgba(255, 255, 255, 0.32)",
+    ],
+    [
+      "dark",
+      "--tg-well-on",
+      "inset 0 2px 3px -1px color-mix(in srgb, color-mix(in srgb, var(--accent) 22%, #000) 60%, transparent), " +
+        "inset 0 -1px 0 rgba(255, 255, 255, 0.28)",
+    ],
     ["light", "--tg-lift", "0 1px 1px rgba(20, 30, 60, 0.3), 0 2px 5px rgba(20, 30, 60, 0.22)"],
     ["dark", "--tg-lift", "0 1px 1px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.45)"],
     ["light", "--tg-lift-hover", "0 1px 1px rgba(20, 30, 60, 0.3), 0 3px 7px rgba(20, 30, 60, 0.28)"],
@@ -404,13 +416,31 @@ describe("switches and segmented controls", () => {
     expect(topLevel(".toggle.is-on:active:not(:disabled) .toggle-knob").transform).toBe("translateX(20px)");
   });
 
-  it("neither stretches nor overshoots under reduced motion", () => {
-    const reduced = (selector: string) => inMedia(REDUCED_MOTION, selector);
+  it.each([
+    ["Windows reduced motion", (selector: string) => inMedia(REDUCED_MOTION, selector)],
+    ["the 减少动画 setting", (selector: string) => topLevel(`${MOTION_REDUCED} ${selector}`)],
+  ])("neither stretches nor overshoots under %s", (_source, reduced) => {
     expect(reduced(".toggle:active:not(:disabled) .toggle-knob").width).toBe("22px");
     expect(reduced(".toggle.is-on:active:not(:disabled) .toggle-knob").transform).toBe("translateX(24px)");
     const easing = reduced(".toggle-knob")["transition-timing-function"];
     expect(easing).toBeDefined();
     expect(overshoots(resolve(easing, themeTokens("light")))).toBe(false);
+  });
+
+  // v0.4.4 spec §F: 减少动画 adds a sibling of the media block with identical rules under data-motion.
+  it("keeps the 减少动画 block identical to the reduced-motion media block", () => {
+    const inBlock = allRules()
+      .filter((rule) => rule.atRules.length === 1 && normalize(rule.atRules[0]) === REDUCED_MOTION)
+      .map((rule) => ({ selectors: rule.selectors, declarations: rule.declarations }));
+    const prefix = `${MOTION_REDUCED} `;
+    const scoped = allRules()
+      .filter((rule) => rule.atRules.length === 0 && rule.selectors.some((selector) => selector.includes("data-motion")))
+      .map((rule) => {
+        rule.selectors.forEach((selector) => expect(selector.startsWith(prefix), selector).toBe(true));
+        return { selectors: rule.selectors.map((selector) => selector.slice(prefix.length)), declarations: rule.declarations };
+      });
+    expect(inBlock.length).toBeGreaterThan(0);
+    expect(scoped).toEqual(inBlock);
   });
 
   it("keeps a disabled switch at half opacity", () => {
