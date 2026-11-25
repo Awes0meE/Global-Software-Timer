@@ -15,10 +15,22 @@ pub(crate) const CLOSE_BEHAVIOR_SETTING_KEY: &str = "window.close_behavior";
 const AUTOSTART_SETTING_KEY: &str = "startup.autostart_enabled";
 pub(crate) const DURATION_FORMAT_SETTING_KEY: &str = "ui.duration_format";
 pub(crate) const THEME_SETTING_KEY: &str = "ui.theme";
+pub(crate) const ACCENT_SETTING_KEY: &str = "ui.accent";
+pub(crate) const EINK_SETTING_KEY: &str = "ui.eink";
+pub(crate) const WEEK_START_SETTING_KEY: &str = "ui.week_start";
+pub(crate) const START_PAGE_SETTING_KEY: &str = "ui.start_page";
+pub(crate) const REDUCE_MOTION_SETTING_KEY: &str = "ui.reduce_motion";
 const DEFAULT_CLOSE_BEHAVIOR: CloseBehavior = CloseBehavior::MinimizeToTray;
 const DEFAULT_AUTOSTART_ENABLED: bool = true;
 const DEFAULT_DURATION_FORMAT: DurationFormat = DurationFormat::DecimalHours;
 const DEFAULT_THEME: ThemePreference = ThemePreference::System;
+const DEFAULT_ACCENT: AccentPreference = AccentPreference::Blue;
+const DEFAULT_EINK: EinkPalette = EinkPalette::Aurora;
+const DEFAULT_WEEK_START: WeekStart = WeekStart::Monday;
+const DEFAULT_START_PAGE: StartPage = StartPage::Overview;
+const DEFAULT_REDUCE_MOTION: ReduceMotion = ReduceMotion::System;
+const UI_PREFERENCE_UNKNOWN_KEY: &str = "ui_preference_unknown_key";
+const UI_PREFERENCE_INVALID_VALUE: &str = "ui_preference_invalid_value";
 const STATISTICS_INVALID_RANGE: &str = "statistics_invalid_range";
 const ACHIEVEMENTS_INVALID_HEATMAP_DAYS: &str = "achievements_invalid_heatmap_days";
 const TIMELINE_INVALID_DATE: &str = "timeline_invalid_date";
@@ -371,6 +383,86 @@ impl ThemePreference {
     }
 }
 
+/// A display preference stored as one of a fixed set of values. `from_setting`
+/// returns `None` for any other value, which then counts as "not configured".
+macro_rules! ui_setting_enum {
+    ($(#[$meta:meta])* $name:ident { $($variant:ident => $value:literal),+ $(,)? }) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+        #[serde(rename_all = "snake_case")]
+        pub enum $name {
+            $($variant),+
+        }
+
+        impl $name {
+            pub(crate) fn as_str(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $value),+
+                }
+            }
+
+            pub(crate) fn from_setting(value: &str) -> Option<Self> {
+                match value {
+                    $($value => Some(Self::$variant),)+
+                    _ => None,
+                }
+            }
+        }
+    };
+}
+
+ui_setting_enum!(
+    /// 主题色. `System` follows the Windows accent colour, read live, never stored.
+    AccentPreference {
+        System => "system",
+        Blue => "blue",
+        Cyan => "cyan",
+        Green => "green",
+        Violet => "violet",
+        Rose => "rose",
+        Amber => "amber",
+        Graphite => "graphite",
+    }
+);
+
+ui_setting_enum!(
+    /// 墨水屏配色. `Aurora` is the v0.4.3 look.
+    EinkPalette {
+        Aurora => "aurora",
+        Graphite => "graphite",
+        Night => "night",
+        Warm => "warm",
+        Forest => "forest",
+    }
+);
+
+ui_setting_enum!(
+    /// 每周起始日; only the frontend display follows it.
+    WeekStart {
+        Monday => "monday",
+        Sunday => "sunday",
+    }
+);
+
+ui_setting_enum!(
+    /// 启动时打开. 设置 and the not yet available 时间轴 are not start pages.
+    StartPage {
+        Overview => "overview",
+        Software => "software",
+        Background => "background",
+        Statistics => "statistics",
+        Achievements => "achievements",
+    }
+);
+
+ui_setting_enum!(
+    /// 减少动画. `System` follows Windows; `Reduce` always reduces.
+    ReduceMotion {
+        System => "system",
+        Reduce => "reduce",
+    }
+);
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AppSettings {
     pub close_behavior: CloseBehavior,
@@ -381,6 +473,16 @@ pub struct AppSettings {
     pub duration_format_configured: bool,
     pub theme: ThemePreference,
     pub theme_configured: bool,
+    pub accent: AccentPreference,
+    pub accent_configured: bool,
+    pub eink: EinkPalette,
+    pub eink_configured: bool,
+    pub week_start: WeekStart,
+    pub week_start_configured: bool,
+    pub start_page: StartPage,
+    pub start_page_configured: bool,
+    pub reduce_motion: ReduceMotion,
+    pub reduce_motion_configured: bool,
 }
 
 // Summaries use a read-only transaction and the last published process sample.
@@ -735,6 +837,19 @@ pub fn set_theme_preference(
     save_theme_preference(tracker.store(), theme).map_err(|error| error.to_string())
 }
 
+/// Saves one display preference. `key` is its settings-file name (`accent`,
+/// `eink`, `week_start`, `start_page`, `reduce_motion`); `value` must be one of
+/// that key's stored values.
+#[tauri::command(async)]
+pub fn set_ui_preference(
+    state: State<'_, AppState>,
+    key: String,
+    value: String,
+) -> Result<(), String> {
+    let tracker = crate::app_state::lock_tracker(&state.tracker);
+    save_ui_preference(tracker.store(), &key, &value)
+}
+
 #[tauri::command(async)]
 pub fn apply_window_close_choice(
     app: AppHandle,
@@ -779,6 +894,12 @@ pub(crate) fn app_settings_from_store(store: &Store) -> Result<AppSettings, Stor
         .setting_value(THEME_SETTING_KEY)?
         .as_deref()
         .and_then(ThemePreference::from_setting);
+    let stored_accent = stored_setting(store, ACCENT_SETTING_KEY, AccentPreference::from_setting)?;
+    let stored_eink = stored_setting(store, EINK_SETTING_KEY, EinkPalette::from_setting)?;
+    let stored_week_start = stored_setting(store, WEEK_START_SETTING_KEY, WeekStart::from_setting)?;
+    let stored_start_page = stored_setting(store, START_PAGE_SETTING_KEY, StartPage::from_setting)?;
+    let stored_reduce_motion =
+        stored_setting(store, REDUCE_MOTION_SETTING_KEY, ReduceMotion::from_setting)?;
 
     Ok(AppSettings {
         close_behavior,
@@ -789,7 +910,63 @@ pub(crate) fn app_settings_from_store(store: &Store) -> Result<AppSettings, Stor
         duration_format_configured: stored_duration_format.is_some(),
         theme: stored_theme.unwrap_or(DEFAULT_THEME),
         theme_configured: stored_theme.is_some(),
+        accent: stored_accent.unwrap_or(DEFAULT_ACCENT),
+        accent_configured: stored_accent.is_some(),
+        eink: stored_eink.unwrap_or(DEFAULT_EINK),
+        eink_configured: stored_eink.is_some(),
+        week_start: stored_week_start.unwrap_or(DEFAULT_WEEK_START),
+        week_start_configured: stored_week_start.is_some(),
+        start_page: stored_start_page.unwrap_or(DEFAULT_START_PAGE),
+        start_page_configured: stored_start_page.is_some(),
+        reduce_motion: stored_reduce_motion.unwrap_or(DEFAULT_REDUCE_MOTION),
+        reduce_motion_configured: stored_reduce_motion.is_some(),
     })
+}
+
+/// The stored value of `key` when it is one `parse` accepts.
+fn stored_setting<T>(
+    store: &Store,
+    key: &str,
+    parse: fn(&str) -> Option<T>,
+) -> Result<Option<T>, StoreError> {
+    Ok(store.setting_value(key)?.as_deref().and_then(parse))
+}
+
+/// The storage key and canonical value for a `set_ui_preference` call.
+fn ui_preference_setting(key: &str, value: &str) -> Result<(&'static str, &'static str), String> {
+    let (storage_key, stored) = match key {
+        "accent" => (
+            ACCENT_SETTING_KEY,
+            AccentPreference::from_setting(value).map(AccentPreference::as_str),
+        ),
+        "eink" => (
+            EINK_SETTING_KEY,
+            EinkPalette::from_setting(value).map(EinkPalette::as_str),
+        ),
+        "week_start" => (
+            WEEK_START_SETTING_KEY,
+            WeekStart::from_setting(value).map(WeekStart::as_str),
+        ),
+        "start_page" => (
+            START_PAGE_SETTING_KEY,
+            StartPage::from_setting(value).map(StartPage::as_str),
+        ),
+        "reduce_motion" => (
+            REDUCE_MOTION_SETTING_KEY,
+            ReduceMotion::from_setting(value).map(ReduceMotion::as_str),
+        ),
+        _ => return Err(UI_PREFERENCE_UNKNOWN_KEY.to_string()),
+    };
+    stored
+        .map(|stored| (storage_key, stored))
+        .ok_or_else(|| UI_PREFERENCE_INVALID_VALUE.to_string())
+}
+
+fn save_ui_preference(store: &Store, key: &str, value: &str) -> Result<(), String> {
+    let (storage_key, stored) = ui_preference_setting(key, value)?;
+    store
+        .set_setting_value(storage_key, stored)
+        .map_err(|error| error.to_string())
 }
 
 fn save_theme_preference(store: &Store, theme: ThemePreference) -> Result<(), StoreError> {
@@ -2056,8 +2233,9 @@ mod most_used_tests {
 mod tests {
     use super::{
         app_settings_from_store, dashboard_summary_from_store, local_date_start_utc,
-        save_duration_format_preference, save_theme_preference, software_list_command_error,
-        CloseBehavior, DurationFormat, ThemePreference,
+        save_duration_format_preference, save_theme_preference, save_ui_preference,
+        software_list_command_error, AccentPreference, CloseBehavior, DurationFormat, EinkPalette,
+        ReduceMotion, StartPage, ThemePreference, WeekStart,
     };
     use crate::domain::AppRuntimeStatus;
     use crate::storage::{Store, StoreError};
@@ -2697,6 +2875,218 @@ mod tests {
                 .as_deref(),
             Some("light")
         );
+    }
+
+    #[test]
+    fn ui_preference_enums_round_trip_their_stored_values() {
+        for value in [
+            "system", "blue", "cyan", "green", "violet", "rose", "amber", "graphite",
+        ] {
+            assert_eq!(
+                AccentPreference::from_setting(value).map(AccentPreference::as_str),
+                Some(value)
+            );
+        }
+        for value in ["aurora", "graphite", "night", "warm", "forest"] {
+            assert_eq!(
+                EinkPalette::from_setting(value).map(EinkPalette::as_str),
+                Some(value)
+            );
+        }
+        for value in ["monday", "sunday"] {
+            assert_eq!(
+                WeekStart::from_setting(value).map(WeekStart::as_str),
+                Some(value)
+            );
+        }
+        for value in [
+            "overview",
+            "software",
+            "background",
+            "statistics",
+            "achievements",
+        ] {
+            assert_eq!(
+                StartPage::from_setting(value).map(StartPage::as_str),
+                Some(value)
+            );
+        }
+        for value in ["system", "reduce"] {
+            assert_eq!(
+                ReduceMotion::from_setting(value).map(ReduceMotion::as_str),
+                Some(value)
+            );
+        }
+        assert_eq!(AccentPreference::from_setting("red"), None);
+        assert_eq!(AccentPreference::from_setting("Blue"), None);
+        assert_eq!(EinkPalette::from_setting("sepia"), None);
+        assert_eq!(WeekStart::from_setting("saturday"), None);
+        // Not start pages: 设置 is never one, 时间轴 is not available yet.
+        assert_eq!(StartPage::from_setting("settings"), None);
+        assert_eq!(StartPage::from_setting("timeline"), None);
+        assert_eq!(ReduceMotion::from_setting("true"), None);
+    }
+
+    #[test]
+    fn app_settings_default_the_ui_preferences_when_unset_or_invalid() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.accent, AccentPreference::Blue);
+        assert_eq!(settings.eink, EinkPalette::Aurora);
+        assert_eq!(settings.week_start, WeekStart::Monday);
+        assert_eq!(settings.start_page, StartPage::Overview);
+        assert_eq!(settings.reduce_motion, ReduceMotion::System);
+        assert!(!settings.accent_configured);
+        assert!(!settings.eink_configured);
+        assert!(!settings.week_start_configured);
+        assert!(!settings.start_page_configured);
+        assert!(!settings.reduce_motion_configured);
+
+        for (key, value) in [
+            ("ui.accent", "violet"),
+            ("ui.eink", "warm"),
+            ("ui.week_start", "sunday"),
+            ("ui.start_page", "statistics"),
+            ("ui.reduce_motion", "reduce"),
+        ] {
+            store.set_setting_value(key, value).expect("set setting");
+        }
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.accent, AccentPreference::Violet);
+        assert_eq!(settings.eink, EinkPalette::Warm);
+        assert_eq!(settings.week_start, WeekStart::Sunday);
+        assert_eq!(settings.start_page, StartPage::Statistics);
+        assert_eq!(settings.reduce_motion, ReduceMotion::Reduce);
+        assert!(settings.accent_configured);
+        assert!(settings.eink_configured);
+        assert!(settings.week_start_configured);
+        assert!(settings.start_page_configured);
+        assert!(settings.reduce_motion_configured);
+
+        for (key, value) in [
+            ("ui.accent", "red"),
+            ("ui.eink", "sepia"),
+            ("ui.week_start", "saturday"),
+            ("ui.start_page", "timeline"),
+            ("ui.reduce_motion", "always"),
+        ] {
+            store.set_setting_value(key, value).expect("set setting");
+        }
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.accent, AccentPreference::Blue);
+        assert_eq!(settings.eink, EinkPalette::Aurora);
+        assert_eq!(settings.week_start, WeekStart::Monday);
+        assert_eq!(settings.start_page, StartPage::Overview);
+        assert_eq!(settings.reduce_motion, ReduceMotion::System);
+        assert!(!settings.accent_configured);
+        assert!(!settings.eink_configured);
+        assert!(!settings.week_start_configured);
+        assert!(!settings.start_page_configured);
+        assert!(!settings.reduce_motion_configured);
+
+        store
+            .set_setting_value("ui.start_page", "settings")
+            .expect("set setting");
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.start_page, StartPage::Overview);
+        assert!(!settings.start_page_configured);
+    }
+
+    #[test]
+    fn app_settings_serialize_the_ui_preferences_as_stored_values() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+        store
+            .set_setting_value("ui.week_start", "sunday")
+            .expect("set setting");
+
+        let json =
+            serde_json::to_value(app_settings_from_store(&store).expect("settings")).expect("json");
+
+        assert_eq!(json["accent"], "blue");
+        assert_eq!(json["accent_configured"], false);
+        assert_eq!(json["eink"], "aurora");
+        assert_eq!(json["week_start"], "sunday");
+        assert_eq!(json["week_start_configured"], true);
+        assert_eq!(json["start_page"], "overview");
+        assert_eq!(json["reduce_motion"], "system");
+    }
+
+    #[test]
+    fn save_ui_preference_writes_the_storage_key_for_each_preference() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+
+        for (key, value, storage_key) in [
+            ("accent", "system", "ui.accent"),
+            ("eink", "forest", "ui.eink"),
+            ("week_start", "sunday", "ui.week_start"),
+            ("start_page", "achievements", "ui.start_page"),
+            ("reduce_motion", "reduce", "ui.reduce_motion"),
+        ] {
+            save_ui_preference(&store, key, value).expect("save");
+            assert_eq!(
+                store
+                    .setting_value(storage_key)
+                    .expect("read setting")
+                    .as_deref(),
+                Some(value),
+                "{key}"
+            );
+        }
+        let settings = app_settings_from_store(&store).expect("settings");
+        assert_eq!(settings.accent, AccentPreference::System);
+        assert!(settings.accent_configured);
+    }
+
+    #[test]
+    fn save_ui_preference_rejects_unknown_keys_and_values_without_writing() {
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+
+        for key in ["theme", "ui.accent", "glass", ""] {
+            assert_eq!(
+                save_ui_preference(&store, key, "blue"),
+                Err("ui_preference_unknown_key".to_string()),
+                "{key}"
+            );
+        }
+        for (key, value) in [
+            ("accent", "red"),
+            ("accent", "#ff0000"),
+            ("eink", "blue"),
+            ("week_start", "saturday"),
+            ("start_page", "settings"),
+            ("start_page", "timeline"),
+            ("reduce_motion", "true"),
+            ("reduce_motion", ""),
+        ] {
+            assert_eq!(
+                save_ui_preference(&store, key, value),
+                Err("ui_preference_invalid_value".to_string()),
+                "{key}={value}"
+            );
+        }
+        for storage_key in [
+            "ui.accent",
+            "ui.eink",
+            "ui.week_start",
+            "ui.start_page",
+            "ui.reduce_motion",
+            "theme",
+        ] {
+            assert_eq!(
+                store.setting_value(storage_key).expect("read setting"),
+                None,
+                "{storage_key}"
+            );
+        }
     }
 
     #[test]

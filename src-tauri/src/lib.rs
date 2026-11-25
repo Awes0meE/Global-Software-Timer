@@ -125,6 +125,7 @@ pub fn run() {
             commands::set_close_behavior_preference,
             commands::set_duration_format_preference,
             commands::set_theme_preference,
+            commands::set_ui_preference,
             commands::apply_window_close_choice,
             export::save_text_export,
             export::save_binary_export,
