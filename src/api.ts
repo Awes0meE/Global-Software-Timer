@@ -1,13 +1,40 @@
 import { invoke } from "@tauri-apps/api/core";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
+import {
+  ACCENT_IDS,
+  DEFAULT_ACCENT,
+  DEFAULT_EINK,
+  DEFAULT_START_PAGE,
+  EINK_IDS,
+  START_PAGE_IDS,
+  type AccentId,
+  type EinkId,
+  type StartPage,
+} from "./appearancePresets";
 import type { DurationFormat } from "./i18n";
 
+export type { AccentId, EinkId, StartPage } from "./appearancePresets";
 export type { DurationFormat } from "./i18n";
 
 export type CloseBehavior = "exit" | "minimize_to_tray";
 export type AppRuntimeStatus = "foreground" | "tray" | "background" | "closed";
 export type SoftwareMark = "none" | "focused" | "hidden";
 export type ThemePreference = "system" | "light" | "dark";
+/** 每周起始日 as stored (`ui.week_start`). */
+export type WeekStartSetting = "monday" | "sunday";
+/** 减少动画 as stored (`ui.reduce_motion`): `system` follows Windows, `reduce` always reduces. */
+export type ReduceMotion = "system" | "reduce";
+
+/** The v0.4.4 display preferences, keyed by their `set_ui_preference` and settings-file names. */
+export interface UiPreferences {
+  accent: AccentId;
+  eink: EinkId;
+  week_start: WeekStartSetting;
+  start_page: StartPage;
+  reduce_motion: ReduceMotion;
+}
+
+export type UiPreferenceKey = keyof UiPreferences;
 
 export interface AppUsageRow {
   app_id: number;
@@ -68,6 +95,16 @@ export interface AppSettings {
   duration_format_configured: boolean;
   theme: ThemePreference;
   theme_configured: boolean;
+  accent: AccentId;
+  accent_configured: boolean;
+  eink: EinkId;
+  eink_configured: boolean;
+  week_start: WeekStartSetting;
+  week_start_configured: boolean;
+  start_page: StartPage;
+  start_page_configured: boolean;
+  reduce_motion: ReduceMotion;
+  reduce_motion_configured: boolean;
 }
 
 /** Error for a malformed or future `date` on the date-browsing summaries. */
@@ -348,6 +385,11 @@ export async function getAppSettings(): Promise<AppSettings> {
   const settings = (await invoke<Partial<AppSettings> | null>("get_app_settings")) ?? {};
   const durationFormat = normalizeDurationFormat(settings.duration_format);
   const theme = normalizeThemePreference(settings.theme);
+  const accent = normalizeAccent(settings.accent);
+  const eink = normalizeEink(settings.eink);
+  const weekStart = normalizeWeekStart(settings.week_start);
+  const startPage = normalizeStartPage(settings.start_page);
+  const reduceMotion = normalizeReduceMotion(settings.reduce_motion);
 
   return {
     close_behavior: normalizeCloseBehavior(settings.close_behavior),
@@ -359,6 +401,17 @@ export async function getAppSettings(): Promise<AppSettings> {
       settings.duration_format_configured === true && settings.duration_format === durationFormat,
     theme,
     theme_configured: settings.theme_configured === true && settings.theme === theme,
+    accent,
+    accent_configured: settings.accent_configured === true && settings.accent === accent,
+    eink,
+    eink_configured: settings.eink_configured === true && settings.eink === eink,
+    week_start: weekStart,
+    week_start_configured: settings.week_start_configured === true && settings.week_start === weekStart,
+    start_page: startPage,
+    start_page_configured: settings.start_page_configured === true && settings.start_page === startPage,
+    reduce_motion: reduceMotion,
+    reduce_motion_configured:
+      settings.reduce_motion_configured === true && settings.reduce_motion === reduceMotion,
   };
 }
 
@@ -382,6 +435,17 @@ export async function setDurationFormatPreference(durationFormat: DurationFormat
 
 export async function setThemePreference(theme: ThemePreference): Promise<void> {
   return invoke("set_theme_preference", { theme });
+}
+
+/** Error strings `set_ui_preference` rejects with. */
+export const UI_PREFERENCE_ERRORS = {
+  unknownKey: "ui_preference_unknown_key",
+  invalidValue: "ui_preference_invalid_value",
+} as const;
+
+/** Saves one display preference; rejects with a `UI_PREFERENCE_ERRORS` string. */
+export async function setUiPreference<K extends UiPreferenceKey>(key: K, value: UiPreferences[K]): Promise<void> {
+  return invoke("set_ui_preference", { key, value });
 }
 
 export async function applyWindowCloseChoice(
@@ -456,7 +520,7 @@ export async function exportSettingsFile(): Promise<string | null> {
   return invoke<string | null>("export_settings_file");
 }
 
-export type SettingsImportKey = "theme" | "duration_format" | "close_behavior";
+export type SettingsImportKey = "theme" | "duration_format" | "close_behavior" | UiPreferenceKey;
 
 /** `from` / `to` are stored values such as "dark" or "hours_minutes". */
 export interface SettingChange {
@@ -500,4 +564,30 @@ function normalizeDurationFormat(value: unknown): DurationFormat {
 
 export function normalizeThemePreference(value: unknown): ThemePreference {
   return value === "light" || value === "dark" ? value : "system";
+}
+
+function oneOf<T extends string>(ids: readonly T[], value: unknown, fallback: T): T {
+  return ids.find((id) => id === value) ?? fallback;
+}
+
+/** Unknown values, a raw colour included, are 蓝. */
+export function normalizeAccent(value: unknown): AccentId {
+  return oneOf(ACCENT_IDS, value, DEFAULT_ACCENT);
+}
+
+export function normalizeEink(value: unknown): EinkId {
+  return oneOf(EINK_IDS, value, DEFAULT_EINK);
+}
+
+export function normalizeWeekStart(value: unknown): WeekStartSetting {
+  return value === "sunday" ? value : "monday";
+}
+
+/** Unknown pages, `settings` and `timeline` included, are 概览. */
+export function normalizeStartPage(value: unknown): StartPage {
+  return oneOf(START_PAGE_IDS, value, DEFAULT_START_PAGE);
+}
+
+export function normalizeReduceMotion(value: unknown): ReduceMotion {
+  return value === "reduce" ? value : "system";
 }
