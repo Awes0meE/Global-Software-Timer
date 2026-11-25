@@ -1200,7 +1200,7 @@ main > p[role="status"] {
 /* Software identity colours; the distribution plate is where they appear today. */
 .mix-total {
   padding: 0 18px 12px;
-  font-size: 30px;
+  font-size: 26px;
   line-height: 1.1;
 }
 
@@ -1776,7 +1776,7 @@ mark {
 }
 
 .close-dialog h2 {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
 }
 
@@ -1819,7 +1819,7 @@ mark {
 }
 
 .add-software-head h2 {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
 }
 

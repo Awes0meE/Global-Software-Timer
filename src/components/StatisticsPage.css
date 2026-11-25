@@ -194,7 +194,7 @@
 .trend-sum b {
   margin-left: 5px;
   color: var(--ink);
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 500;
 }
 
@@ -650,7 +650,7 @@
 
 .rhythm-value {
   justify-self: end;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 500;
   white-space: nowrap;
 }
