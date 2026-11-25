@@ -49,7 +49,7 @@ struct SoftwareLegacyRuntimeSeconds {
 }
 
 /// 2 adds `daily_background_usage`; 3 adds `timeline_segments` and `timeline_window_spans`.
-const SCHEMA_VERSION: i64 = 3;
+pub const SCHEMA_VERSION: i64 = 3;
 /// WAL readers and the writer can briefly contend during checkpoints.
 const BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 static NEXT_SAVEPOINT_ID: AtomicU64 = AtomicU64::new(0);
@@ -99,6 +99,18 @@ impl Store {
         conn.busy_timeout(BUSY_TIMEOUT)?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         Ok(Self { conn })
+    }
+
+    /// Wraps a connection the caller configured, e.g. a restore copy opened
+    /// with `trusted_schema=OFF` and defensive mode.
+    pub fn from_connection(conn: Connection) -> StoreResult<Self> {
+        conn.busy_timeout(BUSY_TIMEOUT)?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        Ok(Self { conn })
+    }
+
+    pub fn into_connection(self) -> Connection {
+        self.conn
     }
 
     pub fn savepoint(&self) -> StoreResult<StoreSavepoint<'_>> {

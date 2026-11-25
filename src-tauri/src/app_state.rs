@@ -37,6 +37,7 @@ pub struct AppState {
     pub tracker: SharedTracker,
     pub summary_store: Mutex<Store>,
     pub export_session: crate::export::ExportSession,
+    pub restore: crate::restore::RestoreSession,
 }
 
 impl AppState {
@@ -52,6 +53,7 @@ impl AppState {
             tracker: Arc::new(Mutex::new(tracker)),
             summary_store,
             export_session: Default::default(),
+            restore: Default::default(),
         })
     }
 }

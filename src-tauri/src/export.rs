@@ -645,30 +645,44 @@ pub fn with_utf8_bom(contents: &str) -> Vec<u8> {
     bytes
 }
 
-/// Refuses a target that is the live database or one of its side files, so
-/// a save dialog can never overwrite the data the tracker is writing.
+/// Refuses a target that is the live database, one of its side files, a
+/// restore file (`crate::restore`) or anything in the `backups\` folder beside
+/// it, so a save dialog can never overwrite the data the tracker is writing.
 pub fn ensure_not_database(target: &Path, db_path: &Path) -> Result<(), String> {
     let (Some(target_name), Some(db_name)) = (target.file_name(), db_path.file_name()) else {
         return Ok(());
     };
     let target_name = target_name.to_string_lossy().to_lowercase();
     let db_name = db_name.to_string_lossy().to_lowercase();
-    let is_db_file = [
-        db_name.clone(),
-        format!("{db_name}-wal"),
-        format!("{db_name}-shm"),
-        format!("{db_name}-journal"),
-    ]
-    .contains(&target_name);
-    if !is_db_file {
-        return Ok(());
-    }
     let canonical_dir = |path: &Path| {
         path.parent()
             .and_then(|dir| std::fs::canonicalize(dir).ok())
             .map(|dir| dir.to_string_lossy().to_lowercase())
     };
-    match (canonical_dir(target), canonical_dir(db_path)) {
+    let db_dir = canonical_dir(db_path);
+    let target_dir = canonical_dir(target);
+    let backups_dir = db_path
+        .parent()
+        .and_then(|dir| std::fs::canonicalize(dir.join(crate::restore::BACKUPS_DIR_NAME)).ok())
+        .map(|dir| dir.to_string_lossy().to_lowercase());
+    if target_dir.is_some() && target_dir == backups_dir {
+        return Err(EXPORT_TARGET_IS_DATABASE.to_string());
+    }
+    let is_db_file = [
+        db_name.clone(),
+        format!("{db_name}-wal"),
+        format!("{db_name}-shm"),
+        format!("{db_name}-journal"),
+        format!("{db_name}{}", crate::restore::PENDING_SUFFIX),
+        format!("{db_name}{}", crate::restore::BEFORE_RESTORE_SUFFIX),
+        format!("{db_name}{}", crate::restore::FAILED_SUFFIX),
+    ]
+    .contains(&target_name)
+        || target_name.starts_with(crate::restore::STAGING_PREFIX);
+    if !is_db_file {
+        return Ok(());
+    }
+    match (target_dir, db_dir) {
         (Some(target_dir), Some(db_dir)) if target_dir != db_dir => Ok(()),
         _ => Err(EXPORT_TARGET_IS_DATABASE.to_string()),
     }
@@ -738,9 +752,13 @@ fn pick_save_path<R: Runtime>(
     dialog.blocking_save_file()?.into_path().ok()
 }
 
-/// Blocking: call only from a worker thread.
-fn pick_open_path<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
-    let mut dialog = app.dialog().file().add_filter("JSON", &["json"]);
+/// Blocking: call only from a worker thread. Starts in Downloads.
+pub(crate) fn pick_open_path<R: Runtime>(
+    app: &AppHandle<R>,
+    filter_name: &str,
+    extensions: &[&str],
+) -> Option<PathBuf> {
+    let mut dialog = app.dialog().file().add_filter(filter_name, extensions);
     if let Ok(downloads) = app.path().download_dir() {
         dialog = dialog.set_directory(downloads);
     }
@@ -751,7 +769,7 @@ fn pick_open_path<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
 }
 
 /// Runs a blocking job (dialogs, file writes) off the async runtime's workers.
-async fn blocking<T: Send + 'static>(
+pub(crate) async fn blocking<T: Send + 'static>(
     job: impl FnOnce() -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
     tauri::async_runtime::spawn_blocking(job)
@@ -811,7 +829,7 @@ pub async fn save_binary_export(
 
 /// The Windows directory's `explorer.exe` by absolute path, so an
 /// `explorer.exe` next to the app is never the one that runs.
-fn explorer_path() -> PathBuf {
+pub(crate) fn explorer_path() -> PathBuf {
     explorer_path_in(
         std::env::var_os("SystemRoot")
             .or_else(|| std::env::var_os("windir"))
@@ -872,7 +890,7 @@ pub async fn export_settings_file(app: AppHandle) -> Result<Option<String>, Stri
 #[tauri::command]
 pub async fn pick_settings_import(app: AppHandle) -> Result<Option<SettingsImportPreview>, String> {
     blocking(move || {
-        let Some(path) = pick_open_path(&app) else {
+        let Some(path) = pick_open_path(&app, "JSON", &["json"]) else {
             return Ok(None);
         };
         let file = parse_settings_file(&read_settings_import(&path)?)?;
@@ -1767,6 +1785,10 @@ mod tests {
             "global-software-timer.sqlite3",
             "GLOBAL-SOFTWARE-TIMER.SQLITE3",
             "global-software-timer.sqlite3-wal",
+            "global-software-timer.sqlite3.restore-pending",
+            "global-software-timer.sqlite3.before-restore",
+            "Global-Software-Timer.sqlite3.Restore-Failed",
+            ".gst-restore-1234.tmp",
         ] {
             assert_eq!(
                 ensure_not_database(&dir.path().join(name), &db),
@@ -1778,6 +1800,18 @@ mod tests {
         let other = TempDir::new().unwrap();
         assert!(
             ensure_not_database(&other.path().join("global-software-timer.sqlite3"), &db).is_ok()
+        );
+        assert!(ensure_not_database(&other.path().join(".gst-restore-1234.tmp"), &db).is_ok());
+        // The pre-restore copies in backups\ are never overwritten by a save.
+        let backups = dir.path().join("backups");
+        std::fs::create_dir(&backups).unwrap();
+        assert_eq!(
+            ensure_not_database(&backups.join("GST-日报-2026-11-26.csv"), &db),
+            Err("export_target_is_database".to_string())
+        );
+        assert_eq!(
+            backup_database(&db, &backups.join("GST-数据备份-2026-11-26.db")),
+            Err("export_target_is_database".to_string())
         );
     }
 

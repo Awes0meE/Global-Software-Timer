@@ -9,6 +9,7 @@ pub mod export;
 pub mod foreground;
 pub mod native_icon;
 pub mod process_source;
+pub mod restore;
 pub mod single_instance;
 pub mod statistics;
 pub mod storage;
@@ -29,10 +30,22 @@ use tauri::Manager;
 const TRACKER_SCAN_INTERVAL: Duration = Duration::from_secs(5);
 const ACTIVE_IDLE_THRESHOLD: Duration = Duration::from_secs(5 * 60);
 const APP_WINDOW_TITLE: &str = "全局软件计时器";
+/// How long a relaunch after a restore waits for the old process to exit.
+const RESTORE_HANDOVER_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let _single_instance_guard = match single_instance::acquire_app_lock() {
+    // After a restore the old process relaunches us; wait for it to let go of
+    // the database and the single-instance lock instead of quitting.
+    let after_restore = restore::after_restore_pid(std::env::args());
+    if let Some(pid) = after_restore {
+        restore::wait_for_process_exit(pid, RESTORE_HANDOVER_TIMEOUT);
+    }
+    let lock_attempts = if after_restore.is_some() { 25 } else { 1 };
+    let _single_instance_guard = match single_instance::acquire_app_lock_with_retry(
+        lock_attempts,
+        Duration::from_millis(200),
+    ) {
         Ok(SingleInstance::Acquired(guard)) => guard,
         Ok(SingleInstance::AlreadyRunning) => {
             // Launching again (e.g. from the Start menu while hidden in the
@@ -92,10 +105,16 @@ pub fn run() {
                 Ok(cache_dir) => native_icon::init_disk_cache(cache_dir.join("icons")),
                 Err(error) => eprintln!("icons will not be cached on disk: {error}"),
             }
-            let db_path = app_data_dir.join("global-software-timer.sqlite3");
-            let state = AppState::new(db_path.clone()).unwrap_or_else(|error| {
+            let db_path = app_data_dir.join(restore::DB_FILE_NAME);
+            // Swaps in a pending restore before any connection opens.
+            let (state, restore_status) =
+                restore::run_startup_swap(&app_data_dir, Local::now().naive_local(), |path| {
+                    AppState::new(path.to_path_buf())
+                });
+            let state = state.unwrap_or_else(|error| {
                 fatal_startup_error(&startup_store_error_message(&db_path, &error))
             });
+            state.restore.set_status(restore_status);
             let tracker = state.tracker.clone();
             let live = state.live.clone();
             app.manage(state);
@@ -134,7 +153,12 @@ pub fn run() {
             export::export_settings_file,
             export::pick_settings_import,
             export::apply_settings_import,
-            export::backup_all_data
+            export::backup_all_data,
+            restore::open_data_folder,
+            restore::pick_restore_backup,
+            restore::apply_restore,
+            restore::discard_restore,
+            restore::get_restore_status
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Global Software Timer")
@@ -145,6 +169,8 @@ pub fn run() {
                 if let Err(error) = tracker.shutdown() {
                     eprintln!("tracker shutdown failed: {error}");
                 }
+                drop(tracker);
+                restore::relaunch_if_requested();
             }
         });
 }

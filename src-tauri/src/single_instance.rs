@@ -1,4 +1,5 @@
 use std::io;
+use std::time::Duration;
 
 const APP_MUTEX_NAME: &str = r"Local\GlobalSoftwareTimer.SingleInstance";
 
@@ -9,6 +10,21 @@ pub enum SingleInstance {
 
 pub fn acquire_app_lock() -> io::Result<SingleInstance> {
     try_acquire_single_instance(APP_MUTEX_NAME)
+}
+
+/// Tries up to `attempts` times while another instance still holds the lock,
+/// e.g. the old process during the handover after a restore.
+pub fn acquire_app_lock_with_retry(attempts: u32, delay: Duration) -> io::Result<SingleInstance> {
+    let mut attempt = 1;
+    loop {
+        match acquire_app_lock()? {
+            SingleInstance::AlreadyRunning if attempt < attempts => {
+                attempt += 1;
+                std::thread::sleep(delay);
+            }
+            result => return Ok(result),
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
