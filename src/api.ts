@@ -565,6 +565,74 @@ export async function backupAllData(): Promise<string | null> {
   return invoke<string | null>("backup_all_data");
 }
 
+// 数据文件夹 and 从备份恢复. The data folder path never leaves Rust.
+
+/** Opens the folder holding the database in Explorer; rejects when Explorer cannot start. */
+export async function openDataFolder(): Promise<void> {
+  return invoke("open_data_folder");
+}
+
+/** Error codes `pickRestoreBackup` and `applyRestore` reject with. */
+export const RESTORE_ERRORS = {
+  invalid: "restore_invalid",
+  newer: "restore_newer",
+  liveDatabase: "restore_live_database",
+  noSpace: "restore_no_space",
+  failed: "restore_failed",
+} as const;
+
+export type RestoreErrorCode = (typeof RESTORE_ERRORS)[keyof typeof RESTORE_ERRORS];
+
+const RESTORE_ERROR_MESSAGES: Record<RestoreErrorCode, string> = {
+  restore_invalid: "这个文件不是有效的 GST 备份。",
+  restore_newer: "这份备份来自更新版本的 GST，无法在当前版本恢复。",
+  restore_live_database: "不能选择正在使用的数据库。",
+  restore_no_space: "磁盘空间不足，无法恢复。",
+  restore_failed: "恢复失败，当前数据没有改动。",
+};
+
+/** The error dialog text for a rejected restore call; unknown errors read as 恢复失败. */
+export function restoreErrorMessage(error: unknown): string {
+  return typeof error === "string" && Object.prototype.hasOwnProperty.call(RESTORE_ERROR_MESSAGES, error)
+    ? RESTORE_ERROR_MESSAGES[error as RestoreErrorCode]
+    : RESTORE_ERROR_MESSAGES.restore_failed;
+}
+
+/** A validated, staged backup awaiting confirmation. */
+export interface RestorePreview {
+  restore_id: string;
+  file_name: string;
+  /** `YYYY-MM-DD`, or null when the backup has no recorded day. */
+  first_day: string | null;
+  last_day: string | null;
+  /** Software with at least one usage session. */
+  software_count: number;
+  file_size_bytes: number;
+}
+
+/** Opens the file picker, then validates and stages the backup; null when cancelled. */
+export async function pickRestoreBackup(): Promise<RestorePreview | null> {
+  return invoke<RestorePreview | null>("pick_restore_backup");
+}
+
+/** Queues the staged backup and exits; the app restarts itself and swaps the data in. */
+export async function applyRestore(restoreId: string): Promise<void> {
+  return invoke("apply_restore", { restoreId });
+}
+
+/** Deletes the staged copy when the confirm dialog is cancelled. */
+export async function discardRestore(restoreId: string): Promise<void> {
+  return invoke("discard_restore", { restoreId });
+}
+
+export type RestoreStatus = "restored" | "rolled_back" | "none";
+
+/** The result of a restore at this start, reported once. */
+export async function getRestoreStatus(): Promise<RestoreStatus> {
+  const status = await invoke<unknown>("get_restore_status");
+  return status === "restored" || status === "rolled_back" ? status : "none";
+}
+
 function normalizeCloseBehavior(value: unknown): CloseBehavior {
   return value === "exit" || value === "minimize_to_tray" ? value : "minimize_to_tray";
 }
