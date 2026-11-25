@@ -36,8 +36,8 @@ function expectRules(theme: Theme, hex: string, { ownGlow = false } = {}) {
     if (ownGlow) expect(m.onOwnGlowGlass, `${hex} on the glass over its own glow`).toBeGreaterThanOrEqual(3);
   } else {
     expect(m.ring, `knob ring over ${hex}`).toBeGreaterThanOrEqual(3);
-    expect(m.mutedOnTint, `--muted on 14% ${hex}`).toBeGreaterThanOrEqual(4.5);
   }
+  expect(m.mutedOnTint, `${theme}: --muted on 14% ${hex}`).toBeGreaterThanOrEqual(4.5);
 }
 
 const HEX = /^#[0-9a-f]{6}$/;

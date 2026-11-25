@@ -113,7 +113,8 @@ function onGlass(theme: AccentTheme, accent: Rgba, centres: Rgba[]): number {
 /**
  * Spec §B rules, measured as the mock README measures the presets. Light: at least 3:1 on --glass-solid and
  * on the glass over the base and over every centre of today's glow. Dark: the knob ring at least 3:1 over the
- * accent, and --muted on a 14% accent tint over --glass-solid at least 4.5:1.
+ * accent. Both: --muted on a 14% accent tint over --glass-solid at least 4.5:1 (the spec names it for dark;
+ * in light it only bites a near-black accent).
  *
  * `ownGlow` also holds the light accent to 3:1 over the centres of the glow it builds itself. The clamp asks
  * for it: a Windows accent is moved until it passes on the glow it really shows.
@@ -121,15 +122,14 @@ function onGlass(theme: AccentTheme, accent: Rgba, centres: Rgba[]): number {
 export function accentMeetsRules(theme: AccentTheme, hex: string, { margin = 0, ownGlow = false } = {}): boolean {
   const accent = parseHex(hex);
   const s = SURFACES[theme];
+  const mutedOnTint = contrast(s.muted, over({ ...accent, a: 0.14 }, s.solid));
   if (theme === "light") {
     const todays = Math.min(contrast(accent, s.solid), onGlass(theme, accent, s.todayGlow));
     const own = ownGlow ? onGlass(theme, accent, accentGlowCentres(theme, accent)) : Infinity;
-    return Math.min(todays, own) >= GRAPHIC + margin;
+    // The selected-row tint bounds a near-black accent too; every preset clears it (contrast.test.ts).
+    return Math.min(todays, own) >= GRAPHIC + margin && mutedOnTint >= TEXT + margin;
   }
-  return (
-    contrast(KNOB_RING, accent) >= GRAPHIC + margin &&
-    contrast(s.muted, over({ ...accent, a: 0.14 }, s.solid)) >= TEXT + margin
-  );
+  return contrast(KNOB_RING, accent) >= GRAPHIC + margin && mutedOnTint >= TEXT + margin;
 }
 
 // ---------------------------------------------------------------------------
