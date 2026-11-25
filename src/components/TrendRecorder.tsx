@@ -589,12 +589,12 @@ function weekday(date: string): string {
 }
 
 /**
- * Rough rendered width of a 12px label, rounded up from Segoe UI / Microsoft YaHei UI:
- * CJK glyphs are square, digits about half, other ASCII (space, dash, dot) about a third.
+ * Rough rendered width of a 12px label, rounded up from GST Inter (tabular digits) / GST Noto Sans SC:
+ * CJK glyphs are square, digits 7.6px, other ASCII (space, dash, dot) at most 5.6px.
  */
 function textWidth(text: string): number {
   return Array.from(text).reduce((width, char) => {
     if (char.charCodeAt(0) > 255) return width + 12;
-    return width + (char >= "0" && char <= "9" ? 6.6 : 4);
+    return width + (char >= "0" && char <= "9" ? 7.6 : 5.6);
   }, 0);
 }

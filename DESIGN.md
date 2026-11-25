@@ -77,24 +77,24 @@ typography:
   pixel-unit:
     fontSize: "24px"
   page-title:
-    fontFamily: '"Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif'
+    fontFamily: '"GST Inter", "GST Noto Sans SC", "Microsoft YaHei UI", sans-serif'
     fontSize: "22px"
-    fontWeight: 650
+    fontWeight: 600
   panel-title:
-    fontFamily: '"Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif'
+    fontFamily: '"GST Inter", "GST Noto Sans SC", "Microsoft YaHei UI", sans-serif'
     fontSize: "15px"
-    fontWeight: 650
+    fontWeight: 600
   body:
-    fontFamily: '"Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif'
+    fontFamily: '"GST Inter", "GST Noto Sans SC", "Microsoft YaHei UI", sans-serif'
     fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.5
   label:
-    fontFamily: '"Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif'
+    fontFamily: '"GST Inter", "GST Noto Sans SC", "Microsoft YaHei UI", sans-serif'
     fontSize: "12px"
     letterSpacing: "0.08em"
   numeral:
-    fontFamily: 'Bahnschrift, "Segoe UI Variable Display", "Segoe UI", sans-serif'
+    fontFamily: '"GST Inter", "Segoe UI", sans-serif'
     fontSize: "15px"
     fontFeature: '"tnum"'
   pixel-display:
@@ -163,7 +163,7 @@ GST 的窗口是一块浮在柔和光晕上的云母玻璃，今天的读数印�
 **Key Characteristics:**
 
 - 每页一个主图：概览是墨水屏读数屏，统计页是走纸记录仪，成就页是墨水屏日历刻度盘，其他区域退后。
-- 像素字只在墨水屏里：读数屏、后台概况条、成就页日历刻度盘、页头日期日历和设置屏里的文字和数字使用像素点阵字体（方舟像素 12px），按物理像素对齐主要读数（100% / 125% / 150% 对应 60 / 72 / 96 物理像素）；走纸记录仪的纸面借用墨水屏材质，刻度和数值仍用 Bahnschrift 和界面字体；屏外不用像素字。
+- 像素字只在墨水屏里：读数屏、后台概况条、成就页日历刻度盘、页头日期日历和设置屏里的文字和数字使用像素点阵字体（方舟像素 12px），按物理像素对齐主要读数（100% / 125% / 150% 对应 60 / 72 / 96 物理像素）；走纸记录仪的纸面借用墨水屏材质，刻度和数值仍用界面字体；屏外不用像素字。
 - 信号橙只表示“此刻”：侧栏“正在记录”灯、前台运行指示灯、托盘运行空心环、走纸记录仪上今天那根记录针旁的小灯。
 - 强调色表示选中和焦点：当前导航项的图标、键盘焦点环、文字选区、搜索命中、开关开启态、排序按钮、添加软件对话框的选中行（`--accent` 14% 底加左侧内条）、成就海报对话框的选中行（`--accent` 浅色 14% / 深色 19% 底加 1px 强调色描边，没有侧边条）和达成后的 6666 小时终极成就铭牌。
 - mix 色是软件身份色：用来标识软件，旁边总有软件名。
@@ -222,12 +222,13 @@ GST 的窗口是一块浮在柔和光晕上的云母玻璃，今天的读数印�
 
 ## Typography
 
-- 界面文字：Segoe UI Variable Text 和 Microsoft YaHei UI。面板标题 15px/650，正文 14px，标签和表头 12px，字距 0.04 到 0.12em。
-- 页面标题：Segoe UI Variable Display 22px/650，回退到界面字体。
-- 界面里的数字：Bahnschrift 等宽数字，表格里 15px。走纸记录仪上的刻度和数值也用 Bahnschrift 和界面字体。
+- 界面文字：随应用打包的 Inter（可变，`opsz` + `wght`，Latin 子集）和思源黑体 Noto Sans SC（可变 `wght`，GB2312 子集），和海报是同一组文件，界面用自己的字体族名 `GST Inter`、`GST Noto Sans SC`，在 `index.html` 里预加载；子集外的字回退到 Microsoft YaHei UI。不用 SF Pro、苹方：它们的许可只限苹果平台。
+- 字重按苹果规范分档，两款都是可变字体，所以每档都是真实字重：正文 400，次级强调 500，标题、软件名和表头 600，不用 700（`b`、`strong`、`th`、`h1`–`h3` 统一 600）。面板标题 15px/600，正文 14px，标签和表头 12px，字距 0.04 到 0.12em。
+- 页面标题：同一组字体 22px/600，Inter 按字号自动用大字字形（`opsz`）。
+- 界面里的数字：Inter 等宽数字（`body` 全局 `tabular-nums`），表格里 15px。走纸记录仪上的刻度和数值也用界面字体；它按字宽估算标签长度（数字 7.6px、其他 ASCII 5.6px、汉字 12px），换字体时要重新量。
 - 墨水屏：GST Pixel（方舟像素字体 12px，SIL OFL 1.1，`src/assets/fonts/`），只用在屏内。主读数 60px，单位和软件名 24px，标签和说明 12px；成就页底部读数 24px（125% 下 28.8px）；后台概况条的数字在任何宽度都是 36px（125% / 150% 下 48 物理像素）。读数按物理像素对齐，每个字体像素占整数个物理像素（主读数 100% / 125% / 150% 对应 60 / 72 / 96 物理像素，24px 读数对应 24 / 36 / 36），像素才不会糊。
 - 时长遵循用户在设置里选的格式，默认一位小数小时（`8.3小时`），也可以显示小时加分钟（`8小时35分钟`）。墨水屏里数字和单位分开排版，数字大、单位小。
-- 分享海报（v0.4.3）：只用随应用打包的两款海报字体，Inter（可变，`opsz` + `wght`，Latin 子集）和思源黑体 Noto Sans SC（可变 `wght`，GB2312 子集），都是 SIL OFL 1.1，放在 `src/assets/fonts/poster/`，用海报专用的字体族名，只在导出海报时加载；子集外的字回退到 Microsoft YaHei UI。大数字是 Inter Display（`opsz` 32）300 字重、比例数字、字距 -0.025em；其他数字是 Inter 等宽数字；中文标签和单位用思源黑体；单位是数字的 0.34 倍（不小于 11px），同一条基线，标签色。海报不用 GST Pixel，也不用界面字体；墨水屏里仍只用像素字，界面字体也不变。海报一律写一位小数小时，不跟随时长格式设置。
+- 分享海报（v0.4.3）：只用随应用打包的两款海报字体，Inter（可变，`opsz` + `wght`，Latin 子集）和思源黑体 Noto Sans SC（可变 `wght`，GB2312 子集），都是 SIL OFL 1.1，放在 `src/assets/fonts/poster/`，用海报专用的字体族名，只在导出海报时加载；子集外的字回退到 Microsoft YaHei UI。大数字是 Inter Display（`opsz` 32）300 字重、比例数字、字距 -0.025em；其他数字是 Inter 等宽数字；中文标签和单位用思源黑体；单位是数字的 0.34 倍（不小于 11px），同一条基线，标签色。海报不用 GST Pixel；界面文字用的是同一组文件，但海报有自己的字体族名，并把字体内嵌进图片。海报一律写一位小数小时，不跟随时长格式设置。
 
 ## Layout
 
@@ -284,7 +285,7 @@ GST 的窗口是一块浮在柔和光晕上的云母玻璃，今天的读数印�
 - **分段选择器**：主题三档（跟随系统 / 浅色 / 深色）、统计区间六档（近 7 天 / 本周 / 本月 / 近 30 天 / 今年 / 自定义，自定义展开一个区间键，打开区间日历）、热力图范围三档（近 90 天 / 近半年 / 近一年）。轨道 `--chip`，选中项 `--on` 底加 `--edge` 线。
 - **说明气泡**：需要解释口径时，在标题或表头旁放 16px 圆形 `?` 按键（`--glass-2` 底加 `--edge-strong` 线），按键离标题 6px，点一下弹出 280px 的 `--glass-solid` 说明卡（粗体标题加几句短话，每句讲一条口径），再点一下、按 Esc 或点别处关闭。现在用在特别关注的“今日活跃”表头、“隐藏软件列表”“后台进程”标题旁，以及统计页“开着没用”“作息”标题旁。
 - **对话框**：`--glass-solid` 不透明面板，圆角 16px，`--edge-strong` 外框和远阴影；打开时页面其余部分不可操作（`inert`），Tab 和 Esc 留在对话框里；导入设置的确认框只把预览的事实列成行（各项设置的旧值 → 新值、特别关注 +N、隐藏软件 +N、本机没有的软件 N、已在另一列表 N）；次要按钮（“取消”“退出软件”）和添加软件对话框的搜索框加 1px `--edge-strong` 线。强制颜色模式下对话框主键（“保存图片”“导入”“最小化到状态栏”）是 `Highlight` 底、`HighlightText` 字，和“取消”分开。首次关闭选择框可以叠在另一个对话框上，上层框接管 Tab、焦点和 Esc。
-- **成就海报对话框**（v0.4.3）：对话框配方，标题“成就海报”。左边是真实的成就海报缩到 270×360 的实时预览（圆角同墨水屏，一圈淡线和下方投影）；右边是和预览顶边对齐的列表框（1px `--edge-strong` 线、键的圆角），每行 56px：32px 图标、名称、右对齐的档位“100 小时”（Bahnschrift 数字加 `--muted` 单位），行间 `--rule` 细线，大约六行后滚动，选中行始终滚进视野。选中行是强调色浅底加 1px 强调色描边，不用侧边条；悬停行 `--chip`；列表有键盘焦点时选中行加焦点环。下方右侧是“取消”和主键“保存图片”。不写说明文字。
+- **成就海报对话框**（v0.4.3）：对话框配方，标题“成就海报”。左边是真实的成就海报缩到 270×360 的实时预览（圆角同墨水屏，一圈淡线和下方投影）；右边是和预览顶边对齐的列表框（1px `--edge-strong` 线、键的圆角），每行 56px：32px 图标、名称、右对齐的档位“100 小时”（Inter 等宽数字加 `--muted` 单位），行间 `--rule` 细线，大约六行后滚动，选中行始终滚进视野。选中行是强调色浅底加 1px 强调色描边，不用侧边条；悬停行 `--chip`；列表有键盘焦点时选中行加焦点环。下方右侧是“取消”和主键“保存图片”。不写说明文字。
 - **按钮**：主按钮是深色按键（墨色底、`--glass-solid` 字，“添加”带加号图标），次按钮是 `--glass-2` 子板。
 - **动效**：记录灯缓慢呼吸；按键和对话框过渡 120 到 220ms；页头浮层和轻提示 160ms 弹出；开关圆钮滑动 240ms 略过冲。减少动态效果时呼吸和过渡关闭，开关圆钮改成不过冲、按下不拉长。
 

@@ -12,6 +12,22 @@
   font-display: swap;
 }
 
+/* Interface text: Inter (Latin, opsz + wght) with Noto Sans SC (GB2312, wght). Both variable, so 500 / 600 / 650
+   are real weights rather than YaHei's regular-or-bold. Same bundled files as the posters, under UI-only names. */
+@font-face {
+  font-family: "GST Inter";
+  src: url("./assets/fonts/poster/InterVariable-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GST Noto Sans SC";
+  src: url("./assets/fonts/poster/NotoSansSC-VF-gb2312.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
@@ -36,8 +52,8 @@
   --mix-6: #0f9fb8;
   --mix-7: #7b8594;
   --focus: 0 0 0 2px var(--glass-solid), 0 0 0 4px var(--accent);
-  --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
-  --font-num: Bahnschrift, "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  --font-ui: "GST Inter", "GST Noto Sans SC", "Microsoft YaHei UI", sans-serif;
+  --font-num: "GST Inter", "Segoe UI", sans-serif;
   --font-pixel: "GST Pixel", "Microsoft YaHei UI", monospace;
   --type-small: 13px;
   --type-label: 12px;
@@ -247,6 +263,7 @@ body {
   background: var(--glow), var(--base);
   color: var(--ink);
   font: 14px/1.5 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
@@ -255,6 +272,16 @@ button,
 input {
   font: inherit;
   color: inherit;
+}
+
+/* Bold text sits one step below the browser's 700: titles, names and table heads read as 600. */
+b,
+strong,
+th,
+h1,
+h2,
+h3 {
+  font-weight: 600;
 }
 
 button {
@@ -348,7 +375,7 @@ p {
 
 .brand h1 {
   font-size: 15px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
@@ -418,7 +445,7 @@ p {
   --nav-sheen: var(--nk-sheen);
   --nav-shadow: 0 0 0 1px var(--nk-rim), inset 0 1px 0 var(--nk-hi), inset 0 -1px 0 var(--nk-lo), var(--nk-lift);
   color: var(--ink);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .nav-key.is-active:active {
@@ -492,9 +519,9 @@ p {
 }
 
 .page-header h2 {
-  font-family: "Segoe UI Variable Display", var(--font-ui);
+  font-family: var(--font-ui);
   font-size: 22px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
@@ -550,7 +577,7 @@ p {
 .panel-add-button {
   background: var(--ink);
   color: var(--glass-solid);
-  font-weight: 600;
+  font-weight: 500;
   box-shadow: none;
 }
 
@@ -580,7 +607,7 @@ p {
   background: linear-gradient(var(--alert-wash), var(--alert-wash)), var(--glass-solid);
   color: var(--alert-ink);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--alert-ink) 35%, transparent);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* ---------- Lamps ---------- */
@@ -660,7 +687,7 @@ p {
 .settings-group h3 {
   color: var(--ink-2);
   font-size: 15px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 
@@ -708,7 +735,7 @@ p {
 
 .empty-state strong {
   color: var(--ink-2);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* Loading notes outside any panel sit straight on the glow, where --muted is too faint. */
@@ -1090,7 +1117,7 @@ main > p[role="status"] {
 
 .software-cell strong {
   overflow: hidden;
-  font-weight: 600;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1162,7 +1189,7 @@ main > p[role="status"] {
   --muted: var(--ink-2);
   background: var(--chip);
   color: var(--ink-2);
-  font: 600 14px var(--font-num);
+  font: 500 14px var(--font-num);
   box-shadow: inset 0 0 0 1px var(--edge-strong);
   border-radius: inherit;
 }
@@ -1266,7 +1293,7 @@ main > p[role="status"] {
 
 .recent-item strong {
   overflow: hidden;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1590,7 +1617,7 @@ main > p[role="status"] {
 .discovered-copy strong,
 .add-software-copy strong {
   overflow: hidden;
-  font-weight: 600;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1630,7 +1657,7 @@ mark {
 
 .software-empty h3 {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .software-empty p {
@@ -1659,7 +1686,7 @@ mark {
   border-radius: 50%;
   background: var(--glass-2);
   color: var(--ink-2);
-  font: 600 var(--type-label) var(--font-num);
+  font: 500 var(--type-label) var(--font-num);
   box-shadow: inset 0 0 0 1px var(--edge-strong);
 }
 
@@ -1738,7 +1765,7 @@ mark {
 
 .close-dialog h2 {
   font-size: 18px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .close-dialog p:not(.dialog-error) {
@@ -1753,7 +1780,7 @@ mark {
 .dialog-error {
   color: var(--alert-ink);
   font-size: var(--type-small);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .dialog-actions,
@@ -1781,7 +1808,7 @@ mark {
 
 .add-software-head h2 {
   font-size: 18px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .add-software-close {
@@ -1933,7 +1960,7 @@ mark {
 }
 
 .settings-row-copy strong {
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .settings-row-copy span {
@@ -2090,7 +2117,7 @@ mark {
   background: var(--on);
   --muted: var(--ink-2);
   color: var(--ink);
-  font-weight: 600;
+  font-weight: 500;
   box-shadow: inset 0 0 0 1px var(--edge);
 }
 
@@ -2596,7 +2623,7 @@ mark {
   background: var(--head-fill), var(--head-solid);
   color: var(--muted);
   font-size: var(--type-label);
-  font-weight: 600;
+  font-weight: 500;
   box-shadow: inset 0 1px 0 var(--head-hi), inset 0 -1px 0 var(--head-rule);
 }
 

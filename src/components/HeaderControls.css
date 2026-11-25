@@ -75,7 +75,7 @@
   padding: 0 10px 0 11px;
 }
 
-/* Digits (Bahnschrift) and 周X (YaHei) on one baseline; YaHei's ideographs sit a pixel low, so lift them. */
+/* Digits (Inter) and 周X (Noto Sans SC) on one baseline; the ideographs sit a pixel low, so lift them. */
 .hk-date-text {
   display: inline-flex;
   align-items: baseline;
@@ -180,7 +180,7 @@
   border-radius: var(--radius-tag);
   box-shadow: inset 0 0 0 1px var(--edge-strong);
   color: var(--ink-2);
-  font: 600 11px/18px var(--font-num);
+  font: 500 11px/18px var(--font-num);
   font-style: normal;
   letter-spacing: 0.06em;
   text-align: center;
@@ -377,8 +377,8 @@
 }
 
 .cal-caption {
-  font-family: "Segoe UI Variable Display", var(--font-ui);
-  font-weight: 650;
+  font-family: var(--font-ui);
+  font-weight: 600;
 }
 
 .cal-caption svg {
@@ -604,7 +604,7 @@
 
 .toast.is-error {
   color: var(--alert-ink);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .toast-action {

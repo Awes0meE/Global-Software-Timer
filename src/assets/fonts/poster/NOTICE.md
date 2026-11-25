@@ -1,7 +1,8 @@
 # Poster fonts
 
-These two fonts are used only to render the share posters (日报海报, 成就海报). The app UI does not use them.
-They are bundled with the app and loaded only when a poster is rendered; nothing is fetched at runtime.
+These two fonts render the share posters (日报海报, 成就海报) and the app's interface text.
+The posters load them under their own family names when a poster is rendered; the UI declares them as `GST Inter` and
+`GST Noto Sans SC` in `src/styles.css` and preloads them from `index.html`. Nothing is fetched at runtime.
 Both are licensed under the SIL Open Font License 1.1; the licence texts are next to them.
 
 | File | Font | Source | Licence |
@@ -38,4 +39,4 @@ files here. The committed files were built with fontTools 4.60.1 and Brotli 1.1.
 | `InterVariable-latin.woff2` | `105bef88f402339137614b5ac014560c560fbb95a17487ae68e731c745b9bc07` |
 | `NotoSansSC-VF-gb2312.woff2` | `ed4175506ea4b787d4c450bdcff139c3436d2f33eed0baef64d51876f6cd7a0c` |
 
-Characters outside the Noto subset fall back to `"Microsoft YaHei UI", sans-serif` on the poster.
+Characters outside the Noto subset fall back to `"Microsoft YaHei UI", sans-serif` on the poster and in the UI.

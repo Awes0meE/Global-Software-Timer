@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The interface is set in Inter and Noto Sans SC (思源黑体) instead of Segoe UI, Microsoft YaHei UI and Bahnschrift. They are the same bundled font files the posters already use, so the installer does not grow. Both are variable fonts, so titles, software names and table heads now get a true semibold instead of YaHei's only bold, and every weight is one step lighter: titles and names 600, secondary emphasis 500, body 400. Numbers use Inter's tabular digits everywhere. The pixel font on the e-ink screens is unchanged.
+- The `今天` lamp under the `统计` trend chart no longer touches its date label.
+
 ## v0.4.3 - 2026-11-25
 
 - Save a day as a share poster: `导出日报` on `概览` is now a menu with `日报海报` (PNG) and `当日明细` (the v0.4.2 day CSV, unchanged). The poster is a 1080×1440 PNG of the viewed day: the date, that day's active time as one large figure under `今日活跃` or `当日活跃`, a bar of active over recorded time with `记录 X 小时` under it, and the day's top three software by active time (by runtime on a day without active time). Hidden software is left out, as on the page.

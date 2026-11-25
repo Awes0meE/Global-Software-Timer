@@ -46,7 +46,7 @@
 .ach-readout-head h2 {
   color: var(--ink-2);
   font-size: 15px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 
@@ -359,7 +359,7 @@
 }
 
 .ach-scope strong {
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.04em;
 }
 
@@ -442,7 +442,7 @@
   margin-left: 10px;
   color: var(--ink);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   text-overflow: ellipsis;
 }
 
@@ -515,7 +515,7 @@
 
 .ach-plate-tier b {
   color: var(--ink-2);
-  font: 600 24px/1 var(--font-num);
+  font: 500 24px/1 var(--font-num);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
 }
@@ -559,7 +559,7 @@
   opacity: 1;
   color: var(--muted);
   font-size: var(--type-label);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.18em;
 }
 
@@ -704,7 +704,7 @@
 .ach-coming-row strong {
   color: var(--ink-2);
   font-size: var(--type-small);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .ach-coming-count {

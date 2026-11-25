@@ -14,7 +14,7 @@
 
 .import-dialog h2 {
   font-size: 18px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .import-facts {
@@ -47,7 +47,7 @@
   gap: 8px;
   margin: 0;
   color: var(--ink);
-  font-weight: 600;
+  font-weight: 500;
   text-align: right;
 }
 

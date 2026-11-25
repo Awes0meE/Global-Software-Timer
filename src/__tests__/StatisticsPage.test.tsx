@@ -295,6 +295,8 @@ describe("StatisticsPage", () => {
       invoke.mockResolvedValue(
         summary({ days: summary().days.map((item) => day(item.date, 23 * H, 12.6 * H)) }),
       );
+      // Inter's tabular digits make the full "11-21 周六（今天）" row about 110px per column, so widen the paper a little.
+      paperWidth = 880;
       await renderPage();
       expect(chart()).toHaveTextContent("活跃 12.6小时");
       expect(chart().querySelectorAll(".vals-strong")).toHaveLength(7);
