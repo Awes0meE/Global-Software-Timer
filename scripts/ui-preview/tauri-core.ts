@@ -35,8 +35,10 @@ const uiPreferenceValues: Record<string, readonly string[]> = {
   reduce_motion: ["system", "reduce"],
 };
 
-// ?accent=<id> ?eink=<id> ?weekstart=sun ?startpage=<id> ?motion=reduce set the stored value only:
-// ?startpage does not open that page (use ?page). An unknown value stays the unchosen default.
+// ?accent=<id> ?eink=<id> ?weekstart=sun ?startpage=<id> ?motion=reduce set the stored value only.
+// An unknown value stays the unchosen default. §J: ?startpage must never open that page (use ?page), so
+// the probe opens on 概览 — when App gains the §E one-time switch to the stored start page, keep it
+// from firing here and add a probe test for it.
 function uiPreference(key: string, value: string | null): Record<string, unknown> {
   const allowed = uiPreferenceValues[key];
   const chosen = value !== null && allowed.includes(value);
