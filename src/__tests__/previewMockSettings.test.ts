@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AppSettings } from "../api";
+import type { AppSettings, SettingsImportPreview } from "../api";
 
 // The preview mock reads its query string once, at import: load a fresh copy per URL.
 async function mockAt(search: string) {
@@ -66,5 +66,33 @@ describe("preview mock display preferences", () => {
       "ui_preference_invalid_value",
     );
     await expect(invoke<AppSettings>("get_app_settings")).resolves.toMatchObject({ start_page: "overview" });
+  });
+
+  // The demo settings file changes the display preferences too, so the import dialog's 760 px layout shows.
+  it("previews and applies the demo file's display preferences, skipping values already set", async () => {
+    const invoke = await mockAt("?eink=warm");
+
+    const preview = await invoke<SettingsImportPreview>("pick_settings_import");
+    expect(preview.changes).toEqual([
+      { key: "theme", from: "system", to: "dark" },
+      { key: "accent", from: "blue", to: "violet" },
+      { key: "week_start", from: "monday", to: "sunday" },
+      { key: "start_page", from: "overview", to: "statistics" },
+      { key: "reduce_motion", from: "system", to: "reduce" },
+    ]);
+
+    await invoke("apply_settings_import", { importId: preview.import_id });
+    await expect(invoke<AppSettings>("get_app_settings")).resolves.toMatchObject({
+      theme: "dark",
+      accent: "violet",
+      accent_configured: true,
+      eink: "warm",
+      week_start: "sunday",
+      week_start_configured: true,
+      start_page: "statistics",
+      start_page_configured: true,
+      reduce_motion: "reduce",
+      reduce_motion_configured: true,
+    });
   });
 });

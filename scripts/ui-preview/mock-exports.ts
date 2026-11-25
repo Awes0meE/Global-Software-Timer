@@ -4,7 +4,7 @@
 // ?export=toolarge make the settings import pick reject with that error. The
 // import id is single use, like the app's. save_binary_export checks its raw body
 // and name header like the app before "saving".
-import type { SettingsImportPreview, SettingsImportResult } from "../../src/api";
+import type { SettingsImportKey, SettingsImportPreview, SettingsImportResult } from "../../src/api";
 import { formatLocalDate } from "../../src/statisticsRange";
 
 const DOWNLOADS = "C:\\Users\\demo\\Downloads\\";
@@ -18,8 +18,18 @@ export interface MockLists {
   hidden: Set<string>;
 }
 
-// The demo settings file: theme → dark, two focused (one already focused), one
-// hidden, one software this machine has never seen.
+// The demo settings file: theme → dark and five display preferences (so the
+// dialog's 760 px layout shows), two focused (one already focused), one hidden,
+// one software this machine has never seen. In the backend's plan order; a value
+// already set is not a change.
+const IMPORT_SETTINGS: readonly [key: SettingsImportKey, value: string][] = [
+  ["theme", "dark"],
+  ["accent", "violet"],
+  ["eink", "warm"],
+  ["week_start", "sunday"],
+  ["start_page", "statistics"],
+  ["reduce_motion", "reduce"],
+];
 const IMPORT_FOCUSED = ["notion", "code"];
 const IMPORT_HIDDEN = ["cloudmusic"];
 const IMPORT_UNMATCHED = 1;
@@ -38,7 +48,11 @@ function plan(lists: MockLists): SettingsImportPreview {
     IMPORT_HIDDEN.filter((key) => lists.focused.has(key)).length;
   return {
     import_id: IMPORT_ID,
-    changes: lists.settings.theme === "dark" ? [] : [{ key: "theme", from: String(lists.settings.theme), to: "dark" }],
+    changes: IMPORT_SETTINGS.filter(([key, to]) => lists.settings[key] !== to).map(([key, to]) => ({
+      key,
+      from: String(lists.settings[key]),
+      to,
+    })),
     focused_added: focusedAdded.length,
     hidden_added: hiddenAdded.length,
     unmatched: IMPORT_UNMATCHED,
