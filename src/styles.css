@@ -1680,6 +1680,7 @@ mark {
 }
 
 .active-help-button {
+  position: relative;
   display: grid;
   place-items: center;
   width: 16px;
@@ -1691,6 +1692,14 @@ mark {
   color: var(--ink-2);
   font: 500 var(--type-label) var(--font-num);
   box-shadow: inset 0 0 0 1px var(--edge-strong);
+}
+
+/* Apple's 28px pointer target around the 16px key, invisible, so the key itself keeps its size. */
+.active-help-button::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
 }
 
 .active-help-button:focus-visible {

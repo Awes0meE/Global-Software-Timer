@@ -155,6 +155,18 @@ describe("software and background pages, dialogs", () => {
     },
   );
 
+  // Apple HIG: pointer hit targets are 28×28 by default (20×20 minimum). The ? key stays 16px to look at
+  // and reaches 28px through an invisible ring, so the title it sits 6px from keeps its own clicks.
+  it("gives the 16px ? key a 28px hit area", () => {
+    const key = topLevel(".active-help-button");
+    expect(key.width).toBe("16px");
+    expect(key.position).toBe("relative");
+    const ring = topLevel(".active-help-button::before");
+    expect(ring.content).toBe('""');
+    expect(ring.position).toBe("absolute");
+    expect(ring.inset).toBe("-6px");
+  });
+
   // Spec「信号橙与强调色」and 已定 3: errors, warnings and removal use the alert colours …
   it.each([".warning", ".dialog-error", ".software-remove-button"])("%s uses the alert colours", (selector) => {
     const declarations = topLevel(selector);
