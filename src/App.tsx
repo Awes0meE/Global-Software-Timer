@@ -30,6 +30,7 @@ import {
   type MilestoneSoftware,
   type ThemePreference,
 } from "./api";
+import { START_PAGE_NAMES, type StartPage } from "./appearancePresets";
 import clockMark from "./assets/gst-clock.svg";
 import { AppUsageTable } from "./components/AppUsageTable";
 import { BackgroundPage } from "./components/BackgroundPage";
@@ -76,7 +77,8 @@ const dashboardRefreshIntervalMs = 5000;
 const defaultCloseBehavior: CloseBehavior = "minimize_to_tray";
 const defaultDurationFormat: DurationFormat = "decimal_hours";
 
-type PageId = "overview" | "settings" | "software" | "background" | "statistics" | "achievements";
+// Every page but 设置 is a 启动时打开 option (§E): its id and label come from appearancePresets.
+type PageId = StartPage | "settings";
 
 /** The tracker's latest scan as today's live summary reports it; `failed` means that read itself failed. */
 interface LiveScan {
@@ -92,23 +94,16 @@ const liveScanOf = (summary: DashboardSummary): LiveScan => ({
 const failedScan = (scan: LiveScan): LiveScan => ({ ...scan, failed: true });
 
 const navItems = [
-  { id: "overview", label: "概览", icon: LayoutDashboard, available: true },
-  { id: "software", label: "软件", icon: SquareStack, available: true },
-  { id: "background", label: "后台", icon: Cpu, available: true },
-  { id: "statistics", label: "统计", icon: BarChart3, available: true },
+  { id: "overview", label: START_PAGE_NAMES.overview, icon: LayoutDashboard, available: true },
+  { id: "software", label: START_PAGE_NAMES.software, icon: SquareStack, available: true },
+  { id: "background", label: START_PAGE_NAMES.background, icon: Cpu, available: true },
+  { id: "statistics", label: START_PAGE_NAMES.statistics, icon: BarChart3, available: true },
   { id: "timeline", label: "时间轴", icon: History, available: false },
-  { id: "achievements", label: "成就", icon: Trophy, available: true },
+  { id: "achievements", label: START_PAGE_NAMES.achievements, icon: Trophy, available: true },
   { id: "settings", label: "设置", icon: Settings, available: true },
 ] as const;
 
-const pageTitles: Record<PageId, string> = {
-  overview: "概览",
-  software: "软件",
-  background: "后台",
-  statistics: "统计",
-  achievements: "成就",
-  settings: "设置",
-};
+const pageTitles: Record<PageId, string> = { ...START_PAGE_NAMES, settings: "设置" };
 
 // 单日日期键只对按「某一天」看数据的页面有意义；软件、统计、成就有自己的时间范围，设置页不看数据。
 const pagesWithDateControl: ReadonlySet<PageId> = new Set<PageId>(["overview", "background"]);
