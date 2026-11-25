@@ -120,6 +120,7 @@ pub fn run() {
             commands::remove_hidden_software_identity,
             commands::get_app_settings,
             commands::get_transparency_effects_enabled,
+            commands::get_windows_accent,
             commands::get_close_behavior_preference,
             commands::set_autostart_preference,
             commands::set_close_behavior_preference,

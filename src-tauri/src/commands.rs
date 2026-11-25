@@ -780,6 +780,12 @@ pub fn get_transparency_effects_enabled() -> bool {
     crate::appearance::transparency_effects_enabled()
 }
 
+/// Read-only: the Windows accent for each app theme, or null. Not stored.
+#[tauri::command(async)]
+pub fn get_windows_accent() -> Option<crate::appearance::WindowsAccent> {
+    crate::appearance::windows_accent()
+}
+
 #[tauri::command(async)]
 pub fn get_close_behavior_preference(state: State<'_, AppState>) -> Result<Option<String>, String> {
     let tracker = crate::app_state::lock_tracker(&state.tracker);

@@ -381,6 +381,17 @@ export async function getTransparencyEffectsEnabled(): Promise<boolean> {
   return invoke<boolean>("get_transparency_effects_enabled");
 }
 
+/** The Windows accent as `#rrggbb` per app theme (light AccentDark1, dark AccentLight2). */
+export interface WindowsAccent {
+  light: string;
+  dark: string;
+}
+
+/** Read-only: the Windows accent, or null when it cannot be read. Nothing is stored. */
+export async function getWindowsAccent(): Promise<WindowsAccent | null> {
+  return invoke<WindowsAccent | null>("get_windows_accent");
+}
+
 export async function getAppSettings(): Promise<AppSettings> {
   const settings = (await invoke<Partial<AppSettings> | null>("get_app_settings")) ?? {};
   const durationFormat = normalizeDurationFormat(settings.duration_format);

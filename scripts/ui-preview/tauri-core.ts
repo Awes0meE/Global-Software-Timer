@@ -168,6 +168,9 @@ export async function invoke<T>(
       return settings.close_behavior as T;
     case "get_transparency_effects_enabled":
       return (params.get("glass") !== "off") as T;
+    case "get_windows_accent":
+      // AccentDark1 / AccentLight2 of the Windows default blue: the browser cannot read the real one.
+      return { light: "#0067c0", dark: "#4cc2ff" } as T;
     case "apply_window_close_choice":
       return undefined as T;
     default: {
