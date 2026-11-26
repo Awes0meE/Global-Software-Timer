@@ -21,15 +21,34 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
+      # With the updater signing key the installers are also signed for 检查更新 (the bundler's .sig
+      # files); without it the build still validates, and the publish job refuses to release.
       - name: Validate and build installers
-        run: npm run release:build
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+            if (-not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) { throw "The TAURI_SIGNING_PRIVATE_KEY_PASSWORD secret is missing" }
+            npm run release:build -- -Updater
+          } else {
+            Write-Warning "No TAURI_SIGNING_PRIVATE_KEY secret: building without updater signatures or latest.json"
+            npm run release:build
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Release build failed with exit code $LASTEXITCODE" }
       - name: Prepare release evidence
         id: evidence
         shell: pwsh
+        env:
+          SIGNED: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid release version" }
-          $names = @("Global.Software.Timer_${version}_x64-setup.exe", "Global.Software.Timer_${version}_x64_en-US.msi")
+          $setup = "Global.Software.Timer_${version}_x64-setup.exe"
+          $msi = "Global.Software.Timer_${version}_x64_en-US.msi"
+          $names = @($setup, $msi)
           $assets = @(Get-ChildItem release-staging -File)
           if (Compare-Object $names @($assets.Name)) { throw "Unexpected installer set" }
           $hashes = foreach ($name in $names) {
@@ -37,6 +56,30 @@ jobs:
             "$hash  $name"
           }
           $hashes | Set-Content release-staging/SHA256SUMS.txt -Encoding utf8NoBOM
+          if ($env:SIGNED -eq 'true') {
+            # The in-app updater reads latest.json from the latest release: per installer its signature
+            # (the bundler's .sig), its release-asset URL and its size in bytes (`size`, shown in 发现新版本).
+            $bundle = "src-tauri/target/release/bundle"
+            $download = "https://github.com/$env:REPOSITORY/releases/download/v$version"
+            function Get-UpdaterEntry([string] $asset, [string] $sigPath) {
+              if (-not (Test-Path -LiteralPath $sigPath)) { throw "Updater signature missing: $sigPath" }
+              $signature = (Get-Content -Raw -LiteralPath $sigPath).Trim()
+              if (-not $signature) { throw "Updater signature empty: $sigPath" }
+              [ordered]@{ signature = $signature; url = "$download/$asset"; size = (Get-Item "release-staging/$asset").Length }
+            }
+            $setupEntry = Get-UpdaterEntry $setup "$bundle/nsis/Global Software Timer_${version}_x64-setup.exe.sig"
+            $msiEntry = Get-UpdaterEntry $msi "$bundle/msi/Global Software Timer_${version}_x64_en-US.msi.sig"
+            [ordered]@{
+              version = $version
+              notes = "https://github.com/$env:REPOSITORY/releases/tag/v$version"
+              pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+              platforms = [ordered]@{
+                'windows-x86_64' = $setupEntry
+                'windows-x86_64-nsis' = $setupEntry
+                'windows-x86_64-msi' = $msiEntry
+              }
+            } | ConvertTo-Json -Depth 5 | Set-Content release-staging/latest.json -Encoding utf8NoBOM
+          }
           Copy-Item "docs/releases/v$version.md" release-staging/RELEASE_NOTES.md
           @("", "Source commit $env:GITHUB_SHA", "", "## SHA-256", "", '~~~text') + $hashes + @('~~~') |
             Add-Content release-staging/RELEASE_NOTES.md -Encoding utf8
@@ -66,12 +109,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           MERGE_MESSAGE: ${{ github.event.head_commit.message }}
+          HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
         shell: pwsh
         run: |
           $version = $env:RELEASE_VERSION
           $subject = ($env:MERGE_MESSAGE -split '\r?\n', 2)[0]
           if ($subject -cne "chore(release): publish $version") { throw "Release title and version differ" }
+          if ($env:HAS_SIGNING_KEY -ne 'true') {
+            throw "The updater signing key is missing. Add the repository secrets TAURI_SIGNING_PRIVATE_KEY (the contents of gst-updater.key) and TAURI_SIGNING_PRIVATE_KEY_PASSWORD (Settings > Secrets and variables > Actions), then rerun this workflow. Without them the release cannot be installed through 检查更新."
+          }
+          if (-not (Test-Path release-staging/latest.json)) { throw "latest.json is missing: the installers were built without the updater signing key" }
           $files = @("Global.Software.Timer_${version}_x64-setup.exe", "Global.Software.Timer_${version}_x64_en-US.msi")
+          $manifest = Get-Content -Raw release-staging/latest.json | ConvertFrom-Json
+          if ($manifest.version -cne $version) { throw "latest.json is for $($manifest.version), not $version" }
+          $setupEntry = $manifest.platforms.'windows-x86_64'
+          if (-not $setupEntry.signature -or -not $setupEntry.url.EndsWith("/v$version/$($files[0])")) { throw "latest.json does not point at the signed setup.exe" }
+          if ($setupEntry.size -ne (Get-Item "release-staging/$($files[0])").Length) { throw "latest.json lists the wrong installer size" }
           $sums = @(Get-Content release-staging/SHA256SUMS.txt)
           if ($sums.Count -ne $files.Count) { throw "Unexpected checksum manifest" }
           $upload = foreach ($file in $files) {
@@ -81,5 +134,6 @@ jobs:
             $path
           }
           $upload += 'release-staging/SHA256SUMS.txt'
+          $upload += 'release-staging/latest.json'
           gh release create "v$version" @upload --target $env:GITHUB_SHA --title "Global Software Timer v$version" --notes-file release-staging/RELEASE_NOTES.md
           if ($LASTEXITCODE -ne 0) { throw "Release publication failed" }

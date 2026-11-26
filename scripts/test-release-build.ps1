@@ -12,6 +12,7 @@ try {
         function global:npm.cmd {
             param([string] $verb, [string] $task)
             $global:gstCalls += $task
+            $global:gstArgs = @($args)
             $global:LASTEXITCODE = if ($task -eq $global:gstFailure) { 17 } else { 0 }
         }
         $caught = $null
@@ -23,10 +24,21 @@ try {
         if (($global:gstCalls -join ',') -ne $expected) { throw 'Unexpected command ran after failure' }
         'PASS: stops after ' + $failure
     }
+    # -Updater merges the updater config into the build; a plain build passes no extra arguments. (This
+    # stand-in is a PowerShell function, which drops the `--` that the real npm.cmd receives.)
+    foreach ($updater in @($false, $true)) {
+        $global:gstFailure = 'tauri:build'
+        $global:gstCalls = @()
+        $global:gstArgs = @()
+        try { & (Join-Path $fixture 'release-build.ps1') -Updater:$updater } catch {}
+        $expected = if ($updater) { '--config src-tauri/tauri.updater.conf.json' } else { '' }
+        if (($global:gstArgs -join ' ') -ne $expected) { throw "Unexpected tauri:build arguments: $($global:gstArgs -join ' ')" }
+        'PASS: tauri:build arguments with -Updater:' + $updater
+    }
 } finally {
     Set-Location $originalLocation
     Remove-Item Function:\npm.cmd -ErrorAction SilentlyContinue
-    Remove-Variable gstFailure,gstCalls -Scope Global -ErrorAction SilentlyContinue
+    Remove-Variable gstFailure,gstCalls,gstArgs -Scope Global -ErrorAction SilentlyContinue
     $resolved = [System.IO.Path]::GetFullPath($fixture)
     $tempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
     if (-not $resolved.StartsWith($tempRoot, [System.StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe fixture path' }

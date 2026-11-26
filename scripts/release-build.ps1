@@ -1,3 +1,9 @@
+param(
+    # CI only: also sign the installers for the in-app updater (writes the .sig files).
+    # Needs TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD; a local build leaves it off.
+    [switch] $Updater
+)
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
@@ -8,7 +14,11 @@ Set-Location $repoRoot
 
 npm.cmd run check
 if ($LASTEXITCODE -ne 0) { throw "npm.cmd run check failed with exit code $LASTEXITCODE" }
-npm.cmd run tauri:build
+if ($Updater) {
+    npm.cmd run tauri:build -- --config src-tauri/tauri.updater.conf.json
+} else {
+    npm.cmd run tauri:build
+}
 if ($LASTEXITCODE -ne 0) { throw "npm.cmd run tauri:build failed with exit code $LASTEXITCODE" }
 
 $package = Get-Content -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "package.json") | ConvertFrom-Json
