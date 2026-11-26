@@ -46,13 +46,15 @@ Global Software Timer (GST) is a free, open-source tray app for Windows 10 and 1
 - **Share posters**: save a day's screen time, or a milestone a program reached, as a portrait PNG poster, drawn on your computer.
 - **Personal touches**: 8 accent colours (including the Windows accent), 5 e-ink palettes, light and dark themes, week start, start page, a larger text size, reduced motion, decimal hours (`8.3小时`) or hours and minutes.
 - **Keyboard shortcuts**: `Ctrl+1` to `Ctrl+6` switch pages, `Ctrl+,` opens Settings, `Ctrl+←` / `Ctrl+→` step through days.
+- **Updates on request**: Settings → 关于与反馈 (About and feedback) → 检查更新… (Check for updates). GST asks before it goes online, every time. When a newer release exists, one click backs up your data, downloads the new version, verifies its signature, installs it and restarts. Releases up to v0.4.5 have no update check: install v0.4.6 by hand once.
 - **Small**: built with Tauri on the WebView2 that Windows already has; the installer is about 6 MB.
 
 ## Privacy
 
 - Every record stays in a local SQLite database on your computer. There is no account, no telemetry and no upload.
 - GST does not read window titles, document names, web page titles, keystrokes, mouse positions, file contents or browser history. It only sees which programs are running, which one has the focus, and whether there was any input in the last few minutes.
-- Up to v0.4.5, GST makes no network request at all. From v0.4.6 it can check for updates, but only when you press 检查更新… (Check for updates) in Settings and then agree in a dialog, every time; the check asks GitHub for the latest version and sends no usage data.
+- GST never connects on its own: nothing at startup, nothing in the background. The only network request it can make is the update check, which runs only when you press 检查更新… (Check for updates) in Settings and then agree in a dialog, every time; it asks GitHub for the latest version and sends no usage data. Releases up to v0.4.5 make no network request at all.
+- The feedback links in Settings (release notes, bug report, feature request, QQ group) open in your default browser; GST hands Windows one of a fixed list of addresses and can open nothing else.
 - It runs as a normal user-space app and never asks for administrator rights.
 
 Details: [PRIVACY.md](./PRIVACY.md).
@@ -81,6 +83,7 @@ The project has applied to the SignPath Foundation for free code signing. See th
 - Report a problem: [bug report form](https://github.com/Awes0meE/Global-Software-Timer/issues/new?template=bug_report.yml)
 - Suggest a feature: [feature request form](https://github.com/Awes0meE/Global-Software-Timer/issues/new?template=feature_request.yml)
 - Questions and ideas: [GitHub Discussions](https://github.com/Awes0meE/Global-Software-Timer/discussions)
+- Chat (Chinese): QQ group [GST功能交流群](https://qm.qq.com/q/gN4qB6TVGE), number 937943526
 - Security issues: please report them privately as described in [SECURITY.md](./SECURITY.md).
 
 Issues and discussions in English are welcome.
@@ -91,4 +94,4 @@ Tauri v2, Rust, React and TypeScript, and SQLite. Development notes are in [CONT
 
 ## License
 
-Copyright (C) 2026 Global Software Timer Contributors. See [LICENSE](./LICENSE). Releases up to v0.4.5 are MIT-licensed; from v0.4.6 the project moves to GPL-3.0-or-later, and the names and clock icon are reserved for the official app.
+Copyright (C) 2026 Global Software Timer Contributors. From v0.4.6 the project is licensed under the [GNU General Public License v3.0 or later](./LICENSE): you may use, study, change and share it, and a changed version you distribute must also be GPL with its full source. Releases up to v0.4.5 stay MIT-licensed. The names 全局软件计时器, Global Software Timer and GST and the clock icon are not licensed with the code; a changed version needs its own name and icon, see [TRADEMARKS.md](./TRADEMARKS.md).
