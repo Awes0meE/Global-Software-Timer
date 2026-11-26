@@ -567,10 +567,11 @@ fn checkpoint_into_single_file(path: &Path) -> rusqlite::Result<()> {
 /// later starts move on. Returns whether `.before-restore` is gone.
 fn set_aside_before_restore(paths: &RestorePaths, now: NaiveDateTime) -> bool {
     let stem = format!("{PRE_RESTORE_PREFIX}{}", now.format("%Y-%m-%d-%H%M%S"));
+    let target = unused_copy_path(&paths.backups, &stem);
     let archived = std::fs::create_dir_all(&paths.backups).is_ok()
-        && rename_with_retry(&paths.before, &unused_copy_path(&paths.backups, &stem)).is_ok();
+        && rename_with_retry(&paths.before, &target).is_ok();
     if archived {
-        prune_pre_restore_copies(&paths.backups, PRE_RESTORE_KEEP);
+        prune_pre_restore_copies(&paths.backups, PRE_RESTORE_KEEP, &[target]);
         return true;
     }
     rename_with_retry(&paths.before, &unused_copy_path(&paths.dir, &stem)).is_ok()
@@ -593,10 +594,14 @@ fn archive_set_aside_copies(paths: &RestorePaths) {
     if set_aside.is_empty() || std::fs::create_dir_all(&paths.backups).is_err() {
         return;
     }
-    for (path, stem) in set_aside {
-        let _ = rename_with_retry(&path, &unused_copy_path(&paths.backups, &stem));
-    }
-    prune_pre_restore_copies(&paths.backups, PRE_RESTORE_KEEP);
+    let moved: Vec<PathBuf> = set_aside
+        .into_iter()
+        .filter_map(|(path, stem)| {
+            let target = unused_copy_path(&paths.backups, &stem);
+            rename_with_retry(&path, &target).is_ok().then_some(target)
+        })
+        .collect();
+    prune_pre_restore_copies(&paths.backups, PRE_RESTORE_KEEP, &moved);
 }
 
 /// `<stem>.db` in `dir`, or `<stem>-N.db` when that name is taken.
@@ -634,7 +639,10 @@ fn pre_restore_order(stem: &str) -> (String, Vec<u64>) {
     (stamp.to_string(), numbers)
 }
 
-fn prune_pre_restore_copies(backups: &Path, keep: usize) {
+/// Keeps the newest `keep` copies, counting the `just_moved` ones first: their
+/// names carry the clock of the moment they were made, which may run behind
+/// the names already there.
+fn prune_pre_restore_copies(backups: &Path, keep: usize, just_moved: &[PathBuf]) {
     let Ok(entries) = std::fs::read_dir(backups) else {
         return;
     };
@@ -646,9 +654,10 @@ fn prune_pre_restore_copies(backups: &Path, keep: usize) {
             let order = pre_restore_order(pre_restore_stem(&name)?);
             Some((entry.path(), order))
         })
+        .filter(|(path, _)| !just_moved.contains(path))
         .collect();
     copies.sort_by(|(_, a), (_, b)| a.cmp(b));
-    let excess = copies.len().saturating_sub(keep);
+    let excess = (copies.len() + just_moved.len()).saturating_sub(keep);
     for (old, _) in copies.into_iter().take(excess) {
         let _ = std::fs::remove_file(old);
     }
@@ -1030,7 +1039,10 @@ mod tests {
         set_read_only(false);
 
         let staged = staged.unwrap();
-        assert!(!std::fs::metadata(&staged.path).unwrap().permissions().readonly());
+        assert!(!std::fs::metadata(&staged.path)
+            .unwrap()
+            .permissions()
+            .readonly());
         assert_eq!(marker_of(&staged.path).as_deref(), Some("backup"));
         assert_eq!(staged.software_count, 2);
     }
@@ -1491,6 +1503,73 @@ mod tests {
         );
     }
 
+    // A clock set back (a reset battery, a manual change) names the new copy
+    // older than the ones already kept.
+    #[test]
+    fn the_copy_just_made_is_kept_even_when_its_name_sorts_oldest() {
+        let (data, paths) = queued_restore();
+        std::fs::create_dir_all(&paths.backups).unwrap();
+        for day in 1..=3 {
+            std::fs::write(
+                paths
+                    .backups
+                    .join(format!("GST-恢复前-2026-12-0{day}-000000.db")),
+                b"later",
+            )
+            .unwrap();
+        }
+
+        let (_, status) = run_startup_swap(data.path(), at(26, (10, 15, 0)), open_store);
+
+        assert_eq!(status, RestoreStatus::Restored);
+        assert_eq!(
+            pre_restore_copies(&paths),
+            vec![
+                "GST-恢复前-2026-11-26-101500.db".to_string(),
+                "GST-恢复前-2026-12-02-000000.db".to_string(),
+                "GST-恢复前-2026-12-03-000000.db".to_string(),
+            ]
+        );
+        assert_eq!(
+            marker_of(&paths.backups.join("GST-恢复前-2026-11-26-101500.db")).as_deref(),
+            Some("live")
+        );
+    }
+
+    #[test]
+    fn copies_moved_into_backups_are_kept_even_when_their_names_sort_oldest() {
+        let data = TempDir::new().unwrap();
+        let paths = RestorePaths::new(data.path());
+        gst_database(&paths.live, "live");
+        std::fs::create_dir_all(&paths.backups).unwrap();
+        for day in 1..=3 {
+            std::fs::write(
+                paths
+                    .backups
+                    .join(format!("GST-恢复前-2026-12-0{day}-000000.db")),
+                b"later",
+            )
+            .unwrap();
+        }
+        std::fs::write(
+            data.path().join("GST-恢复前-2026-11-26-101500.db"),
+            b"set aside",
+        )
+        .unwrap();
+
+        let (_, status) = run_startup_swap(data.path(), at(26, (11, 0, 0)), open_store);
+
+        assert_eq!(status, RestoreStatus::None);
+        assert_eq!(
+            pre_restore_copies(&paths),
+            vec![
+                "GST-恢复前-2026-11-26-101500.db".to_string(),
+                "GST-恢复前-2026-12-02-000000.db".to_string(),
+                "GST-恢复前-2026-12-03-000000.db".to_string(),
+            ]
+        );
+    }
+
     #[test]
     fn leftover_staged_copies_are_deleted_at_startup() {
         let data = TempDir::new().unwrap();
@@ -1664,7 +1743,10 @@ mod tests {
         gst_database(&paths.before, "earlier");
         let mut opened = 0;
 
-        let held = (hold_exclusively(&paths.before), hold_exclusively(&paths.pending));
+        let held = (
+            hold_exclusively(&paths.before),
+            hold_exclusively(&paths.pending),
+        );
         let (store, status) = run_startup_swap(data.path(), at(26, (10, 15, 0)), |path| {
             opened += 1;
             open_store(path)
@@ -1802,7 +1884,7 @@ mod tests {
             std::fs::write(dir.path().join(name), b"x").unwrap();
         }
 
-        prune_pre_restore_copies(dir.path(), 2);
+        prune_pre_restore_copies(dir.path(), 2, &[]);
 
         assert_eq!(
             names_in(dir.path()),
