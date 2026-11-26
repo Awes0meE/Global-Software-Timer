@@ -27,8 +27,9 @@ const LIGHT = {
   // Today's --glow centres (the 蓝 glow), where spec §B measures every preset.
   todayGlow: [rgb(90, 160, 255, 0.34), rgb(240, 120, 190, 0.26), rgb(160, 130, 255, 0.3)],
   // Spec §B variant B glow built from the accent: the accent share and the colour mixed in, per blob, at the
-  // mock's alphas. styles.css shows 跟随 Windows a fainter glow (its --glow-alpha-* fallbacks), so a light
-  // accent that clears this one clears that too; the stricter bound also keeps today's clamp results.
+  // mock's alphas. This is a stricter stand-in, not the glow styles.css shows 跟随 Windows (its fainter
+  // --glow-alpha-* fallbacks); contrast.test.ts checks the clamped accents over that real glow. Keeping the
+  // mock alphas here also keeps today's clamp results.
   glow: [
     { share: 1, mixWith: rgb(0, 0, 0), alpha: 0.45 },
     { share: 0.4, mixWith: rgb(240, 120, 190), alpha: 0.26 },
@@ -42,6 +43,7 @@ const DARK = {
 };
 
 const KNOB_RING = rgb(0, 0, 0, 0.5);
+const WHITE = rgb(255, 255, 255);
 const GRAPHIC = 3;
 const TEXT = 4.5;
 // The clamp aims a hair above each target, so rounding in another measurement cannot tip a result under it.
@@ -107,11 +109,13 @@ function onGlass(accent: Rgba, centres: Rgba[]): number {
 /**
  * Spec §B rules, measured as the mock README measures the presets. Light: at least 3:1 on --glass-solid and
  * on the glass over the base and over every centre of today's glow. Dark: the knob ring at least 3:1 over the
- * accent. Both: --muted on a 14% accent tint over --glass-solid at least 4.5:1 (the spec names it for dark;
- * in light it only bites a near-black accent).
+ * accent, at rest and on the hovered track (the accent 90% mixed with white, styles.css --toggle-fill).
+ * Both: --muted on a 14% accent tint over --glass-solid at least 4.5:1 (the spec names it for dark; in light
+ * it only bites a near-black accent).
  *
- * `ownGlow` also holds the light accent to 3:1 over the centres of the glow it builds itself. The clamp asks
- * for it: a Windows accent is moved until it passes on the glow it really shows.
+ * `ownGlow` also holds the light accent to 3:1 over the centres of the mock's variant B glow built from it.
+ * The clamp asks for it as a stricter stand-in for the fainter glow 跟随 Windows really shows, which
+ * contrast.test.ts measures.
  */
 export function accentMeetsRules(theme: AccentTheme, hex: string, { margin = 0, ownGlow = false } = {}): boolean {
   const accent = parseHex(hex);
@@ -123,7 +127,8 @@ export function accentMeetsRules(theme: AccentTheme, hex: string, { margin = 0, 
     // The selected-row tint bounds a near-black accent too; every preset clears it (contrast.test.ts).
     return Math.min(todays, own) >= GRAPHIC + margin && mutedOnTint >= TEXT + margin;
   }
-  return contrast(KNOB_RING, accent) >= GRAPHIC + margin && mutedOnTint >= TEXT + margin;
+  const ring = Math.min(contrast(KNOB_RING, accent), contrast(KNOB_RING, mix(accent, 0.9, WHITE)));
+  return ring >= GRAPHIC + margin && mutedOnTint >= TEXT + margin;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,7 +202,7 @@ export function toOklch(hex: string): { l: number; c: number; h: number } {
 const BLUE = ACCENT_PRESETS.find((preset) => preset.id === "blue") as AccentPair;
 
 /**
- * A colour that meets the theme's rules, its own glow included: `hex` itself when it already does,
+ * A colour that meets the theme's rules, the light mock glow built from it included: `hex` itself when it does,
  * otherwise the nearest OKLab lightness that does, with the hue and chroma kept. Light accents are tried
  * darker first, dark ones lighter. Falls back to 蓝 in the unexpected case that no lightness passes.
  */

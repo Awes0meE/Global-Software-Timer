@@ -19,6 +19,8 @@ function measured(theme: Theme, hex: string, glowOf?: Appearance) {
     onGlass: onGlassOver(glowCenters(theme)),
     onOwnGlowGlass: glowOf ? onGlassOver(glowCenters("light", glowOf)) : undefined,
     ring: contrast(parseColor("rgba(0,0,0,.5)"), accent),
+    // The switched-on track's hover fill (styles.css --toggle-fill), under the same knob ring.
+    hoverRing: contrast(parseColor("rgba(0,0,0,.5)"), parseColor(`color-mix(in srgb, ${hex} 90%, #fff)`)),
     mutedOnTint: contrast(colour("--muted"), over({ ...accent, a: 0.14 }, solid)),
   };
 }
@@ -34,6 +36,7 @@ function expectRules(theme: Theme, hex: string, { ownGlow = false } = {}) {
     if (ownGlow) expect(m.onOwnGlowGlass, `${hex} on the glass over its own glow`).toBeGreaterThanOrEqual(3);
   } else {
     expect(m.ring, `knob ring over ${hex}`).toBeGreaterThanOrEqual(3);
+    expect(m.hoverRing, `knob ring over hovered ${hex}`).toBeGreaterThanOrEqual(3);
   }
   expect(m.mutedOnTint, `${theme}: --muted on 14% ${hex}`).toBeGreaterThanOrEqual(4.5);
 }
@@ -149,6 +152,13 @@ describe("clampAccent", () => {
     const clamped = clampAccent("dark", "#99ebff");
     expect(toOklch(clamped).l).toBeLessThan(toOklch("#99ebff").l);
     expectRules("dark", clamped);
+  });
+
+  // Mixing white into a saturated magenta lifts its zero green channel, so the knob ring can drop under 3:1
+  // over the hovered track while it still clears the track at rest.
+  it.each(["#ff00f8", "#ff00fc"])("keeps the dark knob ring at 3:1 over the hovered %s track", (hex) => {
+    expect(accentMeetsRules("dark", hex)).toBe(false);
+    expectRules("dark", clampAccent("dark", hex));
   });
 
   it("turns a near-white or near-black accent into a passing grey", () => {
