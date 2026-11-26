@@ -12,7 +12,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 
 <p>
   <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/Awes0meE/Global-Software-Timer?style=for-the-badge&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&color=2f81f7&logo=github" /></a>
-  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases"><img alt="下载量" src="https://img.shields.io/github/downloads/Awes0meE/Global-Software-Timer/total?style=for-the-badge&label=%E4%B8%8B%E8%BD%BD%E9%87%8F&color=2ea043" /></a>
+  <a href="https://github.com/Awes0meE/Global-Software-Timer/releases"><img alt="下载量" src="https://img.shields.io/github/downloads/Awes0meE/Global-Software-Timer/total?style=for-the-badge&label=%E4%B8%8B%E8%BD%BD%E9%87%8F&color=2ea043&cacheSeconds=21600" /></a>
   <img alt="平台：Windows 10 / 11" src="https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%2010%20%7C%2011-0078D4?style=for-the-badge&logo=windows&logoColor=white" />
   <a href="./LICENSE"><img alt="许可证" src="https://img.shields.io/github/license/Awes0meE/Global-Software-Timer?style=for-the-badge&label=%E8%AE%B8%E5%8F%AF%E8%AF%81&color=f0b429" /></a>
 </p>
@@ -31,19 +31,19 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 <h3>
   <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/latest">⬇️ 下载最新版</a>
   <span>&nbsp;·&nbsp;</span>
-  <a href="#features">功能亮点</a>
+  <a href="#features">功能</a>
   <span>&nbsp;·&nbsp;</span>
-  <a href="#screenshots">界面一览</a>
+  <a href="#screenshots">界面</a>
   <span>&nbsp;·&nbsp;</span>
-  <a href="#export">导出与备份</a>
+  <a href="#export">导出</a>
   <span>&nbsp;·&nbsp;</span>
-  <a href="#privacy">隐私承诺</a>
+  <a href="#privacy">隐私</a>
   <span>&nbsp;·&nbsp;</span>
-  <a href="#faq">常见问题</a>
+  <a href="#faq">问答</a>
   <span>&nbsp;·&nbsp;</span>
-  <a href="#feedback">反馈与交流</a>
+  <a href="#feedback">反馈</a>
   <span>&nbsp;·&nbsp;</span>
-  <a href="#development">参与开发</a>
+  <a href="#development">开发</a>
 </h3>
 
 <br />
