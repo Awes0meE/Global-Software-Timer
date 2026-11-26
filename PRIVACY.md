@@ -12,7 +12,7 @@ Global Software Timer v0.4.3 is local-first.
 - Software-page marks, such as focused or hidden
 - Software-page foreground/background runtime aggregates
 - Software-page focused active time based on the Windows foreground focused software identity
-- Local app preferences, including startup at login, close-window behavior, duration format and theme
+- Local app preferences, including startup at login, close-window behavior, duration format, theme and, from v0.4.4, accent colour, e-ink palette, week start, start page and reduced motion
 - Background processes without a window or tray icon: executable name and path, daily running time, CPU time, peak memory and process count, for the `后台` page
 - A timeline of recorded time in consecutive stretches: which software identity had the Windows foreground focus, and whether the computer was active
 - For each software identity, the stretches of time in which it had a taskbar window
@@ -41,6 +41,7 @@ Since v0.2.4, GST also saves software icons to disk, so they are not read from e
 - Location: `%LOCALAPPDATA%\com.globalsoftwaretimer.app\icons\`
 - Contents: one 96px PNG per icon, taken from the executable or its package resources. Each file is named by a hash of the executable path, size and modification time, so the folder holds no paths or software names in plain text.
 - Cleanup: icon files written more than 90 days ago are deleted at startup. You can delete the folder at any time; icons are read again when needed.
+- From v0.4.4, icons are read only for programs on a lettered local drive (such as `C:\`). GST does not open program paths on network shares or device paths, including paths that come from a restored backup. Such software shows its first letter instead of an icon.
 - The app window loads these icons through the local `gsticon` protocol. They never leave the computer.
 - From v0.4.3 the protocol also sends a CORS header (`Access-Control-Allow-Origin`), but only to the app's own page origin, so that a poster drawn inside the app window can include the icon. Any other origin gets no such header.
 
@@ -65,7 +66,7 @@ From v0.4.2, you can save some of these records as files: the page CSV exports, 
 - `导出报表` → `区间汇总` (`统计`): for the chosen range, every software with focused, window or background time, with its display name, process name, rank, focused and window time, idle-open time, opens, average and longest session, background time and number of days used. It follows the page's `包含隐藏软件` switch.
 - `导出报表` → `每日明细` (`统计`, from v0.4.3): for the chosen range, one row per day and software with its display name, process name and that day's focused, window and background time. It follows the page's `包含隐藏软件` switch.
 - `导出成就` (`成就`, from v0.4.3): a PNG picture of one software you pick: its display name and icon, its highest focus milestone and the date it was reached, the number of days it was used and its total focused time. The list to pick from follows the page's `包含隐藏软件` switch.
-- `导出设置`: the theme, duration format and close-window behaviour you chose (settings you never changed are left empty), and the focused and hidden lists. Each list entry holds only a display name, a process name and a one-way SHA-256 digest of the software identity key, never the key itself, because identity keys are built from install paths. The settings file does not contain the startup-at-login setting, usage history or executable paths.
+- `导出设置`: the theme, duration format and close-window behaviour you chose, and from v0.4.4 also the accent colour, e-ink palette, week start, start page and reduced-motion choice (settings you never changed are left empty), and the focused and hidden lists. Each list entry holds only a display name, a process name and a one-way SHA-256 digest of the software identity key, never the key itself, because identity keys are built from install paths. The settings file does not contain the startup-at-login setting, usage history or executable paths.
 - `备份全部数据`: a full copy of the local database. It contains the whole usage history, including the timeline and the executable paths of background processes, and the app settings. Treat it like the database itself.
 
 The CSV files, the posters and the settings file never contain executable paths; posters do not show process names either. Once saved, these files are ordinary files under your control; GST does not track or remove them.
@@ -76,6 +77,19 @@ Posters are drawn on this computer, inside the app window, from the local record
 
 After a save, `在文件夹中显示` opens File Explorer with the saved file selected. GST does this only for a file it saved in the current session.
 
+## Restore from backup
+
+From v0.4.4, `设置` → `从备份恢复` replaces the local database with a full backup that you pick. Every step happens on this computer. GST reads only the file you pick in the open dialog, and every file it writes stays in the data folder, `%APPDATA%\com.globalsoftwaretimer.app\`.
+
+- Checking: GST copies the picked file to a temporary `.gst-restore-<id>.tmp` in the data folder. It then checks and upgrades that copy, never the picked file or the current database. Picking again or cancelling deletes the copy, and any leftover copy is deleted at the next start.
+- Applying: `恢复并重启` renames the checked copy to `global-software-timer.sqlite3.restore-pending` and restarts GST. Before anything else opens the database, the next start sets the current database aside as `global-software-timer.sqlite3.before-restore` and puts the backup in its place.
+- Pre-restore copies: once the restored database opens, the set-aside data moves to `backups\GST-恢复前-YYYY-MM-DD-HHMMSS.db` in the data folder. GST keeps the three newest such copies and deletes older ones. Like the backup itself, each copy holds your whole usage history, including the timeline, the executable paths of background processes and the app settings.
+- Rollback: if the restored database cannot be opened, it is renamed to `global-software-timer.sqlite3.restore-failed`, and the original data is put back and opened. The `.restore-failed` file stays in the data folder until you delete it.
+- The restored database's own settings apply after the restart, including startup at login, which is passed to Windows as it is at every start.
+- `打开数据文件夹` opens that folder in File Explorer. GST takes the path from its own state, never from the page.
+
+Nothing in a restore is uploaded or sent anywhere.
+
 ## Network
 
 v0.4.3 does not upload usage data or require an account.
@@ -85,5 +99,7 @@ v0.4.3 does not upload usage data or require an account.
 v0.4.3 runs as a normal user-space app and does not request administrator permission by default.
 
 GST reads the Windows "Transparency effects" setting only to decide how panels look; it is not stored.
+
+From v0.4.4, GST also reads the Windows accent colour to show the `跟随 Windows` accent choice. It reads `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent\AccentPalette`, or `HKCU\Software\Microsoft\Windows\DWM\AccentColor` when that is missing. The reads are read-only. GST reads the colour only while `跟随 Windows` is chosen, at startup and whenever the window is shown again, and once when `设置` opens, to paint the `跟随 Windows` swatch. The colour is never written to the database or sent anywhere. The last colour used is kept in the app window's local storage, together with the other appearance choices, only so the next start paints the right colours from the first frame.
 
 Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.4.3, can be turned off in Settings, and does not require administrator permission.
