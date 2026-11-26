@@ -23,6 +23,7 @@ import {
   type Theme,
 } from "./support/css";
 import { resolveAccent } from "../accent";
+import { GLOW_ALPHA_CAPS, glowAlphas, windowsGlowAlphas, type GlowAlphas } from "../glow";
 import { ACCENT_PRESETS, EINK_PALETTES, type AccentId, type EinkId } from "../appearancePresets";
 
 // Worst-case surfaces (spec「对比度目标」): translucent layers are composited on
@@ -46,12 +47,18 @@ interface Surfaces {
  * the appearance itself by default, or `{}` for today's glow.
  */
 function surfaces(theme: Theme, appearance: Appearance = {}, glowFrom: Appearance = appearance): Surfaces {
+  return surfacesOver(theme, appearance, backdrop(theme, glowFrom));
+}
+
+/** The surfaces of a theme under an appearance, with the opaque backdrop `B` given. */
+function surfacesOver(theme: Theme, appearance: Appearance, B: Rgba): Surfaces {
   const tokens = themeTokens(theme, appearance);
+  const colours = new Map<string, Rgba>();
   const colour = (name: string) => {
     if (!(name in tokens)) throw new Error(`Token ${name} is not defined for the ${theme} theme`);
-    return parseColor(resolve(tokens[name], tokens));
+    if (!colours.has(name)) colours.set(name, parseColor(resolve(tokens[name], tokens)));
+    return { ...(colours.get(name) as Rgba) };
   };
-  const B = backdrop(theme, glowFrom);
   return {
     theme,
     appearance,
@@ -535,45 +542,46 @@ describe.each(ACCENT_CASES)("contrast with the %s accent", (_label, appearance) 
       expect(ratio, `${theme}: ${combo.name} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(combo.threshold);
     });
 
-    // Spec §B: readability on the glow is unchanged for every choice; B stays the worst glow centre.
-    it.each(["--ink", "--ink-2", "--muted"])("B is the lowest-contrast glow centre for %s", (name) => {
-      const s = surfaces(theme, appearance);
-      const base = s.colour("--base");
-      const onB = contrast(s.colour(name), s.B);
-      glowCenters(theme, appearance).forEach((centre, index) => {
-        const ratio = contrast(s.colour(name), over(centre, base));
-        expect(ratio, `${theme}: ${name} on glow layer ${index} = ${ratio.toFixed(2)}, on B = ${onB.toFixed(2)}`).toBeGreaterThanOrEqual(onB);
+    // 蓝 shows today's glow, where B stays the worst glow centre. Every other choice is measured over each
+    // centre of its own glow instead (below).
+    if (appearance.accent === "blue") {
+      it.each(["--ink", "--ink-2", "--muted"])("B is the lowest-contrast glow centre for %s", (name) => {
+        const s = surfaces(theme, appearance);
+        const base = s.colour("--base");
+        const onB = contrast(s.colour(name), s.B);
+        glowCenters(theme, appearance).forEach((centre, index) => {
+          const ratio = contrast(s.colour(name), over(centre, base));
+          expect(ratio, `${theme}: ${name} on glow layer ${index} = ${ratio.toFixed(2)}, on B = ${onB.toFixed(2)}`).toBeGreaterThanOrEqual(onB);
+        });
       });
-    });
+    }
   });
 });
 
+/** Every COMBOS check that fails with `centre` (a translucent glow centre) over --base as the backdrop. */
+function centreFailures(theme: Theme, appearance: Appearance, centre: Rgba): string[] {
+  const base = parseColor(token(theme, "--base", appearance));
+  const s = surfacesOver(theme, appearance, over(centre, base));
+  return COMBOS.filter((combo) => !combo.themes || combo.themes.includes(theme)).flatMap((combo) => {
+    const ratio = measure(combo, s);
+    return ratio < combo.threshold ? [`${combo.name} = ${ratio.toFixed(2)}`] : [];
+  });
+}
+
 /**
- * Spec §B: readability over the glow a choice really shows is unchanged. Every check that fails there, with
- * its ratio: the COMBOS over the accent's own glow, B as the lowest-contrast centre of that glow for --ink,
- * --ink-2 and --muted, and in light the accent at 3:1 on the glass over the base and every centre of that glow.
+ * Spec §B: readability over the glow a choice really shows. Every check that fails there, with its ratio: the
+ * COMBOS, at today's thresholds, over each of the three centres of the choice's own glow in turn (text
+ * straight on the glow, on the glass, on the sidebar and on their keys; the accent at 3:1 on the glass over
+ * each centre), and in light the accent at 3:1 on the glass over the bare base.
  */
 function ownGlowFailures(theme: Theme, appearance: Appearance): string[] {
-  const s = surfaces(theme, appearance);
-  const failures: string[] = [];
-  COMBOS.filter((combo) => !combo.themes || combo.themes.includes(theme)).forEach((combo) => {
-    const ratio = measure(combo, s);
-    if (ratio < combo.threshold) failures.push(`${combo.name} = ${ratio.toFixed(2)}`);
-  });
-  const base = s.colour("--base");
-  const centres = glowCenters(theme, appearance).map((centre) => over(centre, base));
-  for (const name of ["--ink", "--ink-2", "--muted"]) {
-    const onB = contrast(s.colour(name), s.B);
-    centres.forEach((centre, index) => {
-      const ratio = contrast(s.colour(name), centre);
-      if (ratio < onB) failures.push(`${name} on glow layer ${index} = ${ratio.toFixed(2)}, under B's ${onB.toFixed(2)}`);
-    });
-  }
+  const failures = glowCenters(theme, appearance).flatMap((centre, index) =>
+    centreFailures(theme, appearance, centre).map((failure) => `glow layer ${index}: ${failure}`),
+  );
   if (theme === "light") {
-    [base, ...centres].forEach((under, index) => {
-      const ratio = contrast(s.colour("--accent"), over(s.colour("--glass"), under));
-      if (ratio < GRAPHIC) failures.push(`--accent on the glass over backdrop ${index} = ${ratio.toFixed(2)}`);
-    });
+    const s = surfaces(theme, appearance);
+    const ratio = contrast(s.colour("--accent"), over(s.colour("--glass"), s.colour("--base")));
+    if (ratio < GRAPHIC) failures.push(`--accent on the glass over the base = ${ratio.toFixed(2)}`);
   }
   return failures;
 }
@@ -616,24 +624,28 @@ const WINDOWS_SWEEP: string[] = [
   ...CUBE_LEVELS.flatMap((r) => CUBE_LEVELS.flatMap((g) => CUBE_LEVELS.map((b) => rgbHex(r, g, b)))),
 ];
 
-// 跟随 Windows has one set of glow alphas, so they must hold for whatever accent the clamp returns. Each
-// Windows accent is clamped once here, the clamp keeps a clamped pair as it is, and a theme only reads its
-// own half of the pair, so each theme checks one pair per distinct clamped accent.
+// 跟随 Windows computes its glow alphas from the clamped pair at runtime, and the stylesheet falls back to
+// one set on the first frame: both must hold for whatever accent the clamp returns. Each Windows accent is
+// clamped once here, the clamp keeps a clamped pair as it is, and a theme only reads its own half of the
+// pair, so each theme checks one pair per distinct clamped accent.
 const CLAMPED_PAIRS = WINDOWS_SWEEP.map((hex) => resolveAccent("system", { light: hex, dark: hex }));
 const clampedSweep = (theme: Theme) => [...new Map(CLAMPED_PAIRS.map((pair) => [pair[theme], pair])).values()];
 
 describe.each(THEMES)("跟随 Windows over its own glow in the %s theme", (theme) => {
-  it(
-    "passes every readability check for every clamped Windows accent",
-    () => {
+  it.each([
+    ["its runtime alphas", true],
+    ["the stylesheet's fallback alphas", false],
+  ] as const)(
+    "passes every readability check for every clamped Windows accent with %s",
+    (_alphas, inlineGlow) => {
       const sweep = clampedSweep(theme);
       expect(sweep.length).toBeGreaterThan(3000);
       const failures = sweep.flatMap((pair) =>
-        ownGlowFailures(theme, { accent: "system", windowsAccent: pair }).map((failure) => `${pair[theme]}: ${failure}`),
+        ownGlowFailures(theme, { accent: "system", windowsAccent: pair, inlineGlow }).map((failure) => `${pair[theme]}: ${failure}`),
       );
       expect(failures).toEqual([]);
     },
-    60_000,
+    120_000,
   );
 });
 
@@ -759,32 +771,34 @@ const SPEC_EINK: Record<Exclude<EinkId, "aurora">, Record<Theme, string[]>> = {
 };
 
 // Spec §B variant B: the mock formula, with each blob's alpha read from a --glow-alpha-* custom property.
-// The fallbacks are the 跟随 Windows alphas; every other choice but 蓝 sets its own (GLOW_ALPHAS).
+// Every choice but 蓝 and 跟随 Windows sets its own (GLOW_ALPHAS); 跟随 Windows reads the inline
+// --user-glow-<theme>-* alphas, and the innermost fallbacks are its first-frame and unreadable values.
 const ACCENT_GLOW: Record<Theme, string[]> = {
   light: [
-    "radial-gradient(820px 600px at 8% -6%, color-mix(in srgb, var(--accent) var(--glow-alpha-1, 16%), transparent), transparent 62%)",
-    "radial-gradient(760px 640px at 98% 10%, color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(240,120,190)) var(--glow-alpha-2, 18%), transparent), transparent 60%)",
-    "radial-gradient(860px 600px at 52% 110%, color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(160,130,255)) var(--glow-alpha-3, 17%), transparent), transparent 62%)",
+    "radial-gradient(820px 600px at 8% -6%, color-mix(in srgb, var(--accent) var(--glow-alpha-1, var(--user-glow-light-1, 16%)), transparent), transparent 62%)",
+    "radial-gradient(760px 640px at 98% 10%, color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(240,120,190)) var(--glow-alpha-2, var(--user-glow-light-2, 18%)), transparent), transparent 60%)",
+    "radial-gradient(860px 600px at 52% 110%, color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(160,130,255)) var(--glow-alpha-3, var(--user-glow-light-3, 17%)), transparent), transparent 62%)",
   ],
   dark: [
-    "radial-gradient(820px 600px at 10% -4%, color-mix(in srgb, var(--accent) var(--glow-alpha-1, 23%), transparent), transparent 62%)",
-    "radial-gradient(760px 640px at 96% 14%, color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(236,92,170)) var(--glow-alpha-2, 20%), transparent), transparent 60%)",
-    "radial-gradient(860px 600px at 52% 108%, color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(150,110,255)) var(--glow-alpha-3, 22%), transparent), transparent 62%)",
+    "radial-gradient(820px 600px at 10% -4%, color-mix(in srgb, var(--accent) var(--glow-alpha-1, var(--user-glow-dark-1, 23%)), transparent), transparent 62%)",
+    "radial-gradient(760px 640px at 96% 14%, color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(236,92,170)) var(--glow-alpha-2, var(--user-glow-dark-2, 20%)), transparent), transparent 60%)",
+    "radial-gradient(860px 600px at 52% 108%, color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(150,110,255)) var(--glow-alpha-3, var(--user-glow-dark-3, 22%)), transparent), transparent 62%)",
   ],
 };
 
-// Blob alphas in whole percent, the largest at which each choice passes every check over its own glow (the
-// spec's mock values are 45 / 26 / 30 light, 50 / 24 / 28 dark). Blob 1 is bounded by the COMBOS on B,
-// blobs 2 and 3 by B staying the lowest-contrast centre. 跟随 Windows holds for the clamp's worst case.
-const GLOW_ALPHAS: Record<Exclude<AccentId, "blue">, Record<Theme, [number, number, number]>> = {
-  system: { light: [16, 18, 17], dark: [23, 20, 22] },
-  cyan: { light: [26, 26, 28], dark: [27, 24, 28] },
-  green: { light: [25, 26, 27], dark: [27, 24, 28] },
-  violet: { light: [25, 26, 27], dark: [32, 24, 28] },
-  rose: { light: [22, 26, 25], dark: [31, 24, 28] },
-  amber: { light: [27, 26, 29], dark: [25, 24, 28] },
-  graphite: { light: [25, 26, 27], dark: [27, 24, 28] },
+// Blob alphas in whole percent: for each choice, the largest up to the mock's 45 / 26 / 30 light and
+// 50 / 24 / 28 dark at which every COMBOS check passes over that blob's centre (src/glow.ts derives them).
+const GLOW_ALPHAS: Record<Exclude<AccentId, "blue" | "system">, Record<Theme, GlowAlphas>> = {
+  cyan: { light: [26, 26, 29], dark: [27, 24, 28] },
+  green: { light: [25, 26, 28], dark: [27, 24, 28] },
+  violet: { light: [25, 26, 28], dark: [32, 24, 28] },
+  rose: { light: [22, 26, 26], dark: [31, 24, 28] },
+  amber: { light: [27, 26, 30], dark: [25, 24, 28] },
+  graphite: { light: [25, 26, 28], dark: [27, 24, 28] },
 };
+
+// 跟随 Windows's first-frame and unreadable alphas, the innermost fallbacks of ACCENT_GLOW.
+const SYSTEM_FALLBACK_ALPHAS: Record<Theme, GlowAlphas> = { light: [16, 18, 17], dark: [23, 20, 22] };
 
 /** The custom properties of the one top-level rule with exactly `selector`. */
 function overrideBlock(selector: string): Record<string, string> {
@@ -841,23 +855,68 @@ describe("appearance tokens", () => {
     });
   });
 
-  // 跟随 Windows uses the fallbacks in the glow rule; every other choice but 蓝 has one rule per theme.
+  // Every choice but 蓝 and 跟随 Windows has one rule per theme.
   it.each(Object.entries(GLOW_ALPHAS))("sets the %s glow alphas per theme, as GLOW_ALPHAS", (id, alphas) => {
     THEMES.forEach((theme) => {
-      if (id === "system") {
-        expect(allRules().filter((rule) => rule.selectors.includes(accentAlphaSelector(theme, "system")))).toEqual([]);
-      } else {
-        expect(overrideBlock(accentAlphaSelector(theme, id as AccentId)), `${id} ${theme}`).toEqual({
-          "--glow-alpha-1": `${alphas[theme][0]}%`,
-          "--glow-alpha-2": `${alphas[theme][1]}%`,
-          "--glow-alpha-3": `${alphas[theme][2]}%`,
-        });
-      }
+      expect(overrideBlock(accentAlphaSelector(theme, id as AccentId)), `${id} ${theme}`).toEqual({
+        "--glow-alpha-1": `${alphas[theme][0]}%`,
+        "--glow-alpha-2": `${alphas[theme][1]}%`,
+        "--glow-alpha-3": `${alphas[theme][2]}%`,
+      });
       glowCenters(theme, { accent: id as AccentId }).forEach((centre, index) => {
         expect(centre.a, `${id} ${theme} blob ${index + 1}`).toBeCloseTo(alphas[theme][index] / 100, 6);
       });
     });
   });
+
+  // The table is the search's output, and each value is the largest that passes the COMBOS here: one more
+  // percent fails a check over that centre, unless the value is the mock's.
+  it.each(Object.entries(GLOW_ALPHAS))("holds the largest passing %s alphas up to the mock's", (id, alphas) => {
+    const preset = ACCENT_PRESETS.find((candidate) => candidate.id === id)!;
+    const appearance: Appearance = { accent: id as AccentId };
+    THEMES.forEach((theme) => {
+      expect(glowAlphas(theme, preset[theme]), `${id} ${theme}`).toEqual(alphas[theme]);
+      glowCenters(theme, appearance).forEach((centre, blob) => {
+        expect(centreFailures(theme, appearance, centre), `${id} ${theme} blob ${blob + 1}`).toEqual([]);
+        if (alphas[theme][blob] < GLOW_ALPHA_CAPS[theme][blob]) {
+          const stronger = { ...centre, a: (alphas[theme][blob] + 1) / 100 };
+          expect(centreFailures(theme, appearance, stronger), `${id} ${theme} blob ${blob + 1} + 1%`).not.toEqual([]);
+        }
+      });
+    });
+  });
+
+  // 跟随 Windows has no alpha rule: with a readable pair it shows the alphas computed from the clamped pair,
+  // inline; on the first frame and with an unreadable pair, the fallbacks.
+  it("shows 跟随 Windows's runtime alphas, and the fallbacks without them", () => {
+    const windows = { light: "#0067c0", dark: "#4cc2ff" };
+    const runtime = windowsGlowAlphas(windows)!;
+    THEMES.forEach((theme) => {
+      expect(allRules().filter((rule) => rule.selectors.includes(accentAlphaSelector(theme, "system")))).toEqual([]);
+      const alphasOf = (appearance: Appearance) => glowCenters(theme, appearance).map((centre) => Math.round(centre.a * 100));
+      expect(alphasOf({ accent: "system", windowsAccent: windows }), theme).toEqual(runtime[theme]);
+      expect(alphasOf({ accent: "system", windowsAccent: windows, inlineGlow: false }), theme).toEqual(SYSTEM_FALLBACK_ALPHAS[theme]);
+      expect(alphasOf({ accent: "system", windowsAccent: null }), theme).toEqual(SYSTEM_FALLBACK_ALPHAS[theme]);
+    });
+  });
+
+  // The runtime alphas are the largest that pass the COMBOS here too, for every Windows sample.
+  it.each(ACCENT_CASES.filter(([, appearance]) => appearance.windowsAccent))(
+    "holds the largest passing runtime alphas for %s",
+    (_label, appearance) => {
+      const runtime = windowsGlowAlphas(appearance.windowsAccent ?? null)!;
+      THEMES.forEach((theme) => {
+        glowCenters(theme, appearance).forEach((centre, blob) => {
+          expect(Math.round(centre.a * 100), `${theme} blob ${blob + 1}`).toBe(runtime[theme][blob]);
+          expect(centreFailures(theme, appearance, centre), `${theme} blob ${blob + 1}`).toEqual([]);
+          if (runtime[theme][blob] < GLOW_ALPHA_CAPS[theme][blob]) {
+            const stronger = { ...centre, a: (runtime[theme][blob] + 1) / 100 };
+            expect(centreFailures(theme, appearance, stronger), `${theme} blob ${blob + 1} + 1%`).not.toEqual([]);
+          }
+        });
+      });
+    },
+  );
 
   it("sets no glow alphas for 蓝", () => {
     THEMES.forEach((theme) => {

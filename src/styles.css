@@ -211,35 +211,37 @@
    sizes, positions and fade stops; 蓝 (or no data-accent) keeps today's --glow exactly. Each override is
    scoped to one theme, so a light value never leaks into dark.
 
-   Blob alphas (--glow-alpha-1 / -2 / -3), tuned down from the mock's 45/26/30 light and 50/24/28 dark so
-   readability over each choice's own glow is unchanged (contrast.test.ts). Each is the largest whole percent
-   that passes: blob 1 is bounded by the text and graphic checks on the worst centre B, blobs 2 and 3 by B
-   staying the lowest-contrast centre. 跟随 Windows uses the fallbacks below, one set that holds for every
-   accent the clamp can return (accent.ts still clamps against the stronger mock alphas).
+   Blob alphas (--glow-alpha-1 / -2 / -3): for each choice and theme, the largest whole percent, capped at the
+   mock's 45/26/30 light and 50/24/28 dark, at which every readability check over that blob's centre passes
+   (src/glow.ts, checked by glow.test.ts and contrast.test.ts). The bound is real text: in light --alert-ink
+   on --alert-wash over the glass, in dark --muted on the glass. 跟随 Windows has no row: appearance.ts runs
+   the same search on the clamped Windows pair and sets --user-glow-<theme>-1..3 inline; the fallbacks in the
+   glow rules (one set that holds for every accent the clamp can return) cover the first frame and an
+   unreadable Windows accent.
 
      choice        light        dark
-     跟随 Windows  16 18 17     23 20 22   (fallbacks)
-     青 cyan       26 26 28     27 24 28
-     绿 green      25 26 27     27 24 28
-     紫 violet     25 26 27     32 24 28
-     玫红 rose     22 26 25     31 24 28
-     琥珀 amber    27 26 29     25 24 28
-     石墨 graphite 25 26 27     27 24 28 */
+     跟随 Windows  runtime      runtime    (fallbacks 16 18 17 / 23 20 22)
+     青 cyan       26 26 29     27 24 28
+     绿 green      25 26 28     27 24 28
+     紫 violet     25 26 28     32 24 28
+     玫红 rose     22 26 26     31 24 28
+     琥珀 amber    27 26 30     25 24 28
+     石墨 graphite 25 26 28     27 24 28 */
 :root:not([data-theme="dark"])[data-accent]:not([data-accent="blue"]) {
   --glow:
     radial-gradient(
       820px 600px at 8% -6%,
-      color-mix(in srgb, var(--accent) var(--glow-alpha-1, 16%), transparent),
+      color-mix(in srgb, var(--accent) var(--glow-alpha-1, var(--user-glow-light-1, 16%)), transparent),
       transparent 62%
     ),
     radial-gradient(
       760px 640px at 98% 10%,
-      color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(240, 120, 190)) var(--glow-alpha-2, 18%), transparent),
+      color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(240, 120, 190)) var(--glow-alpha-2, var(--user-glow-light-2, 18%)), transparent),
       transparent 60%
     ),
     radial-gradient(
       860px 600px at 52% 110%,
-      color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(160, 130, 255)) var(--glow-alpha-3, 17%), transparent),
+      color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(160, 130, 255)) var(--glow-alpha-3, var(--user-glow-light-3, 17%)), transparent),
       transparent 62%
     );
 }
@@ -248,17 +250,17 @@
   --glow:
     radial-gradient(
       820px 600px at 10% -4%,
-      color-mix(in srgb, var(--accent) var(--glow-alpha-1, 23%), transparent),
+      color-mix(in srgb, var(--accent) var(--glow-alpha-1, var(--user-glow-dark-1, 23%)), transparent),
       transparent 62%
     ),
     radial-gradient(
       760px 640px at 96% 14%,
-      color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(236, 92, 170)) var(--glow-alpha-2, 20%), transparent),
+      color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(236, 92, 170)) var(--glow-alpha-2, var(--user-glow-dark-2, 20%)), transparent),
       transparent 60%
     ),
     radial-gradient(
       860px 600px at 52% 108%,
-      color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(150, 110, 255)) var(--glow-alpha-3, 22%), transparent),
+      color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(150, 110, 255)) var(--glow-alpha-3, var(--user-glow-dark-3, 22%)), transparent),
       transparent 62%
     );
 }
@@ -266,37 +268,37 @@
 :root:not([data-theme="dark"])[data-accent="cyan"] {
   --glow-alpha-1: 26%;
   --glow-alpha-2: 26%;
-  --glow-alpha-3: 28%;
+  --glow-alpha-3: 29%;
 }
 
 :root:not([data-theme="dark"])[data-accent="green"] {
   --glow-alpha-1: 25%;
   --glow-alpha-2: 26%;
-  --glow-alpha-3: 27%;
+  --glow-alpha-3: 28%;
 }
 
 :root:not([data-theme="dark"])[data-accent="violet"] {
   --glow-alpha-1: 25%;
   --glow-alpha-2: 26%;
-  --glow-alpha-3: 27%;
+  --glow-alpha-3: 28%;
 }
 
 :root:not([data-theme="dark"])[data-accent="rose"] {
   --glow-alpha-1: 22%;
   --glow-alpha-2: 26%;
-  --glow-alpha-3: 25%;
+  --glow-alpha-3: 26%;
 }
 
 :root:not([data-theme="dark"])[data-accent="amber"] {
   --glow-alpha-1: 27%;
   --glow-alpha-2: 26%;
-  --glow-alpha-3: 29%;
+  --glow-alpha-3: 30%;
 }
 
 :root:not([data-theme="dark"])[data-accent="graphite"] {
   --glow-alpha-1: 25%;
   --glow-alpha-2: 26%;
-  --glow-alpha-3: 27%;
+  --glow-alpha-3: 28%;
 }
 
 :root[data-theme="dark"][data-accent="cyan"] {

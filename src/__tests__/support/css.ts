@@ -12,6 +12,7 @@ import achievementsCss from "../../components/AchievementsPage.css?raw";
 import statisticsCss from "../../components/StatisticsPage.css?raw";
 import headerControlsCss from "../../components/HeaderControls.css?raw";
 import { resolveAccent, type AccentPair } from "../../accent";
+import { windowsGlowAlphas, type GlowAlphaPair } from "../../glow";
 import type { AccentId, EinkId } from "../../appearancePresets";
 
 export type Theme = "light" | "dark";
@@ -269,7 +270,20 @@ export interface Appearance {
   accent?: AccentId;
   /** The Windows accent pair `跟随 Windows` resolves from; null when it cannot be read. */
   windowsAccent?: AccentPair | null;
+  /**
+   * 跟随 Windows only: false leaves out the inline `--user-glow-*` alphas that `applyAppearance` sets for a
+   * readable pair, so the stylesheet's fallbacks show (the first frame).
+   */
+  inlineGlow?: boolean;
   eink?: EinkId;
+}
+
+// The glow search runs once per Windows pair; the sweeps measure each pair many times.
+const glowAlphaCache = new Map<string, GlowAlphaPair | null>();
+function cachedWindowsGlowAlphas(windows: AccentPair | null): GlowAlphaPair | null {
+  const key = JSON.stringify(windows);
+  if (!glowAlphaCache.has(key)) glowAlphaCache.set(key, windowsGlowAlphas(windows));
+  return glowAlphaCache.get(key) ?? null;
 }
 
 // Override selectors are scoped per theme so a light value never leaks into dark (spec §C).
@@ -314,7 +328,8 @@ function customProperties(rule: CssRule): Record<string, string> {
  * Raw (unresolved) custom properties of a theme: the
  * `:root, :root[data-theme="light"]` block, and for dark that block overridden
  * by the `:root[data-theme="dark"]` block. With an appearance, the inline accent
- * variables and that theme's accent-glow, glow-alpha and e-ink palette rules apply on top.
+ * variables (with 跟随 Windows's glow alphas) and that theme's accent-glow, glow-alpha and e-ink palette
+ * rules apply on top.
  */
 export function themeTokens(theme: Theme, appearance: Appearance = {}): Record<string, string> {
   const rules = styleRules();
@@ -332,6 +347,14 @@ export function themeTokens(theme: Theme, appearance: Appearance = {}): Record<s
     const pair = resolveAccent(accent, appearance.windowsAccent ?? null);
     tokens["--user-accent-light"] = pair.light;
     tokens["--user-accent-dark"] = pair.dark;
+    const glow = accent === "system" && appearance.inlineGlow !== false ? cachedWindowsGlowAlphas(appearance.windowsAccent ?? null) : null;
+    if (glow) {
+      (["light", "dark"] as const).forEach((side) =>
+        glow[side].forEach((alpha, blob) => {
+          tokens[`--user-glow-${side}-${blob + 1}`] = `${alpha}%`;
+        }),
+      );
+    }
     apply([accentGlowSelector(theme)]);
     apply([accentAlphaSelector(theme, accent)]);
   }

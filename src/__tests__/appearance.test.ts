@@ -17,6 +17,7 @@ import {
   startAccentWatch,
 } from "../appearance";
 import { resolveAccent } from "../accent";
+import { windowsGlowAlphas } from "../glow";
 
 const root = document.documentElement;
 const CACHE_KEY = "gst.appearance";
@@ -49,6 +50,16 @@ function painted() {
     motion: root.dataset.motion,
   };
 }
+
+/** The inline 跟随 Windows glow alphas, light then dark; empty strings where none is set. */
+function glowPainted() {
+  const read = (theme: string) => [1, 2, 3].map((blob) => root.style.getPropertyValue(`--user-glow-${theme}-${blob}`));
+  return { light: read("light"), dark: read("dark") };
+}
+
+const NO_GLOW = { light: ["", "", ""], dark: ["", "", ""] };
+const percents = (alphas: { light: number[]; dark: number[] } | null) =>
+  alphas ? { light: alphas.light.map((a) => `${a}%`), dark: alphas.dark.map((a) => `${a}%`) } : NO_GLOW;
 
 function cached(): unknown {
   return JSON.parse(window.localStorage.getItem(CACHE_KEY) ?? "null");
@@ -93,6 +104,22 @@ describe("applyAppearance", () => {
     expect(painted()).toMatchObject({ accent: "system", light: "#2f7de1", dark: "#5aa9ff" });
   });
 
+  it("sets 跟随 Windows's glow alphas inline from the clamped pair, and removes them otherwise", () => {
+    applyAppearance({ accent: "system", windowsAccent: WINDOWS_BLUE, eink: "aurora", motion: "system" });
+    expect(glowPainted()).toEqual({ light: ["21%", "26%", "25%"], dark: ["27%", "24%", "28%"] });
+    applyAppearance({ accent: "system", windowsAccent: WINDOWS_YELLOW, eink: "aurora", motion: "system" });
+    expect(glowPainted()).toEqual(percents(windowsGlowAlphas(WINDOWS_YELLOW)));
+
+    // A preset has its own alphas in the stylesheet; 蓝 has none; an unreadable pair uses the fallbacks.
+    applyAppearance({ accent: "rose", eink: "aurora", motion: "system" });
+    expect(glowPainted()).toEqual(NO_GLOW);
+    applyAppearance({ accent: "system", windowsAccent: WINDOWS_BLUE, eink: "aurora", motion: "system" });
+    applyAppearance({ accent: "blue", eink: "aurora", motion: "system" });
+    expect(glowPainted()).toEqual(NO_GLOW);
+    applyAppearance({ accent: "system", windowsAccent: null, eink: "aurora", motion: "system" });
+    expect(glowPainted()).toEqual(NO_GLOW);
+  });
+
   it("keeps the last Windows pair when a caller does not pass one", () => {
     applyAppearance({ accent: "system", windowsAccent: WINDOWS_BLUE, eink: "aurora", motion: "system" });
     applyAppearance({ accent: "green", eink: "aurora", motion: "system" });
@@ -102,7 +129,15 @@ describe("applyAppearance", () => {
 
   it("caches the choice and the resolved Windows pair after every apply", () => {
     applyAppearance({ accent: "system", windowsAccent: WINDOWS_YELLOW, eink: "night", motion: "reduce" });
-    expect(cached()).toEqual({ accent: "system", windows: resolveAccent("system", WINDOWS_YELLOW), eink: "night", motion: "reduce" });
+    expect(cached()).toEqual({
+      accent: "system",
+      windows: resolveAccent("system", WINDOWS_YELLOW),
+      glow: windowsGlowAlphas(WINDOWS_YELLOW),
+      eink: "night",
+      motion: "reduce",
+    });
+    applyAppearance({ accent: "system", windowsAccent: null, eink: "night", motion: "reduce" });
+    expect(cached()).toEqual({ accent: "system", windows: null, glow: null, eink: "night", motion: "reduce" });
   });
 });
 
@@ -139,6 +174,31 @@ describe("the first-frame cache", () => {
     );
     paintInitialAppearance();
     expect(painted()).toEqual({ accent: "system", light: "#0067c0", dark: "#4cc2ff", eink: "forest", motion: "reduced" });
+  });
+
+  it("paints the cached glow alphas with the cached pair", () => {
+    const glow = { light: [20, 20, 20], dark: [30, 22, 26] };
+    window.localStorage.setItem(CACHE_KEY, JSON.stringify({ accent: "system", windows: WINDOWS_BLUE, glow, eink: "aurora", motion: "system" }));
+    paintInitialAppearance();
+    expect(glowPainted()).toEqual(percents(glow));
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["malformed", { light: [20, 20], dark: [30, 22, 26] }],
+    ["over the cap", { light: [46, 20, 20], dark: [30, 22, 26] }],
+    ["CSS in a value", { light: ["20%;--x:1", 20, 20], dark: [30, 22, 26] }],
+  ])("computes the glow alphas from the cached pair when the cached ones are %s", (_case, glow) => {
+    window.localStorage.setItem(CACHE_KEY, JSON.stringify({ accent: "system", windows: WINDOWS_BLUE, glow, eink: "aurora", motion: "system" }));
+    paintInitialAppearance();
+    expect(glowPainted()).toEqual(percents(windowsGlowAlphas(WINDOWS_BLUE)));
+  });
+
+  it("paints no glow alphas without a readable cached pair, so the fallbacks show", () => {
+    const glow = { light: [20, 20, 20], dark: [30, 22, 26] };
+    window.localStorage.setItem(CACHE_KEY, JSON.stringify({ accent: "system", windows: null, glow, eink: "aurora", motion: "system" }));
+    paintInitialAppearance();
+    expect(glowPainted()).toEqual(NO_GLOW);
   });
 
   it("paints today's look when storage throws", () => {

@@ -9,7 +9,7 @@ export interface AccentPair {
   dark: string;
 }
 
-interface Rgba {
+export interface Rgba {
   r: number;
   g: number;
   b: number;
@@ -27,9 +27,9 @@ const LIGHT = {
   // Today's --glow centres (the 蓝 glow), where spec §B measures every preset.
   todayGlow: [rgb(90, 160, 255, 0.34), rgb(240, 120, 190, 0.26), rgb(160, 130, 255, 0.3)],
   // Spec §B variant B glow built from the accent: the accent share and the colour mixed in, per blob, at the
-  // mock's alphas. This is a stricter stand-in, not the glow styles.css shows 跟随 Windows (its fainter
-  // --glow-alpha-* fallbacks); contrast.test.ts checks the clamped accents over that real glow. Keeping the
-  // mock alphas here also keeps today's clamp results.
+  // mock's alphas, the ceiling of the alphas glow.ts computes for 跟随 Windows. This is a stricter stand-in
+  // for the glow styles.css really shows; contrast.test.ts checks the clamped accents over that real glow.
+  // Keeping the mock alphas here also keeps today's clamp results.
   glow: [
     { share: 1, mixWith: rgb(0, 0, 0), alpha: 0.45 },
     { share: 0.4, mixWith: rgb(240, 120, 190), alpha: 0.26 },
@@ -52,7 +52,7 @@ const STEP = 0.002;
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
-function rgb(r: number, g: number, b: number, a = 1): Rgba {
+export function rgb(r: number, g: number, b: number, a = 1): Rgba {
   return { r, g, b, a };
 }
 
@@ -60,7 +60,7 @@ export function isHexColour(value: unknown): value is string {
   return typeof value === "string" && HEX.test(value);
 }
 
-function parseHex(hex: string): Rgba {
+export function parseHex(hex: string): Rgba {
   return rgb(...([1, 3, 5].map((start) => Number.parseInt(hex.slice(start, start + 2), 16)) as [number, number, number]));
 }
 
@@ -69,14 +69,14 @@ function toHex({ r, g, b }: Rgba): string {
 }
 
 /** Source-over, as in the contrast tests. */
-function over(fg: Rgba, bg: Rgba): Rgba {
+export function over(fg: Rgba, bg: Rgba): Rgba {
   const a = fg.a + bg.a * (1 - fg.a);
   const mix = (k: "r" | "g" | "b") => (a === 0 ? 0 : (fg[k] * fg.a + bg[k] * bg.a * (1 - fg.a)) / a);
   return { r: mix("r"), g: mix("g"), b: mix("b"), a };
 }
 
 /** `color-mix(in srgb, a share, b)` of two opaque colours. */
-function mix(a: Rgba, share: number, b: Rgba): Rgba {
+export function mix(a: Rgba, share: number, b: Rgba): Rgba {
   const channel = (k: "r" | "g" | "b") => a[k] * share + b[k] * (1 - share);
   return rgb(channel("r"), channel("g"), channel("b"));
 }
@@ -90,7 +90,7 @@ function luminance({ r, g, b }: Rgba): number {
 }
 
 /** WCAG contrast of `fg` composited on the opaque `bg`. */
-function contrast(fg: Rgba, bg: Rgba): number {
+export function contrast(fg: Rgba, bg: Rgba): number {
   const [l1, l2] = [luminance(over(fg, bg)), luminance(bg)].sort((x, y) => y - x);
   return (l1 + 0.05) / (l2 + 0.05);
 }
@@ -114,8 +114,8 @@ function onGlass(accent: Rgba, centres: Rgba[]): number {
  * it only bites a near-black accent).
  *
  * `ownGlow` also holds the light accent to 3:1 over the centres of the mock's variant B glow built from it.
- * The clamp asks for it as a stricter stand-in for the fainter glow 跟随 Windows really shows, which
- * contrast.test.ts measures.
+ * The clamp asks for it as a stricter stand-in for the glow 跟随 Windows really shows (its alphas are
+ * capped at the mock's), which contrast.test.ts measures.
  */
 export function accentMeetsRules(theme: AccentTheme, hex: string, { margin = 0, ownGlow = false } = {}): boolean {
   const accent = parseHex(hex);
