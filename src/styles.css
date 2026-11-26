@@ -216,8 +216,8 @@
    (src/glow.ts, checked by glow.test.ts and contrast.test.ts). The bound is real text: in light --alert-ink
    on --alert-wash over the glass, in dark --muted on the glass. 跟随 Windows has no row: appearance.ts runs
    the same search on the clamped Windows pair and sets --user-glow-<theme>-1..3 inline; the fallbacks in the
-   glow rules (one set that holds for every accent the clamp can return) cover the first frame and an
-   unreadable Windows accent.
+   glow rules (one set that holds for every accent the clamp can return) apply only while no readable pair
+   is known: a first frame without a cached pair, or a Windows accent that cannot be read.
 
      choice        light        dark
      跟随 Windows  runtime      runtime    (fallbacks 16 18 17 / 23 20 22)

@@ -27,7 +27,7 @@ v0.4.4（未发布，`feat/v0.4.4`）的行为，设计见[规格](./superpowers
 
 - **设置页**：自上而下是本机状态、运行（开机自启动、关闭窗口时最小化到后台、启动时打开）、显示（显示分钟数、每周起始日、减少动画）、外观（主题、主题色、墨水屏配色）、数据（数据文件夹、从备份恢复）、隐私。页面组件从 `App` 移到 `src/components/SettingsPage.tsx`。设置页有侧栏、本机状态屏和五组面板，共 7 个模糊层，比其他页的上限 6 多 1 个；1440×900 下同屏只看得到 5 个，窗口高到约 1300 CSS px 才 7 个全在屏上。这是唯一的例外，由 `glassSurfaces.test.tsx` 固定。
 - **存储**：五个新键 `ui.accent`、`ui.eink`、`ui.week_start`、`ui.start_page`、`ui.reduce_motion` 存在 `app_settings` 表里，schema 不变；一个设置命令 `set_ui_preference(key, value)` 校验后写入，未知的键或值返回 `ui_preference_unknown_key` / `ui_preference_invalid_value`。设置文件（仍为 `gst-settings`、schema 1）多带这五项，旧文件照常导入，未来版本的未知取值丢掉；导入确认框的标签见规格 I 节。
-- **首帧缓存**：`main.tsx` 在渲染前调用 `paintInitialAppearance()`，从 localStorage `gst.appearance` 读出主题色 id、上一次用过的跟随 Windows 色对（只收 `#rrggbb`）、墨水屏配色和减少动画，设置根元素的 `data-accent`、`--user-accent-light` / `--user-accent-dark`、`data-eink` 和 `data-motion`；`gst.startPage` 缓存启动页。SQLite 仍是唯一的真值，每次读取、保存、导入和读到 Windows 强调色后都重写缓存。
+- **首帧缓存**：`main.tsx` 在渲染前调用 `paintInitialAppearance()`，从 localStorage `gst.appearance` 读出主题色 id、上一次用过的跟随 Windows 色对（只收 `#rrggbb`）、墨水屏配色和减少动画，设置根元素的 `data-accent`、`--user-accent-light` / `--user-accent-dark`、`data-eink` 和 `data-motion`，跟随 Windows 的 `--user-glow-*` 按缓存的色对现算（透明度本身不缓存）；`gst.startPage` 缓存启动页。SQLite 仍是唯一的真值，每次读取、保存、导入和读到 Windows 强调色后都重写缓存。
 - **主题色**：8 种，默认 `blue`。选蓝时去掉行内的 `--user-accent-*`，光晕就是 v0.4.3 的 `--glow`，与 v0.4.3 逐像素一致；其他选择用强调色拼出三个光晕，透明度按选择、主题和光晕分别取不超过样稿 45/26/30（浅）、50/24/28（深）、在三个光晕中心上都通过对比度检查的最大整数百分比（搜索在 `src/glow.ts`），光晕 1 仍比样稿淡，表格在 `src/styles.css`（也抄在 `DESIGN.md` 和规格 B 节）；跟随 Windows 按调整后的颜色现算，写成行内 `--user-glow-*`，读不到时用样式表的保守退路值。跟随 Windows 由只读命令 `get_windows_accent` 读 `AccentPalette`（浅色取 AccentDark1，深色取 AccentLight2），没有时读 `DWM\AccentColor`，都读不到返回 `null` 并退回蓝的颜色（光晕仍按强调色拼）；前端 `src/accent.ts` 在 OKLCH 里只调明度、保留色相和彩度，直到满足预设的对比度规则。选跟随 Windows 时在读取设置后和窗口每次重新可见时读，只认最近一次请求；选别的颜色时，设置页打开时只读一次，用来画跟随 Windows 色点，屏上别处不变。
 - **墨水屏配色**：5 套，默认 `aurora`（即 v0.4.3 的样子）。每套按主题设齐 11 个 `--eink-*` token，选择器按主题分开（`:root:not([data-theme="dark"])[data-eink]` / `:root[data-theme="dark"][data-eink]`）。日历焦点环在每套纸面上对 8 种主题色都不低于 3:1，所以不需要改用 `--eink-ink` 的退路（`contrast.test.ts` 逐项检查）。海报不跟着变。
 - **每周起始日**：`WeekStartContext`（`src/weekStart.ts`，周日 = 0、周一 = 1，默认 1）由 `App` 提供，只影响前端显示，后端命令不加参数。跟着变的正好五处：日期日历、统计“本周”（`(今天星期 - 起始日 + 7) % 7`）、成就热力图的表头和前导空格、走纸记录仪中密度的周标记、软件页“这周X / 上周X”。星期名称、工作日 / 周末、海报、CSV 和统计对比区间不变。
@@ -161,7 +161,7 @@ v0.4.4（未发布，`feat/v0.4.4`）的行为，设计见[规格](./superpowers
 - `scripts/check.ps1` 通过：前端 43 个测试文件 2934 项，`tsc && vite build` 通过，Rust 库测试 229 项（另有 3 项 `#[ignore]`）和各集成测试通过；`cargo clippy --all-targets -- -D warnings` 无警告。版本号仍为 `0.4.3`，schema 仍为 3。
 - 评审后的修复（`2d718c6` 到 `8952c68`）都先写测试、确认在旧代码上失败再改（`3e439ac` 的两项里只有一项在修复前跑过）：只读的备份文件也能恢复；网络和设备路径不碰文件系统；pending 文件还在时不报告“已退回”，改为 `RestoreStuck`；修剪恢复前副本时留下刚移进去的那份；确认框的提醒文字作为描述读出；“选择备份…”检查中变暗；强制颜色下选中的色点、色块用 `Highlight` 环；启动时打开、每周起始日、主题改用方向键单选模型。
 - 浏览器预览只用示例数据（端口 5186），逐张截图对照了设置页、强制颜色下的色点和色块、检查中的“选择备份…”和恢复确认框的读屏描述；没有打开过生产库。
-- 待用户决定：主题色光晕比样稿淡（各选择的透明度见上，规格 B 节已记下实际表），浅色跟随 Windows 用一组对所有可能色都成立的退路透明度（16/18/17），比蓝以外的预设更淡；从网络共享运行的软件不再有图标。
+- 待用户决定：主题色光晕比样稿淡（各选择的透明度见上，规格 B 节已记下实际表），跟随 Windows 按调整后的颜色现算透明度，Windows 默认蓝得到浅色 21/26/25、深色 27/24/28，两个主题都没有处处达到蓝自己的 27/26/29、30/24/28（浅色光晕 1、3 和深色光晕 1 更低，受真实文字对比度限制），“至少和蓝一样强”未满足；从网络共享运行的软件不再有图标。
 - 没有在真实窗口里验收：原生打开对话框选备份、真正的退出并重启、换库后的轻提示、`RestoreStuck` 错误框、打开数据文件夹，以及真实 Windows 强调色。规格要求恢复只在一次性的测试数据文件夹上端到端试，不碰生产库；目前只有临时目录里的 Rust 测试覆盖各启动状态，结果在装上安装包后再写进本节。
 
 外层项目目录是容器；实际主工作区为 .worktrees/v01-implementation，开发按任务新建 worktree 和分支（`.worktrees/current-dev` 停在 v0.1.4，不再用于开发）。生产数据库未用于修复测试，历史数据清理与统一账本等后续工作按上文保留。

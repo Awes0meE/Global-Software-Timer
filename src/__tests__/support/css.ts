@@ -272,7 +272,7 @@ export interface Appearance {
   windowsAccent?: AccentPair | null;
   /**
    * 跟随 Windows only: false leaves out the inline `--user-glow-*` alphas that `applyAppearance` sets for a
-   * readable pair, so the stylesheet's fallbacks show (the first frame).
+   * readable pair, so the stylesheet's fallbacks show (as when no readable pair is known).
    */
   inlineGlow?: boolean;
   eink?: EinkId;

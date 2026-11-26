@@ -625,7 +625,7 @@ const WINDOWS_SWEEP: string[] = [
 ];
 
 // 跟随 Windows computes its glow alphas from the clamped pair at runtime, and the stylesheet falls back to
-// one set on the first frame: both must hold for whatever accent the clamp returns. Each Windows accent is
+// one set while no readable pair is known: both must hold for whatever accent the clamp returns. Each Windows accent is
 // clamped once here, the clamp keeps a clamped pair as it is, and a theme only reads its own half of the
 // pair, so each theme checks one pair per distinct clamped accent.
 const CLAMPED_PAIRS = WINDOWS_SWEEP.map((hex) => resolveAccent("system", { light: hex, dark: hex }));
@@ -887,7 +887,7 @@ describe("appearance tokens", () => {
   });
 
   // 跟随 Windows has no alpha rule: with a readable pair it shows the alphas computed from the clamped pair,
-  // inline; on the first frame and with an unreadable pair, the fallbacks.
+  // inline; without a readable pair (a first frame with none cached, or an unreadable accent), the fallbacks.
   it("shows 跟随 Windows's runtime alphas, and the fallbacks without them", () => {
     const windows = { light: "#0067c0", dark: "#4cc2ff" };
     const runtime = windowsGlowAlphas(windows)!;
