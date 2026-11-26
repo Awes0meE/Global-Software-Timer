@@ -665,8 +665,12 @@ pub fn ensure_not_database(target: &Path, db_path: &Path) -> Result<(), String> 
         .parent()
         .and_then(|dir| std::fs::canonicalize(dir.join(crate::restore::BACKUPS_DIR_NAME)).ok())
         .map(|dir| dir.to_string_lossy().to_lowercase());
-    if target_dir.is_some() && target_dir == backups_dir {
-        return Err(EXPORT_TARGET_IS_DATABASE.to_string());
+    // backups\ and every folder inside it.
+    if let (Some(target_dir), Some(backups_dir)) = (&target_dir, &backups_dir) {
+        let nested = format!("{backups_dir}{}", std::path::MAIN_SEPARATOR);
+        if target_dir == backups_dir || target_dir.starts_with(&nested) {
+            return Err(EXPORT_TARGET_IS_DATABASE.to_string());
+        }
     }
     let is_db_file = [
         db_name.clone(),
@@ -678,7 +682,8 @@ pub fn ensure_not_database(target: &Path, db_path: &Path) -> Result<(), String> 
         format!("{db_name}{}", crate::restore::FAILED_SUFFIX),
     ]
     .contains(&target_name)
-        || target_name.starts_with(crate::restore::STAGING_PREFIX);
+        || target_name.starts_with(crate::restore::STAGING_PREFIX)
+        || target_name.starts_with(&crate::restore::PRE_RESTORE_PREFIX.to_lowercase());
     if !is_db_file {
         return Ok(());
     }
@@ -1789,6 +1794,7 @@ mod tests {
             "global-software-timer.sqlite3.before-restore",
             "Global-Software-Timer.sqlite3.Restore-Failed",
             ".gst-restore-1234.tmp",
+            "GST-恢复前-2026-11-26-101500.db",
         ] {
             assert_eq!(
                 ensure_not_database(&dir.path().join(name), &db),
@@ -1813,6 +1819,20 @@ mod tests {
             backup_database(&db, &backups.join("GST-数据备份-2026-11-26.db")),
             Err("export_target_is_database".to_string())
         );
+        let nested = backups.join("older");
+        std::fs::create_dir(&nested).unwrap();
+        assert_eq!(
+            ensure_not_database(&nested.join("GST-日报-2026-11-26.csv"), &db),
+            Err("export_target_is_database".to_string())
+        );
+        assert_eq!(
+            backup_database(&db, &nested.join("GST-数据备份-2026-11-26.db")),
+            Err("export_target_is_database".to_string())
+        );
+        // A folder whose name only starts like backups is not inside it.
+        let lookalike = dir.path().join("backups-old");
+        std::fs::create_dir(&lookalike).unwrap();
+        assert!(ensure_not_database(&lookalike.join("GST-日报-2026-11-26.csv"), &db).is_ok());
     }
 
     #[test]

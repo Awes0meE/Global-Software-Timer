@@ -14,6 +14,7 @@ use chrono::NaiveDateTime;
 use rusqlite::config::DbConfig;
 use rusqlite::{Connection, OpenFlags};
 use serde::Serialize;
+use std::ffi::OsString;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,7 +32,8 @@ pub const FAILED_SUFFIX: &str = ".restore-failed";
 /// Staged copies are `.gst-restore-<uuid>.tmp` in the data folder.
 pub const STAGING_PREFIX: &str = ".gst-restore-";
 
-const PRE_RESTORE_PREFIX: &str = "GST-恢复前-";
+/// Pre-restore copies are `GST-恢复前-YYYY-MM-DD-HHMMSS[-N].db`.
+pub const PRE_RESTORE_PREFIX: &str = "GST-恢复前-";
 const PRE_RESTORE_KEEP: usize = 3;
 const SQLITE_HEADER: &[u8; 16] = b"SQLite format 3\0";
 const AFTER_RESTORE_ARG: &str = "--after-restore=";
@@ -83,9 +85,21 @@ pub enum RestoreStatus {
     RolledBack,
 }
 
+/// Why `run_startup_swap` returned no state.
+#[derive(Debug)]
+pub enum StartupError<E> {
+    /// Opening the live database failed.
+    Open(E),
+    /// A restore file could not be moved into place, so nothing was opened:
+    /// opening the live name would create an empty database. The files stay
+    /// as they are and the next start resumes.
+    RestoreStuck,
+}
+
 /// The fixed file names in one data folder.
 #[derive(Debug, Clone)]
 pub struct RestorePaths {
+    pub dir: PathBuf,
     pub live: PathBuf,
     pub pending: PathBuf,
     pub before: PathBuf,
@@ -97,6 +111,7 @@ impl RestorePaths {
     pub fn new(data_dir: &Path) -> Self {
         let named = |suffix: &str| data_dir.join(format!("{DB_FILE_NAME}{suffix}"));
         Self {
+            dir: data_dir.to_path_buf(),
             live: data_dir.join(DB_FILE_NAME),
             pending: named(PENDING_SUFFIX),
             before: named(BEFORE_RESTORE_SUFFIX),
@@ -195,10 +210,11 @@ impl RestoreSession {
     }
 }
 
-/// The `--after-restore=<pid>` argument of a relaunch after a restore.
-pub fn after_restore_pid(args: impl IntoIterator<Item = String>) -> Option<u32> {
+/// The `--after-restore=<pid>` argument of a relaunch after a restore. Other
+/// arguments, including ones that are not valid Unicode, are ignored.
+pub fn after_restore_pid(args: impl IntoIterator<Item = OsString>) -> Option<u32> {
     args.into_iter()
-        .find_map(|arg| arg.strip_prefix(AFTER_RESTORE_ARG)?.parse().ok())
+        .find_map(|arg| arg.to_str()?.strip_prefix(AFTER_RESTORE_ARG)?.parse().ok())
 }
 
 /// Refuses the live database, its side files and the restore files, and
@@ -206,15 +222,12 @@ pub fn after_restore_pid(args: impl IntoIterator<Item = String>) -> Option<u32> 
 pub fn ensure_restorable_source(source: &Path, data_dir: &Path) -> Result<(), RestoreError> {
     let source = std::fs::canonicalize(source).map_err(|_| RestoreError::Failed)?;
     let data_dir = std::fs::canonicalize(data_dir).map_err(|_| RestoreError::Failed)?;
-    let lower = |path: &Path| path.to_string_lossy().to_lowercase();
-    let in_backups = source
-        .parent()
-        .is_some_and(|parent| lower(parent) == lower(&data_dir.join(BACKUPS_DIR_NAME)));
-    let in_data_dir = lower(&source).starts_with(&format!(
-        "{}{}",
-        lower(&data_dir),
-        std::path::MAIN_SEPARATOR
-    ));
+    let inside = |dir: &Path| {
+        let lower = |path: &Path| path.to_string_lossy().to_lowercase();
+        lower(&source).starts_with(&format!("{}{}", lower(dir), std::path::MAIN_SEPARATOR))
+    };
+    let in_backups = inside(&data_dir.join(BACKUPS_DIR_NAME));
+    let in_data_dir = inside(&data_dir);
     if in_data_dir && !in_backups {
         return Err(RestoreError::LiveDatabase);
     }
@@ -421,60 +434,84 @@ pub fn run_startup_swap<T, E>(
     data_dir: &Path,
     now: NaiveDateTime,
     mut open: impl FnMut(&Path) -> Result<T, E>,
-) -> (Result<T, E>, RestoreStatus) {
+) -> (Result<T, StartupError<E>>, RestoreStatus) {
     let paths = RestorePaths::new(data_dir);
     remove_staging_leftovers(data_dir);
+    archive_set_aside_copies(&paths);
 
     if paths.pending.exists() && paths.live.exists() {
-        if paths.before.exists() {
-            // An earlier pre-restore copy that never reached backups\.
-            let _ = archive_before_restore(&paths, now);
-        }
-        let set_aside = !paths.before.exists()
+        // An earlier pre-restore copy that never reached backups\ is moved on
+        // first, so it is not overwritten.
+        let set_aside = (!paths.before.exists() || set_aside_before_restore(&paths, now))
             && checkpoint_into_single_file(&paths.live).is_ok()
             && rename_with_retry(&paths.live, &paths.before).is_ok();
         if !set_aside {
             let _ = rename_with_retry(&paths.pending, &paths.failed);
-            return (open(&paths.live), RestoreStatus::RolledBack);
+            return open_after_rollback(&paths.live, &mut open);
         }
     }
 
+    let mut promoted = false;
     if paths.pending.exists() && !paths.live.exists() {
         // A WAL or journal left with the live name would be replayed into the new file.
         remove_side_files(&paths.live);
-        if rename_with_retry(&paths.pending, &paths.live).is_err() {
+        if rename_with_retry(&paths.pending, &paths.live).is_ok() {
+            promoted = true;
+        } else if paths.before.exists() {
             let _ = rename_with_retry(&paths.pending, &paths.failed);
-            if paths.before.exists() {
-                let _ = rename_with_retry(&paths.before, &paths.live);
-            }
-            return (open(&paths.live), RestoreStatus::RolledBack);
+            let _ = rename_with_retry(&paths.before, &paths.live);
+            return open_after_rollback(&paths.live, &mut open);
+        } else {
+            // No original to fall back to: keep the backup for the next start.
+            return (Err(StartupError::RestoreStuck), RestoreStatus::None);
         }
     }
 
     if !paths.before.exists() {
-        return (open(&paths.live), RestoreStatus::None);
+        let status = if promoted {
+            RestoreStatus::Restored
+        } else {
+            RestoreStatus::None
+        };
+        return (open(&paths.live).map_err(StartupError::Open), status);
     }
     if !paths.live.exists() {
         // A rollback was cut short. Put the original back before anything
         // opens the live name, which would create an empty database.
         remove_side_files(&paths.live);
         let _ = rename_with_retry(&paths.before, &paths.live);
-        return (open(&paths.live), RestoreStatus::RolledBack);
+        return open_after_rollback(&paths.live, &mut open);
     }
 
     // The live file is the restored one; the original waits beside it.
     match open(&paths.live) {
         Ok(state) => {
-            let _ = archive_before_restore(&paths, now);
+            // Once `.before-restore` is gone, a later failed start cannot
+            // mistake this restore for one still being checked.
+            set_aside_before_restore(&paths, now);
             (Ok(state), RestoreStatus::Restored)
         }
         Err(_) => {
             let _ = rename_with_retry(&paths.live, &paths.failed);
             remove_side_files(&paths.live);
             let _ = rename_with_retry(&paths.before, &paths.live);
-            (open(&paths.live), RestoreStatus::RolledBack)
+            open_after_rollback(&paths.live, &mut open)
         }
     }
+}
+
+/// Opens the original after a rollback, unless it could not be put back under
+/// the live name: opening that name would create an empty database.
+fn open_after_rollback<T, E>(
+    live: &Path,
+    open: &mut impl FnMut(&Path) -> Result<T, E>,
+) -> (Result<T, StartupError<E>>, RestoreStatus) {
+    let result = if live.exists() {
+        open(live).map_err(StartupError::Open)
+    } else {
+        Err(StartupError::RestoreStuck)
+    };
+    (result, RestoreStatus::RolledBack)
 }
 
 /// Folds any WAL into the main file and switches it to `journal_mode=DELETE`.
@@ -495,43 +532,94 @@ fn checkpoint_into_single_file(path: &Path) -> rusqlite::Result<()> {
 }
 
 /// Moves `.before-restore` to `backups\GST-恢复前-YYYY-MM-DD-HHMMSS.db` and
-/// keeps the newest `PRE_RESTORE_KEEP` such copies.
-fn archive_before_restore(paths: &RestorePaths, now: NaiveDateTime) -> io::Result<()> {
-    std::fs::create_dir_all(&paths.backups)?;
-    let stamp = now.format("%Y-%m-%d-%H%M%S");
-    let mut target = paths
-        .backups
-        .join(format!("{PRE_RESTORE_PREFIX}{stamp}.db"));
+/// keeps the newest `PRE_RESTORE_KEEP` such copies. When backups\ cannot take
+/// it, the copy gets that name beside live instead, which the swap ignores and
+/// later starts move on. Returns whether `.before-restore` is gone.
+fn set_aside_before_restore(paths: &RestorePaths, now: NaiveDateTime) -> bool {
+    let stem = format!("{PRE_RESTORE_PREFIX}{}", now.format("%Y-%m-%d-%H%M%S"));
+    let archived = std::fs::create_dir_all(&paths.backups).is_ok()
+        && rename_with_retry(&paths.before, &unused_copy_path(&paths.backups, &stem)).is_ok();
+    if archived {
+        prune_pre_restore_copies(&paths.backups, PRE_RESTORE_KEEP);
+        return true;
+    }
+    rename_with_retry(&paths.before, &unused_copy_path(&paths.dir, &stem)).is_ok()
+}
+
+/// Moves copies that `set_aside_before_restore` left beside live into backups\.
+fn archive_set_aside_copies(paths: &RestorePaths) {
+    let Ok(entries) = std::fs::read_dir(&paths.dir) else {
+        return;
+    };
+    let set_aside: Vec<(PathBuf, String)> = entries
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let stem = pre_restore_stem(&name)?.to_string();
+            Some((entry.path(), stem))
+        })
+        .collect();
+    if set_aside.is_empty() || std::fs::create_dir_all(&paths.backups).is_err() {
+        return;
+    }
+    for (path, stem) in set_aside {
+        let _ = rename_with_retry(&path, &unused_copy_path(&paths.backups, &stem));
+    }
+    prune_pre_restore_copies(&paths.backups, PRE_RESTORE_KEEP);
+}
+
+/// `<stem>.db` in `dir`, or `<stem>-N.db` when that name is taken.
+fn unused_copy_path(dir: &Path, stem: &str) -> PathBuf {
+    let mut target = dir.join(format!("{stem}.db"));
     let mut counter = 1;
     while target.exists() {
-        target = paths
-            .backups
-            .join(format!("{PRE_RESTORE_PREFIX}{stamp}-{counter}.db"));
+        target = dir.join(format!("{stem}-{counter}.db"));
         counter += 1;
     }
-    rename_with_retry(&paths.before, &target)?;
-    prune_pre_restore_copies(&paths.backups, PRE_RESTORE_KEEP);
-    Ok(())
+    target
+}
+
+/// The name without `.db` when it is a pre-restore copy's name.
+fn pre_restore_stem(name: &str) -> Option<&str> {
+    name.strip_suffix(".db")
+        .filter(|stem| stem.starts_with(PRE_RESTORE_PREFIX))
+}
+
+/// Oldest first: by the timestamp, then by the `-N` numbers after it, so
+/// `…-101500.db` < `…-101500-1.db` < `…-101500-2.db` < `…-101500-10.db`.
+fn pre_restore_order(stem: &str) -> (String, Vec<u64>) {
+    const STAMP_LEN: usize = "YYYY-MM-DD-HHMMSS".len();
+    let rest = stem.strip_prefix(PRE_RESTORE_PREFIX).unwrap_or(stem);
+    let split = rest
+        .char_indices()
+        .nth(STAMP_LEN)
+        .map_or(rest.len(), |(index, _)| index);
+    let (stamp, numbers) = rest.split_at(split);
+    let numbers = numbers
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .map(|part| part.parse().unwrap_or(0))
+        .collect();
+    (stamp.to_string(), numbers)
 }
 
 fn prune_pre_restore_copies(backups: &Path, keep: usize) {
     let Ok(entries) = std::fs::read_dir(backups) else {
         return;
     };
-    let mut copies: Vec<PathBuf> = entries
+    let mut copies: Vec<(PathBuf, (String, Vec<u64>))> = entries
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.file_name()
-                .map(|name| name.to_string_lossy())
-                .is_some_and(|name| name.starts_with(PRE_RESTORE_PREFIX) && name.ends_with(".db"))
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let order = pre_restore_order(pre_restore_stem(&name)?);
+            Some((entry.path(), order))
         })
         .collect();
-    // The timestamp in the name sorts chronologically.
-    copies.sort();
+    copies.sort_by(|(_, a), (_, b)| a.cmp(b));
     let excess = copies.len().saturating_sub(keep);
-    for old in copies.into_iter().take(excess) {
+    for (old, _) in copies.into_iter().take(excess) {
         let _ = std::fs::remove_file(old);
     }
 }
@@ -999,6 +1087,19 @@ mod tests {
         gst_database(&copy, "before");
         let staged = stage_backup(&copy, data.path(), None).unwrap();
         assert_eq!(marker_of(&staged.path).as_deref(), Some("before"));
+        // So may a copy in a subfolder of backups\.
+        let nested = paths.backups.join("older").join("copy.db");
+        std::fs::create_dir(nested.parent().unwrap()).unwrap();
+        gst_database(&nested, "nested");
+        let staged = stage_backup(&nested, data.path(), None).unwrap();
+        assert_eq!(marker_of(&staged.path).as_deref(), Some("nested"));
+        // A copy set aside beside live, not yet in backups\, is refused.
+        let beside = data.path().join("GST-恢复前-2026-11-26-101500.db");
+        gst_database(&beside, "beside");
+        assert_eq!(
+            stage_backup(&beside, data.path(), None),
+            Err(RestoreError::LiveDatabase)
+        );
     }
 
     #[test]
@@ -1086,7 +1187,7 @@ mod tests {
 
     #[test]
     fn the_after_restore_argument_carries_the_old_pid() {
-        let args = |list: &[&str]| list.iter().map(|arg| arg.to_string()).collect::<Vec<_>>();
+        let args = |list: &[&str]| list.iter().map(OsString::from).collect::<Vec<_>>();
         assert_eq!(
             after_restore_pid(args(&["gst.exe", "--after-restore=4242"])),
             Some(4242)
@@ -1096,6 +1197,14 @@ mod tests {
             after_restore_pid(args(&["gst.exe", "--after-restore=x"])),
             None
         );
+        #[cfg(windows)]
+        {
+            use std::os::windows::ffi::OsStringExt;
+            let mut list = args(&["gst.exe"]);
+            list.push(OsString::from_wide(&[0xD800]));
+            list.push(OsString::from("--after-restore=7"));
+            assert_eq!(after_restore_pid(list), Some(7));
+        }
     }
 
     #[test]
@@ -1350,5 +1459,248 @@ mod tests {
             "{names:?}"
         );
         assert!(names.contains(&".gst-backup-b.tmp".to_string()));
+    }
+
+    /// Opens `path` without sharing, so renaming it fails until the handle drops.
+    #[cfg(windows)]
+    fn hold_exclusively(path: &Path) -> std::fs::File {
+        use std::os::windows::fs::OpenOptionsExt;
+        std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(path)
+            .unwrap()
+    }
+
+    fn corrupt_database(path: &Path) {
+        let mut bytes = SQLITE_HEADER.to_vec();
+        bytes.extend(std::iter::repeat_n(0x5Au8, 8192));
+        std::fs::write(path, bytes).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_rollback_that_cannot_put_the_original_back_opens_nothing() {
+        let data = TempDir::new().unwrap();
+        let paths = RestorePaths::new(data.path());
+        // A crash after step 4: the restored file is live, the original beside it.
+        gst_database(&paths.before, "original");
+        corrupt_database(&paths.live);
+        let mut opened = 0;
+
+        let held = hold_exclusively(&paths.before);
+        let (store, _) = run_startup_swap(data.path(), at(26, (10, 15, 0)), |path| {
+            opened += 1;
+            open_store(path)
+        });
+        drop(held);
+
+        assert!(matches!(store, Err(StartupError::RestoreStuck)));
+        assert_eq!(opened, 1, "the live name is not opened again");
+        assert!(!paths.live.exists(), "no empty database is created");
+        assert!(paths.before.exists() && paths.failed.exists());
+
+        // The next start puts the original back.
+        let (store, status) = run_startup_swap(data.path(), at(26, (10, 16, 0)), open_store);
+        assert_eq!(status, RestoreStatus::RolledBack);
+        assert_eq!(
+            store.unwrap().setting_value(MARKER).unwrap().as_deref(),
+            Some("original")
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_missing_live_file_whose_original_cannot_be_put_back_opens_nothing() {
+        let data = TempDir::new().unwrap();
+        let paths = RestorePaths::new(data.path());
+        gst_database(&paths.before, "original");
+        let mut opened = 0;
+
+        let held = hold_exclusively(&paths.before);
+        let (store, _) = run_startup_swap(data.path(), at(26, (10, 15, 0)), |path| {
+            opened += 1;
+            open_store(path)
+        });
+        drop(held);
+
+        assert!(matches!(store, Err(StartupError::RestoreStuck)));
+        assert_eq!(opened, 0);
+        assert!(!paths.live.exists() && paths.before.exists());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_pending_restore_that_cannot_be_moved_into_place_is_kept_for_the_next_start() {
+        let data = TempDir::new().unwrap();
+        let paths = RestorePaths::new(data.path());
+        gst_database(&paths.pending, "backup");
+        let mut opened = 0;
+
+        let held = hold_exclusively(&paths.pending);
+        let (store, _) = run_startup_swap(data.path(), at(26, (10, 15, 0)), |path| {
+            opened += 1;
+            open_store(path)
+        });
+        drop(held);
+
+        assert!(matches!(store, Err(StartupError::RestoreStuck)));
+        assert_eq!(opened, 0);
+        assert!(paths.pending.exists() && !paths.live.exists() && !paths.failed.exists());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_pending_restore_that_cannot_be_moved_rolls_back_to_the_original() {
+        let (data, paths) = queued_restore();
+        // A crash after step 2: live set aside, pending not yet moved.
+        checkpoint_into_single_file(&paths.live).unwrap();
+        std::fs::rename(&paths.live, &paths.before).unwrap();
+
+        let held = hold_exclusively(&paths.pending);
+        let (store, status) = run_startup_swap(data.path(), at(26, (10, 15, 0)), open_store);
+        drop(held);
+
+        assert_eq!(status, RestoreStatus::RolledBack);
+        assert_eq!(
+            store.unwrap().setting_value(MARKER).unwrap().as_deref(),
+            Some("live")
+        );
+        assert!(!paths.before.exists());
+    }
+
+    #[test]
+    fn a_pending_restore_without_any_other_file_is_reported_as_restored() {
+        let data = TempDir::new().unwrap();
+        let paths = RestorePaths::new(data.path());
+        gst_database(&paths.pending, "backup");
+
+        let (store, status) = run_startup_swap(data.path(), at(26, (10, 15, 0)), open_store);
+
+        assert_eq!(status, RestoreStatus::Restored);
+        assert_eq!(
+            store.unwrap().setting_value(MARKER).unwrap().as_deref(),
+            Some("backup")
+        );
+        assert!(!paths.pending.exists());
+    }
+
+    #[test]
+    fn a_leftover_pre_restore_copy_is_archived_before_a_new_restore() {
+        let (data, paths) = queued_restore();
+        gst_database(&paths.before, "earlier");
+
+        let (store, status) = run_startup_swap(data.path(), at(26, (10, 15, 0)), open_store);
+
+        assert_eq!(status, RestoreStatus::Restored);
+        assert_eq!(
+            store.unwrap().setting_value(MARKER).unwrap().as_deref(),
+            Some("backup")
+        );
+        // The same second gets a numbered name instead of replacing the first.
+        assert_eq!(
+            pre_restore_copies(&paths),
+            vec![
+                "GST-恢复前-2026-11-26-101500-1.db".to_string(),
+                "GST-恢复前-2026-11-26-101500.db".to_string(),
+            ]
+        );
+        let copy = |name: &str| marker_of(&paths.backups.join(name));
+        assert_eq!(
+            copy("GST-恢复前-2026-11-26-101500.db").as_deref(),
+            Some("earlier")
+        );
+        assert_eq!(
+            copy("GST-恢复前-2026-11-26-101500-1.db").as_deref(),
+            Some("live")
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_leftover_pre_restore_copy_that_cannot_move_aborts_the_restore() {
+        let (data, paths) = queued_restore();
+        gst_database(&paths.before, "earlier");
+
+        let held = hold_exclusively(&paths.before);
+        let (store, status) = run_startup_swap(data.path(), at(26, (10, 15, 0)), open_store);
+        drop(held);
+
+        assert_eq!(status, RestoreStatus::RolledBack);
+        assert_eq!(
+            store.unwrap().setting_value(MARKER).unwrap().as_deref(),
+            Some("live")
+        );
+        assert_eq!(marker_of(&paths.before).as_deref(), Some("earlier"));
+        assert!(paths.failed.exists() && !paths.pending.exists());
+    }
+
+    #[test]
+    fn a_pre_restore_copy_that_cannot_reach_backups_is_set_aside_beside_live() {
+        let (data, paths) = queued_restore();
+        // A plain file where the backups folder belongs.
+        std::fs::write(&paths.backups, b"not a folder").unwrap();
+        gst_database(&paths.before, "earlier");
+        let beside = |name: &str| data.path().join(name);
+
+        let (store, status) = run_startup_swap(data.path(), at(26, (10, 15, 0)), open_store);
+
+        assert_eq!(status, RestoreStatus::Restored);
+        drop(store.unwrap());
+        assert!(!paths.before.exists());
+        assert_eq!(
+            marker_of(&beside("GST-恢复前-2026-11-26-101500.db")).as_deref(),
+            Some("earlier")
+        );
+        assert_eq!(
+            marker_of(&beside("GST-恢复前-2026-11-26-101500-1.db")).as_deref(),
+            Some("live")
+        );
+
+        // A later start that fails to open does not roll the restore back.
+        let (store, status) =
+            run_startup_swap(data.path(), at(26, (11, 0, 0)), |_| Err::<(), _>("locked"));
+        assert!(matches!(store, Err(StartupError::Open("locked"))));
+        assert_eq!(status, RestoreStatus::None);
+        assert_eq!(marker_of(&paths.live).as_deref(), Some("backup"));
+        assert!(!paths.failed.exists());
+
+        // Once backups\ can be created, the set-aside copies move into it.
+        std::fs::remove_file(&paths.backups).unwrap();
+        let (store, status) = run_startup_swap(data.path(), at(26, (12, 0, 0)), open_store);
+        assert_eq!(status, RestoreStatus::None);
+        drop(store.unwrap());
+        assert_eq!(
+            pre_restore_copies(&paths),
+            vec![
+                "GST-恢复前-2026-11-26-101500-1.db".to_string(),
+                "GST-恢复前-2026-11-26-101500.db".to_string(),
+            ]
+        );
+        assert!(!beside("GST-恢复前-2026-11-26-101500.db").exists());
+    }
+
+    #[test]
+    fn numbered_pre_restore_copies_are_newer_than_the_unnumbered_one() {
+        let dir = TempDir::new().unwrap();
+        for name in [
+            "GST-恢复前-2026-11-25-235959.db",
+            "GST-恢复前-2026-11-26-101500.db",
+            "GST-恢复前-2026-11-26-101500-1.db",
+            "GST-恢复前-2026-11-26-101500-2.db",
+            "GST-恢复前-2026-11-26-101500-10.db",
+        ] {
+            std::fs::write(dir.path().join(name), b"x").unwrap();
+        }
+
+        prune_pre_restore_copies(dir.path(), 2);
+
+        assert_eq!(
+            names_in(dir.path()),
+            vec![
+                "GST-恢复前-2026-11-26-101500-10.db".to_string(),
+                "GST-恢复前-2026-11-26-101500-2.db".to_string(),
+            ]
+        );
     }
 }

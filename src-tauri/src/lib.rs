@@ -37,7 +37,7 @@ const RESTORE_HANDOVER_TIMEOUT: Duration = Duration::from_secs(15);
 pub fn run() {
     // After a restore the old process relaunches us; wait for it to let go of
     // the database and the single-instance lock instead of quitting.
-    let after_restore = restore::after_restore_pid(std::env::args());
+    let after_restore = restore::after_restore_pid(std::env::args_os());
     if let Some(pid) = after_restore {
         restore::wait_for_process_exit(pid, RESTORE_HANDOVER_TIMEOUT);
     }
@@ -111,8 +111,13 @@ pub fn run() {
                 restore::run_startup_swap(&app_data_dir, Local::now().naive_local(), |path| {
                     AppState::new(path.to_path_buf())
                 });
-            let state = state.unwrap_or_else(|error| {
-                fatal_startup_error(&startup_store_error_message(&db_path, &error))
+            let state = state.unwrap_or_else(|error| match error {
+                restore::StartupError::Open(error) => {
+                    fatal_startup_error(&startup_store_error_message(&db_path, &error))
+                }
+                restore::StartupError::RestoreStuck => {
+                    fatal_startup_error(&restore_stuck_message(&app_data_dir))
+                }
             });
             state.restore.set_status(restore_status);
             let tracker = state.tracker.clone();
@@ -210,6 +215,13 @@ fn startup_store_error_message(db_path: &std::path::Path, error: &storage::Store
     format!(
         "无法打开本地数据：{error}\n\n{hint}\n\n数据文件：{}",
         db_path.display()
+    )
+}
+
+fn restore_stuck_message(data_dir: &std::path::Path) -> String {
+    format!(
+        "从备份恢复没有完成：数据文件暂时无法移动。\n\n请关闭占用数据文件夹的程序（如杀毒或备份工具）后重新打开全局软件计时器，现有数据不会丢失。\n\n数据文件夹：{}",
+        data_dir.display()
     )
 }
 
