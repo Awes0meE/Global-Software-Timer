@@ -185,6 +185,7 @@ v0.1 excludes:
 
 - Do not add telemetry.
 - Do not add network upload.
+- GST never connects on its own (user rule, 2026-11-26). The only network access is `检查更新…` (v0.4.6, `src-tauri/src/update.rs`): it goes online only after the user presses `联网检查` in its consent dialog, every time. Never remember that consent, and never check at startup, on a timer or in the background. It talks only to the GitHub release endpoint in `tauri.conf.json` and the installer URL that manifest lists, and sends no usage data. The updater plugin is used from Rust only; do not grant the webview an updater capability.
 - Do not request administrator permission by default.
 - Startup at login must not request administrator permission.
 - Do not collect window titles, document names, webpage titles, keystrokes, mouse coordinates, file contents, or browser history.
