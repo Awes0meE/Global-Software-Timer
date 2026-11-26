@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- The interface is set in Inter and Noto Sans SC (思源黑体) instead of Segoe UI, Microsoft YaHei UI and Bahnschrift. They are the same bundled font files the posters already use, so the installer does not grow. Both are variable fonts, so titles, software names and table heads now get a true semibold instead of YaHei's only bold, and every weight is one step lighter: titles and names 600, secondary emphasis 500, body 400. Numbers use Inter's tabular digits everywhere. The pixel font on the e-ink screens is unchanged.
+- The `今天` lamp under the `统计` trend chart no longer touches its date label.
+- E-ink screens now sit an even 8 px inside their panels on every page (they were 8 to 14 px) with 8 px corners, so screen and panel corners share one centre, as Apple's guidelines ask for nested shapes.
+- Text outside the e-ink screens uses one size ladder, Apple's macOS steps plus Windows' 14 px body: dialog titles and the trend totals are 17 px (were 18), the `今日分布` total and personal-record figures 26 px (were 30 and 28), milestone tiers 22 px (were 24).
+- Chinese titles, table heads and labels are no longer letter-spaced; only Latin capitals such as `CSV` and the version, figures and the `终极成就` plaque keep their tracking.
+- Scrolling lists inside panels fade out over their last 16 px where more rows continue past the edge, instead of cutting a row in half; a list that fits, or the end you have scrolled to, has no fade. The `后台` table, with its sticky head, fades only at the bottom. `统计`, `成就` and `设置`, which scroll as a whole page, fade at the top under the page title once you scroll down.
+- Commands that ask for more before they run end with an ellipsis, as Apple's guidelines ask: `添加…` on `软件` and `导出成就…` on `成就` open a dialog, and every export that opens the Windows save dialog reads `导出软件清单…`, `导出后台记录…`, `日报海报…`, `当日明细…`, `区间汇总…`, `每日明细…`, `导出设置…` and `备份全部数据…`. Keys that only open a menu (`导出日报`, `导出报表`, `迁移与备份`) keep their name.
+- `软件` has one dark primary key: the `添加…` of `隐藏软件列表` is now a light secondary key like the `编辑` beside it.
+- Keyboard shortcuts: `Ctrl+1` to `Ctrl+6` open the sidebar's pages in order (the unavailable `时间轴` is skipped), `Ctrl+,` opens `设置`, and `Ctrl+←` / `Ctrl+→` step the day on `概览` and `后台`, stopping where the `‹ ›` keys stop. Text fields and open dialogs keep their keys. The README lists them.
+- `设置` → `显示` has `文字大小`: `标准` (the default) or `大`. `大` zooms the whole interface, text, icons and e-ink screens alike, to 125%, as Windows display scaling would, so the pixel digits stay crisp. The smallest window then grows to 1280 × 800 (a smaller window is enlarged), which leaves the layout its usual room, and the sidebar folds into its icons. It applies at once, at startup before the page shows, and after `导入设置…`; settings files carry it, and older files import as before. Apple asks apps to let people enlarge text; GST does it this way because its layout and pixel screens are drawn to fixed sizes.
+- The sidebar can fold into a strip of icons: the key to the right of the version under the nav folds and opens it, and pointing at an icon (or tabbing to it) shows the page name. The choice is remembered. When the window is narrower than 1200 px of interface (the smallest window, or 文字大小 大), the sidebar folds by itself; opening it then lasts until the window crosses that width again.
+- The sidebar floats as a glass card, inset 10 px from the top and bottom of the window and 12 px from its left edge, with rounded corners and the panels' edge and shadow, so the background glow runs on beneath it. The content panels keep their glass.
+- The round `?` help keys keep their 16 px look but react to clicks and hover within 28 px, Apple's default pointer target.
+
+## v0.4.4 - 2026-11-26
+
 - `设置` has two new groups. `外观` holds `主题`, `主题色` and `墨水屏配色`, and `数据` holds `数据文件夹` and `从备份恢复`. `运行` gains `启动时打开`, and `显示` gains `每周起始日` and `减少动画`. The other rows keep their text and behaviour.
 - `主题色` offers eight choices: 跟随 Windows, 蓝, 青, 绿, 紫, 玫红, 琥珀 and 石墨.
   - The accent colours the toggles, selected items, the current nav icon, focus rings, text selection and search hits.
@@ -32,19 +48,6 @@
   - `选择备份…` is dimmed while the backup is being checked.
 - Icons are read only from programs on a lettered local drive. Software that runs from a network share shows its first letter instead of its icon.
 - Tracking, metrics and the database schema (still 3) are unchanged. No plugin is added and nothing is fetched from the network. For 跟随 Windows and its swatch, GST reads the Windows accent colour from the registry read-only. The colour is not stored in the database.
-- The interface is set in Inter and Noto Sans SC (思源黑体) instead of Segoe UI, Microsoft YaHei UI and Bahnschrift. They are the same bundled font files the posters already use, so the installer does not grow. Both are variable fonts, so titles, software names and table heads now get a true semibold instead of YaHei's only bold, and every weight is one step lighter: titles and names 600, secondary emphasis 500, body 400. Numbers use Inter's tabular digits everywhere. The pixel font on the e-ink screens is unchanged.
-- The `今天` lamp under the `统计` trend chart no longer touches its date label.
-- E-ink screens now sit an even 8 px inside their panels on every page (they were 8 to 14 px) with 8 px corners, so screen and panel corners share one centre, as Apple's guidelines ask for nested shapes.
-- Text outside the e-ink screens uses one size ladder, Apple's macOS steps plus Windows' 14 px body: dialog titles and the trend totals are 17 px (were 18), the `今日分布` total and personal-record figures 26 px (were 30 and 28), milestone tiers 22 px (were 24).
-- Chinese titles, table heads and labels are no longer letter-spaced; only Latin capitals such as `CSV` and the version, figures and the `终极成就` plaque keep their tracking.
-- Scrolling lists inside panels fade out over their last 16 px where more rows continue past the edge, instead of cutting a row in half; a list that fits, or the end you have scrolled to, has no fade. The `后台` table, with its sticky head, fades only at the bottom. `统计`, `成就` and `设置`, which scroll as a whole page, fade at the top under the page title once you scroll down.
-- Commands that ask for more before they run end with an ellipsis, as Apple's guidelines ask: `添加…` on `软件` and `导出成就…` on `成就` open a dialog, and every export that opens the Windows save dialog reads `导出软件清单…`, `导出后台记录…`, `日报海报…`, `当日明细…`, `区间汇总…`, `每日明细…`, `导出设置…` and `备份全部数据…`. Keys that only open a menu (`导出日报`, `导出报表`, `迁移与备份`) keep their name.
-- `软件` has one dark primary key: the `添加…` of `隐藏软件列表` is now a light secondary key like the `编辑` beside it.
-- Keyboard shortcuts: `Ctrl+1` to `Ctrl+6` open the sidebar's pages in order (the unavailable `时间轴` is skipped), `Ctrl+,` opens `设置`, and `Ctrl+←` / `Ctrl+→` step the day on `概览` and `后台`, stopping where the `‹ ›` keys stop. Text fields and open dialogs keep their keys. The README lists them.
-- `设置` → `显示` has `文字大小`: `标准` (the default) or `大`. `大` zooms the whole interface, text, icons and e-ink screens alike, to 125%, as Windows display scaling would, so the pixel digits stay crisp. The smallest window then grows to 1280 × 800 (a smaller window is enlarged), which leaves the layout its usual room, and the sidebar folds into its icons. It applies at once, at startup before the page shows, and after `导入设置…`; settings files carry it, and older files import as before. Apple asks apps to let people enlarge text; GST does it this way because its layout and pixel screens are drawn to fixed sizes.
-- The sidebar can fold into a strip of icons: the key to the right of the version under the nav folds and opens it, and pointing at an icon (or tabbing to it) shows the page name. The choice is remembered. When the window is narrower than 1200 px of interface (the smallest window, or 文字大小 大), the sidebar folds by itself; opening it then lasts until the window crosses that width again.
-- The sidebar floats as a glass card, inset 10 px from the top and bottom of the window and 12 px from its left edge, with rounded corners and the panels' edge and shadow, so the background glow runs on beneath it. The content panels keep their glass.
-- The round `?` help keys keep their 16 px look but react to clicks and hover within 28 px, Apple's default pointer target.
 
 ## v0.4.3 - 2026-11-25
 
