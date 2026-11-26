@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Security: the update plugin moves from tauri-plugin-updater 2.12.0 to 2.14.1, which replaces the `zip` 4.6.1 library flagged by three advisories (one critical) with `zip` 9.8.2. GST never handled zip archives in an update, and every download is checked against the update signature first, so this was not exploitable, but the flagged code is gone. The plugin needs a newer Tauri, so the app also moves from Tauri 2.11.2 to 2.12.7 (with its window, tray and WebView2 libraries) and the frontend packages to `@tauri-apps/api` 2.12.5 and `@tauri-apps/cli` 2.12.6.
+- The top of each page (the title and the empty space beside the date and export keys) moves the window like the title bar, and dragging across the page no longer selects the labels and readouts. Text fields and error notices can still be selected.
 
 ## v0.4.6 - 2026-11-26
 

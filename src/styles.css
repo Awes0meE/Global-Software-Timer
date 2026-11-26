@@ -569,6 +569,13 @@ body {
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  /* A desktop window: labels, readouts and table cells are not text to select, so a drag across the page
+     never paints a selection. Fields and error notices stay selectable. */
+  user-select: none;
+}
+
+:is(input, textarea, [contenteditable="true"], .warning) {
+  user-select: text;
 }
 
 button,

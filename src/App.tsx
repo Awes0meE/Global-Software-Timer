@@ -797,8 +797,8 @@ export default function App() {
           </aside>
 
           <div className="workspace">
-            <header className="page-header">
-              <h2>{pageTitles[activePage]}</h2>
+            <header className="page-header" data-tauri-drag-region>
+              <h2 data-tauri-drag-region>{pageTitles[activePage]}</h2>
               {pagesWithDateControl.has(activePage) ? (
                 <DateControl
                   value={viewedDate}
