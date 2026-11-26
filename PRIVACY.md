@@ -1,8 +1,8 @@
 # Privacy
 
-Global Software Timer v0.4.5 is local-first.
+Global Software Timer v0.4.6 is local-first.
 
-## What v0.4.5 records
+## What v0.4.6 records
 
 - Application executable identity
 - User-facing application name
@@ -19,7 +19,7 @@ Global Software Timer v0.4.5 is local-first.
 
 To tell windowed, tray and background apps apart, GST reads window styles and class names, process command lines (checked in memory for helper flags such as `--type=`, never stored), and the executable paths Windows lists under `HKCU\Control Panel\NotifyIconSettings`. It does not read window titles or tray icon tooltips.
 
-## What v0.4.5 does not record
+## What v0.4.6 does not record
 
 - Window titles
 - Document names
@@ -112,10 +112,10 @@ Versions up to v0.4.5 have no `检查更新…`: install v0.4.6 by hand once, an
 
 ## Permissions
 
-v0.4.5 runs as a normal user-space app and does not request administrator permission by default.
+v0.4.6 runs as a normal user-space app and does not request administrator permission by default.
 
 GST reads the Windows "Transparency effects" setting only to decide how panels look; it is not stored.
 
 From v0.4.4, GST also reads the Windows accent colour to show the `跟随 Windows` accent choice. It reads `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent\AccentPalette`, or `HKCU\Software\Microsoft\Windows\DWM\AccentColor` when that is missing. The reads are read-only. GST reads the colour only while `跟随 Windows` is chosen, at startup and whenever the window is shown again, and once when `设置` opens, to paint the `跟随 Windows` swatch. The colour is never written to the database or sent anywhere. The last colour used is kept in the app window's local storage, together with the other appearance choices, only so the next start paints the right colours from the first frame.
 
-Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.4.5, can be turned off in Settings, and does not require administrator permission.
+Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.4.6, can be turned off in Settings, and does not require administrator permission.

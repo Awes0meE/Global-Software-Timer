@@ -23,7 +23,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 
 <p>
   <img alt="数据仅存本机" src="https://img.shields.io/badge/%E6%95%B0%E6%8D%AE-%E4%BB%85%E5%AD%98%E6%9C%AC%E6%9C%BA-2ea043?style=flat-square" />
-  <img alt="零遥测" src="https://img.shields.io/badge/%E9%9B%B6%E9%81%A5%E6%B5%8B-%E4%B8%8D%E8%81%94%E7%BD%91%20%C2%B7%20%E6%97%A0%E8%B4%A6%E5%8F%B7-555555?style=flat-square" />
+  <img alt="零遥测" src="https://img.shields.io/badge/%E9%9B%B6%E9%81%A5%E6%B5%8B-%E6%97%A0%E8%B4%A6%E5%8F%B7%20%C2%B7%20%E8%81%94%E7%BD%91%E9%9C%80%E4%BD%A0%E5%90%8C%E6%84%8F-555555?style=flat-square" />
   <img alt="界面：简体中文" src="https://img.shields.io/badge/%E7%95%8C%E9%9D%A2-%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-d63b2f?style=flat-square" />
   <img alt="Tauri v2" src="https://img.shields.io/badge/Tauri-v2-24C8DB?style=flat-square&logo=tauri&logoColor=white" />
   <img alt="Rust" src="https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white" />
@@ -66,7 +66,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 
 一天开着电脑十几个小时，真正在用的是哪几个软件？写代码写了多久，聊天软件挂了多久，哪个程序又在后台悄悄跑了一整天？
 
-**全局软件计时器**（Global Software Timer，简称 GST）在托盘里安静地帮你记下每个软件的运行时长，再用一块像素墨水屏，把今天的数字摆在你面前。不用手动开始，不用联网，不用注册账号。
+**全局软件计时器**（Global Software Timer，简称 GST）在托盘里安静地帮你记下每个软件的运行时长，再用一块像素墨水屏，把今天的数字摆在你面前。不用手动开始，不用注册账号；除非你点「检查更新…」并同意，它不会联网。
 
 > 💡 **小贴士**：装好之后基本不用管它。默认开机自启，关掉主窗口也照常记录；想看数据时，点一下右下角托盘里的小时钟就行。
 
@@ -92,7 +92,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
   <tr>
     <td width="33%" valign="top">
       <h3>🔒 数据只在本机</h3>
-      <p>所有记录都存在本机的 SQLite 数据库里。不会自己联网、不需要账号、没有遥测，也不读取窗口标题、文档名和网页标题。</p>
+      <p>所有记录都存在本机的 SQLite 数据库里。只在你点「检查更新…」并同意时联网，不需要账号、没有遥测，也不读取窗口标题、文档名和网页标题。</p>
     </td>
     <td width="33%" valign="top">
       <h3>🎛️ 桌面仪器质感</h3>
@@ -422,7 +422,7 @@ GST 打不开、没法用上面的按钮时，也可以手动恢复：右键托�
 安装包暂时没有代码签名，SmartScreen 会对没签名的新软件弹出这个提示（签名的进展见 [代码签名政策 Code signing policy](./CODE_SIGNING_POLICY.md)）。点 **更多信息 → 仍要运行** 即可。如果担心安装包被改动，可以对照 Releases 里的 `SHA256SUMS.txt` 校验：
 
 ```powershell
-Get-FileHash .\Global.Software.Timer_0.4.5_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Global.Software.Timer_0.4.6_x64-setup.exe -Algorithm SHA256
 ```
 
 </details>
@@ -489,7 +489,8 @@ Get-FileHash .\Global.Software.Timer_0.4.5_x64-setup.exe -Algorithm SHA256
 - [ ] 有声音算活跃：看视频、上网课时不算离开
 - [ ] 只统计指定软件、手动补记离线时长
 - [ ] 软件和网站分类
-- [ ] 安装包签名与自动更新
+- [x] 检查更新：每次先征得你同意再联网，更新前自动备份
+- [ ] 安装包代码签名
 - [ ] macOS 版本
 
 有想要的功能不在这里？欢迎[提建议](#feedback)。

@@ -170,6 +170,23 @@ v0.4.4 additionally includes:
 - Icons and stored program paths touch the file system only for lettered local-drive paths (`src-tauri/src/local_path.rs`).
 - No new Tauri plugin, capability, network access or telemetry. Keep `PRIVACY.md` in step with the accent read and the restore files. Binding decisions: `docs/superpowers/specs/2026-11-26-v044-personalization-and-data-design.md`.
 
+v0.4.5 additionally includes:
+
+- Apple-HIG polish: the UI font is the bundled Inter and Noto Sans SC (600 / 500 / 400, tabular digits; the e-ink pixel font is unchanged), concentric e-ink screens 8px inside their panels, one type ladder outside the screens, no letter-spacing on Chinese, scroll-edge fades, `…` on commands that ask for more, one primary key on `软件`, keyboard shortcuts (`Ctrl+1`–`Ctrl+6`, `Ctrl+,`, `Ctrl+←` / `Ctrl+→`) and 28px `?` hit areas. The last explanatory small print is removed.
+- `设置` → `显示` → `文字大小` (`标准` / `大`, stored as `ui.text_size`): `大` zooms the window to 125% with a 1280×800 minimum window.
+- The sidebar is a floating glass card that folds into an icon rail. The manual choice is kept only in localStorage `gst.sidebar-collapsed`, and it folds by itself below 1200 CSS px.
+- Performance: the `概览` summary works out each software's name, identity and best path once per software instead of once per session (44 ms to 12 ms on a six-month database).
+- Legacy heartbeat cleanup: the first start saves a full copy to `backups\GST-清理前-…db` (newest 1) and only then removes the unused `app_heartbeat` rows of `run_events` and compacts the database (`src-tauri/src/maintenance.rs`); nothing is removed when the copy fails.
+- No tracking, metric or schema change (still schema 3), no new plugin, no network access.
+
+v0.4.6 additionally includes:
+
+- `设置` gains the `关于与反馈` group above `隐私`: `当前版本` with `更新日志`, `报告问题`, `提建议`, and `QQ 交流群` 937943526 with `复制群号` and `加入`. Links open in the default browser through `open_feedback_link` (`src-tauri/src/feedback.rs`), which accepts only four fixed names; never let the frontend pass an address.
+- `检查更新…` (`src-tauri/src/update.rs`) asks for consent every time before going online. A newer stable release opens `发现新版本`; `更新并重启` saves a full copy to `backups\GST-更新前-<version>-…db` (newest 1; nothing is downloaded when the copy fails), downloads with progress, verifies the updater signature, closes the open sessions and runs the installer in passive mode; the tracker resumes when the installer cannot start. See the Privacy And Security rules below.
+- CI signs the installers with the `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets and publishes `latest.json` with the installers and `SHA256SUMS.txt`; a release without the key or a valid manifest is refused. This is updater signing, not Windows code signing.
+- The license changes to GPL-3.0-or-later; see the License section.
+- No tracking, metric or schema change (still schema 3). The only new plugin is tauri-plugin-updater, used from Rust only.
+
 v0.1 excludes:
 
 - macOS implementation.

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.6 - 2026-11-26
 
 - The license changes from MIT to GPL-3.0-or-later for this and later versions. You may still use, study, change and share GST freely, but a changed version you distribute must also be GPL with its full source. v0.4.5 and earlier stay MIT. The names 全局软件计时器, Global Software Timer and GST and the clock icons are not licensed with the code: a changed version needs its own name and icon (`TRADEMARKS.md`).
 - `设置` → `关于与反馈` → `当前版本` has `检查更新…`. GST still never goes online by itself: the key first asks whether it may (`检查更新需要联网。GST 只会向 GitHub 查询最新的版本号，不会发送任何使用记录。`), every time, and only `联网检查` sends the request. It says `已是最新版本`, or `无法连接到 GitHub` when the check fails. A newer stable release opens `发现新版本` with the current and new version and the installer size; `更新并重启` saves a full copy of the data to `backups\GST-更新前-<version>-<date>-<time>.db` (only the newest is kept), downloads the installer with a progress bar, checks its signature, installs it and restarts GST. `取消` stops the download and installs nothing; when anything fails it says `更新没有完成` and the current version keeps running. Releases now carry a signed `latest.json`. Versions up to v0.4.5 cannot update themselves: install v0.4.6 by hand once.
