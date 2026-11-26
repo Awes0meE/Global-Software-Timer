@@ -294,6 +294,9 @@ describe("glass and e-ink limits", () => {
       ".skip-link",
       ".toggle-knob",
       ".unavailable-tooltip-bubble",
+      // The sidebar's name bubbles (toggle, icon rail) are drawn like the unavailable bubble.
+      ".sidebar-toggle[data-label]::after",
+      ".is-rail .nav-key[data-label]::after",
       ".active-help-popover",
       ".trend-tip",
       ".glass-pop",

@@ -2203,6 +2203,24 @@ describe("App date browsing", () => {
     expect(screen.getByRole("button", { name: "后台" })).toHaveAttribute("aria-current", "page");
   });
 
+  // Apple HIG: people can hide the sidebar. The icon rail keeps every page's name for screen readers.
+  it("folds the sidebar into its icon rail and back from the key under the nav", async () => {
+    const { container } = render(<App />);
+    expect(await screen.findByRole("complementary", { name: "正在运行" })).toBeInTheDocument();
+    const shell = container.querySelector(".app-shell");
+    expect(shell).not.toHaveClass("is-rail");
+
+    fireEvent.click(screen.getByRole("button", { name: "收起侧栏" }));
+    expect(shell).toHaveClass("is-rail");
+    expect(screen.getByRole("button", { name: "展开侧栏" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: "统计" })).toHaveAttribute("data-label", "统计");
+    expect(window.localStorage.getItem("gst.sidebar-collapsed")).toBe("1");
+
+    fireEvent.click(screen.getByRole("button", { name: "展开侧栏" }));
+    expect(shell).not.toHaveClass("is-rail");
+    expect(window.localStorage.getItem("gst.sidebar-collapsed")).toBeNull();
+  });
+
   it("shows a past day in 当日 wording, with 当日分布 filling the rail", async () => {
     const { container } = render(<App />);
     expect(await screen.findByRole("complementary", { name: "正在运行" })).toBeInTheDocument();

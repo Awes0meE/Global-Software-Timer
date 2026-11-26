@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import packageJson from "../package.json";
-import { BarChart3, Cpu, History, LayoutDashboard, Settings, SquareStack, Trophy } from "lucide-react";
+import { BarChart3, Cpu, History, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings, SquareStack, Trophy } from "lucide-react";
 import {
   applyWindowCloseChoice,
   getAppSettings,
@@ -39,7 +39,7 @@ import { SettingsImportDialog } from "./components/SettingsImportDialog";
 import { SettingsPage, type StartPageOption } from "./components/SettingsPage";
 import { Toast } from "./components/Toast";
 import { TodayReadout } from "./components/TodayReadout";
-import { UnavailableTooltip } from "./components/UnavailableTooltip";
+import { UnavailableTooltip, unavailableTooltipMessage } from "./components/UnavailableTooltip";
 import type { StatisticsScope } from "./exports";
 import { applyAppearance, readCachedAppearance, startAccentWatch } from "./appearance";
 import { startTransparencyWatch } from "./glass";
@@ -48,6 +48,7 @@ import { cacheStartPage, readCachedStartPage } from "./startPage";
 import { applyThemePreference, paintedTheme, readCachedThemePreference } from "./theme";
 import { useExportActions } from "./useExportActions";
 import { pageShortcut, useKeyboardShortcuts } from "./useKeyboardShortcuts";
+import { useSidebarCollapse } from "./useSidebarCollapse";
 import { useMilestoneSoftware } from "./useMilestoneSoftware";
 import { useRestoreActions } from "./useRestoreActions";
 import { answersDay, isDayInvalidDate, useLocalToday } from "./viewedDay";
@@ -417,6 +418,7 @@ export default function App() {
   // Ctrl+1…6 follow the sidebar's available pages, Ctrl+, opens 设置, and Ctrl+← / → step the day where the
   // date key shows, stopping at the same ends as its ‹ › keys.
   const shortcutPages = navItems.filter((item) => item.available).map((item) => item.id as PageId);
+  const sidebar = useSidebarCollapse();
   useKeyboardShortcuts((action) => {
     if (action.kind === "page" || action.kind === "settings") {
       const page = action.kind === "settings" ? "settings" : shortcutPages[action.index];
@@ -712,7 +714,7 @@ export default function App() {
         <a className="skip-link" href={`#${contentId}`}>
           跳到内容
         </a>
-        <div className="app-shell">
+        <div className={`app-shell${sidebar.collapsed ? " is-rail" : ""}`}>
           <aside className="sidebar">
             <div className="brand">
               <img className="brand-mark" src={clockMark} alt="" width={44} height={44} />
@@ -741,6 +743,7 @@ export default function App() {
                     }
                     onPointerEnter={warmPage}
                     onFocus={warmPage}
+                    data-label={item.available ? item.label : undefined}
                     onClick={() => handleNavClick(item)}
                   >
                     <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
@@ -754,7 +757,12 @@ export default function App() {
                     {navButton}
                   </span>
                 ) : (
-                  <UnavailableTooltip key={item.label}>{navButton}</UnavailableTooltip>
+                  <UnavailableTooltip
+                    key={item.label}
+                    message={sidebar.collapsed ? `${item.label}：${unavailableTooltipMessage}` : unavailableTooltipMessage}
+                  >
+                    {navButton}
+                  </UnavailableTooltip>
                 );
               })}
             </nav>
@@ -768,7 +776,23 @@ export default function App() {
                 <i className="lamp" aria-hidden="true" />
                 数据只保存在本机
               </span>
-              <small className="num">V{packageJson.version}</small>
+              <div className="sidebar-foot-row">
+                <small className="num">V{packageJson.version}</small>
+                <button
+                  className="sidebar-toggle"
+                  type="button"
+                  aria-label={sidebar.collapsed ? "展开侧栏" : "收起侧栏"}
+                  aria-expanded={!sidebar.collapsed}
+                  data-label={sidebar.collapsed ? "展开侧栏" : "收起侧栏"}
+                  onClick={sidebar.toggle}
+                >
+                  {sidebar.collapsed ? (
+                    <PanelLeftOpen size={18} strokeWidth={1.8} aria-hidden="true" />
+                  ) : (
+                    <PanelLeftClose size={18} strokeWidth={1.8} aria-hidden="true" />
+                  )}
+                </button>
+              </div>
             </div>
           </aside>
 

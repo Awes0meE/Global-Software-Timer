@@ -813,6 +813,154 @@ p {
   letter-spacing: 0.12em;
 }
 
+.sidebar-foot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.sidebar-foot-row small {
+  margin-top: 0;
+}
+
+/* 收起 / 展开侧栏 (Apple HIG: people can hide the sidebar). A quiet key like the nav keys at rest. */
+.sidebar-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px -4px -4px 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-key);
+  background: transparent;
+  color: var(--ink-2);
+  transition: background-color 160ms var(--ease), box-shadow 160ms var(--ease);
+}
+
+.sidebar-toggle:hover {
+  background: var(--nk-hover-fill);
+  box-shadow: 0 0 0 1px var(--nk-hover-rim);
+}
+
+.sidebar-toggle:active {
+  --muted: var(--ink-2);
+  background: var(--chip);
+}
+
+.sidebar-toggle:focus-visible {
+  box-shadow: var(--focus);
+}
+
+/* Name bubbles for the keys that show only an icon: the toggle, and the nav keys in the rail. Drawn like the
+   unavailable bubble, to the right of the key. */
+.sidebar-toggle[data-label]::after,
+.is-rail .nav-key[data-label]::after {
+  content: attr(data-label);
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  z-index: 30;
+  padding: 5px 9px;
+  border-radius: var(--radius-key);
+  background: var(--ink);
+  color: var(--glass-solid);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  box-shadow: 0 4px 12px var(--shade-deep);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms var(--ease), visibility 120ms;
+}
+
+.sidebar-toggle[data-label]:hover::after,
+.sidebar-toggle[data-label]:focus-visible::after,
+.is-rail .nav-key[data-label]:hover::after,
+.is-rail .nav-key[data-label]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* The icon rail: the sidebar folded to its icons (by the toggle, or by itself below 1200 CSS px). Names stay in
+   the accessibility tree; only their text is hidden. */
+.app-shell.is-rail {
+  grid-template-columns: 80px minmax(0, 1fr);
+}
+
+.is-rail .sidebar {
+  padding: 16px 12px 14px;
+}
+
+.is-rail .brand {
+  justify-content: center;
+  padding: 0 0 14px;
+}
+
+.is-rail .brand-mark {
+  width: 36px;
+  height: 36px;
+}
+
+.is-rail .brand-copy,
+.is-rail .nav-key > span,
+.is-rail .sidebar-footer > span:not(.live-status),
+.is-rail .sidebar-foot-row small {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.is-rail .side-nav {
+  justify-items: center;
+  margin-top: 14px;
+}
+
+.is-rail .nav-key {
+  position: relative;
+  justify-content: center;
+  width: 44px;
+  padding: 0;
+}
+
+.is-rail .nav-key em {
+  display: none;
+}
+
+.is-rail .sidebar-footer {
+  justify-items: center;
+  padding: 12px 0 0;
+}
+
+/* The lamp stays; its words are read out but not drawn. */
+.is-rail .sidebar-footer .live-status {
+  gap: 0;
+  font-size: 0;
+}
+
+.is-rail .sidebar-foot-row {
+  order: -1;
+  margin: 0 0 6px;
+}
+
+.is-rail .sidebar-toggle {
+  margin: 0;
+}
+
+@media (forced-colors: active) {
+  .sidebar-toggle[data-label]::after,
+  .is-rail .nav-key[data-label]::after {
+    border: 1px solid CanvasText;
+  }
+}
+
 .workspace {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
