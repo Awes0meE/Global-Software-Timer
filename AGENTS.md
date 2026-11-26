@@ -137,7 +137,7 @@ v0.4.0 additionally includes:
 v0.4.2 additionally includes:
 
 - Date browsing on `概览` and `后台`: a `‹ date ›` header key group with a plain date-picker calendar popover on an e-ink surface, and a `今天` key when a past day is shown. The viewed date is never persisted; past days are read-only views of stored data. The `统计` custom range uses the same calendar.
-- Page-specific CSV exports (`概览`, `软件`, `后台`, `统计`), settings export/import as JSON (merge-only, previewed before applying) and a full data backup (`VACUUM INTO`; restore stays manual). Files are written only to the path the user picks in the native dialog; no program paths in exports, no network.
+- Page-specific CSV exports (`概览`, `软件`, `后台`, `统计`), settings export/import as JSON (merge-only, previewed before applying) and a full data backup (`VACUUM INTO`; restored in the app since v0.4.4). Files are written only to the path the user picks in the native dialog; no program paths in exports, no network.
 - The header and panel `更多` buttons are removed (no placeholder header buttons); the `后台` e-ink strip is taller.
 - No tracking or schema change (still schema 3). Binding decisions: `docs/superpowers/specs/2026-11-24-v042-date-browsing-and-exports-design.md`.
 
@@ -147,6 +147,15 @@ v0.4.3 additionally includes:
 - `统计` `导出报表` becomes a menu: `区间汇总` (every software in the range, plus `后台` and `使用天数`) and `每日明细` CSV. A used day is focus ≥ 300 s; window-only or background-only days never count.
 - Posters are rendered with `modern-screenshot` 4.7.0 (loaded only when exporting) and the bundled poster-only fonts Inter and Noto Sans SC (SIL OFL 1.1, GB2312 subset); the app UI keeps its fonts. PNGs are saved by `save_binary_export` through the native dialog; the `gsticon` protocol sends CORS headers only to the app's own origins.
 - No tracking or schema change (still schema 3), no network. Binding decisions: `docs/superpowers/specs/2026-11-25-v043-posters-and-reports-design.md`.
+
+v0.4.4 additionally includes:
+
+- `设置` gains the `外观` group (`主题`, `主题色`, `墨水屏配色`) and the `数据` group (`数据文件夹`, `从备份恢复`). `运行` gains `启动时打开`, and `显示` gains `每周起始日` and `减少动画`. The five new settings are stored as `ui.accent`, `ui.eink`, `ui.week_start`, `ui.start_page` and `ui.reduce_motion` in `app_settings` (schema still 3), written through `set_ui_preference`, and carried by settings export and import.
+- `主题色` has 8 choices. 蓝 is the default and is pixel-identical to v0.4.3. Every other choice also tints the background glow, with per-choice blob alphas tuned for readability; the table is in `src/styles.css` and `DESIGN.md`. Signal orange, `--mix-*`, `--alert-*`, forced colours and posters never follow the accent. `跟随 Windows` reads the Windows accent through the read-only `get_windows_accent` command (HKCU, not stored in the database), and `src/accent.ts` clamps it for contrast. `墨水屏配色` has 5 palettes, and 极光 is today's look. Posters keep their own look.
+- `每周起始日` changes exactly five frontend places, and no backend command. `启动时打开` applies only when the process starts and never navigates after the user has moved. `减少动画` can only add motion reduction on top of the Windows setting.
+- `从备份恢复` restores a full backup in the app. The picked file is copied and checked, and the live database is never touched. The swap happens at the next start, before any connection opens, through an idempotent state machine. The data being replaced is kept in `backups\` (newest 3). A restore file that cannot be moved shows the `RestoreStuck` fatal message and opens nothing. Never exercise a restore on the production profile, only on disposable temp folders. `打开数据文件夹` opens the data folder from the app's own path.
+- Icons and stored program paths touch the file system only for lettered local-drive paths (`src-tauri/src/local_path.rs`).
+- No new Tauri plugin, capability, network access or telemetry. Keep `PRIVACY.md` in step with the accent read and the restore files. Binding decisions: `docs/superpowers/specs/2026-11-26-v044-personalization-and-data-design.md`.
 
 v0.1 excludes:
 
