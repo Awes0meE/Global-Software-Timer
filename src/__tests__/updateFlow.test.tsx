@@ -19,6 +19,7 @@ vi.mock("@tauri-apps/plugin-autostart", () => ({
   isEnabled: vi.fn(async () => true),
 }));
 
+import packageJson from "../../package.json";
 import App from "../App";
 import type { UpdateProgress } from "../api";
 import { downloadFinished, formatDownloadProgress } from "../components/UpdateDialog";
@@ -154,7 +155,7 @@ describe("检查更新 consent", () => {
     expect(mockInvoke.mock.calls.map(([name]) => name)).not.toContain("install_update");
   });
 
-  it("marks 联网检查 busy while GitHub answers, then says it is the latest version", async () => {
+  it("marks 联网检查 busy while GitHub answers, then says it is the latest version in a 确定 dialog", async () => {
     let answer!: (value: unknown) => void;
     overrides.check_for_update = () => new Promise((resolve) => (answer = resolve));
     const dialog = await openConsent();
@@ -168,8 +169,24 @@ describe("检查更新 consent", () => {
     expect(calls("check_for_update")).toHaveLength(1);
 
     await act(async () => answer(null));
+    const latest = await screen.findByRole("dialog", { name: "已是最新版本" });
+    expect(latest).toHaveTextContent(`V${packageJson.version} 是目前的最新版本。`);
+    const ok = within(latest).getByRole("button", { name: "确定" });
+    expect(ok).toHaveFocus();
+    expect(within(latest).getAllByRole("button")).toHaveLength(1);
+
+    await userEvent.click(ok);
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(await screen.findByText("已是最新版本")).toBeInTheDocument();
+    expect(calls("check_for_update")).toHaveLength(1);
+  });
+
+  it("closes the 已是最新版本 dialog with Esc too", async () => {
+    overrides.check_for_update = () => Promise.resolve(null);
+    const dialog = await openConsent();
+    await userEvent.click(within(dialog).getByRole("button", { name: "联网检查" }));
+    await screen.findByRole("dialog", { name: "已是最新版本" });
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("says GitHub cannot be reached when the check fails", async () => {
@@ -177,8 +194,10 @@ describe("检查更新 consent", () => {
     const dialog = await openConsent();
     await userEvent.click(within(dialog).getByRole("button", { name: "联网检查" }));
 
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("无法连接到 GitHub"));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    const offline = await screen.findByRole("alertdialog", { name: "无法连接到 GitHub" });
+    expect(within(offline).getByRole("button", { name: "确定" })).toHaveFocus();
+    await userEvent.click(within(offline).getByRole("button", { name: "确定" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
   it("ignores a check answered after the dialog was cancelled", async () => {
@@ -280,13 +299,16 @@ describe("正在更新", () => {
   });
 
   it.each(["update_backup_failed", "update_download_failed", "update_install_failed"])(
-    "says the update did not finish on %s and closes the dialog",
+    "says the update did not finish on %s in a 确定 dialog",
     async (code) => {
       const { finish } = await startInstall();
       await act(async () => finish.reject(code));
 
-      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("更新没有完成"));
-      expect(screen.queryByRole("dialog")).toBeNull();
+      const failed = await screen.findByRole("alertdialog", { name: "更新没有完成" });
+      expect(screen.queryByRole("dialog", { name: /正在更新到/ })).toBeNull();
+      expect(within(failed).getByRole("button", { name: "确定" })).toHaveFocus();
+      await userEvent.click(within(failed).getByRole("button", { name: "确定" }));
+      expect(screen.queryByRole("alertdialog")).toBeNull();
     },
   );
 });

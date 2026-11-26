@@ -5,6 +5,7 @@
 - Security: the update plugin moves from tauri-plugin-updater 2.12.0 to 2.14.1, which replaces the `zip` 4.6.1 library flagged by three advisories (one critical) with `zip` 9.8.2. GST never handled zip archives in an update, and every download is checked against the update signature first, so this was not exploitable, but the flagged code is gone. The plugin needs a newer Tauri, so the app also moves from Tauri 2.11.2 to 2.12.7 (with its window, tray and WebView2 libraries) and the frontend packages to `@tauri-apps/api` 2.12.5 and `@tauri-apps/cli` 2.12.6.
 - The top of each page (the title and the empty space beside the date and export keys) moves the window like the title bar, and dragging across the page no longer selects the labels and readouts. Text fields and error notices can still be selected.
 - The small notices in the bottom right (`已复制群号`, `已保存` and the like) rise in and sink out instead of appearing and vanishing at once, and sit on a lighter surface tinted with the accent colour (red for a failure), so they stand out from the dark glass under them. `减少动画` turns the motion off.
+- `检查更新…` now ends every check in a dialog closed with `确定` instead of a small notice: `已是最新版本` (with the current version), `无法连接到 GitHub`, or `更新没有完成` when an update fails.
 
 ## v0.4.6 - 2026-11-26
 

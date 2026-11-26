@@ -675,7 +675,7 @@ export default function App() {
   const { handleExport, saveAchievementPoster, showToast } = exports;
   const restore = useRestoreActions(showToast);
   const feedback = useFeedbackActions(showToast);
-  const update = useUpdateActions(showToast);
+  const update = useUpdateActions();
   const { reload: reloadMilestones } = milestones;
 
   const handleHeaderExport = useCallback(
@@ -933,8 +933,10 @@ export default function App() {
 
         {update.dialog ? (
           <UpdateDialog
-            key={update.dialog.kind === "consent" ? "consent" : "update"}
+            // A new dialog for the consent and for a 确定 ending, so focus starts on its first key.
+            key={update.dialog.kind === "consent" || update.dialog.kind === "result" ? update.dialog.kind : "update"}
             state={update.dialog}
+            currentVersion={packageJson.version}
             checking={update.checking}
             onCheck={() => void update.check()}
             onInstall={() => void update.install()}

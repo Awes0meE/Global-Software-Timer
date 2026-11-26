@@ -8,12 +8,28 @@ import "./UpdateDialog.css";
 
 /**
  * 检查更新 (v0.4.6): the consent to go online, then 发现新版本, which becomes 正在更新到 … once
- * 更新并重启 is pressed.
+ * 更新并重启 is pressed. Every other ending (v0.4.7) is a dialog closed with 确定: 已是最新版本,
+ * 无法连接到 GitHub, 更新没有完成.
  */
 export type UpdateDialogState =
   | { kind: "consent" }
   | { kind: "found"; info: UpdateInfo }
-  | { kind: "installing"; info: UpdateInfo; progress: UpdateProgress | null };
+  | { kind: "installing"; info: UpdateInfo; progress: UpdateProgress | null }
+  | { kind: "result"; outcome: UpdateOutcome };
+
+export type UpdateOutcome = "latest" | "offline" | "failed";
+
+/** The 确定 dialogs: a title, one line, and whether it reads as an alert. */
+export function outcomeCopy(outcome: UpdateOutcome, version: string): { title: string; copy: string; alert: boolean } {
+  switch (outcome) {
+    case "latest":
+      return { title: "已是最新版本", copy: `V${version} 是目前的最新版本。`, alert: false };
+    case "offline":
+      return { title: "无法连接到 GitHub", copy: "请检查网络后再试一次。", alert: true };
+    case "failed":
+      return { title: "更新没有完成", copy: "数据没有改动，GST 会继续记录。", alert: true };
+  }
+}
 
 const MB = 1024 * 1024;
 
@@ -32,6 +48,8 @@ export function formatDownloadProgress(progress: UpdateProgress | null, sizeByte
 
 interface UpdateDialogProps {
   state: UpdateDialogState;
+  /** This build's version, for 已是最新版本. */
+  currentVersion: string;
   /** 联网检查 is waiting for GitHub. */
   checking: boolean;
   onCheck: () => void;
@@ -42,11 +60,20 @@ interface UpdateDialogProps {
   onClose: () => void;
 }
 
-/** In the 从备份恢复 dialog's language (useModalDialog): focus starts on 取消 or 稍后. */
-export function UpdateDialog({ state, checking, onCheck, onInstall, onOpenNotes, onClose }: UpdateDialogProps) {
+/** In the 从备份恢复 dialog's language (useModalDialog): focus starts on 取消, 稍后 or 确定. */
+export function UpdateDialog({
+  state,
+  currentVersion,
+  checking,
+  onCheck,
+  onInstall,
+  onOpenNotes,
+  onClose,
+}: UpdateDialogProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const firstKeyRef = useRef<HTMLButtonElement>(null);
   const installing = state.kind === "installing" && downloadFinished(state.progress);
+  const result = state.kind === "result" ? outcomeCopy(state.outcome, currentVersion) : null;
   useModalDialog(dialogRef, { onCancel: onClose, busy: installing, initialFocus: firstKeyRef });
 
   // 更新并重启 swaps the keys: focus moves to 取消, and to the dialog itself once 取消 is off.
@@ -67,14 +94,26 @@ export function UpdateDialog({ state, checking, onCheck, onInstall, onOpenNotes,
       <section
         ref={dialogRef}
         className="dialog import-dialog update-dialog"
-        role="dialog"
+        role={result?.alert ? "alertdialog" : "dialog"}
         aria-modal="true"
         aria-labelledby="update-dialog-title"
         aria-describedby="update-dialog-copy"
         aria-busy={state.kind === "installing" || undefined}
         tabIndex={-1}
       >
-        {state.kind === "consent" ? (
+        {state.kind === "result" ? (
+          <>
+            <h2 id="update-dialog-title">{result?.title}</h2>
+            <p className="update-copy" id="update-dialog-copy">
+              {result?.copy}
+            </p>
+            <div className="dialog-actions">
+              <button ref={firstKeyRef} type="button" className="button button-primary" onClick={onClose}>
+                确定
+              </button>
+            </div>
+          </>
+        ) : state.kind === "consent" ? (
           <>
             <h2 id="update-dialog-title">检查更新</h2>
             <p className="update-copy" id="update-dialog-copy">
