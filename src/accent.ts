@@ -26,7 +26,9 @@ const LIGHT = {
   muted: rgb(0x5a, 0x60, 0x6c),
   // Today's --glow centres (the 蓝 glow), where spec §B measures every preset.
   todayGlow: [rgb(90, 160, 255, 0.34), rgb(240, 120, 190, 0.26), rgb(160, 130, 255, 0.3)],
-  // Spec §B variant B glow built from the accent: the accent share and the colour mixed in, per blob.
+  // Spec §B variant B glow built from the accent: the accent share and the colour mixed in, per blob, at the
+  // mock's alphas. styles.css shows 跟随 Windows a fainter glow (its --glow-alpha-* fallbacks), so a light
+  // accent that clears this one clears that too; the stricter bound also keeps today's clamp results.
   glow: [
     { share: 1, mixWith: rgb(0, 0, 0), alpha: 0.45 },
     { share: 0.4, mixWith: rgb(240, 120, 190), alpha: 0.26 },

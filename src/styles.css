@@ -209,35 +209,130 @@
 
 /* 主题色 variant B (v0.4.4): every choice but 蓝 builds the glow from the accent. The blobs keep today's
    sizes, positions and fade stops; 蓝 (or no data-accent) keeps today's --glow exactly. Each override is
-   scoped to one theme, so a light value never leaks into dark. */
+   scoped to one theme, so a light value never leaks into dark.
+
+   Blob alphas (--glow-alpha-1 / -2 / -3), tuned down from the mock's 45/26/30 light and 50/24/28 dark so
+   readability over each choice's own glow is unchanged (contrast.test.ts). Each is the largest whole percent
+   that passes: blob 1 is bounded by the text and graphic checks on the worst centre B, blobs 2 and 3 by B
+   staying the lowest-contrast centre. 跟随 Windows uses the fallbacks below, one set that holds for every
+   accent the clamp can return (accent.ts still clamps against the stronger mock alphas).
+
+     choice        light        dark
+     跟随 Windows  16 18 17     23 22 23   (fallbacks)
+     青 cyan       26 26 28     27 24 28
+     绿 green      25 26 27     27 24 28
+     紫 violet     25 26 27     32 24 28
+     玫红 rose     22 26 25     31 24 28
+     琥珀 amber    27 26 29     25 24 28
+     石墨 graphite 25 26 27     27 24 28 */
 :root:not([data-theme="dark"])[data-accent]:not([data-accent="blue"]) {
   --glow:
-    radial-gradient(820px 600px at 8% -6%, color-mix(in srgb, var(--accent) 45%, transparent), transparent 62%),
+    radial-gradient(
+      820px 600px at 8% -6%,
+      color-mix(in srgb, var(--accent) var(--glow-alpha-1, 16%), transparent),
+      transparent 62%
+    ),
     radial-gradient(
       760px 640px at 98% 10%,
-      color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(240, 120, 190)) 26%, transparent),
+      color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(240, 120, 190)) var(--glow-alpha-2, 18%), transparent),
       transparent 60%
     ),
     radial-gradient(
       860px 600px at 52% 110%,
-      color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(160, 130, 255)) 30%, transparent),
+      color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(160, 130, 255)) var(--glow-alpha-3, 17%), transparent),
       transparent 62%
     );
 }
 
 :root[data-theme="dark"][data-accent]:not([data-accent="blue"]) {
   --glow:
-    radial-gradient(820px 600px at 10% -4%, color-mix(in srgb, var(--accent) 50%, transparent), transparent 62%),
+    radial-gradient(
+      820px 600px at 10% -4%,
+      color-mix(in srgb, var(--accent) var(--glow-alpha-1, 23%), transparent),
+      transparent 62%
+    ),
     radial-gradient(
       760px 640px at 96% 14%,
-      color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(236, 92, 170)) 24%, transparent),
+      color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(236, 92, 170)) var(--glow-alpha-2, 22%), transparent),
       transparent 60%
     ),
     radial-gradient(
       860px 600px at 52% 108%,
-      color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(150, 110, 255)) 28%, transparent),
+      color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(150, 110, 255)) var(--glow-alpha-3, 23%), transparent),
       transparent 62%
     );
+}
+
+:root:not([data-theme="dark"])[data-accent="cyan"] {
+  --glow-alpha-1: 26%;
+  --glow-alpha-2: 26%;
+  --glow-alpha-3: 28%;
+}
+
+:root:not([data-theme="dark"])[data-accent="green"] {
+  --glow-alpha-1: 25%;
+  --glow-alpha-2: 26%;
+  --glow-alpha-3: 27%;
+}
+
+:root:not([data-theme="dark"])[data-accent="violet"] {
+  --glow-alpha-1: 25%;
+  --glow-alpha-2: 26%;
+  --glow-alpha-3: 27%;
+}
+
+:root:not([data-theme="dark"])[data-accent="rose"] {
+  --glow-alpha-1: 22%;
+  --glow-alpha-2: 26%;
+  --glow-alpha-3: 25%;
+}
+
+:root:not([data-theme="dark"])[data-accent="amber"] {
+  --glow-alpha-1: 27%;
+  --glow-alpha-2: 26%;
+  --glow-alpha-3: 29%;
+}
+
+:root:not([data-theme="dark"])[data-accent="graphite"] {
+  --glow-alpha-1: 25%;
+  --glow-alpha-2: 26%;
+  --glow-alpha-3: 27%;
+}
+
+:root[data-theme="dark"][data-accent="cyan"] {
+  --glow-alpha-1: 27%;
+  --glow-alpha-2: 24%;
+  --glow-alpha-3: 28%;
+}
+
+:root[data-theme="dark"][data-accent="green"] {
+  --glow-alpha-1: 27%;
+  --glow-alpha-2: 24%;
+  --glow-alpha-3: 28%;
+}
+
+:root[data-theme="dark"][data-accent="violet"] {
+  --glow-alpha-1: 32%;
+  --glow-alpha-2: 24%;
+  --glow-alpha-3: 28%;
+}
+
+:root[data-theme="dark"][data-accent="rose"] {
+  --glow-alpha-1: 31%;
+  --glow-alpha-2: 24%;
+  --glow-alpha-3: 28%;
+}
+
+:root[data-theme="dark"][data-accent="amber"] {
+  --glow-alpha-1: 25%;
+  --glow-alpha-2: 24%;
+  --glow-alpha-3: 28%;
+}
+
+:root[data-theme="dark"][data-accent="graphite"] {
+  --glow-alpha-1: 27%;
+  --glow-alpha-2: 24%;
+  --glow-alpha-3: 28%;
 }
 
 /* 墨水屏配色 (v0.4.4): each palette sets all 11 --eink-* tokens per theme. 极光 (or no data-eink) is the

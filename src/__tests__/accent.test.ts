@@ -1,20 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { accentMeetsRules, clampAccent, resolveAccent, toOklch } from "../accent";
 import { ACCENT_PRESETS } from "../appearancePresets";
-import { contrast, glowCenters, over, parseColor, token, type Rgba, type Theme } from "./support/css";
+import { contrast, glowCenters, over, parseColor, token, type Appearance, type Rgba, type Theme } from "./support/css";
 
 // Spec §B: the clamp's rules, measured here from the stylesheet's own tokens so the module's copy of the
 // surfaces cannot drift from styles.css. The spec measures every preset "as measured in the mock README":
-// the light accent on the glass over the base and over each centre of today's --glow.
-function measured(theme: Theme, hex: string) {
+// the light accent on the glass over the base and over each centre of today's --glow. `glowOf`, when given,
+// is the appearance whose own --glow (spec §B variant B) the light accent is also measured over.
+function measured(theme: Theme, hex: string, glowOf?: Appearance) {
   const colour = (name: string) => parseColor(token(theme, name));
   const accent = parseColor(hex);
-  const mix = (p: number, b: string) => parseColor(`color-mix(in srgb, ${hex} ${p * 100}%, ${b})`);
-  // Spec §B variant B: the glow this accent builds.
-  const ownGlow =
-    theme === "light"
-      ? [{ ...accent, a: 0.45 }, { ...mix(0.4, "rgb(240,120,190)"), a: 0.26 }, { ...mix(0.65, "rgb(160,130,255)"), a: 0.3 }]
-      : [{ ...accent, a: 0.5 }, { ...mix(0.4, "rgb(236,92,170)"), a: 0.24 }, { ...mix(0.65, "rgb(150,110,255)"), a: 0.28 }];
   const base = colour("--base");
   const solid = colour("--glass-solid");
   const onGlassOver = (centres: Rgba[]) =>
@@ -22,14 +17,17 @@ function measured(theme: Theme, hex: string) {
   return {
     onSolid: contrast(accent, solid),
     onGlass: onGlassOver(glowCenters(theme)),
-    onOwnGlowGlass: onGlassOver(ownGlow),
+    onOwnGlowGlass: glowOf ? onGlassOver(glowCenters("light", glowOf)) : undefined,
     ring: contrast(parseColor("rgba(0,0,0,.5)"), accent),
     mutedOnTint: contrast(colour("--muted"), over({ ...accent, a: 0.14 }, solid)),
   };
 }
 
 function expectRules(theme: Theme, hex: string, { ownGlow = false } = {}) {
-  const m = measured(theme, hex);
+  // 跟随 Windows's glow, built from this accent (a clamped one, so the clamp keeps it as it is).
+  const glowOf: Appearance = { accent: "system", windowsAccent: { light: hex, dark: hex } };
+  if (theme === "light" && ownGlow) expect(token("light", "--accent", glowOf), `${hex} is a clamped accent`).toBe(hex);
+  const m = measured(theme, hex, theme === "light" && ownGlow ? glowOf : undefined);
   if (theme === "light") {
     expect(m.onSolid, `${hex} on glass-solid`).toBeGreaterThanOrEqual(3);
     expect(m.onGlass, `${hex} on the glass over today's glow`).toBeGreaterThanOrEqual(3);
@@ -80,12 +78,11 @@ describe("accent presets", () => {
     expect(clampAccent("dark", preset.dark)).toBe(preset.dark);
   });
 
-  // Recorded, not a rule the spec states: on the glass over the centre of the glow a light accent builds
-  // itself (variant B), the spec's 青, 绿 and the 蓝 fallback of 跟随 Windows sit just under 3:1 (2.94 to
-  // 2.97). The worst centre is blob 1, which lies above the window's top edge. Pinned so it cannot slide.
-  it("pins the light presets on the glass over their own glow", () => {
-    const own = Object.fromEntries(ACCENT_PRESETS.map((preset) => [preset.id, Number(measured("light", preset.light).onOwnGlowGlass.toFixed(2))]));
-    expect(own).toEqual({ system: 2.96, blue: 2.96, cyan: 2.94, green: 2.97, violet: 3.34, rose: 3.17, amber: 3.06, graphite: 3.83 });
+  // Spec §B: readability is unchanged over the glow each choice shows (蓝: today's; 跟随 Windows unread: the
+  // 蓝 pair on the 跟随 Windows glow), so the light accent stays at 3:1 on the glass over its own glow too.
+  it.each(ACCENT_PRESETS.map((preset) => [preset.id, preset] as const))("%s keeps 3:1 on the light glass over its own glow", (id, preset) => {
+    const own = measured("light", preset.light, { accent: id }).onOwnGlowGlass;
+    expect(own, `${id} on the glass over its own glow`).toBeGreaterThanOrEqual(3);
   });
 });
 

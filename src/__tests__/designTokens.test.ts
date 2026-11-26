@@ -185,11 +185,15 @@ describe("glass and e-ink limits", () => {
 
   // Plan「迁移表：深色选择器覆盖」: dark values live in the token block; the only theme-scoped rules
   // left are trade-off 1 (--muted on dark sub-plates) and the light icon hairline, plus that hairline's
-  // forced-colours reset. v0.4.4 adds the theme-scoped token overrides of spec §B (the accent-built glow)
-  // and §C (the four e-ink palettes besides 极光).
+  // forced-colours reset. v0.4.4 adds the theme-scoped token overrides of spec §B (the accent-built glow
+  // and its per-choice glow alphas) and §C (the four e-ink palettes besides 极光).
   const APPEARANCE_OVERRIDES = [
     ':root:not([data-theme="dark"])[data-accent]:not([data-accent="blue"])',
     ':root[data-theme="dark"][data-accent]:not([data-accent="blue"])',
+    ...["cyan", "green", "violet", "rose", "amber", "graphite"].flatMap((accent) => [
+      `:root:not([data-theme="dark"])[data-accent="${accent}"]`,
+      `:root[data-theme="dark"][data-accent="${accent}"]`,
+    ]),
     ...["graphite", "night", "warm", "forest"].flatMap((palette) => [
       `:root:not([data-theme="dark"])[data-eink="${palette}"]`,
       `:root[data-theme="dark"][data-eink="${palette}"]`,

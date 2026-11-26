@@ -280,6 +280,11 @@ export function accentGlowSelector(theme: Theme): string {
   return `${THEME_SCOPE[theme]}[data-accent]:not([data-accent="blue"])`;
 }
 
+/** The rule that holds one 主题色 choice's glow alphas (`--glow-alpha-1..3`) for one theme. */
+export function accentAlphaSelector(theme: Theme, accent: AccentId): string {
+  return `${THEME_SCOPE[theme]}[data-accent="${accent}"]`;
+}
+
 /** The rule that holds one e-ink palette's tokens for one theme. */
 export function einkSelector(theme: Theme, palette: EinkId): string {
   return `${THEME_SCOPE[theme]}[data-eink="${palette}"]`;
@@ -309,7 +314,7 @@ function customProperties(rule: CssRule): Record<string, string> {
  * Raw (unresolved) custom properties of a theme: the
  * `:root, :root[data-theme="light"]` block, and for dark that block overridden
  * by the `:root[data-theme="dark"]` block. With an appearance, the inline accent
- * variables and that theme's accent-glow and e-ink palette rules apply on top.
+ * variables and that theme's accent-glow, glow-alpha and e-ink palette rules apply on top.
  */
 export function themeTokens(theme: Theme, appearance: Appearance = {}): Record<string, string> {
   const rules = styleRules();
@@ -328,6 +333,7 @@ export function themeTokens(theme: Theme, appearance: Appearance = {}): Record<s
     tokens["--user-accent-light"] = pair.light;
     tokens["--user-accent-dark"] = pair.dark;
     apply([accentGlowSelector(theme)]);
+    apply([accentAlphaSelector(theme, accent)]);
   }
   if (eink !== undefined) apply([einkSelector(theme, eink)]);
   return tokens;
