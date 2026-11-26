@@ -1,6 +1,14 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Security vulnerability
+  - name: 💡 想法与建议
+    url: https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/ideas
+    about: 还没想清楚要什么功能，或者想先聊聊？到讨论区发帖。
+  - name: 🙋 使用求助
+    url: https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/q-a
+    about: 不知道某个数字怎么算、某个功能在哪？到讨论区提问。
+  - name: 🖼️ 晒晒你的海报
+    url: https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/show-and-tell
+    about: 分享你的日报海报、成就海报和使用心得。
+  - name: 🔒 安全漏洞
     url: https://github.com/Awes0meE/Global-Software-Timer/security
-    about: Please report suspected vulnerabilities privately instead of opening a public issue.
-
+    about: 发现安全问题请私下报告，不要公开提 Issue。

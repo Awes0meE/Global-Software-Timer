@@ -41,6 +41,8 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
   <span>&nbsp;·&nbsp;</span>
   <a href="#faq">常见问题</a>
   <span>&nbsp;·&nbsp;</span>
+  <a href="#feedback">反馈与交流</a>
+  <span>&nbsp;·&nbsp;</span>
   <a href="#development">参与开发</a>
 </h3>
 
@@ -389,6 +391,24 @@ Get-FileHash .\Global.Software.Timer_0.4.3_x64-setup.exe -Algorithm SHA256
 
 </details>
 
+<a id="feedback"></a>
+
+## 💬 反馈与交流
+
+全局软件计时器由我一个人业余开发，完全免费。每个人用电脑的方式都不一样，你的使用场景和意见，是它变得更准、更好用的最大动力。
+
+| 我想…… | 去哪里 |
+| --- | --- |
+| 报告一个问题（数字不对、闪退、某个软件没被识别） | [提一个问题 Issue](https://github.com/Awes0meE/Global-Software-Timer/issues/new?template=bug_report.yml) |
+| 提一个功能建议 | [提一个建议 Issue](https://github.com/Awes0meE/Global-Software-Timer/issues/new?template=feature_request.yml) |
+| 还没想清楚，想先聊聊 | [讨论区 · 想法](https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/ideas) |
+| 不知道某个功能怎么用 | [讨论区 · 求助](https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/q-a) |
+| 晒晒我的日报海报、成就海报 | [讨论区 · 晒图](https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/show-and-tell) |
+
+提的时候，顺手说说你主要用电脑做什么（学习、写代码、剪辑、游戏……），以及用的是台式机还是笔记本、有几块屏幕，这能帮我少走很多弯路。
+
+被采纳的建议会写进 [更新日志](./CHANGELOG.md) 并致谢。有些需求会被礼貌地拒绝：联网上传、记录窗口标题或网页内容、设目标和打卡提醒，这些和[隐私承诺](#privacy)、「只记录，不设目标」的原则冲突。
+
 <a id="roadmap"></a>
 
 ## 🗺️ 路线图
@@ -403,10 +423,17 @@ Get-FileHash .\Global.Software.Timer_0.4.3_x64-setup.exe -Algorithm SHA256
 - [x] 翻看往日：概览和后台页按日期回看
 - [x] 数据导出与备份：各页 CSV、设置导出 / 导入、整库备份
 - [x] 分享海报：日报海报、成就海报，统计每日明细表格
-- [ ] 时间轴
+- [ ] 个性化：主题色、墨水屏配色、每周起始日、默认打开页
 - [ ] 从备份恢复
+- [ ] 时间轴
+- [ ] 网站时长：只记网站域名，不记页面和标题，默认关闭
+- [ ] 有声音算活跃：看视频、上网课时不算离开
+- [ ] 只统计指定软件、手动补记离线时长
+- [ ] 软件和网站分类
 - [ ] 安装包签名与自动更新
 - [ ] macOS 版本
+
+有想要的功能不在这里？欢迎[提建议](#feedback)。
 
 > 🔐 **隐私底线**：任何涉及隐私的新能力（比如更细的检测方式），都必须写清楚会多收集什么，并且默认关闭，由你自己决定是否开启。
 
