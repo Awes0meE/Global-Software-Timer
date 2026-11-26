@@ -61,6 +61,19 @@ Commit granularity:
 - After finishing a step and running its checks/reviews, commit immediately when the user has given permission for commits in that task/session.
 - If commit permission has not been given, leave the work uncommitted and report the suggested commit message.
 
+## Branches And Worktrees
+
+Remote branches should stay few: `main`, the `badges` data branch that CI writes for the README download badge, and the branch of the version in progress.
+
+- `main` holds released code only. Release commits and docs-only changes the user approves may land on it directly.
+- A version in progress uses `feat/vX.Y.Z` (for example `feat/v0.4.5`). Never name a branch `vX.Y.Z`: it would clash with the release tag.
+- A task inside that version uses `feat/vX.Y.Z-<topic>` (for example `feat/v0.4.5-perf`). Do not use short forms such as `v044`.
+- Work outside any version uses `<type>/<topic>`, with the Conventional Commits types above (for example `fix/tracker-gap-accounting` or `docs/website-time-spec`). Do not add agent-name prefixes such as `codex/`.
+- A worktree directory is named after its branch without the type prefix: `.worktrees/v0.4.5` and `.worktrees/v0.4.5-perf`. The `main` checkout stays at `.worktrees/v01-implementation` for now because existing tools refer to it.
+- Push a branch whose work must not be lost, such as a spec draft, instead of keeping it only on this computer.
+- After a task branch is merged into its version branch, delete the branch, locally and on the remote, and remove its worktree. After a release, delete the version branch the same way.
+- Keep an abandoned branch only as an annotated `archive/<name>` tag, then delete the branch.
+
 ## Project Scope Guardrails
 
 v0.1 includes:
