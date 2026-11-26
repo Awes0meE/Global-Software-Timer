@@ -187,6 +187,16 @@ v0.4.6 additionally includes:
 - The license changes to GPL-3.0-or-later; see the License section.
 - No tracking, metric or schema change (still schema 3). The only new plugin is tauri-plugin-updater, used from Rust only.
 
+v0.4.7 additionally includes:
+
+- Fixes from the v0.4.6 hands-on acceptance: the page header (`data-tauri-drag-region`, capability `core:window:allow-start-dragging`) moves the window, and the page selects no text (`user-select: none` on `body`; fields and `.warning` stay selectable).
+- Toasts rise in and sink out (`toast-in` / `toast-out`, `TOAST_EXIT_MS`) on a raised, accent-tinted `--toast-surface`; `减少动画` cuts the motion. Every `检查更新…` ending is a `确定` dialog (`已是最新版本`, `无法连接到 GitHub`, `更新没有完成`), not a toast.
+- `成就`: a lit milestone plate opens a dialog listing every software at or past its tier; unlit plates stay inert. The heatmap shades a used day linearly from 20% ink to full ink at 12 hours of active time (`heatPercent`).
+- `概览` → `今日分布` has no total (it disagreed with `今日活跃`); each row keeps its percentage at every width.
+- The `设置` readout shows `已记录 N 天`, `本机数据` (`get_data_size`: the database plus its `-wal`, read from the app state's path) and the line `绝对隐私，数据只存本地` / `不联网、不登录、零遥测、零请求`; the version is shown only in `关于与反馈`.
+- tauri-plugin-updater 2.14.1 (drops the vulnerable `zip` 4) with Tauri 2.12.7 and `@tauri-apps/api` / `cli` 2.12.
+- No tracking, metric or schema change (still schema 3), no new plugin, no new network access.
+
 v0.1 excludes:
 
 - macOS implementation.
