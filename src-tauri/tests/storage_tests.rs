@@ -524,7 +524,7 @@ fn app_usage_summary_keeps_the_existing_install_path_across_many_sessions() {
         let db_file = NamedTempFile::new().expect("temp db");
         let store = Store::open(db_file.path()).expect("open store");
         store.migrate().expect("migrate");
-        let mut paths = vec![stale_path.clone(), current_path.clone()];
+        let mut paths = [stale_path.clone(), current_path.clone()];
         if current_first {
             paths.reverse();
         }
