@@ -89,9 +89,19 @@ export function SettingsPage({
   onOpenDataFolder,
   onPickRestore,
 }: SettingsPageProps) {
+  const warning = useRef<HTMLDivElement>(null);
+  // A failed save rolls its row back; 外观 and 数据 sit below the fold, so bring the message into view.
+  useEffect(() => {
+    if (error) warning.current?.scrollIntoView?.({ block: "nearest" });
+  }, [error]);
+
   return (
     <main className="settings-page" id="settings-content">
-      {error ? <div className="warning">{error}</div> : null}
+      {error ? (
+        <div className="warning" role="alert" ref={warning}>
+          {error}
+        </div>
+      ) : null}
 
       <section className="readout settings-readout" aria-labelledby="settings-status-title">
         <div className="lcd settings-lcd">

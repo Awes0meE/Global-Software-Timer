@@ -317,6 +317,24 @@ describe("墨水屏配色 chips (spec §A, §C)", () => {
     expect(root().dataset.eink).toBeUndefined();
   });
 
+  // 外观 sits below the fold at 1440×900: the message at the top of the page is announced and brought into view.
+  it("announces a failed save and scrolls its message into view", async () => {
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    try {
+      overrides.set_ui_preference = () => Promise.reject(new Error("locked"));
+      await openSettings();
+
+      await userEvent.click(screen.getByRole("radio", { name: "墨绿" }));
+
+      const message = await screen.findByText("墨水屏配色保存失败");
+      expect(message).toHaveAttribute("role", "alert");
+      expect(scrolled.mock.contexts).toContain(message);
+    } finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView;
+    }
+  });
+
   // The chips paint with the palette tokens themselves, per theme, so they cannot drift from §C.
   it("gives every chip its palette's paper and ink in both themes", () => {
     const rules = parseRules(styles).rules;
