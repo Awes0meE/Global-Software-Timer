@@ -500,6 +500,81 @@ fn app_usage_summary_prefers_existing_install_path_over_stale_package_path() {
     assert_eq!(rows[0].executable_path, current_path.to_string_lossy());
 }
 
+// The summary weighs each app's path once (scoring checks the disk); many
+// sessions per version, in either order, must still pick the existing install.
+#[test]
+fn app_usage_summary_keeps_the_existing_install_path_across_many_sessions() {
+    for current_first in [false, true] {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let package = |version: &str| {
+            temp_dir
+                .path()
+                .join("Program Files")
+                .join("WindowsApps")
+                .join(format!("OpenAI.Codex_{version}_x64__abc"))
+                .join("app")
+                .join("Codex.exe")
+        };
+        let stale_path = package("26.519.11010.0");
+        let current_path = package("26.527.3686.0");
+        std::fs::create_dir_all(current_path.parent().expect("current parent"))
+            .expect("current dir");
+        std::fs::write(&current_path, b"MZ").expect("current exe placeholder");
+
+        let db_file = NamedTempFile::new().expect("temp db");
+        let store = Store::open(db_file.path()).expect("open store");
+        store.migrate().expect("migrate");
+        let mut paths = vec![stale_path.clone(), current_path.clone()];
+        if current_first {
+            paths.reverse();
+        }
+        let app_ids = paths
+            .iter()
+            .map(|path| {
+                store
+                    .upsert_app("codex.exe", &path.to_string_lossy(), "Codex")
+                    .expect("codex")
+                    .id
+            })
+            .collect::<Vec<_>>();
+
+        let day_start = Utc.with_ymd_and_hms(2026, 5, 29, 0, 0, 0).unwrap();
+        for (index, app_id) in app_ids.iter().enumerate() {
+            for hour in 0..3 {
+                let started_at = Utc
+                    .with_ymd_and_hms(2026, 5, 29, 8 + (index as u32) * 3 + hour, 0, 0)
+                    .unwrap();
+                let session_id = store.start_session(*app_id, started_at).expect("start");
+                store
+                    .close_session(
+                        session_id,
+                        started_at + Duration::minutes(5),
+                        "process_closed",
+                        false,
+                    )
+                    .expect("close");
+            }
+        }
+
+        let query_at = Utc.with_ymd_and_hms(2026, 5, 29, 20, 0, 0).unwrap();
+        let rows = store
+            .app_usage_summary(day_start, query_at)
+            .expect("usage summary");
+
+        assert_eq!(rows.len(), 1, "current_first={current_first}");
+        assert_eq!(
+            rows[0].executable_path,
+            current_path.to_string_lossy(),
+            "current_first={current_first}"
+        );
+        assert_eq!(
+            rows[0].total_seconds,
+            6 * 300,
+            "current_first={current_first}"
+        );
+    }
+}
+
 #[test]
 fn app_usage_summary_merges_foreground_active_seconds_for_today() {
     let db_file = NamedTempFile::new().expect("temp db");

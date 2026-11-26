@@ -787,6 +787,32 @@ impl Store {
             .map_err(StoreError::from)
     }
 
+    /// Every app row, keyed by id, in one query (the per-id lookup costs a
+    /// statement per app, which the 5 s page polls cannot afford).
+    fn app_identities_by_id(&self) -> StoreResult<HashMap<i64, AppIdentity>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, process_name, executable_path, display_name, normalized_key, is_hidden, is_user_renamed
+             FROM apps",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(AppIdentity {
+                id: row.get(0)?,
+                process_name: row.get(1)?,
+                executable_path: row.get(2)?,
+                display_name: row.get(3)?,
+                normalized_key: row.get(4)?,
+                is_hidden: row.get::<_, i64>(5)? != 0,
+                is_user_renamed: row.get::<_, i64>(6)? != 0,
+            })
+        })?;
+        let mut apps = HashMap::new();
+        for app in rows {
+            let app = app?;
+            apps.insert(app.id, app);
+        }
+        Ok(apps)
+    }
+
     fn find_app_by_id(&self, app_id: i64) -> StoreResult<Option<AppIdentity>> {
         self.conn
             .query_row(
@@ -1283,10 +1309,8 @@ impl Store {
         #[derive(Debug)]
         struct AppSessionRow {
             app_id: i64,
-            stored_display_name: String,
             process_name: String,
             executable_path: String,
-            is_user_renamed: bool,
             started_at: String,
             ended_at: Option<String>,
             last_heartbeat_at: String,
@@ -1314,10 +1338,8 @@ impl Store {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT apps.id,
-                   apps.display_name,
                    apps.process_name,
                    apps.executable_path,
-                   apps.is_user_renamed,
                    usage_sessions.started_at,
                    usage_sessions.ended_at,
                    usage_sessions.last_heartbeat_at
@@ -1333,42 +1355,34 @@ impl Store {
         while let Some(row) = rows.next()? {
             session_rows.push(AppSessionRow {
                 app_id: row.get(0)?,
-                stored_display_name: row.get(1)?,
-                process_name: row.get(2)?,
-                executable_path: row.get(3)?,
-                is_user_renamed: row.get::<_, i64>(4)? != 0,
-                started_at: row.get(5)?,
-                ended_at: row.get(6)?,
-                last_heartbeat_at: row.get(7)?,
+                process_name: row.get(1)?,
+                executable_path: row.get(2)?,
+                started_at: row.get(3)?,
+                ended_at: row.get(4)?,
+                last_heartbeat_at: row.get(5)?,
             });
         }
         drop(rows);
         drop(stmt);
 
         let mut totals: HashMap<String, AppTotals> = HashMap::new();
-        let mut identity_keys_by_app_id: HashMap<i64, String> = HashMap::new();
+        // An app's name and identity depend only on its own row, so each is
+        // worked out once per app, not once per session.
+        let apps = self.app_identities_by_id()?;
+        let mut names_by_app_id: HashMap<i64, Option<(String, String)>> = HashMap::new();
 
         for row in session_rows {
-            let classification = classify_process(&row.process_name, &row.executable_path);
-            let display_name = match classification {
-                Classification::Hidden => continue,
-                Classification::Tracked { display_name: _ } if row.is_user_renamed => {
-                    row.stored_display_name
+            let names = match names_by_app_id.entry(row.app_id) {
+                std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    let app = apps
+                        .get(&row.app_id)
+                        .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+                    entry.insert(tracked_app_names(app))
                 }
-                Classification::Tracked {
-                    display_name: classified_display_name,
-                } => keep_original_case(classified_display_name, row.stored_display_name),
             };
-
-            let identity_key = if let Some(identity_key) = identity_keys_by_app_id.get(&row.app_id)
-            {
-                identity_key.clone()
-            } else {
-                let identity_key = self
-                    .software_identity_key_for_app(row.app_id)?
-                    .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
-                identity_keys_by_app_id.insert(row.app_id, identity_key.clone());
-                identity_key
+            let Some((display_name, identity_key)) = names.clone() else {
+                continue;
             };
             if hidden_identity_keys.contains(&identity_key) {
                 continue;
@@ -1396,19 +1410,23 @@ impl Store {
                 active_app_ids: HashSet::new(),
                 is_running: false,
             });
-            entry.app_ids.insert(row.app_id);
+            let first_row_of_app = entry.app_ids.insert(row.app_id);
             if entry.active_app_ids.insert(row.app_id) {
                 entry.active_today_seconds += active_seconds_by_app_id
                     .get(&row.app_id)
                     .copied()
                     .unwrap_or(0);
             }
-            if should_prefer_executable_path(
-                &entry.executable_path,
-                &row.executable_path,
-                &entry.display_name,
-                &row.process_name,
-            ) {
+            // The path choice depends only on the app, and scoring a path checks
+            // the disk, so each app is weighed once rather than once per session.
+            if first_row_of_app
+                && should_prefer_executable_path(
+                    &entry.executable_path,
+                    &row.executable_path,
+                    &entry.display_name,
+                    &row.process_name,
+                )
+            {
                 entry.app_id = row.app_id;
                 entry.process_name = row.process_name.clone();
                 entry.executable_path = row.executable_path.clone();
@@ -2720,6 +2738,21 @@ fn keep_original_case(classified: String, stored: String) -> String {
     } else {
         classified
     }
+}
+
+/// The summary name and identity key of a tracked app, or `None` when the
+/// classifier hides it.
+fn tracked_app_names(app: &AppIdentity) -> Option<(String, String)> {
+    if matches!(
+        classify_process(&app.process_name, &app.executable_path),
+        Classification::Hidden
+    ) {
+        return None;
+    }
+    Some((
+        display_name_for_app(app),
+        software_identity_parts_for_app(app).identity_key,
+    ))
 }
 
 fn display_name_for_app(app: &AppIdentity) -> String {

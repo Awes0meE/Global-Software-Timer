@@ -2322,6 +2322,48 @@ mod most_used_tests {
 
 #[cfg(test)]
 mod tests {
+    /// Timing probe for the 5 s page polls on a real database copy. Run with
+    /// `GST_BENCH_DB=<copy> cargo test --release bench_page_polls -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "needs GST_BENCH_DB"]
+    fn bench_page_polls() {
+        let Ok(path) = std::env::var("GST_BENCH_DB") else {
+            return;
+        };
+        let store = Store::open_read_only(&path).expect("open bench db");
+        let now = Utc::now();
+        let day = super::SummaryDay::resolve_in(None, now, &Local).expect("today");
+        let statuses = HashMap::new();
+        let time = |label: &str, run: &mut dyn FnMut()| {
+            run();
+            let rounds = 20;
+            let started = std::time::Instant::now();
+            for _ in 0..rounds {
+                run();
+            }
+            println!(
+                "{label}: {:.2} ms",
+                started.elapsed().as_secs_f64() * 1000.0 / rounds as f64
+            );
+        };
+        time("dashboard", &mut || {
+            dashboard_summary_from_store(&store, day, &statuses, Some(true)).expect("dashboard");
+        });
+        time("software page", &mut || {
+            super::software_page_summary_from_store(
+                &store,
+                local_date_start_utc(day.date),
+                now,
+                &statuses,
+            )
+            .expect("software");
+        });
+        time("background page", &mut || {
+            super::background_page_summary_from_store(&store, day, Vec::new(), 8)
+                .expect("background");
+        });
+    }
+
     use super::{
         app_settings_from_store, dashboard_summary_from_store, grown_window_size,
         local_date_start_utc, save_duration_format_preference, save_theme_preference,
