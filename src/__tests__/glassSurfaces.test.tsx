@@ -914,9 +914,7 @@ describe("achievements heatmap ink", () => {
   it.each([
     [".ach-cell.l0", "background", mix(9)],
     [".ach-cell.l0", "box-shadow", `inset 0 0 0 1px ${mix(20)}`],
-    [".ach-cell.l1", "background", mix(44)],
-    [".ach-cell.l2", "background", mix(70)],
-    [".ach-cell.l3", "background", "var(--eink-ink)"],
+    [".ach-cell.is-used", "background", "color-mix(in srgb, var(--eink-ink) var(--heat, 100%), transparent)"],
     [".ach-cell.is-future", "outline", `1px dashed ${mix(42)}`],
     [".ach-cell.is-norecord::after", "background", mix(34)],
     [".ach-cell.is-outside::after", "background", mix(18)],

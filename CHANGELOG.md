@@ -7,6 +7,7 @@
 - The small notices in the bottom right (`已复制群号`, `已保存` and the like) rise in and sink out instead of appearing and vanishing at once, and sit on a lighter surface tinted with the accent colour (red for a failure), so they stand out from the dark glass under them. `减少动画` turns the motion off.
 - `检查更新…` now ends every check in a dialog closed with `确定` instead of a small notice: `已是最新版本` (with the current version), `无法连接到 GitHub`, or `更新没有完成` when an update fails.
 - On `成就`, a lit milestone plate is a key: pointing at it brightens its edge, and clicking it opens every software that has reached that tier, most focus first, with its focus time and either the day it reached this tier or the higher tier it has reached since. `×`, `Esc` or a click outside closes it. Unlit plates stay inert.
+- The `成就` heatmap shades a used day in proportion to its active time instead of in three steps (under 1 hour, under 3 hours, 3 hours or more): the shade deepens in a straight line up to 12 hours, which gets the full ink. Unused days stay an empty frame and days still to come a dashed one. The legend reads `没用`, a light-to-full strip up to `12小时`, and `未到`.
 
 ## v0.4.6 - 2026-11-26
 

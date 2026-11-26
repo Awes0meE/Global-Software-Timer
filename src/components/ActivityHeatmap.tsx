@@ -9,22 +9,24 @@ export const HEATMAP_RANGE_LABELS: Record<HeatmapDays, string> = {
   365: "近一年",
 };
 
-/** 0 = 没用 (below the streak filter), 1 = <1 小时, 2 = <3 小时, 3 = ≥3 小时. */
-export type HeatLevel = 0 | 1 | 2 | 3;
-
-const LEVEL_1_MAX_SECONDS = 3600;
-const LEVEL_2_MAX_SECONDS = 3 * 3600;
+/** A used day's ink grows in a straight line with its active time and is full from 12 hours (v0.4.7). */
+export const HEAT_FULL_SECONDS = 12 * 3600;
+/** The faintest used day, so it never reads as 没用's empty frame. */
+export const HEAT_MIN_PERCENT = 20;
 /** Indexed by `getDay()`: Sunday first. */
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 /** Months per row before the normal-size dot matrices wrap; 近一年 switches to small cells, seven a row. */
 const MONTHS_PER_ROW = 4;
 const COMPACT_MIN_DAYS = 200;
 
-export function heatLevel(activeSeconds: number, thresholdSeconds: number): HeatLevel {
-  if (activeSeconds < thresholdSeconds) return 0;
-  if (activeSeconds < LEVEL_1_MAX_SECONDS) return 1;
-  if (activeSeconds < LEVEL_2_MAX_SECONDS) return 2;
-  return 3;
+/**
+ * The ink of a day, in percent of --eink-ink: null for 没用 (below the streak filter), otherwise from
+ * HEAT_MIN_PERCENT up to 100 at HEAT_FULL_SECONDS, in proportion to the active time.
+ */
+export function heatPercent(activeSeconds: number, thresholdSeconds: number): number | null {
+  if (activeSeconds < thresholdSeconds) return null;
+  const share = Math.min(activeSeconds / HEAT_FULL_SECONDS, 1);
+  return Math.round(HEAT_MIN_PERCENT + (100 - HEAT_MIN_PERCENT) * share);
 }
 
 type Cell =
@@ -32,7 +34,7 @@ type Cell =
   | { kind: "future" }
   | { kind: "outside"; date: string }
   | { kind: "norecord"; date: string }
-  | { kind: "day"; day: HeatmapDay; level: HeatLevel; isToday: boolean };
+  | { kind: "day"; day: HeatmapDay; heat: number | null; isToday: boolean };
 
 interface MonthBlock {
   key: string;
@@ -168,9 +170,7 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
           </div>
           <div className="ach-legend" aria-hidden="true">
             <span><i className="ach-cell l0" />没用</span>
-            <span><i className="ach-cell l1" />&lt;1小时</span>
-            <span><i className="ach-cell l2" />&lt;3小时</span>
-            <span><i className="ach-cell l3" />≥3小时</span>
+            <span><i className="ach-heat-ramp" />12小时</span>
             <span><i className="ach-cell is-future" />未到</span>
             {hasNoRecordDays ? <span><i className="ach-cell is-norecord" />无记录</span> : null}
           </div>
@@ -209,10 +209,15 @@ function HeatCell({ cell, durationFormat }: { cell: Cell; durationFormat: Durati
     return <i className="ach-cell is-norecord" aria-label={label} title={label} />;
   }
   const label = `${cell.day.date} 活跃 ${formatDurationZh(cell.day.active_seconds, durationFormat)}`;
+  const today = cell.isToday ? " is-today" : "";
+  if (cell.heat === null) {
+    return <i className={`ach-cell l0${today}`} data-heat="0" aria-label={label} title={label} />;
+  }
   return (
     <i
-      className={`ach-cell l${cell.level}${cell.isToday ? " is-today" : ""}`}
-      data-level={cell.level}
+      className={`ach-cell is-used${today}`}
+      data-heat={cell.heat}
+      style={{ "--heat": `${cell.heat}%` } as CSSProperties}
       aria-label={label}
       title={label}
     />
@@ -247,10 +252,10 @@ function buildMonths(
         cells.push({ kind: "norecord", date });
       } else if (day) {
         recorded = true;
-        const level = heatLevel(day.active_seconds, threshold);
+        const heat = heatPercent(day.active_seconds, threshold);
         if (day.active_seconds >= threshold) usedDays += 1;
         activeSeconds += day.active_seconds;
-        cells.push({ kind: "day", day, level, isToday: date === today });
+        cells.push({ kind: "day", day, heat, isToday: date === today });
       } else {
         // Every month keeps its whole calendar shape: days before the range are faint placeholders.
         cells.push(date > today ? { kind: "future" } : { kind: "outside", date });

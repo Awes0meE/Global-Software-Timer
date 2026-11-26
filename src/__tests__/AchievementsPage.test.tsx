@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AchievementsSummary, HeatmapDay } from "../api";
 import { AchievementsPage } from "../components/AchievementsPage";
-import { heatLevel } from "../components/ActivityHeatmap";
+import { heatPercent } from "../components/ActivityHeatmap";
 import { WeekStartContext, type WeekStart } from "../weekStart";
 import { allCss, parseRules } from "./support/css";
 
@@ -162,12 +162,13 @@ describe("AchievementsPage", () => {
 
     const cells = screen.getAllByLabelText(/^\d{4}-\d{2}-\d{2} 活跃/);
     expect(cells).toHaveLength(90);
-    expect(screen.getByLabelText("2026-10-01 活跃 3.0小时")).toHaveAttribute("data-level", "3");
-    expect(screen.getByLabelText("2026-11-21 活跃 2.7小时")).toHaveAttribute("data-level", "2");
-    expect(screen.getByLabelText("2026-11-21 活跃 2.7小时")).toHaveClass("is-today");
-    expect(screen.getByLabelText("2026-11-20 活跃 1.0小时")).toHaveAttribute("data-level", "2");
-    expect(screen.getByLabelText("2026-11-19 活跃 0.1小时")).toHaveAttribute("data-level", "1");
-    expect(screen.getByLabelText("2026-11-18 活跃 0.1小时")).toHaveAttribute("data-level", "0");
+    // 3 h: 20 + 80 × 3/12.
+    expect(screen.getByLabelText("2026-10-01 活跃 3.0小时")).toHaveAttribute("data-heat", "40");
+    expect(screen.getByLabelText("2026-10-01 活跃 3.0小时")).toHaveStyle({ "--heat": "40%" });
+    expect(screen.getByLabelText("2026-11-21 活跃 2.7小时")).toHaveClass("is-used", "is-today");
+    expect(screen.getByLabelText("2026-11-19 活跃 0.1小时")).toHaveClass("is-used");
+    expect(screen.getByLabelText("2026-11-18 活跃 0.1小时")).toHaveAttribute("data-heat", "0");
+    expect(screen.getByLabelText("2026-11-18 活跃 0.1小时")).toHaveClass("l0");
 
     const chart = screen.getByRole("img", { name: /活跃热力图/ });
     expect(chart).toHaveAccessibleName(/2026-08-24 至 2026-11-21/);
@@ -191,8 +192,8 @@ describe("AchievementsPage", () => {
 
     expect(screen.getByLabelText("2026-05-28 无记录")).toHaveClass("is-norecord");
     expect(screen.getByLabelText("2025-11-22 无记录")).toHaveClass("is-norecord");
-    expect(screen.getByLabelText("2026-05-29 活跃 0.2小时")).toHaveAttribute("data-level", "1");
-    expect(screen.getByLabelText("2026-05-30 活跃 0.0小时")).toHaveAttribute("data-level", "0");
+    expect(screen.getByLabelText("2026-05-29 活跃 0.2小时")).toHaveClass("is-used");
+    expect(screen.getByLabelText("2026-05-30 活跃 0.0小时")).toHaveClass("l0");
 
     const heatmap = screen.getByRole("region", { name: "活跃热力图" });
     expect(heatmap.querySelector(".ach-legend")).toHaveTextContent("未到无记录");
@@ -363,18 +364,19 @@ describe("AchievementsPage", () => {
     ]);
     // Readings only: label, value and a streak's dates; no sentence explains them on the screen.
     expect(strip.textContent).toBe(
-      "当前连续3天11-19 至今天最长连续27天08-23 至 09-18近 90 天里用过4天近 90 天活跃6.9小时没用<1小时<3小时≥3小时未到",
+      "当前连续3天11-19 至今天最长连续27天08-23 至 09-18近 90 天里用过4天近 90 天活跃6.9小时没用12小时未到",
     );
   });
 
-  it("buckets days below the filter, under 1 hour, under 3 hours and from 3 hours", () => {
-    expect(heatLevel(0, 300)).toBe(0);
-    expect(heatLevel(299, 300)).toBe(0);
-    expect(heatLevel(300, 300)).toBe(1);
-    expect(heatLevel(H - 1, 300)).toBe(1);
-    expect(heatLevel(H, 300)).toBe(2);
-    expect(heatLevel(3 * H - 1, 300)).toBe(2);
-    expect(heatLevel(3 * H, 300)).toBe(3);
+  it("inks a used day in a straight line with its active time, full from 12 hours", () => {
+    expect(heatPercent(0, 300)).toBeNull();
+    expect(heatPercent(299, 300)).toBeNull();
+    expect(heatPercent(300, 300)).toBe(21);
+    expect(heatPercent(3 * H, 300)).toBe(40);
+    expect(heatPercent(6 * H, 300)).toBe(60);
+    expect(heatPercent(9 * H, 300)).toBe(80);
+    expect(heatPercent(12 * H, 300)).toBe(100);
+    expect(heatPercent(15 * H, 300)).toBe(100);
   });
 
   it("writes streaks and totals as a record, never as a target", async () => {
@@ -391,7 +393,7 @@ describe("AchievementsPage", () => {
     expect(heatmap).not.toHaveTextContent("不算在内");
     expect(heatmap).not.toHaveTextContent("免得开机看一眼");
     const legend = heatmap.querySelector(".ach-legend") as HTMLElement;
-    expect(legend).toHaveTextContent("没用<1小时<3小时≥3小时未到");
+    expect(legend).toHaveTextContent("没用12小时未到");
     expect(within(heatmap).getByText("近 90 天里用过")).toBeInTheDocument();
     expect(within(heatmap).getByText("11月")).toBeInTheDocument();
 
