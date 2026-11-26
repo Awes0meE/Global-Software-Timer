@@ -2,6 +2,7 @@
   "name": "global-software-timer",
   "version": "0.4.5",
   "private": true,
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "dev": "vite",

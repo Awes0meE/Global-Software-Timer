@@ -181,6 +181,13 @@ v0.1 excludes:
 - Administrator-permission enhanced detection.
 - Window-title, document-name, or webpage-title collection.
 
+## License
+
+- From v0.4.6 the project is licensed GPL-3.0-or-later (`LICENSE` holds the unmodified GPL text, so GitHub detects it). v0.4.5 and earlier stay MIT.
+- The names 全局软件计时器 / Global Software Timer / GST and the clock icons are not licensed with the code; see `TRADEMARKS.md`.
+- New dependencies, fonts and assets must be GPL-3.0-compatible (MIT, BSD, Apache-2.0, OFL and similar are fine; no proprietary or non-commercial-only components).
+- Keep the copyright holder as `Global Software Timer Contributors`; do not add personal names.
+
 ## Privacy And Security
 
 - Do not add telemetry.

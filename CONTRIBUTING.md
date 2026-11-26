@@ -42,6 +42,10 @@ See [docs/DEVELOPMENT_WORKFLOW.md](./docs/DEVELOPMENT_WORKFLOW.md) for the full 
 - Keep generated build artifacts out of the pull request.
 - Do not commit secrets, local databases, logs, or personal data.
 
+## License
+
+By contributing, you agree that your contribution is licensed under GPL-3.0-or-later, the project's license from v0.4.6 (see [LICENSE](./LICENSE)). The project names and clock icons are covered by [TRADEMARKS.md](./TRADEMARKS.md), not by the code license.
+
 ## Security
 
 Please do not report security issues in public issues. See [SECURITY.md](./SECURITY.md) for the private disclosure process.

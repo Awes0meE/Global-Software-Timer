@@ -620,7 +620,11 @@ npm.cmd run release:build
 
 ## 📄 许可证
 
-本项目以 [MIT License](./LICENSE) 开源。
+Copyright (C) 2026 Global Software Timer Contributors
+
+从 v0.4.6 起，本项目以 [GNU 通用公共许可证第 3 版或更高版本（GPL-3.0-or-later）](./LICENSE) 开源。你可以自由使用、学习、修改和再分发；分发修改过的版本时，要同样以 GPL 开源，并提供完整源代码。v0.4.5 及更早的版本仍按当时的 MIT License 授权。
+
+「全局软件计时器」「Global Software Timer」「GST」这些名称和钟表图标不随代码授权，修改版要换名字、换图标，详见 [名称与图标](./TRADEMARKS.md)。
 
 <div align="center">
 
