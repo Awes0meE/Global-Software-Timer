@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AchievementsSummary, HeatmapDay } from "../api";
 import { AchievementsPage } from "../components/AchievementsPage";
 import { heatLevel } from "../components/ActivityHeatmap";
+import { WeekStartContext, type WeekStart } from "../weekStart";
 import { allCss, parseRules } from "./support/css";
 
 const invoke = vi.hoisted(() => vi.fn());
@@ -318,6 +319,31 @@ describe("AchievementsPage", () => {
       }
     });
     expect(screen.getAllByLabelText(/^\d{4}-\d{2}-\d{2} (活跃|无记录)/)).toHaveLength(days);
+  });
+
+  // v0.4.4: the header row and the leading blanks follow 每周起始日.
+  it.each<[WeekStart, string[], Record<string, number>]>([
+    [1, ["一", "二", "三", "四", "五", "六", "日"], { "2026-08": 5, "2026-09": 1, "2026-10": 3, "2026-11": 6 }],
+    [0, ["日", "一", "二", "三", "四", "五", "六"], { "2026-08": 6, "2026-09": 2, "2026-10": 4, "2026-11": 0 }],
+  ])("starts each month's week on getDay() %i", async (weekStart, header, offsets) => {
+    invoke.mockResolvedValue(summary());
+    await act(async () => {
+      render(
+        <WeekStartContext.Provider value={weekStart}>
+          <AchievementsPage />
+        </WeekStartContext.Provider>,
+      );
+    });
+
+    const months = [...document.querySelectorAll<HTMLElement>(".lcd.ach-dial .ach-month")];
+    expect(months).toHaveLength(4);
+    months.forEach((month, index) => {
+      const key = Object.keys(offsets)[index];
+      const weekdays = [...month.querySelectorAll(".ach-weekday")].map((cell) => cell.textContent);
+      expect(weekdays, key).toEqual(header);
+      const cells = [...month.querySelectorAll<HTMLElement>(".ach-month-grid > .ach-cell")];
+      expect(cells.findIndex((cell) => !cell.classList.contains("is-blank")), key).toBe(offsets[key]);
+    });
   });
 
   it("lines the four readings and the legend up in one strip under the months", async () => {
