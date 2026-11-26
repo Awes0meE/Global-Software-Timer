@@ -257,9 +257,12 @@ pub fn stage_backup(
         return Err(RestoreError::NoSpace);
     }
     let staged = data_dir.join(format!("{STAGING_PREFIX}{}.tmp", uuid::Uuid::new_v4()));
+    // The copy keeps a read-only attribute, and SQLite would open it read-only
+    // and fail the migration's first write.
     let result = std::fs::copy(source, &staged)
+        .and_then(|_| make_writable(&staged))
         .map_err(|error| io_error(&error))
-        .and_then(|_| validate_and_migrate(&staged));
+        .and_then(|()| validate_and_migrate(&staged));
     match result {
         Ok(facts) => Ok(StagedBackup {
             path: staged,
@@ -277,6 +280,16 @@ pub fn stage_backup(
             Err(error)
         }
     }
+}
+
+fn make_writable(path: &Path) -> io::Result<()> {
+    let mut permissions = std::fs::metadata(path)?.permissions();
+    if !permissions.readonly() {
+        return Ok(());
+    }
+    #[allow(clippy::permissions_set_readonly_false)] // Windows: clears only the attribute.
+    permissions.set_readonly(false);
+    std::fs::set_permissions(path, permissions)
 }
 
 fn read_up_to(file: &mut std::fs::File, buffer: &mut [u8]) -> io::Result<usize> {
@@ -981,6 +994,28 @@ mod tests {
         assert_eq!(staged.software_count, 2);
         // The picked file itself is never changed.
         assert_eq!(std::fs::read(&source).unwrap(), original);
+    }
+
+    #[test]
+    #[allow(clippy::permissions_set_readonly_false)]
+    fn a_read_only_backup_is_staged_as_a_writable_copy() {
+        let (data, picked) = folders();
+        let source = picked.path().join("GST-数据备份-2026-11-20.db");
+        gst_database(&source, "backup");
+        let set_read_only = |read_only: bool| {
+            let mut permissions = std::fs::metadata(&source).unwrap().permissions();
+            permissions.set_readonly(read_only);
+            std::fs::set_permissions(&source, permissions).unwrap();
+        };
+        set_read_only(true);
+
+        let staged = stage_backup(&source, data.path(), None);
+        set_read_only(false);
+
+        let staged = staged.unwrap();
+        assert!(!std::fs::metadata(&staged.path).unwrap().permissions().readonly());
+        assert_eq!(marker_of(&staged.path).as_deref(), Some("backup"));
+        assert_eq!(staged.software_count, 2);
     }
 
     fn rejection(prepare: impl FnOnce(&Path)) -> RestoreError {
