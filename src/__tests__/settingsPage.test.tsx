@@ -335,6 +335,21 @@ describe("墨水屏配色 chips (spec §A, §C)", () => {
     }
   });
 
+  it("dims the swatches and chips until settings load, as a toggle", () => {
+    const rules = parseRules(styles).rules.filter((rule) => rule.atRules.length === 0);
+    const look = (selector: string) => rules.find((rule) => rule.selectors.includes(selector))?.declarations;
+    expect(look(":is(.swatch, .lcd-chip):disabled")).toMatchObject({ opacity: look(".toggle:disabled")?.opacity });
+  });
+
+  // The selected-and-focused rings outrank the plain focus rule, so forced colours drops them by name too.
+  it("keeps only the Highlight outline on a focused swatch or chip in forced colours, chosen or not", () => {
+    const forced = parseRules(styles).rules.filter((rule) => rule.atRules.join(" ") === "@media (forced-colors: active)");
+    for (const selector of [":is(.swatch, .lcd-chip):focus-visible", ":is(.swatch, .lcd-chip).is-selected:focus-visible"]) {
+      const rule = forced.find((candidate) => candidate.selectors.includes(selector));
+      expect(rule?.declarations, selector).toMatchObject({ outline: "2px solid Highlight", "box-shadow": "none" });
+    }
+  });
+
   // The chips paint with the palette tokens themselves, per theme, so they cannot drift from §C.
   it("gives every chip its palette's paper and ink in both themes", () => {
     const rules = parseRules(styles).rules;
