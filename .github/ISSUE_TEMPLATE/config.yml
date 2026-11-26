@@ -9,9 +9,9 @@ contact_links:
   - name: 🖼️ 晒晒你的海报
     url: https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/show-and-tell
     about: 分享你的日报海报、成就海报和使用心得。
-  - name: 💬 QQ 交流群：937943526
-    url: https://github.com/Awes0meE/Global-Software-Timer#feedback
-    about: 没有 GitHub 账号也能反馈。在 QQ 里搜群号 937943526 加入。
+  - name: 💬 QQ 群「GST功能交流群」：937943526
+    url: https://qm.qq.com/q/gN4qB6TVGE
+    about: 没有 GitHub 账号也能反馈。点这里用 QQ 加群，或在 QQ 里搜群号 937943526。
   - name: 🔒 安全漏洞
     url: https://github.com/Awes0meE/Global-Software-Timer/security
     about: 发现安全问题请私下报告，不要公开提 Issue。
