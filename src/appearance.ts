@@ -13,7 +13,11 @@ import {
 
 export interface Appearance {
   accent: AccentChoice;
-  /** The Windows accent as read (before the clamp), or null when it cannot be read. */
+  /**
+   * The last known Windows pair, or null when it cannot be read: raw from Windows after a read, or the
+   * cached, already clamped pair after a restart. Painting clamps it either way; the clamp leaves a
+   * colour it produced unchanged.
+   */
   windowsAccent: AccentPair | null;
   eink: EinkPalette;
   motion: MotionPreference;
