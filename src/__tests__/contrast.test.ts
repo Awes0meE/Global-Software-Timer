@@ -602,28 +602,33 @@ function oklchHex(l: number, c: number, h: number): string {
   return `#${linear.map((x) => srgb(x).toString(16).padStart(2, "0")).join("")}`;
 }
 
-// Windows accents for the sweep: every 10° of hue at four chromas and four lightnesses, and the greys.
+// sRGB channel levels 0, 16, …, 240, 255: the cube's grid reaches the gamut corners an OKLCH sweep misses.
+const CUBE_LEVELS = [...Array.from({ length: 16 }, (_, step) => step * 16), 255];
+const rgbHex = (r: number, g: number, b: number) => `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+
+// Windows accents for the sweep: every 10° of hue at four chromas and four lightnesses, the greys, and the
+// 17³ sRGB grid.
 const WINDOWS_SWEEP: string[] = [
   ...Array.from({ length: 36 }, (_, step) =>
     [0.05, 0.12, 0.2, 0.3].flatMap((c) => [0.1, 0.4, 0.7, 0.95].map((l) => oklchHex(l, c, step * 10))),
   ).flat(),
   ...Array.from({ length: 11 }, (_, step) => oklchHex(step / 10, 0, 0)),
+  ...CUBE_LEVELS.flatMap((r) => CUBE_LEVELS.flatMap((g) => CUBE_LEVELS.map((b) => rgbHex(r, g, b)))),
 ];
 
 // 跟随 Windows has one set of glow alphas, so they must hold for whatever accent the clamp returns. Each
-// Windows accent is clamped once here; the clamp keeps a clamped pair as it is.
-const CLAMPED_SWEEP = [
-  ...new Map(
-    WINDOWS_SWEEP.map((hex) => resolveAccent("system", { light: hex, dark: hex })).map((pair) => [`${pair.light} ${pair.dark}`, pair]),
-  ).values(),
-];
+// Windows accent is clamped once here, the clamp keeps a clamped pair as it is, and a theme only reads its
+// own half of the pair, so each theme checks one pair per distinct clamped accent.
+const CLAMPED_PAIRS = WINDOWS_SWEEP.map((hex) => resolveAccent("system", { light: hex, dark: hex }));
+const clampedSweep = (theme: Theme) => [...new Map(CLAMPED_PAIRS.map((pair) => [pair[theme], pair])).values()];
 
 describe.each(THEMES)("跟随 Windows over its own glow in the %s theme", (theme) => {
   it(
     "passes every readability check for every clamped Windows accent",
     () => {
-      expect(new Set(CLAMPED_SWEEP.map((pair) => pair[theme])).size).toBeGreaterThan(300);
-      const failures = CLAMPED_SWEEP.flatMap((pair) =>
+      const sweep = clampedSweep(theme);
+      expect(sweep.length).toBeGreaterThan(3000);
+      const failures = sweep.flatMap((pair) =>
         ownGlowFailures(theme, { accent: "system", windowsAccent: pair }).map((failure) => `${pair[theme]}: ${failure}`),
       );
       expect(failures).toEqual([]);
@@ -763,8 +768,8 @@ const ACCENT_GLOW: Record<Theme, string[]> = {
   ],
   dark: [
     "radial-gradient(820px 600px at 10% -4%, color-mix(in srgb, var(--accent) var(--glow-alpha-1, 23%), transparent), transparent 62%)",
-    "radial-gradient(760px 640px at 96% 14%, color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(236,92,170)) var(--glow-alpha-2, 22%), transparent), transparent 60%)",
-    "radial-gradient(860px 600px at 52% 108%, color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(150,110,255)) var(--glow-alpha-3, 23%), transparent), transparent 62%)",
+    "radial-gradient(760px 640px at 96% 14%, color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(236,92,170)) var(--glow-alpha-2, 20%), transparent), transparent 60%)",
+    "radial-gradient(860px 600px at 52% 108%, color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(150,110,255)) var(--glow-alpha-3, 22%), transparent), transparent 62%)",
   ],
 };
 
@@ -772,7 +777,7 @@ const ACCENT_GLOW: Record<Theme, string[]> = {
 // spec's mock values are 45 / 26 / 30 light, 50 / 24 / 28 dark). Blob 1 is bounded by the COMBOS on B,
 // blobs 2 and 3 by B staying the lowest-contrast centre. 跟随 Windows holds for the clamp's worst case.
 const GLOW_ALPHAS: Record<Exclude<AccentId, "blue">, Record<Theme, [number, number, number]>> = {
-  system: { light: [16, 18, 17], dark: [23, 22, 23] },
+  system: { light: [16, 18, 17], dark: [23, 20, 22] },
   cyan: { light: [26, 26, 28], dark: [27, 24, 28] },
   green: { light: [25, 26, 27], dark: [27, 24, 28] },
   violet: { light: [25, 26, 27], dark: [32, 24, 28] },
