@@ -491,7 +491,7 @@ describe("page export keys (v0.4.2 C, v0.4.3 C to E)", () => {
     for (const page of ["software", "background"] as const) {
       expect(PAGE_EXPORTS[page].items.map((item) => item.format)).toEqual(["CSV"]);
     }
-    expect(PAGE_EXPORTS.achievements.label).toBe("导出成就");
+    expect(PAGE_EXPORTS.achievements.label).toBe("导出成就…");
     expect(rows("achievements")).toEqual([["成就海报", "PNG"]]);
     expect(PAGE_EXPORTS.overview.label).toBe("导出日报");
     expect(rows("overview")).toEqual([

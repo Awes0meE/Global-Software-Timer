@@ -45,7 +45,7 @@ export const PAGE_EXPORTS: Readonly<Record<ExportPageId, PageExport>> = {
     ],
   },
   achievements: {
-    label: "导出成就",
+    label: "导出成就…",
     icon: ImageDown,
     items: [{ id: "achievements-poster", title: "成就海报", format: "PNG" }],
   },

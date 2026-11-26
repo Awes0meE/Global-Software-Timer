@@ -165,7 +165,7 @@ const capturedPoster = (index = 0) => renderPosterPng.mock.calls[index][0] as HT
 async function openAchievements() {
   render(<App />);
   await userEvent.click(await screen.findByRole("button", { name: "成就" }));
-  return screen.findByRole("button", { name: "导出成就 PNG" });
+  return screen.findByRole("button", { name: "导出成就… PNG" });
 }
 
 async function openPicker() {
@@ -332,7 +332,7 @@ describe("导出成就", () => {
     expect(savedName()).toBe("GST-成就-AB C-2026-11-01.png");
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole("button", { name: "导出成就 PNG" }));
+    await userEvent.click(screen.getByRole("button", { name: "导出成就… PNG" }));
     const reopened = await screen.findByRole("dialog", { name: "成就海报" });
     await userEvent.click(within(reopened).getByRole("button", { name: "保存图片" }));
     await waitFor(() => expect(calls("save_binary_export")).toHaveLength(2));

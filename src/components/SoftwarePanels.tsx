@@ -134,7 +134,7 @@ function ManagedSoftwarePanel({
             onClick={(event) => onAdd(event.currentTarget)}
           >
             <Plus size={15} strokeWidth={2.2} aria-hidden="true" />
-            添加
+            添加…
           </button>
         </div>
       </div>

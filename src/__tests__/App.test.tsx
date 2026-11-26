@@ -443,7 +443,7 @@ describe("App", () => {
     { label: "软件", keys: ["导出软件清单 CSV"] },
     { label: "后台", keys: ["导出后台记录 CSV"] },
     { label: "统计", keys: ["导出报表"] },
-    { label: "成就", keys: ["导出成就 PNG"] },
+    { label: "成就", keys: ["导出成就… PNG"] },
     { label: "设置", keys: ["迁移与备份"] },
   ])("gives $label its export key and no 更多 or placeholder buttons", async ({ label, keys }) => {
     const invokeDefault = mockInvoke.getMockImplementation()!;
@@ -1057,6 +1057,8 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "完成特别关注" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "移出 Visual Studio Code" })).toBeInTheDocument();
 
+    // Apple HIG: a button that opens another window ends its title with an ellipsis.
+    expect(screen.getByRole("button", { name: "添加特别关注" })).toHaveTextContent(/^添加…$/);
     fireEvent.click(screen.getByRole("button", { name: "添加特别关注" }));
     expect(screen.getByRole("dialog", { name: "添加特别关注" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "移出 Visual Studio Code" })).not.toBeInTheDocument();
