@@ -735,6 +735,35 @@ fn graceful_shutdown_closes_at_heartbeat_and_prevents_new_sessions() {
 }
 
 #[test]
+fn resuming_after_a_shutdown_opens_new_sessions() {
+    let db_file = NamedTempFile::new().unwrap();
+    let store = Store::open(db_file.path()).unwrap();
+    store.migrate().unwrap();
+    let mut tracker = Tracker::new(store, FakeProcessSource::new(vec![vec![code_process()]; 3]));
+    let now = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    tracker.scan_once_at(now).unwrap();
+    tracker.shutdown().unwrap();
+    tracker.resume();
+    tracker
+        .scan_once_at(now + chrono::Duration::seconds(5))
+        .unwrap();
+    let sessions = tracker.store().all_sessions().unwrap();
+    assert_eq!(sessions.len(), 2);
+    assert_eq!(
+        sessions[0].close_reason.as_deref(),
+        Some("tracker_shutdown")
+    );
+    assert_eq!(sessions[1].ended_at, None);
+    tracker.shutdown().unwrap();
+    assert_eq!(
+        tracker.store().all_sessions().unwrap()[1]
+            .close_reason
+            .as_deref(),
+        Some("tracker_shutdown")
+    );
+}
+
+#[test]
 fn tick_failure_restores_an_existing_heartbeat_and_retries_without_partial_counters() {
     let db_file = NamedTempFile::new().unwrap();
     let store = Store::open(db_file.path()).unwrap();

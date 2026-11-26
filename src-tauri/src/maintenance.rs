@@ -1,5 +1,6 @@
-//! One-time cleanups of the database file, run at startup before the app
-//! opens its own connections.
+//! Full copies of the database made before risky steps, and one-time cleanups
+//! of the database file run at startup before the app opens its own
+//! connections.
 
 use chrono::NaiveDateTime;
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
@@ -7,13 +8,34 @@ use std::path::{Path, PathBuf};
 
 /// Copies made before a cleanup are `backups\GST-清理前-YYYY-MM-DD-HHMMSS[-N].db`.
 pub const PRE_CLEANUP_PREFIX: &str = "GST-清理前-";
-/// Only the newest pre-cleanup copy is kept: it is a full copy of the data.
-const PRE_CLEANUP_KEEP: usize = 1;
+/// Copies made before an update are
+/// `backups\GST-更新前-<version>-YYYY-MM-DD-HHMMSS[-N].db`.
+pub const PRE_UPDATE_PREFIX: &str = "GST-更新前-";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PruneReport {
     pub removed: usize,
     pub backup: PathBuf,
+}
+
+/// Saves a full copy of the database before the update to `version` is
+/// downloaded. Only the newest pre-update copy is kept; the live file is only
+/// read.
+pub fn backup_before_update(
+    db_path: &Path,
+    backups_dir: &Path,
+    version: &str,
+    now: NaiveDateTime,
+) -> Result<PathBuf, String> {
+    let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|error| error.to_string())?;
+    // The version comes from the release manifest: keep file-name-safe characters only.
+    let version = version
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+'))
+        .collect::<String>();
+    let stem = format!("{PRE_UPDATE_PREFIX}{version}-{}", timestamp(now));
+    save_newest_copy(&conn, backups_dir, PRE_UPDATE_PREFIX, &stem)
 }
 
 /// Removes the `app_heartbeat` rows of the legacy `run_events` log. Versions
@@ -36,12 +58,9 @@ pub fn prune_legacy_heartbeats(
         return Ok(None);
     }
 
-    std::fs::create_dir_all(backups_dir)
-        .map_err(|error| format!("could not create {}: {error}", backups_dir.display()))?;
-    let backup = unused_copy_path(backups_dir, &copy_stem(now));
-    conn.execute("VACUUM INTO ?1", [backup.to_string_lossy()])
+    let stem = format!("{PRE_CLEANUP_PREFIX}{}", timestamp(now));
+    let backup = save_newest_copy(&conn, backups_dir, PRE_CLEANUP_PREFIX, &stem)
         .map_err(|error| format!("could not back up before the cleanup: {error}"))?;
-    prune_older_copies(backups_dir, &backup);
 
     let removed = conn
         .execute(
@@ -75,8 +94,28 @@ fn has_legacy_heartbeats(conn: &Connection) -> rusqlite::Result<bool> {
     )
 }
 
-fn copy_stem(now: NaiveDateTime) -> String {
-    format!("{PRE_CLEANUP_PREFIX}{}", now.format("%Y-%m-%d-%H%M%S"))
+fn timestamp(now: NaiveDateTime) -> String {
+    now.format("%Y-%m-%d-%H%M%S").to_string()
+}
+
+/// Writes a full copy of the database `conn` is open on to
+/// `backups_dir\<stem>[-N].db` (`VACUUM INTO`), then deletes the other copies
+/// whose names start with `family`: only the newest copy of a family is kept,
+/// as each one holds the whole usage history. Nothing is deleted when the copy
+/// fails.
+fn save_newest_copy(
+    conn: &Connection,
+    backups_dir: &Path,
+    family: &str,
+    stem: &str,
+) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(backups_dir)
+        .map_err(|error| format!("could not create {}: {error}", backups_dir.display()))?;
+    let backup = unused_copy_path(backups_dir, stem);
+    conn.execute("VACUUM INTO ?1", [backup.to_string_lossy()])
+        .map_err(|error| error.to_string())?;
+    remove_other_copies(backups_dir, family, &backup);
+    Ok(backup)
 }
 
 fn unused_copy_path(dir: &Path, stem: &str) -> PathBuf {
@@ -90,25 +129,21 @@ fn unused_copy_path(dir: &Path, stem: &str) -> PathBuf {
         .expect("an unused name")
 }
 
-/// Keeps the newest `PRE_CLEANUP_KEEP` pre-cleanup copies, `keep` among them.
-/// The names sort by time.
-fn prune_older_copies(dir: &Path, keep: &Path) {
+/// Deletes the `.db` copies of `family` in `dir` other than `keep`.
+fn remove_other_copies(dir: &Path, family: &str, keep: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
-    let mut copies = entries
+    let others = entries
         .filter_map(Result::ok)
         .map(|entry| entry.path())
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with(PRE_CLEANUP_PREFIX) && name.ends_with(".db"))
+                .is_some_and(|name| name.starts_with(family) && name.ends_with(".db"))
         })
-        .filter(|path| path != keep)
-        .collect::<Vec<_>>();
-    copies.sort();
-    let extra = (copies.len() + 1).saturating_sub(PRE_CLEANUP_KEEP);
-    for path in copies.into_iter().take(extra) {
+        .filter(|path| path != keep);
+    for path in others {
         if let Err(error) = std::fs::remove_file(&path) {
             eprintln!("could not remove {}: {error}", path.display());
         }

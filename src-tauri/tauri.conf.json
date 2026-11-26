@@ -39,5 +39,16 @@
         "installerHooks": "./windows/installer-hooks.nsh"
       }
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc4ODFGMDI5NDVDNUQ1RkIKUldUNzFjVkZLZkNCZVArby8xZ0M5YTJjUW13RVZ2SzNmdVlSSHZpTmY2M2lwOW5UUUpid1htamwK",
+      "endpoints": [
+        "https://github.com/Awes0meE/Global-Software-Timer/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

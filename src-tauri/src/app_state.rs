@@ -38,6 +38,7 @@ pub struct AppState {
     pub summary_store: Mutex<Store>,
     pub export_session: crate::export::ExportSession,
     pub restore: crate::restore::RestoreSession,
+    pub update: crate::update::UpdateSession,
 }
 
 impl AppState {
@@ -54,6 +55,7 @@ impl AppState {
             summary_store,
             export_session: Default::default(),
             restore: Default::default(),
+            update: Default::default(),
         })
     }
 }
@@ -65,6 +67,13 @@ pub fn lock_recovering<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Closes the open sessions before the process exits.
+pub fn shutdown_tracker(tracker: &SharedTracker) {
+    if let Err(error) = lock_tracker(tracker).shutdown() {
+        eprintln!("tracker shutdown failed: {error}");
+    }
 }
 
 pub fn lock_tracker(tracker: &SharedTracker) -> MutexGuard<'_, Tracker<SysinfoProcessSource>> {

@@ -180,6 +180,13 @@ impl<S: ProcessSource> Tracker<S> {
         self.state.stopped = true;
         Ok(())
     }
+
+    /// Undoes `shutdown` when the exit it prepared for did not happen (an
+    /// update installer that could not be started): the next scan opens new
+    /// sessions for the software still running.
+    pub fn resume(&mut self) {
+        self.state.stopped = false;
+    }
 }
 
 fn discontinuity(previous: Option<DateTime<Utc>>, now: DateTime<Utc>) -> Option<&'static str> {

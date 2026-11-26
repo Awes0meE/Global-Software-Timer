@@ -19,6 +19,7 @@ pub mod storage;
 pub mod tracker;
 pub mod tray;
 pub mod tray_icons;
+pub mod update;
 #[cfg(windows)]
 pub mod window_icon;
 pub mod window_info;
@@ -65,6 +66,8 @@ pub fn run() {
             None,
         ))
         .plugin(tauri_plugin_dialog::init())
+        // Used from Rust only (update.rs), after the user agreed to go online.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .register_asynchronous_uri_scheme_protocol(
             native_icon::URI_SCHEME,
             |context, request, responder| {
@@ -193,18 +196,16 @@ pub fn run() {
             restore::pick_restore_backup,
             restore::apply_restore,
             restore::discard_restore,
-            restore::get_restore_status
+            restore::get_restore_status,
+            update::check_for_update,
+            update::install_update,
+            update::cancel_update
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Global Software Timer")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
-                let state = app.state::<AppState>();
-                let mut tracker = app_state::lock_tracker(&state.tracker);
-                if let Err(error) = tracker.shutdown() {
-                    eprintln!("tracker shutdown failed: {error}");
-                }
-                drop(tracker);
+                app_state::shutdown_tracker(&app.state::<AppState>().tracker);
                 restore::relaunch_if_requested();
             }
         });

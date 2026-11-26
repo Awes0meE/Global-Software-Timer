@@ -1,5 +1,7 @@
 use chrono::NaiveDate;
-use global_software_timer_lib::maintenance::{prune_legacy_heartbeats, PRE_CLEANUP_PREFIX};
+use global_software_timer_lib::maintenance::{
+    backup_before_update, prune_legacy_heartbeats, PRE_CLEANUP_PREFIX, PRE_UPDATE_PREFIX,
+};
 use rusqlite::Connection;
 use std::path::Path;
 
@@ -173,4 +175,84 @@ fn keeps_only_the_newest_pre_cleanup_copy() {
     assert!(!older.exists(), "the older pre-cleanup copy is removed");
     assert!(unrelated.exists(), "other backups are left alone");
     assert_eq!(copies(&backups).len(), 2);
+}
+
+#[test]
+fn backs_up_before_an_update_and_keeps_only_the_newest_pre_update_copy() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("global-software-timer.sqlite3");
+    let backups = dir.path().join("backups");
+    std::fs::create_dir_all(&backups).unwrap();
+    let older = backups.join(format!("{PRE_UPDATE_PREFIX}0.4.6-2026-11-01-080000.db"));
+    std::fs::write(&older, b"old copy").unwrap();
+    let cleanup = backups.join(format!("{PRE_CLEANUP_PREFIX}2026-11-01-080000.db"));
+    std::fs::write(&cleanup, b"pre-cleanup copy").unwrap();
+    let restore = backups.join("GST-恢复前-2026-11-01-080000.db");
+    std::fs::write(&restore, b"pre-restore copy").unwrap();
+    legacy_db(&db, 3);
+
+    let backup = backup_before_update(&db, &backups, "0.4.7", now()).unwrap();
+
+    assert_eq!(
+        backup,
+        backups.join(format!("{PRE_UPDATE_PREFIX}0.4.7-2026-11-26-133005.db"))
+    );
+    assert_eq!(kinds(&backup), kinds(&db), "a full copy");
+    assert!(!older.exists(), "the older pre-update copy is removed");
+    assert!(cleanup.exists() && restore.exists(), "other backups stay");
+    assert_eq!(copies(&backups).len(), 3);
+}
+
+#[test]
+fn a_second_update_backup_in_the_same_second_gets_its_own_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("global-software-timer.sqlite3");
+    let backups = dir.path().join("backups");
+    legacy_db(&db, 1);
+
+    let first = backup_before_update(&db, &backups, "0.4.7", now()).unwrap();
+    let second = backup_before_update(&db, &backups, "0.4.7", now()).unwrap();
+
+    // The first copy still exists while the second is written.
+    assert_eq!(
+        second,
+        backups.join(format!("{PRE_UPDATE_PREFIX}0.4.7-2026-11-26-133005-2.db"))
+    );
+    assert!(!first.exists());
+    assert_eq!(copies(&backups).len(), 1);
+}
+
+#[test]
+fn update_backup_names_keep_only_file_name_safe_version_characters() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("global-software-timer.sqlite3");
+    let backups = dir.path().join("backups");
+    legacy_db(&db, 1);
+
+    let backup = backup_before_update(&db, &backups, r"..\0.5.0-rc.1+b7", now()).unwrap();
+
+    assert_eq!(backup.parent(), Some(backups.as_path()));
+    assert_eq!(
+        backup.file_name().unwrap().to_string_lossy(),
+        format!("{PRE_UPDATE_PREFIX}..0.5.0-rc.1+b7-2026-11-26-133005.db")
+    );
+}
+
+#[test]
+fn an_update_backup_fails_without_touching_older_copies_when_it_cannot_be_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("global-software-timer.sqlite3");
+    legacy_db(&db, 1);
+    let backups = dir.path().join("backups");
+    std::fs::write(&backups, b"a file where the folder should be").unwrap();
+    assert!(backup_before_update(&db, &backups, "0.4.7", now()).is_err());
+
+    let missing = dir.path().join("missing.sqlite3");
+    let real_backups = dir.path().join("real-backups");
+    std::fs::create_dir_all(&real_backups).unwrap();
+    let older = real_backups.join(format!("{PRE_UPDATE_PREFIX}0.4.6-2026-11-01-080000.db"));
+    std::fs::write(&older, b"old copy").unwrap();
+    assert!(backup_before_update(&missing, &real_backups, "0.4.7", now()).is_err());
+    assert!(!missing.exists(), "a missing database is not created");
+    assert!(older.exists(), "nothing is pruned when the copy fails");
 }
