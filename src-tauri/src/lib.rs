@@ -7,6 +7,7 @@ pub mod commands;
 pub mod domain;
 pub mod export;
 pub mod foreground;
+pub mod local_path;
 pub mod native_icon;
 pub mod process_source;
 pub mod restore;

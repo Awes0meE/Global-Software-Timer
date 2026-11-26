@@ -218,7 +218,8 @@ impl IconStore {
 
     fn url_for(self: &Arc<Self>, executable_path: &str) -> Option<String> {
         let path = executable_path.trim();
-        if path.is_empty() {
+        // The key and the lookup touch the file, which on a network path reaches another computer.
+        if !crate::local_path::is_local_drive_path(path) {
             return None;
         }
         {
@@ -1330,6 +1331,23 @@ mod store_tests {
         assert_ne!(store.url_for(r"C:\Apps\Other.exe"), Some(url.clone()));
         assert!(url.len() < 64, "{url}");
         assert_eq!(store.url_for("  "), None);
+    }
+
+    // A restored backup can hold paths written by someone else.
+    #[test]
+    fn network_and_device_paths_get_no_icon_and_no_lookup() {
+        let store = IconStore::new(None, fake_png);
+        for path in [
+            r"\\attacker.example\share\Code.exe",
+            r"\\attacker.example@80\x.ico",
+            "//attacker.example/share/Code.exe",
+            r"\\?\UNC\attacker.example\share\Code.exe",
+            r"\\.\pipe\x",
+        ] {
+            assert_eq!(store.url_for(path), None, "{path}");
+        }
+        let registry = store.lock();
+        assert!(registry.keys_by_path.is_empty() && registry.entries.is_empty());
     }
 
     #[test]

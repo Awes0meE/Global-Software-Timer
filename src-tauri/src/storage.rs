@@ -2942,7 +2942,7 @@ fn executable_path_score(path: &str, display_name: &str, process_name: &str) -> 
         .to_lowercase();
 
     let mut score = 0;
-    if Path::new(path.trim()).exists() {
+    if crate::local_path::is_local_drive_path(path) && Path::new(path.trim()).exists() {
         score += 500;
     }
     if normalized.contains("\\windowsapps\\")
