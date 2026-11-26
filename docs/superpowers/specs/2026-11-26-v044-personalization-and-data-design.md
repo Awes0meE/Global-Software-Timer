@@ -14,7 +14,7 @@ Amended on 2026-11-26, after implementation, to record what was built where the 
 - the `RestoreStuck` startup message and the restore fixes (§H);
 - the preview's `?startpage` behaviour and its extra query options (§J).
 
-After QA, the glow alphas were re-derived on 2026-11-26 as the strongest the real readability checks allow, with 跟随 Windows computed at runtime (§B). Whether the resulting glow strength is acceptable still waits for the user's confirmation.
+After QA, the glow alphas were re-derived on 2026-11-26 as the strongest the real readability checks allow, with 跟随 Windows computed at runtime (§B). The user accepted the resulting glow strength on 2026-11-26 (「保持现在」).
 
 The previous release spec is `2026-11-25-v043-posters-and-reports-design.md` (v0.4.3, shipped).
 
@@ -143,7 +143,7 @@ The three blobs keep today's sizes, positions and fade stops.
 
   - Blob 1 still falls short of the mock for every choice. The bound is real text, not the old structural rule. In light it is `--alert-ink` on `--alert-wash` over the glass; in dark it is `--muted` on the glass. Blob 2 reaches the mock everywhere. Blob 3 reaches it in dark, and in light only for `amber`.
   - `system` runs the same search at runtime on the clamped pair. `appearance.ts` sets `--user-glow-light-1..3` and `--user-glow-dark-1..3` inline next to `--user-accent-*`. The alphas are not cached: the first frame runs the search on the cached pair too (a few ms), so a cache written by another version cannot paint alphas that no longer pass. The Windows default blue (`#0067c0` / `#4cc2ff`) gets 21 / 26 / 25% light and 27 / 24 / 28% dark.
-  - *Open:* that is not everywhere at least as strong as 蓝's own search (light `#2f7de1` 27 / 26 / 29%, dark `#5aa9ff` 30 / 24 / 28%). Light blobs 1 and 3 and dark blob 1 are lower, bound by real text (light `--alert-ink` on `--alert-wash` over the glass, dark `--muted` on the glass). Whether that is accepted is for the user.
+  - *Accepted by the user on 2026-11-26 (「保持现在」):* that is not everywhere at least as strong as 蓝's own search (light `#2f7de1` 27 / 26 / 29%, dark `#5aa9ff` 30 / 24 / 28%). Light blobs 1 and 3 and dark blob 1 are lower, bound by real text (light `--alert-ink` on `--alert-wash` over the glass, dark `--muted` on the glass). The user keeps this readable strength rather than darkening text per accent to reach the mock.
   - The glow rules fall back to 16 / 18 / 17% light and 23 / 20 / 22% dark. This set holds for every accent the clamp can return, and it is used only while no readable pair is known: a first frame without a cached pair, or a Windows accent that cannot be read. `accent.ts` still clamps against the mock alphas.
   - `blue` keeps today's `--glow` and has no alphas.
 - Readability is unchanged. The checks above must pass for every choice, in both themes, at today's thresholds.
