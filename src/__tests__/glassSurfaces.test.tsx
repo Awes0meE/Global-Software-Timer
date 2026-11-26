@@ -684,7 +684,8 @@ describe("e-ink screen", () => {
     const paint = styleRules().filter(
       (rule) => rule.atRules.length === 0 && rule.declarations.background === "var(--eink-paper)",
     );
-    expect(paint.map((rule) => rule.selectors)).toEqual([[".lcd", ".paper"]]);
+    // v0.4.4: the 设置 墨水屏配色 chips are paper samples too, each with its own palette's tokens.
+    expect(paint.map((rule) => rule.selectors)).toEqual([[".lcd", ".paper"], [".lcd-chip"]]);
     for (const property of ["display", "grid-template-columns", "gap", "min-height", "padding"]) {
       expect(paint[0].declarations[property], property).toBeUndefined();
     }
@@ -1084,9 +1085,9 @@ describe("glass layers on every page", () => {
     return Array.from(container.querySelectorAll<HTMLElement>(GLASS_LAYERS));
   }
 
-  function expectWithinLimitAndFlat(container: HTMLElement, page: string): HTMLElement[] {
+  function expectWithinLimitAndFlat(container: HTMLElement, page: string, limit = MAX_LAYERS): HTMLElement[] {
     const layers = glassLayers(container);
-    expect(layers.length, `${page}: ${layers.length} blurred layers`).toBeLessThanOrEqual(MAX_LAYERS);
+    expect(layers.length, `${page}: ${layers.length} blurred layers`).toBeLessThanOrEqual(limit);
     for (const layer of layers) {
       expect(layer.parentElement?.closest(GLASS_LAYERS) ?? null, `${page}: ${layer.className} is nested`).toBeNull();
     }
@@ -1126,7 +1127,9 @@ describe("glass layers on every page", () => {
 
     await visit("设置");
     await ready(".settings-privacy");
-    expectWithinLimitAndFlat(container, "设置");
+    // v0.4.4 §A: the sidebar, the 本机状态 readout and five groups. The page scrolls, so at 1440×900 no more
+    // than five of the seven are on screen at once; the limit is for what is on screen.
+    expect(expectWithinLimitAndFlat(container, "设置", MAX_LAYERS + 1)).toHaveLength(MAX_LAYERS + 1);
   }, 20000);
 });
 

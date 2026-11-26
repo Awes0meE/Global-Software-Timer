@@ -200,6 +200,27 @@ describe("glass and e-ink limits", () => {
     ]),
   ];
 
+  // The 设置 主题色 swatches show the theme's half of each pair, and every 墨水屏配色 chip carries its own
+  // palette's paper and ink for the theme (settingsPage.test.tsx checks those against the palettes).
+  const SETTINGS_CONTROL_OVERRIDES = [
+    ':root[data-theme="dark"] .swatch',
+    ...["aurora", "graphite", "night", "warm", "forest"].flatMap((palette) => [
+      `:root:not([data-theme="dark"]) [data-eink-chip="${palette}"]`,
+      `:root[data-theme="dark"] [data-eink-chip="${palette}"]`,
+    ]),
+  ];
+
+  it("keeps the settings control overrides to custom properties", () => {
+    const overrides = allRules().filter((rule) =>
+      rule.selectors.some((selector) => SETTINGS_CONTROL_OVERRIDES.includes(selector)),
+    );
+    expect(overrides.flatMap((rule) => rule.selectors).sort()).toEqual([...SETTINGS_CONTROL_OVERRIDES].sort());
+    for (const rule of overrides) {
+      expect(rule.atRules, rule.selector).toEqual([]);
+      expect(Object.keys(rule.declarations).filter((name) => !name.startsWith("--")), rule.selector).toEqual([]);
+    }
+  });
+
   it("has no dark-theme selector overrides outside the token block", () => {
     const themed = allRules().flatMap((rule) =>
       rule.selectors
@@ -214,6 +235,7 @@ describe("glass and e-ink limits", () => {
         ':root[data-theme="light"] .software-icon:has(img:not([hidden]))',
         '@media (forced-colors: active) :root[data-theme="light"] .software-icon:has(img:not([hidden]))',
         ...APPEARANCE_OVERRIDES,
+        ...SETTINGS_CONTROL_OVERRIDES,
       ].sort(),
     );
   });

@@ -13,13 +13,18 @@ import {
   setCloseBehaviorPreference,
   setDurationFormatPreference,
   setThemePreference,
+  setUiPreference,
+  type AppSettings,
   type CloseBehavior,
   type DashboardSummary,
   type DurationFormat,
   type MilestoneSoftware,
+  type StartPage,
   type ThemePreference,
+  type UiPreferenceKey,
+  type UiPreferences,
 } from "./api";
-import { START_PAGE_NAMES, type StartPage } from "./appearancePresets";
+import { START_PAGE_NAMES } from "./appearancePresets";
 import clockMark from "./assets/gst-clock.svg";
 import { AppUsageTable } from "./components/AppUsageTable";
 import { BackgroundPage } from "./components/BackgroundPage";
@@ -27,21 +32,25 @@ import { CloseChoiceDialog } from "./components/CloseChoiceDialog";
 import { DateControl } from "./components/DateControl";
 import { ExportKey } from "./components/ExportKey";
 import { RecentActivity } from "./components/RecentActivity";
+import { RestoreDialog } from "./components/RestoreDialog";
 import { TodayMix } from "./components/TodayMix";
 import { SettingsImportDialog } from "./components/SettingsImportDialog";
-import { SettingsPage } from "./components/SettingsPage";
+import { SettingsPage, type StartPageOption } from "./components/SettingsPage";
 import { Toast } from "./components/Toast";
 import { TodayReadout } from "./components/TodayReadout";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
 import type { StatisticsScope } from "./exports";
-import { startAccentWatch } from "./appearance";
+import { applyAppearance, readCachedAppearance, startAccentWatch } from "./appearance";
 import { startTransparencyWatch } from "./glass";
 import { pageExport, type ExportActionId } from "./pageExports";
+import { cacheStartPage, readCachedStartPage } from "./startPage";
 import { applyThemePreference, paintedTheme, readCachedThemePreference } from "./theme";
 import { useExportActions } from "./useExportActions";
 import { useMilestoneSoftware } from "./useMilestoneSoftware";
+import { useRestoreActions } from "./useRestoreActions";
 import { answersDay, isDayInvalidDate, useLocalToday } from "./viewedDay";
 import { startVisiblePolling } from "./visiblePolling";
+import { WeekStartContext, weekStartFromSetting } from "./weekStart";
 
 // Load the software search dictionary only when this route is needed.
 const loadSoftwarePage = () => import("./components/SoftwarePage");
@@ -96,6 +105,39 @@ const navItems = [
 
 const pageTitles: Record<PageId, string> = { ...START_PAGE_NAMES, settings: "设置" };
 
+// 启动时打开 offers the available pages but 设置, so 时间轴 joins by becoming available (§E).
+const startPageOptions: StartPageOption[] = navItems
+  .filter((item) => item.available && item.id !== "settings")
+  .map((item) => ({ value: item.id as StartPage, label: item.label }));
+
+const uiSaveErrors: Record<UiPreferenceKey, string> = {
+  accent: "主题色保存失败",
+  eink: "墨水屏配色保存失败",
+  week_start: "每周起始日保存失败",
+  start_page: "启动时打开保存失败",
+  reduce_motion: "减少动画保存失败",
+};
+
+const uiPreferencesOf = (settings: AppSettings): UiPreferences => ({
+  accent: settings.accent,
+  eink: settings.eink,
+  week_start: settings.week_start,
+  start_page: settings.start_page,
+  reduce_motion: settings.reduce_motion,
+});
+
+/** Before settings load: the first-frame caches, so nothing flips once they arrive. */
+function cachedUiPreferences(): UiPreferences {
+  const appearance = readCachedAppearance();
+  return {
+    accent: appearance.accent,
+    eink: appearance.eink,
+    week_start: "monday",
+    start_page: readCachedStartPage(),
+    reduce_motion: appearance.motion,
+  };
+}
+
 // 单日日期键只对按「某一天」看数据的页面有意义；软件、统计、成就有自己的时间范围，设置页不看数据。
 const pagesWithDateControl: ReadonlySet<PageId> = new Set<PageId>(["overview", "background"]);
 
@@ -105,7 +147,10 @@ const calendarRetryMaxMs = 60000;
 
 export default function App() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [activePage, setActivePage] = useState<PageId>("overview");
+  // Opens on the cached 启动时打开 page; once settings load it switches to the stored one, unless the user
+  // has already gone elsewhere (§E).
+  const [activePage, setActivePage] = useState<PageId>(readCachedStartPage);
+  const userNavigatedRef = useRef(false);
   // The day 概览 and 后台 show; null is today, so it follows midnight. Never persisted.
   const [pickedDate, setPickedDate] = useState<string | null>(null);
   // The first day the header calendar offers; null until get_calendar_summary finds a record.
@@ -133,6 +178,17 @@ export default function App() {
   const confirmedTheme = useRef(theme);
   const themeRequest = useRef(0);
   const themeWrites = useRef(Promise.resolve());
+  const [ui, setUi] = useState<UiPreferences>(cachedUiPreferences);
+  const confirmedUi = useRef(ui);
+  // Per key, so an older failed save never rolls back a newer choice.
+  const uiRequests = useRef<Record<UiPreferenceKey, number>>({
+    accent: 0,
+    eink: 0,
+    week_start: 0,
+    start_page: 0,
+    reduce_motion: 0,
+  });
+  const uiWrites = useRef(Promise.resolve());
   const dashboardMountedRef = useRef(false);
   const closePreferenceRef = useRef<CloseBehavior>(defaultCloseBehavior);
   const closeBehaviorConfiguredRef = useRef(false);
@@ -234,6 +290,10 @@ export default function App() {
           setDurationFormat(settings.duration_format);
           confirmedTheme.current = settings.theme;
           setTheme(settings.theme);
+          confirmedUi.current = uiPreferencesOf(settings);
+          setUi(confirmedUi.current);
+          // One switch at most, and never away from a page the user picked meanwhile.
+          if (!userNavigatedRef.current) setActivePage(settings.start_page);
           closePreferenceRef.current = settings.close_behavior;
           closeBehaviorConfiguredRef.current = settings.close_behavior_configured;
         }
@@ -286,8 +346,18 @@ export default function App() {
   }, []);
 
   useEffect(() => applyThemePreference(theme), [theme]);
+  // Painted and cached on load, on every save or rollback, and after an import. The Windows pair is left
+  // out, so the last one read is kept; with 跟随 Windows the watch reads it again.
+  useEffect(
+    () => applyAppearance({ accent: ui.accent, eink: ui.eink, motion: ui.reduce_motion }),
+    [ui.accent, ui.eink, ui.reduce_motion],
+  );
+  useEffect(() => cacheStartPage(ui.start_page), [ui.start_page]);
   useEffect(() => startTransparencyWatch(), []);
   useEffect(() => startAccentWatch(), []);
+  // The start page's lazy chunk starts loading at once.
+  const startPageRef = useRef(activePage);
+  useEffect(() => pageWarmers[startPageRef.current]?.(), []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -334,6 +404,7 @@ export default function App() {
       return;
     }
 
+    userNavigatedRef.current = true;
     setActivePage(item.id as PageId);
   };
 
@@ -441,6 +512,31 @@ export default function App() {
     trackSettingsWrite(themeWrites.current);
   };
 
+  // 主题色, 墨水屏配色, 每周起始日, 启动时打开, 减少动画: shown at once, saved in order, rolled back on failure.
+  // Saving 启动时打开 only caches it: the app opens there at its next start.
+  const handleUiPreferenceChange = <K extends UiPreferenceKey>(key: K, next: UiPreferences[K]) => {
+    if (!settingsLoaded || ui[key] === next) {
+      return;
+    }
+
+    const request = ++uiRequests.current[key];
+    setUi((current) => ({ ...current, [key]: next }));
+    setSettingsError(null);
+
+    uiWrites.current = uiWrites.current.then(async () => {
+      try {
+        await setUiPreference(key, next);
+        confirmedUi.current = { ...confirmedUi.current, [key]: next };
+      } catch {
+        if (request === uiRequests.current[key]) {
+          setUi((current) => ({ ...current, [key]: confirmedUi.current[key] }));
+          setSettingsError(uiSaveErrors[key]);
+        }
+      }
+    });
+    trackSettingsWrite(uiWrites.current);
+  };
+
   const handleCloseChoice = async (choice: CloseBehavior) => {
     if (closeChoiceBusy) {
       return;
@@ -480,6 +576,10 @@ export default function App() {
       themeRequest.current += 1;
       confirmedTheme.current = settings.theme;
       setTheme(settings.theme);
+      // Likewise for the display preferences; the page stays where it is.
+      for (const key of Object.keys(uiRequests.current) as UiPreferenceKey[]) uiRequests.current[key] += 1;
+      confirmedUi.current = uiPreferencesOf(settings);
+      setUi(confirmedUi.current);
       setSettingsError(null);
     } catch {
       setSettingsError("设置读取失败");
@@ -543,6 +643,7 @@ export default function App() {
     if (posterDialogOpen && !showPosterDialog) setPosterDialogOpen(false);
   }, [posterDialogOpen, showPosterDialog]);
   const { handleExport, saveAchievementPoster, showToast } = exports;
+  const restore = useRestoreActions(showToast);
   const { reload: reloadMilestones } = milestones;
 
   const handleHeaderExport = useCallback(
@@ -581,187 +682,205 @@ export default function App() {
     : liveScan.succeeded === false ? "采样失败，正在重试" : "等待首次采样";
 
   return (
-    <div className="desktop-root">
-      <a className="skip-link" href={`#${contentId}`}>
-        跳到内容
-      </a>
-      <div className="app-shell">
-        <aside className="sidebar">
-          <div className="brand">
-            <img className="brand-mark" src={clockMark} alt="" width={44} height={44} />
-            <div className="brand-copy">
-              <h1>{summary?.product_title ?? "全局软件计时器"}</h1>
-              <small>本地软件时长记录</small>
+    <WeekStartContext.Provider value={weekStartFromSetting(ui.week_start)}>
+      <div className="desktop-root">
+        <a className="skip-link" href={`#${contentId}`}>
+          跳到内容
+        </a>
+        <div className="app-shell">
+          <aside className="sidebar">
+            <div className="brand">
+              <img className="brand-mark" src={clockMark} alt="" width={44} height={44} />
+              <div className="brand-copy">
+                <h1>{summary?.product_title ?? "全局软件计时器"}</h1>
+                <small>本地软件时长记录</small>
+              </div>
             </div>
-          </div>
 
-          <nav className="side-nav" aria-label="主导航">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = item.id === activePage;
-              const warmPage = pageWarmers[item.id as PageId];
+            <nav className="side-nav" aria-label="主导航">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = item.id === activePage;
+                const warmPage = pageWarmers[item.id as PageId];
 
-              const navButton = (
-                <button
-                  className={`nav-key${isActive ? " is-active" : ""}`}
-                  type="button"
-                  aria-current={isActive ? "page" : undefined}
-                  aria-disabled={!item.available}
-                  onPointerEnter={warmPage}
-                  onFocus={warmPage}
-                  onClick={() => handleNavClick(item)}
-                >
-                  <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
-                  <span>{item.label}</span>
-                  {item.available ? null : <em aria-hidden="true">未开放</em>}
-                </button>
-              );
+                const navButton = (
+                  <button
+                    className={`nav-key${isActive ? " is-active" : ""}`}
+                    type="button"
+                    aria-current={isActive ? "page" : undefined}
+                    aria-disabled={!item.available}
+                    onPointerEnter={warmPage}
+                    onFocus={warmPage}
+                    onClick={() => handleNavClick(item)}
+                  >
+                    <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
+                    <span>{item.label}</span>
+                    {item.available ? null : <em aria-hidden="true">未开放</em>}
+                  </button>
+                );
 
-              return item.available ? (
-                <span className="nav-key-slot" key={item.label}>
-                  {navButton}
-                </span>
-              ) : (
-                <UnavailableTooltip key={item.label}>{navButton}</UnavailableTooltip>
-              );
-            })}
-          </nav>
+                return item.available ? (
+                  <span className="nav-key-slot" key={item.label}>
+                    {navButton}
+                  </span>
+                ) : (
+                  <UnavailableTooltip key={item.label}>{navButton}</UnavailableTooltip>
+                );
+              })}
+            </nav>
 
-          <div className="sidebar-footer" aria-label="数据状态">
-            <span className="live-status">
-              <i className={recording ? "lamp is-lit is-breathing" : "lamp"} aria-hidden="true" />
-              {recordingLabel}
-            </span>
-            <span>
-              <i className="lamp" aria-hidden="true" />
-              数据只保存在本机
-            </span>
-            <small className="num">V{packageJson.version}</small>
-          </div>
-        </aside>
+            <div className="sidebar-footer" aria-label="数据状态">
+              <span className="live-status">
+                <i className={recording ? "lamp is-lit is-breathing" : "lamp"} aria-hidden="true" />
+                {recordingLabel}
+              </span>
+              <span>
+                <i className="lamp" aria-hidden="true" />
+                数据只保存在本机
+              </span>
+              <small className="num">V{packageJson.version}</small>
+            </div>
+          </aside>
 
-        <div className="workspace">
-          <header className="page-header">
-            <h2>{pageTitles[activePage]}</h2>
-            {pagesWithDateControl.has(activePage) ? (
-              <DateControl
-                value={viewedDate}
-                today={today}
-                dataStartDate={dataStartDate}
-                onChange={(date) => setPickedDate(date < today ? date : null)}
-              />
-            ) : null}
-            <div className="window-actions">
-              {headerExport ? (
-                <ExportKey
-                  key={activePage}
-                  label={headerExport.label}
-                  icon={headerExport.icon}
-                  items={headerExport.items}
-                  busy={exportBusy}
-                  unavailable={exportUnavailable}
-                  onSelect={handleHeaderExport}
+          <div className="workspace">
+            <header className="page-header">
+              <h2>{pageTitles[activePage]}</h2>
+              {pagesWithDateControl.has(activePage) ? (
+                <DateControl
+                  value={viewedDate}
+                  today={today}
+                  dataStartDate={dataStartDate}
+                  onChange={(date) => setPickedDate(date < today ? date : null)}
                 />
               ) : null}
-            </div>
-          </header>
+              <div className="window-actions">
+                {headerExport ? (
+                  <ExportKey
+                    key={activePage}
+                    label={headerExport.label}
+                    icon={headerExport.icon}
+                    items={headerExport.items}
+                    busy={exportBusy}
+                    unavailable={exportUnavailable}
+                    onSelect={handleHeaderExport}
+                  />
+                ) : null}
+              </div>
+            </header>
 
-          {activePage === "settings" ? (
-            <SettingsPage
-              autostartBusy={autostartBusy}
-              autostartDisabled={!autostartLoaded || autostartBusy}
-              autostartEnabled={autostartEnabled}
-              closeBehavior={closeBehavior}
-              closeBehaviorDisabled={!settingsLoaded}
-              durationFormat={durationFormat}
-              durationFormatDisabled={!settingsLoaded || durationFormatBusy}
-              error={settingsError}
-              theme={theme}
-              themeDisabled={!settingsLoaded}
-              onAutostartToggle={handleAutostartToggle}
-              onCloseBehaviorToggle={handleCloseBehaviorToggle}
-              onDurationFormatToggle={handleDurationFormatToggle}
-              onThemeChange={handleThemeChange}
-            />
-          ) : activePage === "software" ? (
-            <Suspense fallback={<main id="software-content"><p role="status">正在读取软件列表…</p></main>}>
-              <SoftwarePage
+            {activePage === "settings" ? (
+              <SettingsPage
+                autostartBusy={autostartBusy}
+                autostartDisabled={!autostartLoaded || autostartBusy}
+                autostartEnabled={autostartEnabled}
+                closeBehavior={closeBehavior}
+                closeBehaviorDisabled={!settingsLoaded}
                 durationFormat={durationFormat}
-                onDefaultSummariesChanged={loadDashboard}
+                durationFormatDisabled={!settingsLoaded || durationFormatBusy}
+                error={settingsError}
+                theme={theme}
+                themeDisabled={!settingsLoaded}
+                ui={ui}
+                uiDisabled={!settingsLoaded}
+                startPageOptions={startPageOptions}
+                onAutostartToggle={handleAutostartToggle}
+                onCloseBehaviorToggle={handleCloseBehaviorToggle}
+                onDurationFormatToggle={handleDurationFormatToggle}
+                onThemeChange={handleThemeChange}
+                onUiPreferenceChange={handleUiPreferenceChange}
+                onOpenDataFolder={restore.openFolder}
+                onPickRestore={() => void restore.pick()}
               />
-            </Suspense>
-          ) : activePage === "background" ? (
-            <BackgroundPage
-              date={viewedDay ?? undefined}
-              durationFormat={durationFormat}
-              onInvalidDate={() => setPickedDate(null)}
-            />
-          ) : activePage === "statistics" ? (
-            <Suspense fallback={<main id="statistics-content"><p role="status">正在读取统计…</p></main>}>
-              <StatisticsPage durationFormat={durationFormat} onScopeChange={setStatisticsScope} />
-            </Suspense>
-          ) : activePage === "achievements" ? (
-            <Suspense fallback={<main id="achievements-content"><p role="status">正在读取成就…</p></main>}>
-              <AchievementsPage durationFormat={durationFormat} onIncludeHiddenChange={setAchievementsIncludeHidden} />
-            </Suspense>
-          ) : (
-            <main
-              className={`overview-page${summaryIsStale ? " is-stale" : ""}`}
-              id="overview-content"
-              aria-busy={summaryIsStale || undefined}
-            >
-              {error ? <div className="warning" role="alert">{error}</div> : null}
-              {shownSummary ? (
-                <>
-                  <TodayReadout summary={shownSummary} durationFormat={durationFormat} />
+            ) : activePage === "software" ? (
+              <Suspense fallback={<main id="software-content"><p role="status">正在读取软件列表…</p></main>}>
+                <SoftwarePage
+                  durationFormat={durationFormat}
+                  onDefaultSummariesChanged={loadDashboard}
+                />
+              </Suspense>
+            ) : activePage === "background" ? (
+              <BackgroundPage
+                date={viewedDay ?? undefined}
+                durationFormat={durationFormat}
+                onInvalidDate={() => setPickedDate(null)}
+              />
+            ) : activePage === "statistics" ? (
+              <Suspense fallback={<main id="statistics-content"><p role="status">正在读取统计…</p></main>}>
+                <StatisticsPage durationFormat={durationFormat} onScopeChange={setStatisticsScope} />
+              </Suspense>
+            ) : activePage === "achievements" ? (
+              <Suspense fallback={<main id="achievements-content"><p role="status">正在读取成就…</p></main>}>
+                <AchievementsPage durationFormat={durationFormat} onIncludeHiddenChange={setAchievementsIncludeHidden} />
+              </Suspense>
+            ) : (
+              <main
+                className={`overview-page${summaryIsStale ? " is-stale" : ""}`}
+                id="overview-content"
+                aria-busy={summaryIsStale || undefined}
+              >
+                {error ? <div className="warning" role="alert">{error}</div> : null}
+                {shownSummary ? (
+                  <>
+                    <TodayReadout summary={shownSummary} durationFormat={durationFormat} />
 
-                  <div className="overview-grid">
-                    <AppUsageTable apps={shownSummary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
-                    {/* Nothing runs on a past day: 当日分布 takes the whole rail. */}
-                    <div className={`right-rail${shownPastDay ? " is-past" : ""}`}>
-                      <TodayMix apps={shownSummary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
-                      {shownPastDay ? null : (
-                        <RecentActivity apps={shownSummary.apps} durationFormat={durationFormat} />
-                      )}
+                    <div className="overview-grid">
+                      <AppUsageTable apps={shownSummary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
+                      {/* Nothing runs on a past day: 当日分布 takes the whole rail. */}
+                      <div className={`right-rail${shownPastDay ? " is-past" : ""}`}>
+                        <TodayMix apps={shownSummary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
+                        {shownPastDay ? null : (
+                          <RecentActivity apps={shownSummary.apps} durationFormat={durationFormat} />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </>
-              ) : !error && <p role="status" className="empty-state">正在读取概览…</p>}
-            </main>
-          )}
+                  </>
+                ) : !error && <p role="status" className="empty-state">正在读取概览…</p>}
+              </main>
+            )}
+          </div>
         </div>
-      </div>
 
-      <Toast toast={exports.toast} onDismiss={exports.dismissToast} />
+        <Toast toast={exports.toast} onDismiss={exports.dismissToast} />
 
-      {showPosterDialog && milestoneSoftware ? (
-        <Suspense fallback={null}>
-          <AchievementPosterDialog
-            software={milestoneSoftware}
-            theme={paintedTheme()}
-            busy={exports.busy}
-            onSave={handleSavePoster}
-            onCancel={() => setPosterDialogOpen(false)}
+        {showPosterDialog && milestoneSoftware ? (
+          <Suspense fallback={null}>
+            <AchievementPosterDialog
+              software={milestoneSoftware}
+              theme={paintedTheme()}
+              busy={exports.busy}
+              onSave={handleSavePoster}
+              onCancel={() => setPosterDialogOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+
+        {exports.importPreview ? (
+          <SettingsImportDialog
+            preview={exports.importPreview}
+            busy={exports.importBusy}
+            onConfirm={() => void exports.confirmImport()}
+            onCancel={exports.cancelImport}
           />
-        </Suspense>
-      ) : null}
+        ) : null}
 
-      {exports.importPreview ? (
-        <SettingsImportDialog
-          preview={exports.importPreview}
-          busy={exports.importBusy}
-          onConfirm={() => void exports.confirmImport()}
-          onCancel={exports.cancelImport}
-        />
-      ) : null}
+        {restore.dialog ? (
+          <RestoreDialog
+            key={restore.dialog.kind}
+            state={restore.dialog}
+            busy={restore.applying}
+            onConfirm={() => void restore.confirm()}
+            onClose={restore.close}
+          />
+        ) : null}
 
-      {closeDialogOpen ? (
-        <CloseChoiceDialog
-          error={closeDialogError}
-          busy={closeChoiceBusy}
-          onChoose={(choice) => void handleCloseChoice(choice)}
-        />
-      ) : null}
-    </div>
+        {closeDialogOpen ? (
+          <CloseChoiceDialog
+            error={closeDialogError}
+            busy={closeChoiceBusy}
+            onChoose={(choice) => void handleCloseChoice(choice)}
+          />
+        ) : null}
+      </div>
+    </WeekStartContext.Provider>
   );
 }

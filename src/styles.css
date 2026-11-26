@@ -449,6 +449,57 @@
   --eink-grain-blend: soft-light;
 }
 
+/* The 墨水屏配色 chips in 设置: each chip carries its own palette's paper and ink for the theme shown,
+   whatever palette the root has (settingsPage.test.tsx checks them against the blocks above). */
+:root:not([data-theme="dark"]) [data-eink-chip="aurora"] {
+  --eink-paper: #fafaf7;
+  --eink-ink: #0b0b0a;
+}
+
+:root[data-theme="dark"] [data-eink-chip="aurora"] {
+  --eink-paper: linear-gradient(105deg, #1f2d40 0%, #281f40 45%, #401f40 100%);
+  --eink-ink: #f7f7f9;
+}
+
+:root:not([data-theme="dark"]) [data-eink-chip="graphite"] {
+  --eink-paper: #e3e3e1;
+  --eink-ink: #111111;
+}
+
+:root[data-theme="dark"] [data-eink-chip="graphite"] {
+  --eink-paper: linear-gradient(105deg, #22252b, #2a2c33);
+  --eink-ink: #ededf0;
+}
+
+:root:not([data-theme="dark"]) [data-eink-chip="night"] {
+  --eink-paper: #e2ebf6;
+  --eink-ink: #0b1422;
+}
+
+:root[data-theme="dark"] [data-eink-chip="night"] {
+  --eink-paper: linear-gradient(105deg, #14233a, #1a2f4d);
+  --eink-ink: #e7eef8;
+}
+
+:root:not([data-theme="dark"]) [data-eink-chip="warm"] {
+  --eink-paper: #f4eee1;
+  --eink-ink: #2a2218;
+}
+
+:root[data-theme="dark"] [data-eink-chip="warm"] {
+  --eink-paper: linear-gradient(105deg, #2a231b, #3a2c20);
+  --eink-ink: #f4ead8;
+}
+
+:root:not([data-theme="dark"]) [data-eink-chip="forest"] {
+  --eink-paper: #e1ede4;
+  --eink-ink: #0e1a14;
+}
+
+:root[data-theme="dark"] [data-eink-chip="forest"] {
+  --eink-paper: linear-gradient(105deg, #16302a, #1d3b33);
+  --eink-ink: #e8f2ec;
+}
 /* Glass switch: panels and the sidebar draw through these, never --glass / --side directly. */
 :root {
   --glass-surface: var(--glass);
@@ -2350,6 +2401,79 @@ mark {
   cursor: default;
 }
 
+/* 主题色 swatches and 墨水屏配色 chips (v0.4.4): the chosen one has a 2px --ink ring 2px out; keyboard focus
+   adds the --focus ring outside it. */
+.swatches,
+.eink-chips {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.swatch {
+  --swatch-fill: var(--swatch-light);
+  --swatch-rim: rgba(20, 30, 60, 0.16);
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--swatch-fill);
+  box-shadow: inset 0 0 0 1px var(--swatch-rim);
+}
+
+:root[data-theme="dark"] .swatch {
+  --swatch-fill: var(--swatch-dark);
+  --swatch-rim: rgba(255, 255, 255, 0.14);
+}
+
+.swatch svg {
+  display: block;
+}
+
+.lcd-chip {
+  width: 36px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: var(--eink-paper);
+  color: var(--eink-ink);
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  line-height: 22px;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px var(--edge-strong);
+}
+
+:is(.swatch, .lcd-chip).is-selected {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.swatch:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--swatch-rim), var(--focus);
+}
+
+.lcd-chip:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--edge-strong), var(--focus);
+}
+
+/* The ring sits where --focus would, so the focus ring moves outside it. */
+.swatch.is-selected:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--swatch-rim), 0 0 0 6px var(--glass-solid), 0 0 0 8px var(--accent);
+}
+
+.lcd-chip.is-selected:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--edge-strong), 0 0 0 6px var(--glass-solid), 0 0 0 8px var(--accent);
+}
+
+:is(.swatch, .lcd-chip):disabled {
+  cursor: default;
+}
+
 .settings-privacy p {
   padding: 4px 20px 14px;
   color: var(--muted);
@@ -2721,6 +2845,22 @@ mark {
   /* forced-color-adjust is inherited, so the knob needs the theme's own pair colour to stay visible. */
   .toggle.is-on .toggle-knob {
     background: HighlightText;
+  }
+
+  /* A swatch or chip is its colour, so it keeps it; the chosen one is ringed in system colours. */
+  .swatch,
+  .lcd-chip {
+    forced-color-adjust: none;
+  }
+
+  :is(.swatch, .lcd-chip).is-selected {
+    outline-color: CanvasText;
+  }
+
+  :is(.swatch, .lcd-chip):focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+    box-shadow: none;
   }
 }
 
