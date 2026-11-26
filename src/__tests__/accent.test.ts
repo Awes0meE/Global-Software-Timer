@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { accentMeetsRules, clampAccent, resolveAccent, toOklch } from "../accent";
-import { accentPresets } from "../appearancePresets";
+import { ACCENT_PRESETS } from "../appearancePresets";
 import { contrast, glowCenters, over, parseColor, token, type Rgba, type Theme } from "./support/css";
 
 // Spec §B: the clamp's rules, measured here from the stylesheet's own tokens so the module's copy of the
@@ -60,7 +60,7 @@ const WINDOWS: [name: string, light: string, dark: string][] = [
 
 describe("accent presets", () => {
   it("lists the spec's choices in swatch order with the exact hex pairs", () => {
-    expect(accentPresets.map((preset) => [preset.id, preset.name, preset.light, preset.dark])).toEqual([
+    expect(ACCENT_PRESETS.map((preset) => [preset.id, preset.name, preset.light, preset.dark])).toEqual([
       ["system", "跟随 Windows", "#2f7de1", "#5aa9ff"],
       ["blue", "蓝", "#2f7de1", "#5aa9ff"],
       ["cyan", "青", "#0e8a9e", "#3cc8dc"],
@@ -72,7 +72,7 @@ describe("accent presets", () => {
     ]);
   });
 
-  it.each(accentPresets.map((preset) => [preset.id, preset] as const))("%s passes the rules as it is", (_id, preset) => {
+  it.each(ACCENT_PRESETS.map((preset) => [preset.id, preset] as const))("%s passes the rules as it is", (_id, preset) => {
     expectRules("light", preset.light);
     expectRules("dark", preset.dark);
     expect(accentMeetsRules("light", preset.light)).toBe(true);
@@ -84,14 +84,14 @@ describe("accent presets", () => {
   // itself (variant B), the spec's 青, 绿 and the 蓝 fallback of 跟随 Windows sit just under 3:1 (2.94 to
   // 2.97). The worst centre is blob 1, which lies above the window's top edge. Pinned so it cannot slide.
   it("pins the light presets on the glass over their own glow", () => {
-    const own = Object.fromEntries(accentPresets.map((preset) => [preset.id, Number(measured("light", preset.light).onOwnGlowGlass.toFixed(2))]));
+    const own = Object.fromEntries(ACCENT_PRESETS.map((preset) => [preset.id, Number(measured("light", preset.light).onOwnGlowGlass.toFixed(2))]));
     expect(own).toEqual({ system: 2.96, blue: 2.96, cyan: 2.94, green: 2.97, violet: 3.34, rose: 3.17, amber: 3.06, graphite: 3.83 });
   });
 });
 
 describe("resolveAccent", () => {
   it("uses the preset table for every preset, whatever Windows says", () => {
-    for (const preset of accentPresets.filter((candidate) => candidate.id !== "system")) {
+    for (const preset of ACCENT_PRESETS.filter((candidate) => candidate.id !== "system")) {
       expect(resolveAccent(preset.id, { light: "#ffb900", dark: "#ffb900" })).toEqual({ light: preset.light, dark: preset.dark });
       expect(resolveAccent(preset.id, null)).toEqual({ light: preset.light, dark: preset.dark });
     }

@@ -12,7 +12,7 @@ import achievementsCss from "../../components/AchievementsPage.css?raw";
 import statisticsCss from "../../components/StatisticsPage.css?raw";
 import headerControlsCss from "../../components/HeaderControls.css?raw";
 import { resolveAccent, type AccentPair } from "../../accent";
-import type { AccentChoice, EinkPalette } from "../../appearancePresets";
+import type { AccentId, EinkId } from "../../appearancePresets";
 
 export type Theme = "light" | "dark";
 
@@ -266,10 +266,10 @@ const DARK_BLOCK = [':root[data-theme="dark"]'];
  * `applyAppearance` sets, and `data-eink`. Omitted fields mean today's look.
  */
 export interface Appearance {
-  accent?: AccentChoice;
+  accent?: AccentId;
   /** The Windows accent pair `跟随 Windows` resolves from; null when it cannot be read. */
   windowsAccent?: AccentPair | null;
-  eink?: EinkPalette;
+  eink?: EinkId;
 }
 
 // Override selectors are scoped per theme so a light value never leaks into dark (spec §C).
@@ -281,7 +281,7 @@ export function accentGlowSelector(theme: Theme): string {
 }
 
 /** The rule that holds one e-ink palette's tokens for one theme. */
-export function einkSelector(theme: Theme, palette: EinkPalette): string {
+export function einkSelector(theme: Theme, palette: EinkId): string {
   return `${THEME_SCOPE[theme]}[data-eink="${palette}"]`;
 }
 

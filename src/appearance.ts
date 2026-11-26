@@ -1,26 +1,26 @@
 // v0.4.4 主题色, 墨水屏配色 and 减少动画 on the document (spec §B, §C, §F, §I). CSS stays theme-driven: this
 // only sets data-accent / data-eink / data-motion and the inline --user-accent-* pair on <html>.
-import { getWindowsAccent } from "./api";
 import { isHexColour, resolveAccent, type AccentPair } from "./accent";
 import {
-  normalizeAccentChoice,
-  normalizeEinkPalette,
-  normalizeMotionPreference,
-  type AccentChoice,
-  type EinkPalette,
-  type MotionPreference,
-} from "./appearancePresets";
+  getWindowsAccent,
+  normalizeAccent,
+  normalizeEink,
+  normalizeReduceMotion,
+  type AccentId,
+  type EinkId,
+  type ReduceMotion,
+} from "./api";
 
 export interface Appearance {
-  accent: AccentChoice;
+  accent: AccentId;
   /**
    * The last known Windows pair, or null when it cannot be read: raw from Windows after a read, or the
    * cached, already clamped pair after a restart. Painting clamps it either way; the clamp leaves a
    * colour it produced unchanged.
    */
   windowsAccent: AccentPair | null;
-  eink: EinkPalette;
-  motion: MotionPreference;
+  eink: EinkId;
+  motion: ReduceMotion;
 }
 
 /** An appearance to apply; without `windowsAccent`, the last known Windows pair is kept. */
@@ -90,10 +90,10 @@ export function readCachedAppearance(): Appearance {
   }
   const entry = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
   return {
-    accent: normalizeAccentChoice(entry.accent),
+    accent: normalizeAccent(entry.accent),
     windowsAccent: validPair(entry.windows),
-    eink: normalizeEinkPalette(entry.eink),
-    motion: normalizeMotionPreference(entry.motion),
+    eink: normalizeEink(entry.eink),
+    motion: normalizeReduceMotion(entry.motion),
   };
 }
 

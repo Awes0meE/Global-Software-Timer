@@ -1,6 +1,6 @@
 // Spec §B 主题色: resolves a 主题色 choice to its light and dark `--accent`, and clamps a Windows accent
 // into the same contrast rules every preset meets. Pure: no DOM, no storage.
-import { accentPresets, type AccentChoice } from "./appearancePresets";
+import { ACCENT_PRESETS, type AccentId } from "./appearancePresets";
 
 export type AccentTheme = "light" | "dark";
 
@@ -192,7 +192,7 @@ export function toOklch(hex: string): { l: number; c: number; h: number } {
 
 // ---------------------------------------------------------------------------
 
-const BLUE = accentPresets.find((preset) => preset.id === "blue") as AccentPair;
+const BLUE = ACCENT_PRESETS.find((preset) => preset.id === "blue") as AccentPair;
 
 /**
  * A colour that meets the theme's rules, its own glow included: `hex` itself when it already does,
@@ -219,8 +219,8 @@ export function clampAccent(theme: AccentTheme, hex: string): string {
  * Light and dark `--accent` for a choice. Presets use the spec table as is; 跟随 Windows clamps the Windows
  * pair, or uses 蓝 when the pair is missing or malformed.
  */
-export function resolveAccent(choice: AccentChoice, windows: AccentPair | null): AccentPair {
-  const preset = accentPresets.find((candidate) => candidate.id === choice) ?? BLUE;
+export function resolveAccent(choice: AccentId, windows: AccentPair | null): AccentPair {
+  const preset = ACCENT_PRESETS.find((candidate) => candidate.id === choice) ?? BLUE;
   if (choice !== "system") return { light: preset.light, dark: preset.dark };
   if (!windows || !isHexColour(windows.light) || !isHexColour(windows.dark)) {
     return { light: BLUE.light, dark: BLUE.dark };

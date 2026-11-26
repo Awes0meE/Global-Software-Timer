@@ -21,7 +21,7 @@ import {
   type Rgba,
   type Theme,
 } from "./support/css";
-import { accentPresets, einkPalettes, type AccentChoice, type EinkPalette } from "../appearancePresets";
+import { ACCENT_PRESETS, EINK_PALETTES, type AccentId, type EinkId } from "../appearancePresets";
 
 // Worst-case surfaces (spec「对比度目标」): translucent layers are composited on
 // the blue glow centre over --base, without saturate().
@@ -504,7 +504,7 @@ const windowsCase = (label: string, light: string, dark = light): [string, Appea
 
 /** Every 主题色 choice, and 跟随 Windows with real Windows accents put through the clamp. */
 const ACCENT_CASES: [label: string, appearance: Appearance][] = [
-  ...accentPresets.map((preset): [string, Appearance] => [
+  ...ACCENT_PRESETS.map((preset): [string, Appearance] => [
     preset.id === "system" ? "system: unreadable" : preset.id,
     { accent: preset.id },
   ]),
@@ -614,7 +614,7 @@ function focusOutline(selector: string, theme: Theme, appearance: Appearance): R
   return parseColor(resolve(words[words.length - 1], themeTokens(theme, appearance)));
 }
 
-const PALETTES = einkPalettes.map((palette) => palette.id);
+const PALETTES = EINK_PALETTES.map((palette) => palette.id);
 
 describe.each(PALETTES)("the %s e-ink palette", (eink) => {
   describe.each(THEMES)("in the %s theme", (theme) => {
@@ -700,7 +700,7 @@ describe.each(PALETTES)("the %s e-ink palette", (eink) => {
 // Spec §C table「墨水屏配色」: every palette but 极光 sets all 11 tokens per theme; 极光 is today's look.
 const EINK_TOKEN_NAMES = ["paper", "paper-solid", "dial-paper", "ink", "dim", "mid", "off", "track", "ghost", "grain", "grain-blend"];
 
-const SPEC_EINK: Record<Exclude<EinkPalette, "aurora">, Record<Theme, string[]>> = {
+const SPEC_EINK: Record<Exclude<EinkId, "aurora">, Record<Theme, string[]>> = {
   graphite: {
     light: ["#e3e3e1", "#e3e3e1", "#e3e3e1", "#111111", "#434346", "#6e6e72", "rgba(17,17,17,.28)", "rgba(17,17,17,.12)", "rgba(17,17,17,.04)", ".06", "multiply"],
     dark: ["linear-gradient(105deg, #22252b, #2a2c33)", "#26282e", "#2c2f36", "#ededf0", "#b4b5bb", "#85868d", "rgba(237,237,240,.2)", "rgba(237,237,240,.14)", "rgba(237,237,240,.05)", ".4", "soft-light"],
@@ -743,7 +743,7 @@ function overrideBlock(selector: string): Record<string, string> {
 describe("appearance tokens", () => {
   it.each(Object.entries(SPEC_EINK))("sets every e-ink token of the %s palette per theme, as the spec table", (id, values) => {
     THEMES.forEach((theme) => {
-      const block = overrideBlock(einkSelector(theme, id as EinkPalette));
+      const block = overrideBlock(einkSelector(theme, id as EinkId));
       expect(Object.keys(block).sort(), `${id} ${theme}`).toEqual(EINK_TOKEN_NAMES.map((name) => `--eink-${name}`).sort());
       EINK_TOKEN_NAMES.forEach((name, index) => {
         expect(normalise(block[`--eink-${name}`]), `${id} ${theme} --eink-${name}`).toBe(normalise(values[theme][index]));
@@ -763,7 +763,7 @@ describe("appearance tokens", () => {
     expect(normalise(themeTokens("dark")["--accent"])).toBe(normalise("var(--user-accent-dark, #5aa9ff)"));
     expect(token("light", "--accent")).toBe("#2f7de1");
     expect(token("dark", "--accent")).toBe("#5aa9ff");
-    accentPresets.forEach((preset) => {
+    ACCENT_PRESETS.forEach((preset) => {
       expect(token("light", "--accent", { accent: preset.id }), preset.id).toBe(preset.light);
       expect(token("dark", "--accent", { accent: preset.id }), preset.id).toBe(preset.dark);
     });
@@ -781,7 +781,7 @@ describe("appearance tokens", () => {
       expect(built.map((layer) => layer.stops.map(normalise)), `${theme} colours`).toEqual(
         expected.map((layer) => layer.stops.map(normalise)),
       );
-      const others = accentPresets.map((preset) => preset.id).filter((id): id is AccentChoice => id !== "blue");
+      const others = ACCENT_PRESETS.map((preset) => preset.id).filter((id): id is AccentId => id !== "blue");
       for (const choice of others) {
         expect(token(theme, "--glow", { accent: choice }), `${theme} ${choice}`).not.toBe(today);
       }
