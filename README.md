@@ -18,7 +18,7 @@ Windows 托盘常驻 · 全自动记录 · 数据只存在本机
   <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/Awes0meE/Global-Software-Timer?style=for-the-badge&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&color=2f81f7&logo=github" /></a>
   <a href="https://github.com/Awes0meE/Global-Software-Timer/releases"><img alt="下载量" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FAwes0meE%2FGlobal-Software-Timer%2Fbadges%2Fdownloads.json&style=for-the-badge&cacheSeconds=3600" /></a>
   <img alt="平台：Windows 10 / 11" src="https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%2010%20%7C%2011-0078D4?style=for-the-badge&logo=windows&logoColor=white" />
-  <a href="./LICENSE"><img alt="许可证" src="https://img.shields.io/github/license/Awes0meE/Global-Software-Timer?style=for-the-badge&label=%E8%AE%B8%E5%8F%AF%E8%AF%81&color=f0b429" /></a>
+  <a href="./LICENSE"><img alt="许可证" src="https://img.shields.io/github/license/Awes0meE/Global-Software-Timer?style=for-the-badge&label=%E8%AE%B8%E5%8F%AF%E8%AF%81&color=f0b429&cacheSeconds=3600" /></a>
 </p>
 
 <p>
