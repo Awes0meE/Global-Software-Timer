@@ -64,6 +64,8 @@ interface SettingsPageProps {
   onThemeChange: (theme: ThemePreference) => void;
   onUiPreferenceChange: <K extends UiPreferenceKey>(key: K, value: UiPreferences[K]) => void;
   onOpenDataFolder: () => void;
+  /** While 选择备份… picks and checks a backup. */
+  restorePicking: boolean;
   onPickRestore: () => void;
 }
 
@@ -87,6 +89,7 @@ export function SettingsPage({
   onThemeChange,
   onUiPreferenceChange,
   onOpenDataFolder,
+  restorePicking,
   onPickRestore,
 }: SettingsPageProps) {
   const warning = useRef<HTMLDivElement>(null);
@@ -257,7 +260,12 @@ export function SettingsPage({
           title="从备份恢复"
           description="用一份完整备份替换当前数据，完成后自动重启"
         >
-          <button type="button" className="button button-secondary" onClick={onPickRestore}>
+          <button
+            type="button"
+            className="button button-secondary"
+            aria-busy={restorePicking || undefined}
+            onClick={onPickRestore}
+          >
             选择备份…
           </button>
         </SettingRow>

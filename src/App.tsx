@@ -789,6 +789,7 @@ export default function App() {
                 onThemeChange={handleThemeChange}
                 onUiPreferenceChange={handleUiPreferenceChange}
                 onOpenDataFolder={restore.openFolder}
+                restorePicking={restore.picking}
                 onPickRestore={() => void restore.pick()}
               />
             ) : activePage === "software" ? (

@@ -20,7 +20,9 @@ type ShowToast = (message: string, extra?: Omit<ToastMessage, "id" | "message">)
 export function useRestoreActions(showToast: ShowToast) {
   const [dialog, setDialog] = useState<RestoreDialogState | null>(null);
   const [applying, setApplying] = useState(false);
+  // The ref guards a second press at once; the state marks the 选择备份… key busy.
   const pickingRef = useRef(false);
+  const [picking, setPicking] = useState(false);
   const statusAskedRef = useRef(false);
 
   // The status is reported once per start, so it is asked once (a StrictMode re-run keeps the ref).
@@ -43,6 +45,7 @@ export function useRestoreActions(showToast: ShowToast) {
   const pick = useCallback(async () => {
     if (pickingRef.current) return;
     pickingRef.current = true;
+    setPicking(true);
     try {
       const preview = await pickRestoreBackup();
       if (preview) setDialog({ kind: "confirm", preview });
@@ -50,6 +53,7 @@ export function useRestoreActions(showToast: ShowToast) {
       setDialog({ kind: "error", message: restoreErrorMessage(error) });
     } finally {
       pickingRef.current = false;
+      setPicking(false);
     }
   }, []);
 
@@ -72,5 +76,5 @@ export function useRestoreActions(showToast: ShowToast) {
     }
   }, [applying, dialog]);
 
-  return { dialog, applying, openFolder, pick, close, confirm };
+  return { dialog, applying, picking, openFolder, pick, close, confirm };
 }

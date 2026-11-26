@@ -2475,6 +2475,11 @@ mark {
   cursor: default;
 }
 
+/* 选择备份… while the backup is picked and checked. */
+.settings-row .button[aria-busy="true"] {
+  cursor: progress;
+}
+
 .settings-privacy p {
   padding: 4px 20px 14px;
   color: var(--muted);

@@ -585,6 +585,23 @@ describe("数据 (spec §G, §H)", () => {
     await waitFor(() => expect(key).toHaveFocus());
   });
 
+  // Checking a large backup can take seconds: the key says it is busy, and a second press does nothing.
+  it("marks 选择备份… busy while the backup is picked and checked", async () => {
+    let finish!: (value: unknown) => void;
+    overrides.pick_restore_backup = () => new Promise((resolve) => (finish = resolve));
+    await openSettings();
+    const key = screen.getByRole("button", { name: "选择备份…" });
+    expect(key).not.toHaveAttribute("aria-busy");
+
+    await userEvent.click(key);
+    expect(key).toHaveAttribute("aria-busy", "true");
+    await userEvent.click(key);
+    expect(calls("pick_restore_backup")).toHaveLength(1);
+
+    await act(async () => finish(null));
+    expect(key).not.toHaveAttribute("aria-busy");
+  });
+
   it("discards on Escape too", async () => {
     await openSettings();
     await userEvent.click(screen.getByRole("button", { name: "选择备份…" }));
