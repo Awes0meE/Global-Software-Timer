@@ -17,34 +17,26 @@ interface Rgba {
 }
 
 // The surfaces the rules are measured on: copies of the styles.css tokens (accent.test.ts measures the
-// clamp's output against the stylesheet itself, so a drift fails there).
-const SURFACES = {
-  light: {
-    base: rgb(0xec, 0xee, 0xf3),
-    glass: rgb(255, 255, 255, 0.5),
-    solid: rgb(0xf6, 0xf7, 0xf9),
-    muted: rgb(0x5a, 0x60, 0x6c),
-    // Today's --glow centres (the 蓝 glow), where spec §B measures every preset.
-    todayGlow: [rgb(90, 160, 255, 0.34), rgb(240, 120, 190, 0.26), rgb(160, 130, 255, 0.3)],
-    // Spec §B variant B glow built from the accent: the accent share and the colour mixed in, per blob.
-    glow: [
-      { share: 1, mixWith: rgb(0, 0, 0), alpha: 0.45 },
-      { share: 0.4, mixWith: rgb(240, 120, 190), alpha: 0.26 },
-      { share: 0.65, mixWith: rgb(160, 130, 255), alpha: 0.3 },
-    ],
-  },
-  dark: {
-    base: rgb(0x17, 0x17, 0x1a),
-    glass: rgb(40, 40, 46, 0.42),
-    solid: rgb(0x1e, 0x1e, 0x22),
-    muted: rgb(0x98, 0xa0, 0xad),
-    todayGlow: [rgb(80, 150, 255, 0.3), rgb(236, 92, 170, 0.24), rgb(150, 110, 255, 0.28)],
-    glow: [
-      { share: 1, mixWith: rgb(0, 0, 0), alpha: 0.5 },
-      { share: 0.4, mixWith: rgb(236, 92, 170), alpha: 0.24 },
-      { share: 0.65, mixWith: rgb(150, 110, 255), alpha: 0.28 },
-    ],
-  },
+// clamp's output against the stylesheet itself, so a drift fails there). Only the light accent is measured
+// on the glass and the glow; the dark rules need --muted and --glass-solid alone.
+const LIGHT = {
+  base: rgb(0xec, 0xee, 0xf3),
+  glass: rgb(255, 255, 255, 0.5),
+  solid: rgb(0xf6, 0xf7, 0xf9),
+  muted: rgb(0x5a, 0x60, 0x6c),
+  // Today's --glow centres (the 蓝 glow), where spec §B measures every preset.
+  todayGlow: [rgb(90, 160, 255, 0.34), rgb(240, 120, 190, 0.26), rgb(160, 130, 255, 0.3)],
+  // Spec §B variant B glow built from the accent: the accent share and the colour mixed in, per blob.
+  glow: [
+    { share: 1, mixWith: rgb(0, 0, 0), alpha: 0.45 },
+    { share: 0.4, mixWith: rgb(240, 120, 190), alpha: 0.26 },
+    { share: 0.65, mixWith: rgb(160, 130, 255), alpha: 0.3 },
+  ],
+};
+
+const DARK = {
+  solid: rgb(0x1e, 0x1e, 0x22),
+  muted: rgb(0x98, 0xa0, 0xad),
 };
 
 const KNOB_RING = rgb(0, 0, 0, 0.5);
@@ -99,15 +91,15 @@ function contrast(fg: Rgba, bg: Rgba): number {
   return (l1 + 0.05) / (l2 + 0.05);
 }
 
-/** Centres of the glow this accent builds (spec §B variant B), as translucent colours. */
-function accentGlowCentres(theme: AccentTheme, accent: Rgba): Rgba[] {
-  return SURFACES[theme].glow.map(({ share, mixWith, alpha }) => ({ ...mix(accent, share, mixWith), a: alpha }));
+/** Centres of the light glow this accent builds (spec §B variant B), as translucent colours. */
+function accentGlowCentres(accent: Rgba): Rgba[] {
+  return LIGHT.glow.map(({ share, mixWith, alpha }) => ({ ...mix(accent, share, mixWith), a: alpha }));
 }
 
-/** Lowest contrast of the accent on the glass over the bare base and over each of `centres`. */
-function onGlass(theme: AccentTheme, accent: Rgba, centres: Rgba[]): number {
-  const s = SURFACES[theme];
-  return Math.min(...[s.base, ...centres.map((centre) => over(centre, s.base))].map((bg) => contrast(accent, over(s.glass, bg))));
+/** Lowest contrast of the accent on the light glass over the bare base and over each of `centres`. */
+function onGlass(accent: Rgba, centres: Rgba[]): number {
+  const { base, glass } = LIGHT;
+  return Math.min(...[base, ...centres.map((centre) => over(centre, base))].map((bg) => contrast(accent, over(glass, bg))));
 }
 
 /**
@@ -121,11 +113,11 @@ function onGlass(theme: AccentTheme, accent: Rgba, centres: Rgba[]): number {
  */
 export function accentMeetsRules(theme: AccentTheme, hex: string, { margin = 0, ownGlow = false } = {}): boolean {
   const accent = parseHex(hex);
-  const s = SURFACES[theme];
+  const s = theme === "light" ? LIGHT : DARK;
   const mutedOnTint = contrast(s.muted, over({ ...accent, a: 0.14 }, s.solid));
   if (theme === "light") {
-    const todays = Math.min(contrast(accent, s.solid), onGlass(theme, accent, s.todayGlow));
-    const own = ownGlow ? onGlass(theme, accent, accentGlowCentres(theme, accent)) : Infinity;
+    const todays = Math.min(contrast(accent, LIGHT.solid), onGlass(accent, LIGHT.todayGlow));
+    const own = ownGlow ? onGlass(accent, accentGlowCentres(accent)) : Infinity;
     // The selected-row tint bounds a near-black accent too; every preset clears it (contrast.test.ts).
     return Math.min(todays, own) >= GRAPHIC + margin && mutedOnTint >= TEXT + margin;
   }
