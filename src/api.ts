@@ -580,6 +580,15 @@ export async function openDataFolder(): Promise<void> {
   return invoke("open_data_folder");
 }
 
+// 关于与反馈 (v0.4.6). Rust opens only its own fixed GitHub pages in the default browser.
+
+export type FeedbackLink = "bug" | "idea" | "releases";
+
+/** Opens the problem form, the suggestion form or the releases page; rejects when the browser cannot start. */
+export async function openFeedbackLink(link: FeedbackLink): Promise<void> {
+  return invoke("open_feedback_link", { link });
+}
+
 /** Error codes `pickRestoreBackup` and `applyRestore` reject with. */
 export const RESTORE_ERRORS = {
   invalid: "restore_invalid",

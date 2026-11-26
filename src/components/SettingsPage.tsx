@@ -2,9 +2,15 @@ import { useEffect, useRef, useSyncExternalStore, type CSSProperties, type Keybo
 import {
   AArrowUp,
   ArchiveRestore,
+  Bug,
   CalendarDays,
   Clock3,
+  Copy,
+  ExternalLink,
   FolderOpen,
+  Info,
+  Lightbulb,
+  MessageCircle,
   LayoutDashboard,
   MonitorCog,
   Palette,
@@ -14,6 +20,8 @@ import {
 } from "lucide-react";
 import packageJson from "../../package.json";
 import { resolveAccent } from "../accent";
+import type { FeedbackLink } from "../api";
+import { QQ_GROUP } from "../useFeedbackActions";
 import type {
   CloseBehavior,
   DurationFormat,
@@ -74,6 +82,9 @@ interface SettingsPageProps {
   /** While 选择备份… picks and checks a backup. */
   restorePicking: boolean;
   onPickRestore: () => void;
+  /** 关于与反馈 (v0.4.6): opens a GitHub page in the default browser. */
+  onOpenFeedback: (link: FeedbackLink) => void;
+  onCopyQqGroup: () => void;
 }
 
 export function SettingsPage({
@@ -98,6 +109,8 @@ export function SettingsPage({
   onOpenDataFolder,
   restorePicking,
   onPickRestore,
+  onOpenFeedback,
+  onCopyQqGroup,
 }: SettingsPageProps) {
   const warning = useRef<HTMLDivElement>(null);
   // A failed save rolls its row back; 外观 and 数据 sit below the fold, so bring the message into view.
@@ -282,6 +295,27 @@ export function SettingsPage({
         </SettingRow>
       </section>
 
+      <section className="panel settings-group" aria-labelledby="settings-about-title">
+        <h3 id="settings-about-title">关于与反馈</h3>
+        <SettingRow icon={<Info size={18} aria-hidden="true" />} title="当前版本">
+          <span className="settings-status num">V{packageJson.version}</span>
+          <LinkKey label="更新日志" onClick={() => onOpenFeedback("releases")} />
+        </SettingRow>
+        <SettingRow icon={<Bug size={18} aria-hidden="true" />} title="报告问题">
+          <LinkKey label="打开" name="报告问题" onClick={() => onOpenFeedback("bug")} />
+        </SettingRow>
+        <SettingRow icon={<Lightbulb size={18} aria-hidden="true" />} title="提建议">
+          <LinkKey label="打开" name="提建议" onClick={() => onOpenFeedback("idea")} />
+        </SettingRow>
+        <SettingRow icon={<MessageCircle size={18} aria-hidden="true" />} title="QQ 交流群">
+          <span className="settings-status num">{QQ_GROUP}</span>
+          <button type="button" className="button button-secondary" onClick={onCopyQqGroup}>
+            复制群号
+            <Copy size={14} aria-hidden="true" />
+          </button>
+        </SettingRow>
+      </section>
+
       <section className="panel settings-group settings-privacy" aria-labelledby="settings-privacy-title">
         <h3 id="settings-privacy-title">隐私</h3>
         <p>
@@ -289,6 +323,21 @@ export function SettingsPage({
         </p>
       </section>
     </main>
+  );
+}
+
+/** A key that opens a page in the browser: its label, then the ↗ mark; `name` gives the screen reader the row. */
+function LinkKey({ label, name, onClick }: { label: string; name?: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="button button-secondary"
+      aria-label={name ? `${label}${name}（在浏览器中打开）` : `${label}（在浏览器中打开）`}
+      onClick={onClick}
+    >
+      {label}
+      <ExternalLink size={14} aria-hidden="true" />
+    </button>
   );
 }
 

@@ -6,6 +6,7 @@ pub mod classifier;
 pub mod commands;
 pub mod domain;
 pub mod export;
+pub mod feedback;
 pub mod foreground;
 pub mod local_path;
 pub mod maintenance;
@@ -188,6 +189,7 @@ pub fn run() {
             export::apply_settings_import,
             export::backup_all_data,
             restore::open_data_folder,
+            feedback::open_feedback_link,
             restore::pick_restore_backup,
             restore::apply_restore,
             restore::discard_restore,

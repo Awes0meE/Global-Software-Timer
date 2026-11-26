@@ -20,6 +20,7 @@ vi.mock("../components/TodayMix", async () => {
 });
 
 import App from "../App";
+import packageJson from "../../package.json";
 import { resolveAccent } from "../accent";
 import { paintInitialAppearance } from "../appearance";
 import { ACCENT_PRESETS, EINK_IDS, EINK_PALETTES, START_PAGE_IDS, type EinkId } from "../appearancePresets";
@@ -130,6 +131,7 @@ describe("设置 layout (spec §A)", () => {
       { title: "显示", rows: ["显示分钟数", "每周起始日", "文字大小", "减少动画"] },
       { title: "外观", rows: ["主题", "主题色", "墨水屏配色"] },
       { title: "数据", rows: ["数据文件夹", "从备份恢复"] },
+      { title: "关于与反馈", rows: ["当前版本", "报告问题", "提建议", "QQ 交流群"] },
       { title: "隐私", rows: [] },
     ]);
 
@@ -800,5 +802,58 @@ describe("restore status at start (spec §H)", () => {
     render(<App />);
     await waitFor(() => expect(calls("get_restore_status")).toHaveLength(1));
     expect(document.querySelector(".toast")).toHaveClass("is-idle");
+  });
+});
+
+// v0.4.6 关于与反馈: GitHub pages open in the browser through Rust's fixed list; the QQ number is copied.
+describe("设置 关于与反馈", () => {
+  it("opens the releases page, the problem form and the suggestion form in the browser", async () => {
+    await openSettings();
+    expect(within(rowOf("当前版本")).getByText(`V${packageJson.version}`)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "更新日志（在浏览器中打开）" }));
+    await userEvent.click(screen.getByRole("button", { name: "打开报告问题（在浏览器中打开）" }));
+    await userEvent.click(screen.getByRole("button", { name: "打开提建议（在浏览器中打开）" }));
+    expect(calls("open_feedback_link").map(([, args]) => args)).toEqual([
+      { link: "releases" },
+      { link: "bug" },
+      { link: "idea" },
+    ]);
+  });
+
+  it("says so when the browser cannot be opened", async () => {
+    overrides.open_feedback_link = async () => {
+      throw "feedback_open_failed";
+    };
+    await openSettings();
+    await userEvent.click(screen.getByRole("button", { name: "打开报告问题（在浏览器中打开）" }));
+    expect(await screen.findByText("无法打开浏览器")).toBeInTheDocument();
+  });
+
+  it("copies the QQ group number", async () => {
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    try {
+      await openSettings();
+      expect(within(rowOf("QQ 交流群")).getByText("937943526")).toBeInTheDocument();
+      fireEvent.click(within(rowOf("QQ 交流群")).getByRole("button", { name: "复制群号" }));
+      expect(writeText).toHaveBeenCalledWith("937943526");
+      expect(await screen.findByText("已复制群号")).toBeInTheDocument();
+    } finally {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
+  });
+
+  it("says so when the clipboard refuses", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn(async () => Promise.reject(new Error("denied"))) },
+    });
+    try {
+      await openSettings();
+      fireEvent.click(within(rowOf("QQ 交流群")).getByRole("button", { name: "复制群号" }));
+      expect(await screen.findByText("无法复制群号")).toBeInTheDocument();
+    } finally {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
   });
 });

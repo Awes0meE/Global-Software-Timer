@@ -1139,10 +1139,10 @@ describe("glass layers on every page", () => {
 
     await visit("设置");
     await ready(".settings-privacy");
-    // v0.4.4 §A: the sidebar, the 本机状态 readout and five groups, one over DESIGN.md's limit of six. The
-    // binding layout keeps it: at 1440×900 only five are on screen at once, but a tall window (about 1300
-    // CSS px, e.g. 1440p maximised) shows all seven. 设置 is the only page allowed this one extra layer.
-    expect(expectWithinLimitAndFlat(container, "设置", MAX_LAYERS + 1)).toHaveLength(MAX_LAYERS + 1);
+    // The sidebar, the 本机状态 readout and six groups (v0.4.4 §A's five plus v0.4.6 关于与反馈), two over
+    // DESIGN.md's limit of six. At 1440×900 only five are on screen at once; the added group sits at the
+    // bottom with 隐私, below the fold. 设置 is the only page allowed these two extra layers.
+    expect(expectWithinLimitAndFlat(container, "设置", MAX_LAYERS + 2)).toHaveLength(MAX_LAYERS + 2);
   }, 20000);
 });
 

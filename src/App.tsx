@@ -49,6 +49,7 @@ import { applyThemePreference, paintedTheme, readCachedThemePreference } from ".
 import { useExportActions } from "./useExportActions";
 import { pageShortcut, useKeyboardShortcuts } from "./useKeyboardShortcuts";
 import { useSidebarCollapse } from "./useSidebarCollapse";
+import { useFeedbackActions } from "./useFeedbackActions";
 import { useMilestoneSoftware } from "./useMilestoneSoftware";
 import { useRestoreActions } from "./useRestoreActions";
 import { answersDay, isDayInvalidDate, useLocalToday } from "./viewedDay";
@@ -671,6 +672,7 @@ export default function App() {
   }, [posterDialogOpen, showPosterDialog]);
   const { handleExport, saveAchievementPoster, showToast } = exports;
   const restore = useRestoreActions(showToast);
+  const feedback = useFeedbackActions(showToast);
   const { reload: reloadMilestones } = milestones;
 
   const handleHeaderExport = useCallback(
@@ -840,6 +842,8 @@ export default function App() {
                 onOpenDataFolder={restore.openFolder}
                 restorePicking={restore.picking}
                 onPickRestore={() => void restore.pick()}
+                onOpenFeedback={feedback.open}
+                onCopyQqGroup={feedback.copyQqGroup}
               />
             ) : activePage === "software" ? (
               <Suspense fallback={<main id="software-content"><p role="status">正在读取软件列表…</p></main>}>

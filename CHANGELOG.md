@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `设置` has a new group, `关于与反馈`, above `隐私`. `当前版本` shows the version and opens the release notes (`更新日志`). `报告问题` and `提建议` open the GitHub problem and suggestion forms. `QQ 交流群` shows 937943526 and copies it (`复制群号`). The pages open in your default browser, and GST itself still does not connect: it hands one of three fixed GitHub addresses to Windows and can open nothing else.
+
 ## v0.4.5 - 2026-11-26
 
 - The last explanatory small print is gone. The sidebar drops `本地软件时长记录` and `数据只保存在本机`; `设置` → `数据存储` still reads `仅本机`. The rows in `设置` show only their titles. Empty lists show only their one-line title, without the hint below it. The first-close dialog keeps a single line, `GST 在状态栏里运行时才会记录，退出后就不再记录。`, so you know that exiting stops the recording. The two warnings in the `从备份恢复` dialog and the privacy note at the bottom of `设置` stay.

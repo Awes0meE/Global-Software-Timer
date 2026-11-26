@@ -149,6 +149,9 @@ export function exportCommand(
       };
       return { value: result };
     }
+    case "open_feedback_link":
+      if (query("export") === "fail") throw "feedback_open_failed";
+      return { value: undefined };
     case "open_data_folder":
       if (query("export") === "fail") throw "data_folder_open_failed";
       return { value: undefined };
