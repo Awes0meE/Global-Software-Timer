@@ -34,6 +34,7 @@ export function DateControl({ value, today, dataStartDate, onChange }: DateContr
           type="button"
           className="hk hk-step"
           aria-label="前一天"
+          aria-keyshortcuts="Control+ArrowLeft"
           disabled={atStart}
           onClick={() => go(addLocalDays(value, -1))}
         >
@@ -59,6 +60,7 @@ export function DateControl({ value, today, dataStartDate, onChange }: DateContr
           type="button"
           className="hk hk-step"
           aria-label="后一天"
+          aria-keyshortcuts="Control+ArrowRight"
           disabled={isToday}
           onClick={() => go(addLocalDays(value, 1))}
         >

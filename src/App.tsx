@@ -35,6 +35,7 @@ import { AppUsageTable } from "./components/AppUsageTable";
 import { BackgroundPage } from "./components/BackgroundPage";
 import { CloseChoiceDialog } from "./components/CloseChoiceDialog";
 import { DateControl } from "./components/DateControl";
+import { addLocalDays } from "./components/DayCalendar";
 import { ExportKey } from "./components/ExportKey";
 import { RecentActivity } from "./components/RecentActivity";
 import { TodayMix } from "./components/TodayMix";
@@ -47,6 +48,7 @@ import { startTransparencyWatch } from "./glass";
 import { pageExport, type ExportActionId } from "./pageExports";
 import { applyThemePreference, paintedTheme, readCachedThemePreference } from "./theme";
 import { useExportActions } from "./useExportActions";
+import { pageShortcut, useKeyboardShortcuts } from "./useKeyboardShortcuts";
 import { useMilestoneSoftware } from "./useMilestoneSoftware";
 import { answersDay, isDayInvalidDate, useLocalToday } from "./viewedDay";
 import { startVisiblePolling } from "./visiblePolling";
@@ -356,6 +358,25 @@ export default function App() {
     setActivePage(item.id as PageId);
   };
 
+  // Ctrl+1…6 follow the sidebar's available pages, Ctrl+, opens 设置, and Ctrl+← / → step the day where the
+  // date key shows, stopping at the same ends as its ‹ › keys.
+  const shortcutPages = navItems.filter((item) => item.available).map((item) => item.id as PageId);
+  useKeyboardShortcuts((action) => {
+    if (action.kind === "page" || action.kind === "settings") {
+      const page = action.kind === "settings" ? "settings" : shortcutPages[action.index];
+      if (!page) return false;
+      setActivePage(page);
+      return true;
+    }
+    if (!pagesWithDateControl.has(activePage)) return false;
+    const atEnd = action.delta < 0 ? dataStartDate === null || viewedDate <= dataStartDate : viewedDate >= today;
+    if (!atEnd) {
+      const date = addLocalDays(viewedDate, action.delta);
+      setPickedDate(date < today ? date : null);
+    }
+    return true;
+  });
+
   const handleAutostartToggle = () => {
     if (autostartBusy || !autostartLoaded) {
       return;
@@ -626,6 +647,11 @@ export default function App() {
                   type="button"
                   aria-current={isActive ? "page" : undefined}
                   aria-disabled={!item.available}
+                  aria-keyshortcuts={
+                    item.available
+                      ? pageShortcut(shortcutPages.indexOf(item.id as PageId), item.id === "settings")
+                      : undefined
+                  }
                   onPointerEnter={warmPage}
                   onFocus={warmPage}
                   onClick={() => handleNavClick(item)}

@@ -2139,6 +2139,28 @@ describe("App date browsing", () => {
     cleanup();
   });
 
+  it("steps the day with Ctrl+← / Ctrl+→ and switches pages with Ctrl+digits", async () => {
+    render(<App />);
+    expect(await screen.findByRole("complementary", { name: "正在运行" })).toBeInTheDocument();
+    const today = localDate(new Date());
+    const yesterday = shiftDays(today, -1);
+    await waitFor(() => expect(screen.getByRole("button", { name: "前一天" })).toBeEnabled());
+    expect(screen.getByRole("button", { name: "前一天" })).toHaveAttribute("aria-keyshortcuts", "Control+ArrowLeft");
+    expect(screen.getByRole("button", { name: "概览" })).toHaveAttribute("aria-keyshortcuts", "Control+1");
+    expect(screen.getByRole("button", { name: "设置" })).toHaveAttribute("aria-keyshortcuts", "Control+6 Control+,");
+
+    fireEvent.keyDown(document.body, { key: "ArrowLeft", ctrlKey: true });
+    await waitFor(() => expect(dateKey()).toHaveTextContent(yesterday));
+    fireEvent.keyDown(document.body, { key: "ArrowRight", ctrlKey: true });
+    await waitFor(() => expect(dateKey()).toHaveTextContent(today));
+    // Today is the last day: another Ctrl+→ stays put.
+    fireEvent.keyDown(document.body, { key: "ArrowRight", ctrlKey: true });
+    expect(dateKey()).toHaveTextContent(today);
+
+    fireEvent.keyDown(document.body, { key: "3", ctrlKey: true });
+    expect(screen.getByRole("button", { name: "后台" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("shows a past day in 当日 wording, with 当日分布 filling the rail", async () => {
     const { container } = render(<App />);
     expect(await screen.findByRole("complementary", { name: "正在运行" })).toBeInTheDocument();
