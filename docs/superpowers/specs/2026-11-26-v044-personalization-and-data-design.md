@@ -1,6 +1,6 @@
 # v0.4.4 Personalisation and Data Tools Design
 
-Status: binding. The user approved the product decisions below on 2026-11-26, for version v0.4.4, after one round of rendered mockups:
+Status: binding. Shipped in v0.4.4 (2026-11-26). The user approved the product decisions below on 2026-11-26, for version v0.4.4, after one round of rendered mockups:
 
 - 主题色 variant **B**: the accent also tints the background glow.
 - All 8 accent swatches and all 5 e-ink palettes ship.

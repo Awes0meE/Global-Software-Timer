@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.4 - 2026-11-26
 
 - `设置` has two new groups. `外观` holds `主题`, `主题色` and `墨水屏配色`, and `数据` holds `数据文件夹` and `从备份恢复`. `运行` gains `启动时打开`, and `显示` gains `每周起始日` and `减少动画`. The other rows keep their text and behaviour.
 - `主题色` offers eight choices: 跟随 Windows, 蓝, 青, 绿, 紫, 玫红, 琥珀 and 石墨.
