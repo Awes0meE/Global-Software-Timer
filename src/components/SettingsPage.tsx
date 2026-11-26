@@ -264,6 +264,7 @@ export function SettingsPage({
             type="button"
             className="button button-secondary"
             aria-busy={restorePicking || undefined}
+            aria-disabled={restorePicking || undefined}
             onClick={onPickRestore}
           >
             选择备份…

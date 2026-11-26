@@ -599,11 +599,15 @@ describe("数据 (spec §G, §H)", () => {
 
     await userEvent.click(key);
     expect(key).toHaveAttribute("aria-busy", "true");
+    // Unavailable but still focusable, so focus stays on the key.
+    expect(key).toHaveAttribute("aria-disabled", "true");
+    expect(key).toBeEnabled();
     await userEvent.click(key);
     expect(calls("pick_restore_backup")).toHaveLength(1);
 
     await act(async () => finish(null));
     expect(key).not.toHaveAttribute("aria-busy");
+    expect(key).not.toHaveAttribute("aria-disabled");
   });
 
   it("discards on Escape too", async () => {

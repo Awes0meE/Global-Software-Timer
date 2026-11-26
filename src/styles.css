@@ -2475,8 +2475,11 @@ mark {
   cursor: default;
 }
 
-/* 选择备份… while the backup is picked and checked. */
+/* 选择备份… while the backup is picked and checked: dimmed like an unavailable key, still focusable. */
 .settings-row .button[aria-busy="true"] {
+  --muted: inherit;
+  background: var(--glass-2);
+  opacity: 0.5;
   cursor: progress;
 }
 
