@@ -135,7 +135,6 @@ export function SettingsPage({
         <h3 id="settings-run-title">运行</h3>
         <SettingSwitchRow
           checked={autostartEnabled}
-          description="电脑开机后自动启动并在后台记录软件时长"
           disabled={autostartDisabled}
           icon={<Power size={18} aria-hidden="true" />}
           statusText={autostartBusy ? "保存中" : autostartEnabled ? "已开启" : "已关闭"}
@@ -144,7 +143,6 @@ export function SettingsPage({
         />
         <SettingSwitchRow
           checked={closeBehavior === "minimize_to_tray"}
-          description="关闭主窗口后继续在右下角状态栏运行"
           icon={<MonitorCog size={18} aria-hidden="true" />}
           statusText={closeBehavior === "minimize_to_tray" ? "最小化到后台" : "直接退出"}
           title="关闭窗口时最小化到后台"
@@ -155,7 +153,6 @@ export function SettingsPage({
           icon={<LayoutDashboard size={18} aria-hidden="true" />}
           title="启动时打开"
           titleId="start-page-setting-title"
-          description="启动 GST 后先显示的页面"
         >
           <Segmented
             labelledBy="start-page-setting-title"
@@ -171,7 +168,6 @@ export function SettingsPage({
         <h3 id="settings-display-title">显示</h3>
         <SettingSwitchRow
           checked={durationFormat === "hours_minutes"}
-          description="开启后将会显示具体分钟数，如“8小时35分钟”"
           disabled={durationFormatDisabled}
           icon={<Clock3 size={18} aria-hidden="true" />}
           statusText={durationFormat === "hours_minutes" ? "已开启" : "已关闭"}
@@ -182,7 +178,6 @@ export function SettingsPage({
           icon={<CalendarDays size={18} aria-hidden="true" />}
           title="每周起始日"
           titleId="week-start-setting-title"
-          description="日历、热力图和“本周”从哪天开始"
         >
           <Segmented
             labelledBy="week-start-setting-title"
@@ -196,7 +191,6 @@ export function SettingsPage({
           icon={<AArrowUp size={18} aria-hidden="true" />}
           title="文字大小"
           titleId="text-size-setting-title"
-          description="放大界面里的文字和图标"
         >
           <Segmented
             labelledBy="text-size-setting-title"
@@ -208,7 +202,6 @@ export function SettingsPage({
         </SettingRow>
         <SettingSwitchRow
           checked={ui.reduce_motion === "reduce"}
-          description="关闭开关滑动、弹窗和指示灯呼吸等动效"
           disabled={uiDisabled}
           icon={<Wind size={18} aria-hidden="true" />}
           statusText={ui.reduce_motion === "reduce" ? "已开启" : "已关闭"}
@@ -219,7 +212,7 @@ export function SettingsPage({
 
       <section className="panel settings-group" aria-labelledby="settings-look-title">
         <h3 id="settings-look-title">外观</h3>
-        <SettingRow icon={<ThemeGlyph />} title="主题" titleId="theme-setting-title" description="默认跟随 Windows 的浅色或深色模式">
+        <SettingRow icon={<ThemeGlyph />} title="主题" titleId="theme-setting-title">
           <Segmented
             labelledBy="theme-setting-title"
             options={themeOptions}
@@ -232,7 +225,6 @@ export function SettingsPage({
           icon={<Palette size={18} aria-hidden="true" />}
           title="主题色"
           titleId="accent-setting-title"
-          description="开关、选中项、导航图标和背景光晕的颜色"
         >
           <span className="settings-status is-on">{accentPreset(ui.accent).name}</span>
           <AccentSwatches
@@ -246,7 +238,6 @@ export function SettingsPage({
           icon={<Tablet size={18} aria-hidden="true" />}
           title="墨水屏配色"
           titleId="eink-setting-title"
-          description="读数屏和日历弹窗的纸色与墨色"
         >
           <span className="settings-status is-on">{einkPalette(ui.eink).name}</span>
           <RovingRadioGroup
@@ -270,7 +261,6 @@ export function SettingsPage({
         <SettingRow
           icon={<FolderOpen size={18} aria-hidden="true" />}
           title="数据文件夹"
-          description="数据库和恢复前的自动备份都在这里"
         >
           <button type="button" className="button button-secondary" onClick={onOpenDataFolder}>
             打开
@@ -279,7 +269,6 @@ export function SettingsPage({
         <SettingRow
           icon={<ArchiveRestore size={18} aria-hidden="true" />}
           title="从备份恢复"
-          description="用一份完整备份替换当前数据，完成后自动重启"
         >
           <button
             type="button"
@@ -326,11 +315,10 @@ interface SettingRowProps {
   title: string;
   /** Names the row's radio group. */
   titleId?: string;
-  description: string;
   children: ReactNode;
 }
 
-function SettingRow({ icon, title, titleId, description, children }: SettingRowProps) {
+function SettingRow({ icon, title, titleId, children }: SettingRowProps) {
   return (
     <div className="settings-row">
       <div className="settings-row-icon" aria-hidden="true">
@@ -338,7 +326,6 @@ function SettingRow({ icon, title, titleId, description, children }: SettingRowP
       </div>
       <div className="settings-row-copy">
         <strong id={titleId}>{title}</strong>
-        <span>{description}</span>
       </div>
       <div className="settings-row-control">{children}</div>
     </div>
@@ -520,7 +507,6 @@ function RovingRadioGroup<T extends string, O extends RovingOption<T>>({
 
 interface SettingSwitchRowProps {
   checked: boolean;
-  description: string;
   disabled?: boolean;
   icon: ReactNode;
   statusText: string;
@@ -530,7 +516,6 @@ interface SettingSwitchRowProps {
 
 function SettingSwitchRow({
   checked,
-  description,
   disabled = false,
   icon,
   statusText,
@@ -538,7 +523,7 @@ function SettingSwitchRow({
   onToggle,
 }: SettingSwitchRowProps) {
   return (
-    <SettingRow icon={icon} title={title} description={description}>
+    <SettingRow icon={icon} title={title}>
       <span className={`settings-status${checked ? " is-on" : ""}`}>{statusText}</span>
       <button
         className={`toggle${checked ? " is-on" : ""}`}

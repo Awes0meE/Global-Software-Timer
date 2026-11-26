@@ -1536,7 +1536,7 @@ describe("App", () => {
 
     await waitFor(() => expect(durationSwitch).not.toBeDisabled());
     expect(durationSwitch).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByText("开启后将会显示具体分钟数，如“8小时35分钟”")).toBeInTheDocument();
+    expect(screen.queryByText("开启后将会显示具体分钟数，如“8小时35分钟”")).not.toBeInTheDocument();
     expect(screen.getAllByText("已关闭").length).toBeGreaterThan(0);
   });
 
@@ -1907,7 +1907,11 @@ describe("App", () => {
 
     expect(preventDefault).toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "关闭全局软件计时器" })).toBeInTheDocument();
-    expect(screen.getByText("后续可在设置中更改。")).toBeInTheDocument();
+    // One line says why closing matters: GST records only while it runs in the tray.
+    expect(screen.getByRole("dialog", { name: "关闭全局软件计时器" })).toHaveAccessibleDescription(
+      "GST 在状态栏里运行时才会记录，退出后就不再记录。",
+    );
+    expect(screen.queryByText("后续可在设置中更改。")).not.toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: "记住本次选择" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "最小化到状态栏" }));
@@ -2201,6 +2205,14 @@ describe("App date browsing", () => {
 
     fireEvent.keyDown(document.body, { key: "3", ctrlKey: true });
     expect(screen.getByRole("button", { name: "后台" })).toHaveAttribute("aria-current", "page");
+  });
+
+  // No small print in the sidebar (user, 2026-11-26): the name, the nav, the recording lamp and the version.
+  it("keeps the sidebar free of explanatory lines", async () => {
+    render(<App />);
+    expect(await screen.findByRole("complementary", { name: "正在运行" })).toBeInTheDocument();
+    expect(screen.queryByText("本地软件时长记录")).not.toBeInTheDocument();
+    expect(screen.queryByText("数据只保存在本机")).not.toBeInTheDocument();
   });
 
   // Apple HIG: people can hide the sidebar. The icon rail keeps every page's name for screen readers.

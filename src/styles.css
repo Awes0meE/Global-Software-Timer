@@ -689,13 +689,6 @@ p {
   white-space: nowrap;
 }
 
-.brand small {
-  display: block;
-  margin-top: 1px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
 .side-nav {
   display: grid;
   gap: 9px;
@@ -908,7 +901,6 @@ p {
 
 .is-rail .brand-copy,
 .is-rail .nav-key > span,
-.is-rail .sidebar-footer > span:not(.live-status),
 .is-rail .sidebar-foot-row small {
   position: absolute;
   width: 1px;
@@ -2133,12 +2125,6 @@ mark {
   font-weight: 500;
 }
 
-.software-empty p {
-  max-width: 34em;
-  color: var(--muted);
-  font-size: var(--type-small);
-}
-
 .active-help {
   position: relative;
   display: inline-flex;
@@ -2252,11 +2238,6 @@ mark {
 
 .close-dialog p:not(.dialog-error) {
   color: var(--ink-2);
-}
-
-.dialog-hint {
-  color: var(--muted) !important;
-  font-size: var(--type-small);
 }
 
 .dialog-error {
@@ -2443,11 +2424,6 @@ mark {
 
 .settings-row-copy strong {
   font-weight: 500;
-}
-
-.settings-row-copy span {
-  color: var(--muted);
-  font-size: var(--type-small);
 }
 
 .settings-row-control {

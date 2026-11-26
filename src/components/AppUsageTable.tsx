@@ -33,7 +33,6 @@ export function AppUsageTable({ apps, durationFormat = "decimal_hours", pastDay 
           ) : (
             <div className="empty-state">
               <strong>还没有记录到软件</strong>
-              <span>保持 GST 在托盘运行，打开的软件会自动出现在这里。</span>
             </div>
           )
         ) : (

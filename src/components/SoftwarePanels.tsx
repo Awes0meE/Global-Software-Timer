@@ -8,7 +8,6 @@ import { ActiveTimeHelpPopover, HelpPopover } from "./ActiveTimeHelpPopover";
 import { SoftwareIcon } from "./SoftwareIcon";
 
 const loadingTitle = "正在读取软件列表";
-const loadingDescription = "本地记录较多时，第一次打开需要几秒。";
 
 interface ManagedPanelProps {
   rows: SoftwarePageRow[];
@@ -24,7 +23,6 @@ interface ManagedSoftwarePanelProps extends ManagedPanelProps {
   kind: "focused" | "hidden";
   title: string;
   emptyTitle: string;
-  emptyDescription: string;
 }
 
 export function FocusedSoftwarePanel(props: ManagedPanelProps) {
@@ -34,7 +32,6 @@ export function FocusedSoftwarePanel(props: ManagedPanelProps) {
       kind="focused"
       title="特别关注"
       emptyTitle="还没有特别关注的软件"
-      emptyDescription="添加你最想长期观察的软件，查看运行时长、活跃时长和最近打开时间。"
     />
   );
 }
@@ -46,7 +43,6 @@ export function HiddenSoftwarePanel(props: ManagedPanelProps) {
       kind="hidden"
       title="隐藏软件列表"
       emptyTitle="还没有隐藏的软件"
-      emptyDescription="把常驻后台但不想出现在概览里的软件放到这里。"
     />
   );
 }
@@ -79,7 +75,6 @@ export function DiscoveredSoftwarePanel({
       {rows.length === 0 ? (
         <SoftwareEmptyState
           title={loading ? loadingTitle : "还没有发现软件"}
-          description={loading ? loadingDescription : "打开软件并保持 GST 运行一会儿后，这里会自动出现。"}
         />
       ) : (
         <div className="discovered-scroll" role="region" aria-label="已发现软件明细" tabIndex={0}>
@@ -100,7 +95,6 @@ function ManagedSoftwarePanel({
   kind,
   title,
   emptyTitle,
-  emptyDescription,
   onAdd,
   onEditToggle,
   onRemove,
@@ -142,7 +136,6 @@ function ManagedSoftwarePanel({
       {rows.length === 0 ? (
         <SoftwareEmptyState
           title={loading ? loadingTitle : emptyTitle}
-          description={loading ? loadingDescription : emptyDescription}
         />
       ) : kind === "focused" ? (
         <FocusedSoftwareTable
@@ -312,11 +305,10 @@ function SoftwareMarkBadge({ mark }: { mark: SoftwarePageRow["mark"] }) {
   return <span aria-hidden="true" />;
 }
 
-function SoftwareEmptyState({ title, description }: { title: string; description: string }) {
+function SoftwareEmptyState({ title }: { title: string }) {
   return (
     <div className="software-empty">
       <h3>{title}</h3>
-      <p>{description}</p>
     </div>
   );
 }

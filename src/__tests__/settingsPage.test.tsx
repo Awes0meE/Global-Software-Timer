@@ -118,7 +118,7 @@ function rowOf(title: string) {
 }
 
 describe("设置 layout (spec §A)", () => {
-  it("orders the groups and rows, with each new row's one-line description", async () => {
+  it("orders the groups and rows, each a title without a description line", async () => {
     await openSettings();
     const main = document.getElementById("settings-content") as HTMLElement;
     const groups = Array.from(main.querySelectorAll("section.settings-group")).map((section) => ({
@@ -133,20 +133,8 @@ describe("设置 layout (spec §A)", () => {
       { title: "隐私", rows: [] },
     ]);
 
-    const descriptions: Record<string, string> = {
-      启动时打开: "启动 GST 后先显示的页面",
-      每周起始日: "日历、热力图和“本周”从哪天开始",
-      文字大小: "放大界面里的文字和图标",
-      减少动画: "关闭开关滑动、弹窗和指示灯呼吸等动效",
-      主题: "默认跟随 Windows 的浅色或深色模式",
-      主题色: "开关、选中项、导航图标和背景光晕的颜色",
-      墨水屏配色: "读数屏和日历弹窗的纸色与墨色",
-      数据文件夹: "数据库和恢复前的自动备份都在这里",
-      从备份恢复: "用一份完整备份替换当前数据，完成后自动重启",
-    };
-    for (const [title, description] of Object.entries(descriptions)) {
-      expect(rowOf(title).querySelector(".settings-row-copy span")?.textContent, title).toBe(description);
-    }
+    // No small print under the rows (user, 2026-11-26): each row is its title and its control.
+    expect(main.querySelectorAll(".settings-row-copy span")).toHaveLength(0);
 
     const options = (name: string) =>
       within(screen.getByRole("radiogroup", { name })).getAllByRole("radio").map((radio) => radio.textContent);

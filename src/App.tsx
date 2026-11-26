@@ -720,7 +720,6 @@ export default function App() {
               <img className="brand-mark" src={clockMark} alt="" width={44} height={44} />
               <div className="brand-copy">
                 <h1>{summary?.product_title ?? "全局软件计时器"}</h1>
-                <small>本地软件时长记录</small>
               </div>
             </div>
 
@@ -771,10 +770,6 @@ export default function App() {
               <span className="live-status">
                 <i className={recording ? "lamp is-lit is-breathing" : "lamp"} aria-hidden="true" />
                 {recordingLabel}
-              </span>
-              <span>
-                <i className="lamp" aria-hidden="true" />
-                数据只保存在本机
               </span>
               <div className="sidebar-foot-row">
                 <small className="num">V{packageJson.version}</small>

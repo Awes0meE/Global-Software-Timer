@@ -179,7 +179,6 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
             <section className="panel stats-panel" aria-label="统计">
               <div className="empty-state">
                 <strong>这段时间没有记录</strong>
-                <span>保持 GST 在托盘运行，之后的记录会出现在这里。</span>
               </div>
             </section>
           ) : (

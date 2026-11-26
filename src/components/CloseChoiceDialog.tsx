@@ -29,12 +29,12 @@ export function CloseChoiceDialog({ error, busy, onChoose }: CloseChoiceDialogPr
         role="dialog"
         aria-modal="true"
         aria-labelledby="close-dialog-title"
+        aria-describedby="close-dialog-note"
         tabIndex={-1}
       >
         <img className="dialog-mark" src={clockMark} alt="" width={40} height={40} />
         <h2 id="close-dialog-title">关闭全局软件计时器</h2>
-        <p>请选择退出软件，或最小化后继续在右下角状态栏运行。</p>
-        <p className="dialog-hint">后续可在设置中更改。</p>
+        <p id="close-dialog-note">GST 在状态栏里运行时才会记录，退出后就不再记录。</p>
         {error ? <p className="dialog-error">{error}</p> : null}
         <div className="dialog-actions">
           <button type="button" className="button button-secondary" disabled={busy} onClick={() => onChoose("exit")}>
