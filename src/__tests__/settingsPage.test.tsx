@@ -807,16 +807,18 @@ describe("restore status at start (spec §H)", () => {
 
 // v0.4.6 关于与反馈: GitHub pages open in the browser through Rust's fixed list; the QQ number is copied.
 describe("设置 关于与反馈", () => {
-  it("opens the releases page, the problem form and the suggestion form in the browser", async () => {
+  it("opens the releases page, the problem and suggestion forms and the QQ invite in the browser", async () => {
     await openSettings();
     expect(within(rowOf("当前版本")).getByText(`V${packageJson.version}`)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "更新日志（在浏览器中打开）" }));
     await userEvent.click(screen.getByRole("button", { name: "打开报告问题（在浏览器中打开）" }));
     await userEvent.click(screen.getByRole("button", { name: "打开提建议（在浏览器中打开）" }));
+    await userEvent.click(screen.getByRole("button", { name: "加入QQ 交流群（在浏览器中打开）" }));
     expect(calls("open_feedback_link").map(([, args]) => args)).toEqual([
       { link: "releases" },
       { link: "bug" },
       { link: "idea" },
+      { link: "qq" },
     ]);
   });
 

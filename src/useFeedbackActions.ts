@@ -4,7 +4,7 @@ import type { ToastMessage } from "./components/Toast";
 
 type ShowToast = (message: string, extra?: Omit<ToastMessage, "id" | "message">) => void;
 
-/** The QQ group for users without a GitHub account (README 反馈与交流). */
+/** The QQ group 「GST功能交流群」 for users without a GitHub account (README 反馈与交流); Rust holds its invite link. */
 export const QQ_GROUP = "937943526";
 
 /**

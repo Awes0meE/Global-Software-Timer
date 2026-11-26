@@ -319,6 +319,7 @@ export function SettingsPage({
             复制群号
             <Copy size={14} aria-hidden="true" />
           </button>
+          <LinkKey label="加入" name="QQ 交流群" onClick={() => onOpenFeedback("qq")} />
         </SettingRow>
       </section>
 

@@ -106,7 +106,7 @@ From v0.4.6 the only network access is `检查更新…` in `设置` → `关于
 - Before the download, GST saves a full copy of the database to `backups\GST-更新前-<new version>-YYYY-MM-DD-HHMMSS.db` in the data folder; if that copy cannot be made, nothing is downloaded. Only the newest such copy is kept. Like a backup, it holds your whole usage history and app settings, and it stays on this computer.
 - The installer then runs without asking (passive mode, no administrator permission for the default per-user install), and GST closes its open sessions, exits and is started again by the installer.
 
-`更新日志`, `报告问题` and `提建议` open fixed GitHub pages in your default browser; the browser connects, not GST.
+`更新日志`, `报告问题` and `提建议` open fixed GitHub pages, and `QQ 交流群` → `加入` opens the fixed QQ group invite (`qm.qq.com`), in your default browser; the browser connects, not GST.
 
 Versions up to v0.4.5 have no `检查更新…`: install v0.4.6 by hand once, and later versions can be installed from inside the app.
 

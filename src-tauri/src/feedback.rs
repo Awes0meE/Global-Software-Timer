@@ -7,15 +7,18 @@ pub const FEEDBACK_OPEN_FAILED: &str = "feedback_open_failed";
 pub const FEEDBACK_UNKNOWN_LINK: &str = "feedback_unknown_link";
 
 const REPOSITORY: &str = "https://github.com/Awes0meE/Global-Software-Timer";
+/// The invite to the QQ group 「GST功能交流群」 (937943526).
+const QQ_GROUP_INVITE: &str = "https://qm.qq.com/q/gN4qB6TVGE";
 
 /// The page for `link`: `bug` (the problem form), `idea` (the suggestion
-/// form) or `releases`. Anything else has no page, so the frontend can never
-/// make GST open an arbitrary address.
+/// form), `releases`, or `qq` (the QQ group invite). Anything else has no
+/// page, so the frontend can never make GST open an arbitrary address.
 pub fn feedback_url(link: &str) -> Option<String> {
     let path = match link {
         "bug" => "/issues/new?template=bug_report.yml",
         "idea" => "/issues/new?template=feature_request.yml",
         "releases" => "/releases",
+        "qq" => return Some(QQ_GROUP_INVITE.to_string()),
         _ => return None,
     };
     Some(format!("{REPOSITORY}{path}"))
@@ -58,7 +61,11 @@ mod tests {
             feedback_url("releases").as_deref(),
             Some("https://github.com/Awes0meE/Global-Software-Timer/releases")
         );
-        for other in ["", "BUG", "https://example.com", "../releases", "qq"] {
+        assert_eq!(
+            feedback_url("qq").as_deref(),
+            Some("https://qm.qq.com/q/gN4qB6TVGE")
+        );
+        for other in ["", "BUG", "QQ", "https://example.com", "../releases", "qq/"] {
             assert_eq!(feedback_url(other), None, "{other}");
         }
     }
@@ -73,5 +80,8 @@ mod tests {
             );
             assert!(!url.contains('"') && !url.contains(' '), "{url}");
         }
+        let invite = feedback_url("qq").expect("qq");
+        assert!(invite.starts_with("https://qm.qq.com/q/"), "{invite}");
+        assert!(!invite.contains('"') && !invite.contains(' '), "{invite}");
     }
 }
