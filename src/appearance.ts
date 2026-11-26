@@ -35,6 +35,8 @@ let current: Appearance = { ...defaultAppearance };
 const listeners = new Set<() => void>();
 /** Set while a watch runs: asks it to read the Windows accent now. */
 let requestWindowsRead: (() => void) | null = null;
+/** Each Windows read gets a number; a slower, older read never overwrites a newer one. */
+let latestWindowsRead = 0;
 
 function validPair(value: unknown): AccentPair | null {
   if (typeof value !== "object" || value === null) return null;
@@ -134,37 +136,48 @@ export function paintInitialAppearance(): void {
   paint(current);
 }
 
+/** Reads the Windows accent once. A malformed answer counts as unreadable (蓝); a failed read keeps the last pair. */
+function readWindowsAccent(read: () => Promise<unknown>) {
+  const request = ++latestWindowsRead;
+  let pending: Promise<unknown>;
+  try {
+    pending = Promise.resolve(read());
+  } catch {
+    return;
+  }
+  pending.then(
+    (value) => {
+      if (request === latestWindowsRead) commit({ ...current, windowsAccent: validPair(value) });
+    },
+    () => {},
+  );
+}
+
+/**
+ * Reads the Windows accent once so the 跟随 Windows swatch on 设置 shows it while another accent is chosen
+ * (spec §A). Painting a preset ignores the pair, so nothing on screen but the swatch changes; with 跟随
+ * Windows, `startAccentWatch` already reads (§B).
+ */
+export function readWindowsAccentForSwatch(read: () => Promise<unknown> = getWindowsAccent): void {
+  if (current.accent !== "system") readWindowsAccent(read);
+}
+
 /**
  * Reads the Windows accent now and whenever the window becomes visible again, only while the choice is
  * 跟随 Windows. A malformed answer counts as unreadable (蓝); a failed read keeps the last pair. Returns a
  * cleanup that stops listening.
  */
 export function startAccentWatch(read: () => Promise<unknown> = getWindowsAccent): () => void {
-  // Each read gets a number; a slower, older read never overwrites a newer one.
-  let latest = 0;
-
   const check = () => {
     if (document.hidden || current.accent !== "system") return;
-    const request = ++latest;
-    let pending: Promise<unknown>;
-    try {
-      pending = Promise.resolve(read());
-    } catch {
-      return;
-    }
-    pending.then(
-      (value) => {
-        if (request === latest) commit({ ...current, windowsAccent: validPair(value) });
-      },
-      () => {},
-    );
+    readWindowsAccent(read);
   };
 
   document.addEventListener("visibilitychange", check);
   requestWindowsRead = check;
   check();
   return () => {
-    latest += 1;
+    latestWindowsRead += 1;
     document.removeEventListener("visibilitychange", check);
     if (requestWindowsRead === check) requestWindowsRead = null;
   };

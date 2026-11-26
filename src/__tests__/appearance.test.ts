@@ -11,7 +11,9 @@ import {
   cacheAppearance,
   defaultAppearance,
   paintInitialAppearance,
+  currentAppearance,
   readCachedAppearance,
+  readWindowsAccentForSwatch,
   startAccentWatch,
 } from "../appearance";
 import { resolveAccent } from "../accent";
@@ -253,5 +255,51 @@ describe("startAccentWatch", () => {
     setHidden(false);
     applyAppearance({ accent: "system", eink: "aurora", motion: "system" });
     expect(read).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("readWindowsAccentForSwatch", () => {
+  it("reads once for the 跟随 Windows swatch while another accent is painted, and leaves the paint alone", async () => {
+    applyAppearance({ accent: "green", eink: "aurora", motion: "system" });
+    const before = painted();
+    const read = vi.fn().mockResolvedValue(WINDOWS_BLUE);
+    readWindowsAccentForSwatch(read);
+    await settle();
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(currentAppearance().windowsAccent).toEqual(WINDOWS_BLUE);
+    expect(painted()).toEqual(before);
+    expect(cached()).toMatchObject({ accent: "green", windows: WINDOWS_BLUE });
+  });
+
+  it("asks Windows through the read-only command by default", async () => {
+    mockInvoke.mockResolvedValue(WINDOWS_BLUE);
+    readWindowsAccentForSwatch();
+    await settle();
+    expect(mockInvoke).toHaveBeenCalledWith("get_windows_accent");
+  });
+
+  it("leaves 跟随 Windows to the watch", async () => {
+    applyAppearance({ accent: "system", eink: "aurora", motion: "system" });
+    const read = vi.fn().mockResolvedValue(WINDOWS_BLUE);
+    readWindowsAccentForSwatch(read);
+    await settle();
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("keeps the pair on a failed read and shares the watch's latest-read guard", async () => {
+    applyAppearance({ accent: "blue", windowsAccent: WINDOWS_BLUE, eink: "aurora", motion: "system" });
+    readWindowsAccentForSwatch(() => Promise.reject(new Error("no such command")));
+    await settle();
+    expect(currentAppearance().windowsAccent).toEqual(WINDOWS_BLUE);
+
+    const slow = deferred<unknown>();
+    readWindowsAccentForSwatch(() => slow.promise);
+    applyAppearance({ accent: "system", eink: "aurora", motion: "system" });
+    const stop = startAccentWatch(() => Promise.resolve(WINDOWS_YELLOW));
+    await settle();
+    slow.resolve(WINDOWS_BLUE);
+    await settle();
+    expect(currentAppearance().windowsAccent).toEqual(WINDOWS_YELLOW);
+    stop();
   });
 });

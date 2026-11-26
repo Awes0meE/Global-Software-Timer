@@ -1,4 +1,4 @@
-import { useRef, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import {
   ArchiveRestore,
   CalendarDays,
@@ -22,7 +22,7 @@ import type {
   UiPreferences,
   WeekStartSetting,
 } from "../api";
-import { currentAppearance, subscribeAppearance } from "../appearance";
+import { currentAppearance, readWindowsAccentForSwatch, subscribeAppearance } from "../appearance";
 import { ACCENT_PRESETS, EINK_PALETTES, accentPreset, einkPalette, type AccentId, type EinkId } from "../appearancePresets";
 import clockMark from "../assets/gst-clock.svg";
 
@@ -346,6 +346,7 @@ interface AccentSwatchesProps {
 function AccentSwatches({ labelledBy, value, disabled, onChange }: AccentSwatchesProps) {
   const { windowsAccent } = useSyncExternalStore(subscribeAppearance, currentAppearance);
   const windows = resolveAccent("system", windowsAccent);
+  useEffect(() => readWindowsAccentForSwatch(), []);
   return (
     <RovingRadioGroup
       className="swatches"

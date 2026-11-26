@@ -227,23 +227,32 @@ describe("主题色 swatches (spec §A, §B)", () => {
     expect(within(rowOf("主题色")).getByText("跟随 Windows")).toHaveClass("settings-status");
   });
 
-  it("fills 跟随 Windows with the resolved Windows accent, or 蓝 before one is read", async () => {
+  it("fills 跟随 Windows with the resolved Windows accent while another accent is chosen", async () => {
+    const pair = resolveAccent("system", { light: "#0067c0", dark: "#4cc2ff" });
     await openSettings();
     const windows = screen.getByRole("radio", { name: "跟随 Windows" });
-    expect(windows.style.getPropertyValue("--swatch-light")).toBe("#2f7de1");
-    expect(windows.style.getPropertyValue("--swatch-dark")).toBe("#5aa9ff");
+    // One read-only read for the swatch (§A); painting 蓝 ignores the pair (§B).
+    await waitFor(() => expect(windows.style.getPropertyValue("--swatch-light")).toBe(pair.light));
+    expect(windows.style.getPropertyValue("--swatch-dark")).toBe(pair.dark);
+    expect(calls("get_windows_accent")).toHaveLength(1);
     expect(windows.querySelector("svg")).not.toBeNull();
     expect(screen.getByRole("radio", { name: "玫红" }).style.getPropertyValue("--swatch-light")).toBe("#d6336c");
-    expect(calls("get_windows_accent")).toHaveLength(0);
+    expect(root().dataset.accent).toBeUndefined();
+    expect(root().style.getPropertyValue("--user-accent-light")).toBe("");
 
     await userEvent.click(windows);
 
-    await waitFor(() => expect(calls("get_windows_accent").length).toBeGreaterThan(0));
-    const pair = resolveAccent("system", { light: "#0067c0", dark: "#4cc2ff" });
-    await waitFor(() => expect(windows.style.getPropertyValue("--swatch-light")).toBe(pair.light));
-    expect(windows.style.getPropertyValue("--swatch-dark")).toBe(pair.dark);
-    expect(root().dataset.accent).toBe("system");
+    await waitFor(() => expect(root().dataset.accent).toBe("system"));
     expect(root().style.getPropertyValue("--user-accent-light")).toBe(pair.light);
+  });
+
+  it("fills 跟随 Windows with 蓝 when the Windows accent cannot be read", async () => {
+    overrides.get_windows_accent = () => null;
+    await openSettings();
+    const windows = screen.getByRole("radio", { name: "跟随 Windows" });
+    await waitFor(() => expect(calls("get_windows_accent")).toHaveLength(1));
+    expect(windows.style.getPropertyValue("--swatch-light")).toBe("#2f7de1");
+    expect(windows.style.getPropertyValue("--swatch-dark")).toBe("#5aa9ff");
   });
 
   it("rolls the choice back with 主题色保存失败 when the save fails", async () => {
