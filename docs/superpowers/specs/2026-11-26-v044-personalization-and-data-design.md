@@ -14,7 +14,7 @@ Amended on 2026-11-26, after implementation, to record what was built where the 
 - the `RestoreStuck` startup message and the restore fixes (§H);
 - the preview's `?startpage` behaviour and its extra query options (§J).
 
-The glow strength and the 跟随 Windows fallback alphas still wait for the user's confirmation.
+After QA, the glow alphas were re-derived on 2026-11-26 as the strongest the real readability checks allow, with 跟随 Windows computed at runtime (§B). Whether the resulting glow strength is acceptable still waits for the user's confirmation.
 
 The previous release spec is `2026-11-25-v043-posters-and-reports-design.md` (v0.4.3, shipped).
 
@@ -124,26 +124,28 @@ The three blobs keep today's sizes, positions and fade stops.
     - blob 2 = `color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(240,120,190)) 26%, transparent)`;
     - blob 3 = `color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(160,130,255)) 30%, transparent)`.
   - Dark: the same shape, with blob 1 at 50%, blob 2 mixing into `rgb(236,92,170)` at 24%, and blob 3 mixing into `rgb(150,110,255)` at 28%.
-- *Amended (option (a)):* the percentages above are the mock's, and they fail the readability rule below for several choices. The colour mixes stay as given, but the blob alphas are `--glow-alpha-1 / -2 / -3`, set per choice and theme. Each value is the largest whole percent that passes `contrast.test.ts`:
-  - blob 1 is bounded by the text and graphic checks on the worst glow centre, B;
-  - blobs 2 and 3 are bounded by B staying the lowest-contrast centre.
+- *Amended (option (a)), revised 2026-11-26 after QA:* the percentages above are the mock's. They are the ceiling, not the values: some of them fail the readability rule below. The colour mixes stay as given, but the blob alphas are `--glow-alpha-1 / -2 / -3`, set per choice and theme. Each blob's value is the largest whole percent, up to the mock's, at which every check over that blob's centre passes:
+  - the checks are `contrast.test.ts`'s checks that sit over the glow, at their existing thresholds: text and keys straight on the glow, the glass panel and its chips, keys and tints, and the sidebar and its nav keys. Each runs over each of the three glow centres in turn;
+  - the light accent stays at 3:1 or more on the glass over every glow centre and on `--glass-solid`. The dark rules are unchanged;
+  - the earlier structural rule ("B stays the lowest-contrast centre") no longer applies to any choice but `blue`.
 
-  `src/styles.css` holds the values, which are binding:
+  The search is one pure function, `src/glow.ts`. The tests use it to generate and verify the table, and they check it against `contrast.test.ts`'s own measurements. `src/styles.css` holds the values, which are binding:
 
   | choice | light 1 / 2 / 3 | dark 1 / 2 / 3 |
   | --- | --- | --- |
-  | `system` 跟随 Windows | 16 / 18 / 17% | 23 / 20 / 22% |
-  | `cyan` 青 | 26 / 26 / 28% | 27 / 24 / 28% |
-  | `green` 绿 | 25 / 26 / 27% | 27 / 24 / 28% |
-  | `violet` 紫 | 25 / 26 / 27% | 32 / 24 / 28% |
-  | `rose` 玫红 | 22 / 26 / 25% | 31 / 24 / 28% |
-  | `amber` 琥珀 | 27 / 26 / 29% | 25 / 24 / 28% |
-  | `graphite` 石墨 | 25 / 26 / 27% | 27 / 24 / 28% |
+  | `system` 跟随 Windows | runtime (below) | runtime (below) |
+  | `cyan` 青 | 26 / 26 / 29% | 27 / 24 / 28% |
+  | `green` 绿 | 25 / 26 / 28% | 27 / 24 / 28% |
+  | `violet` 紫 | 25 / 26 / 28% | 32 / 24 / 28% |
+  | `rose` 玫红 | 22 / 26 / 26% | 31 / 24 / 28% |
+  | `amber` 琥珀 | 27 / 26 / 30% | 25 / 24 / 28% |
+  | `graphite` 石墨 | 25 / 26 / 28% | 27 / 24 / 28% |
 
-  - `system` uses the fallback values of the two theme blocks. That one set holds for every accent the clamp can return. `accent.ts` still clamps against the stronger mock alphas.
+  - Blob 1 still falls short of the mock for every choice. The bound is real text, not the old structural rule. In light it is `--alert-ink` on `--alert-wash` over the glass; in dark it is `--muted` on the glass. Blob 2 reaches the mock everywhere. Blob 3 reaches it in dark, and in light only for `amber`.
+  - `system` runs the same search at runtime on the clamped pair. `appearance.ts` sets `--user-glow-light-1..3` and `--user-glow-dark-1..3` inline next to `--user-accent-*` and caches them in `gst.appearance`, where they are validated as whole percents within the caps. A cache value that fails validation is recomputed from the cached pair. The Windows default blue (`#0067c0` / `#4cc2ff`) gets 21 / 26 / 25% light and 27 / 24 / 28% dark.
+  - The glow rules fall back to 16 / 18 / 17% light and 23 / 20 / 22% dark. This set holds for every accent the clamp can return, and it is used on the first frame without a cache and when the Windows accent cannot be read. `accent.ts` still clamps against the mock alphas.
   - `blue` keeps today's `--glow` and has no alphas.
-  - Still open for the user: the glow is fainter than the approved mock, and light `system` is the faintest of all. The two ways out are amending this table or relaxing the "B is the lowest-contrast centre" rule to allow stronger blob-1 alphas.
-- Readability is unchanged. The existing glow-centre contrast checks (`--ink`, `--ink-2` and `--muted` on the worst glow centre, and text straight on the glow) must pass for every choice, in both themes.
+- Readability is unchanged. The checks above must pass for every choice, in both themes, at today's thresholds.
 
 ### Mechanism
 
@@ -365,8 +367,8 @@ Tests run on temp directories only, never on a real profile. They cover:
 
   - The dialog must still fit and scroll at a window height of 760 px.
 - **First-frame cache.**
-  - `paintInitialAppearance()` runs in `main.tsx` next to `paintInitialTheme()`. It reads one validated localStorage entry, `gst.appearance`, which holds the accent id, the last resolved accent pair (`#rrggbb` only), the e-ink id and the motion value.
-  - It sets `data-accent`, the inline accent variables, `data-eink` and `data-motion` before React renders.
+  - `paintInitialAppearance()` runs in `main.tsx` next to `paintInitialTheme()`. It reads one validated localStorage entry, `gst.appearance`, which holds the accent id, the last resolved accent pair (`#rrggbb` only), that pair's 跟随 Windows glow alphas (§B), the e-ink id and the motion value.
+  - It sets `data-accent`, the inline accent variables (with 跟随 Windows's glow alphas), `data-eink` and `data-motion` before React renders.
   - SQLite stays the source of truth. The cache is rewritten after every load, save, import and Windows read.
   - Every storage access sits in try/catch.
   - Tests clear localStorage after each test (`test-setup.ts`).
