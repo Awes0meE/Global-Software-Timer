@@ -333,15 +333,23 @@ interface SegmentedProps<T extends string> {
 }
 
 function Segmented<T extends string>({ labelledBy, options, value, disabled, onChange }: SegmentedProps<T>) {
+  const roving = useRovingRadios(
+    options.map((option) => option.value),
+    value,
+    disabled,
+    onChange,
+  );
   return (
-    <div className="segmented" role="radiogroup" aria-labelledby={labelledBy}>
-      {options.map((option) => (
+    <div className="segmented" role="radiogroup" aria-labelledby={labelledBy} onKeyDown={roving.onKeyDown}>
+      {options.map((option, index) => (
         <button
           key={option.value}
+          ref={roving.buttonRef(index)}
           className={`segmented-option${value === option.value ? " is-selected" : ""}`}
           type="button"
           role="radio"
           aria-checked={value === option.value}
+          tabIndex={index === roving.selectedIndex ? 0 : -1}
           disabled={disabled}
           onClick={() => {
             if (option.value !== value) onChange(option.value);
@@ -417,9 +425,31 @@ const ROVING_STEPS: Record<string, (index: number, count: number) => number> = {
 };
 
 /**
- * A row of named radio buttons with a roving tabindex: Tab reaches the chosen one, and the arrow keys,
- * Home and End move to another one and choose it.
+ * The roving tabindex every radio group on the page shares: Tab reaches the chosen option, and the arrow
+ * keys, Home and End move to another one and choose it.
  */
+function useRovingRadios<T extends string>(ids: readonly T[], value: T, disabled: boolean, onChange: (value: T) => void) {
+  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  const selectedIndex = Math.max(0, ids.indexOf(value));
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = ROVING_STEPS[event.key];
+    if (!step || disabled) return;
+    event.preventDefault();
+    const from = buttons.current.findIndex((button) => button === document.activeElement);
+    const next = step(from === -1 ? selectedIndex : from, ids.length);
+    buttons.current[next]?.focus();
+    if (ids[next] !== value) onChange(ids[next]);
+  };
+
+  const buttonRef = (index: number) => (button: HTMLButtonElement | null) => {
+    buttons.current[index] = button;
+  };
+
+  return { selectedIndex, onKeyDown, buttonRef };
+}
+
+/** A row of named radio buttons drawn by `renderOption`, with the page's roving tabindex. */
 function RovingRadioGroup<T extends string, O extends RovingOption<T>>({
   className,
   labelledBy,
@@ -429,21 +459,12 @@ function RovingRadioGroup<T extends string, O extends RovingOption<T>>({
   onChange,
   renderOption,
 }: RovingRadioGroupProps<T, O>) {
-  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
-  const selectedIndex = Math.max(
-    0,
-    options.findIndex((option) => option.id === value),
+  const { selectedIndex, onKeyDown, buttonRef } = useRovingRadios(
+    options.map((option) => option.id),
+    value,
+    disabled,
+    onChange,
   );
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const step = ROVING_STEPS[event.key];
-    if (!step || disabled) return;
-    event.preventDefault();
-    const from = buttons.current.findIndex((button) => button === document.activeElement);
-    const next = step(from === -1 ? selectedIndex : from, options.length);
-    buttons.current[next]?.focus();
-    if (options[next].id !== value) onChange(options[next].id);
-  };
 
   return (
     <div className={className} role="radiogroup" aria-labelledby={labelledBy} onKeyDown={onKeyDown}>
@@ -453,9 +474,7 @@ function RovingRadioGroup<T extends string, O extends RovingOption<T>>({
         return (
           <button
             key={option.id}
-            ref={(button) => {
-              buttons.current[index] = button;
-            }}
+            ref={buttonRef(index)}
             className={`${look.className}${selected ? " is-selected" : ""}`}
             style={look.style}
             {...look.data}

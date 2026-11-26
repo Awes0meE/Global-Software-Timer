@@ -177,6 +177,41 @@ describe("设置 layout (spec §A)", () => {
     for (const radio of radios) expect(radio).toBeEnabled();
     expect(screen.getByRole("switch", { name: "减少动画" })).toBeEnabled();
   });
+
+  // One keyboard model for every radio group on the page: Tab reaches the chosen option, the arrow keys,
+  // Home and End move to another one and choose it.
+  it("moves and selects 启动时打开, 每周起始日 and 主题 with the arrow keys, Home and End", async () => {
+    await openSettings();
+    const radios = (name: string) => within(screen.getByRole("radiogroup", { name })).getAllByRole("radio");
+    expect(radios("启动时打开").map((radio) => radio.tabIndex)).toEqual([0, -1, -1, -1, -1]);
+    expect(radios("每周起始日").map((radio) => radio.tabIndex)).toEqual([0, -1]);
+    expect(radios("主题").map((radio) => radio.tabIndex)).toEqual([-1, 0, -1]);
+
+    const start = radios("启动时打开");
+    start[0].focus();
+    fireEvent.keyDown(start[0], { key: "ArrowRight" });
+    expect(start[1]).toHaveFocus();
+    expect(start[1]).toHaveAttribute("aria-checked", "true");
+    expect(start[1].tabIndex).toBe(0);
+    fireEvent.keyDown(start[1], { key: "End" });
+    expect(start[4]).toHaveFocus();
+    fireEvent.keyDown(start[4], { key: "ArrowDown" });
+    expect(start[0]).toHaveFocus();
+    fireEvent.keyDown(start[0], { key: "Home" });
+    await waitFor(() => expect(uiSaves().map((save) => save?.value)).toEqual(["software", "achievements", "overview"]));
+
+    const week = radios("每周起始日");
+    week[0].focus();
+    fireEvent.keyDown(week[0], { key: "ArrowLeft" });
+    expect(week[1]).toHaveFocus();
+    await waitFor(() => expect(uiSaves().slice(-1)[0]).toEqual({ key: "week_start", value: "sunday" }));
+
+    const theme = radios("主题");
+    theme[1].focus();
+    fireEvent.keyDown(theme[1], { key: "ArrowUp" });
+    expect(theme[0]).toHaveFocus();
+    expect(theme[0]).toHaveAttribute("aria-checked", "true");
+  });
 });
 
 describe("主题色 swatches (spec §A, §B)", () => {
