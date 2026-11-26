@@ -1,18 +1,7 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import packageJson from "../package.json";
-import {
-  BarChart3,
-  Clock3,
-  Cpu,
-  History,
-  LayoutDashboard,
-  MonitorCog,
-  Power,
-  Settings,
-  SquareStack,
-  Trophy,
-} from "lucide-react";
+import { BarChart3, Cpu, History, LayoutDashboard, Settings, SquareStack, Trophy } from "lucide-react";
 import {
   applyWindowCloseChoice,
   getAppSettings,
@@ -24,12 +13,18 @@ import {
   setCloseBehaviorPreference,
   setDurationFormatPreference,
   setThemePreference,
+  setUiPreference,
+  type AppSettings,
   type CloseBehavior,
   type DashboardSummary,
   type DurationFormat,
   type MilestoneSoftware,
+  type StartPage,
   type ThemePreference,
+  type UiPreferenceKey,
+  type UiPreferences,
 } from "./api";
+import { START_PAGE_NAMES } from "./appearancePresets";
 import clockMark from "./assets/gst-clock.svg";
 import { AppUsageTable } from "./components/AppUsageTable";
 import { BackgroundPage } from "./components/BackgroundPage";
@@ -38,20 +33,26 @@ import { DateControl } from "./components/DateControl";
 import { addLocalDays } from "./components/DayCalendar";
 import { ExportKey } from "./components/ExportKey";
 import { RecentActivity } from "./components/RecentActivity";
+import { RestoreDialog } from "./components/RestoreDialog";
 import { TodayMix } from "./components/TodayMix";
 import { SettingsImportDialog } from "./components/SettingsImportDialog";
+import { SettingsPage, type StartPageOption } from "./components/SettingsPage";
 import { Toast } from "./components/Toast";
 import { TodayReadout } from "./components/TodayReadout";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
 import type { StatisticsScope } from "./exports";
+import { applyAppearance, readCachedAppearance, startAccentWatch } from "./appearance";
 import { startTransparencyWatch } from "./glass";
 import { pageExport, type ExportActionId } from "./pageExports";
+import { cacheStartPage, readCachedStartPage } from "./startPage";
 import { applyThemePreference, paintedTheme, readCachedThemePreference } from "./theme";
 import { useExportActions } from "./useExportActions";
 import { pageShortcut, useKeyboardShortcuts } from "./useKeyboardShortcuts";
 import { useMilestoneSoftware } from "./useMilestoneSoftware";
+import { useRestoreActions } from "./useRestoreActions";
 import { answersDay, isDayInvalidDate, useLocalToday } from "./viewedDay";
 import { startVisiblePolling } from "./visiblePolling";
+import { WeekStartContext, weekStartFromSetting } from "./weekStart";
 
 // Load the software search dictionary only when this route is needed.
 const loadSoftwarePage = () => import("./components/SoftwarePage");
@@ -78,7 +79,8 @@ const dashboardRefreshIntervalMs = 5000;
 const defaultCloseBehavior: CloseBehavior = "minimize_to_tray";
 const defaultDurationFormat: DurationFormat = "decimal_hours";
 
-type PageId = "overview" | "settings" | "software" | "background" | "statistics" | "achievements";
+// Every page but 设置 is a 启动时打开 option (§E): its id and label come from appearancePresets.
+type PageId = StartPage | "settings";
 
 /** The tracker's latest scan as today's live summary reports it; `failed` means that read itself failed. */
 interface LiveScan {
@@ -94,32 +96,52 @@ const liveScanOf = (summary: DashboardSummary): LiveScan => ({
 const failedScan = (scan: LiveScan): LiveScan => ({ ...scan, failed: true });
 
 const navItems = [
-  { id: "overview", label: "概览", icon: LayoutDashboard, available: true },
-  { id: "software", label: "软件", icon: SquareStack, available: true },
-  { id: "background", label: "后台", icon: Cpu, available: true },
-  { id: "statistics", label: "统计", icon: BarChart3, available: true },
+  { id: "overview", label: START_PAGE_NAMES.overview, icon: LayoutDashboard, available: true },
+  { id: "software", label: START_PAGE_NAMES.software, icon: SquareStack, available: true },
+  { id: "background", label: START_PAGE_NAMES.background, icon: Cpu, available: true },
+  { id: "statistics", label: START_PAGE_NAMES.statistics, icon: BarChart3, available: true },
   { id: "timeline", label: "时间轴", icon: History, available: false },
-  { id: "achievements", label: "成就", icon: Trophy, available: true },
+  { id: "achievements", label: START_PAGE_NAMES.achievements, icon: Trophy, available: true },
   { id: "settings", label: "设置", icon: Settings, available: true },
 ] as const;
 
-const pageTitles: Record<PageId, string> = {
-  overview: "概览",
-  software: "软件",
-  background: "后台",
-  statistics: "统计",
-  achievements: "成就",
-  settings: "设置",
+const pageTitles: Record<PageId, string> = { ...START_PAGE_NAMES, settings: "设置" };
+
+// 启动时打开 offers the available pages but 设置, so 时间轴 joins by becoming available (§E).
+const startPageOptions: StartPageOption[] = navItems
+  .filter((item) => item.available && item.id !== "settings")
+  .map((item) => ({ value: item.id as StartPage, label: item.label }));
+
+const uiSaveErrors: Record<UiPreferenceKey, string> = {
+  accent: "主题色保存失败",
+  eink: "墨水屏配色保存失败",
+  week_start: "每周起始日保存失败",
+  start_page: "启动时打开保存失败",
+  reduce_motion: "减少动画保存失败",
 };
+
+const uiPreferencesOf = (settings: AppSettings): UiPreferences => ({
+  accent: settings.accent,
+  eink: settings.eink,
+  week_start: settings.week_start,
+  start_page: settings.start_page,
+  reduce_motion: settings.reduce_motion,
+});
+
+/** Before settings load: the first-frame caches, so nothing flips once they arrive. */
+function cachedUiPreferences(): UiPreferences {
+  const appearance = readCachedAppearance();
+  return {
+    accent: appearance.accent,
+    eink: appearance.eink,
+    week_start: "monday",
+    start_page: readCachedStartPage(),
+    reduce_motion: appearance.motion,
+  };
+}
 
 // 单日日期键只对按「某一天」看数据的页面有意义；软件、统计、成就有自己的时间范围，设置页不看数据。
 const pagesWithDateControl: ReadonlySet<PageId> = new Set<PageId>(["overview", "background"]);
-
-const themeOptions: { value: ThemePreference; label: string }[] = [
-  { value: "system", label: "跟随系统" },
-  { value: "light", label: "浅色" },
-  { value: "dark", label: "深色" },
-];
 
 /** Pauses between retries of a failed calendar-bounds read: 5 s, doubling up to a minute. */
 const calendarRetryFirstMs = 5000;
@@ -127,7 +149,10 @@ const calendarRetryMaxMs = 60000;
 
 export default function App() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [activePage, setActivePage] = useState<PageId>("overview");
+  // Opens on the cached 启动时打开 page; once settings load it switches to the stored one, unless the user
+  // has already gone elsewhere (§E).
+  const [activePage, setActivePage] = useState<PageId>(readCachedStartPage);
+  const userNavigatedRef = useRef(false);
   // The day 概览 and 后台 show; null is today, so it follows midnight. Never persisted.
   const [pickedDate, setPickedDate] = useState<string | null>(null);
   // The first day the header calendar offers; null until get_calendar_summary finds a record.
@@ -155,6 +180,17 @@ export default function App() {
   const confirmedTheme = useRef(theme);
   const themeRequest = useRef(0);
   const themeWrites = useRef(Promise.resolve());
+  const [ui, setUi] = useState<UiPreferences>(cachedUiPreferences);
+  const confirmedUi = useRef(ui);
+  // Per key, so an older failed save never rolls back a newer choice.
+  const uiRequests = useRef<Record<UiPreferenceKey, number>>({
+    accent: 0,
+    eink: 0,
+    week_start: 0,
+    start_page: 0,
+    reduce_motion: 0,
+  });
+  const uiWrites = useRef(Promise.resolve());
   const dashboardMountedRef = useRef(false);
   const closePreferenceRef = useRef<CloseBehavior>(defaultCloseBehavior);
   const closeBehaviorConfiguredRef = useRef(false);
@@ -256,6 +292,10 @@ export default function App() {
           setDurationFormat(settings.duration_format);
           confirmedTheme.current = settings.theme;
           setTheme(settings.theme);
+          confirmedUi.current = uiPreferencesOf(settings);
+          setUi(confirmedUi.current);
+          // One switch at most, and never away from a page the user picked meanwhile.
+          if (!userNavigatedRef.current) setActivePage(settings.start_page);
           closePreferenceRef.current = settings.close_behavior;
           closeBehaviorConfiguredRef.current = settings.close_behavior_configured;
         }
@@ -308,7 +348,18 @@ export default function App() {
   }, []);
 
   useEffect(() => applyThemePreference(theme), [theme]);
+  // Painted and cached on load, on every save or rollback, and after an import. The Windows pair is left
+  // out, so the last one read is kept; with 跟随 Windows the watch reads it again.
+  useEffect(
+    () => applyAppearance({ accent: ui.accent, eink: ui.eink, motion: ui.reduce_motion }),
+    [ui.accent, ui.eink, ui.reduce_motion],
+  );
+  useEffect(() => cacheStartPage(ui.start_page), [ui.start_page]);
   useEffect(() => startTransparencyWatch(), []);
+  useEffect(() => startAccentWatch(), []);
+  // The start page's lazy chunk starts loading at once.
+  const startPageRef = useRef(activePage);
+  useEffect(() => pageWarmers[startPageRef.current]?.(), []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -355,6 +406,7 @@ export default function App() {
       return;
     }
 
+    userNavigatedRef.current = true;
     setActivePage(item.id as PageId);
   };
 
@@ -481,6 +533,31 @@ export default function App() {
     trackSettingsWrite(themeWrites.current);
   };
 
+  // 主题色, 墨水屏配色, 每周起始日, 启动时打开, 减少动画: shown at once, saved in order, rolled back on failure.
+  // Saving 启动时打开 only caches it: the app opens there at its next start.
+  const handleUiPreferenceChange = <K extends UiPreferenceKey>(key: K, next: UiPreferences[K]) => {
+    if (!settingsLoaded || ui[key] === next) {
+      return;
+    }
+
+    const request = ++uiRequests.current[key];
+    setUi((current) => ({ ...current, [key]: next }));
+    setSettingsError(null);
+
+    uiWrites.current = uiWrites.current.then(async () => {
+      try {
+        await setUiPreference(key, next);
+        confirmedUi.current = { ...confirmedUi.current, [key]: next };
+      } catch {
+        if (request === uiRequests.current[key]) {
+          setUi((current) => ({ ...current, [key]: confirmedUi.current[key] }));
+          setSettingsError(uiSaveErrors[key]);
+        }
+      }
+    });
+    trackSettingsWrite(uiWrites.current);
+  };
+
   const handleCloseChoice = async (choice: CloseBehavior) => {
     if (closeChoiceBusy) {
       return;
@@ -520,6 +597,10 @@ export default function App() {
       themeRequest.current += 1;
       confirmedTheme.current = settings.theme;
       setTheme(settings.theme);
+      // Likewise for the display preferences; the page stays where it is.
+      for (const key of Object.keys(uiRequests.current) as UiPreferenceKey[]) uiRequests.current[key] += 1;
+      confirmedUi.current = uiPreferencesOf(settings);
+      setUi(confirmedUi.current);
       setSettingsError(null);
     } catch {
       setSettingsError("设置读取失败");
@@ -583,6 +664,7 @@ export default function App() {
     if (posterDialogOpen && !showPosterDialog) setPosterDialogOpen(false);
   }, [posterDialogOpen, showPosterDialog]);
   const { handleExport, saveAchievementPoster, showToast } = exports;
+  const restore = useRestoreActions(showToast);
   const { reload: reloadMilestones } = milestones;
 
   const handleHeaderExport = useCallback(
@@ -621,373 +703,211 @@ export default function App() {
     : liveScan.succeeded === false ? "采样失败，正在重试" : "等待首次采样";
 
   return (
-    <div className="desktop-root">
-      <a className="skip-link" href={`#${contentId}`}>
-        跳到内容
-      </a>
-      <div className="app-shell">
-        <aside className="sidebar">
-          <div className="brand">
-            <img className="brand-mark" src={clockMark} alt="" width={44} height={44} />
-            <div className="brand-copy">
-              <h1>{summary?.product_title ?? "全局软件计时器"}</h1>
-              <small>本地软件时长记录</small>
+    <WeekStartContext.Provider value={weekStartFromSetting(ui.week_start)}>
+      <div className="desktop-root">
+        <a className="skip-link" href={`#${contentId}`}>
+          跳到内容
+        </a>
+        <div className="app-shell">
+          <aside className="sidebar">
+            <div className="brand">
+              <img className="brand-mark" src={clockMark} alt="" width={44} height={44} />
+              <div className="brand-copy">
+                <h1>{summary?.product_title ?? "全局软件计时器"}</h1>
+                <small>本地软件时长记录</small>
+              </div>
             </div>
-          </div>
 
-          <nav className="side-nav" aria-label="主导航">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = item.id === activePage;
-              const warmPage = pageWarmers[item.id as PageId];
+            <nav className="side-nav" aria-label="主导航">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = item.id === activePage;
+                const warmPage = pageWarmers[item.id as PageId];
 
-              const navButton = (
-                <button
-                  className={`nav-key${isActive ? " is-active" : ""}`}
-                  type="button"
-                  aria-current={isActive ? "page" : undefined}
-                  aria-disabled={!item.available}
-                  aria-keyshortcuts={
-                    item.available
-                      ? pageShortcut(shortcutPages.indexOf(item.id as PageId), item.id === "settings")
-                      : undefined
-                  }
-                  onPointerEnter={warmPage}
-                  onFocus={warmPage}
-                  onClick={() => handleNavClick(item)}
-                >
-                  <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
-                  <span>{item.label}</span>
-                  {item.available ? null : <em aria-hidden="true">未开放</em>}
-                </button>
-              );
+                const navButton = (
+                  <button
+                    className={`nav-key${isActive ? " is-active" : ""}`}
+                    type="button"
+                    aria-current={isActive ? "page" : undefined}
+                    aria-disabled={!item.available}
+                    aria-keyshortcuts={
+                      item.available
+                        ? pageShortcut(shortcutPages.indexOf(item.id as PageId), item.id === "settings")
+                        : undefined
+                    }
+                    onPointerEnter={warmPage}
+                    onFocus={warmPage}
+                    onClick={() => handleNavClick(item)}
+                  >
+                    <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
+                    <span>{item.label}</span>
+                    {item.available ? null : <em aria-hidden="true">未开放</em>}
+                  </button>
+                );
 
-              return item.available ? (
-                <span className="nav-key-slot" key={item.label}>
-                  {navButton}
-                </span>
-              ) : (
-                <UnavailableTooltip key={item.label}>{navButton}</UnavailableTooltip>
-              );
-            })}
-          </nav>
+                return item.available ? (
+                  <span className="nav-key-slot" key={item.label}>
+                    {navButton}
+                  </span>
+                ) : (
+                  <UnavailableTooltip key={item.label}>{navButton}</UnavailableTooltip>
+                );
+              })}
+            </nav>
 
-          <div className="sidebar-footer" aria-label="数据状态">
-            <span className="live-status">
-              <i className={recording ? "lamp is-lit is-breathing" : "lamp"} aria-hidden="true" />
-              {recordingLabel}
-            </span>
-            <span>
-              <i className="lamp" aria-hidden="true" />
-              数据只保存在本机
-            </span>
-            <small className="num">V{packageJson.version}</small>
-          </div>
-        </aside>
+            <div className="sidebar-footer" aria-label="数据状态">
+              <span className="live-status">
+                <i className={recording ? "lamp is-lit is-breathing" : "lamp"} aria-hidden="true" />
+                {recordingLabel}
+              </span>
+              <span>
+                <i className="lamp" aria-hidden="true" />
+                数据只保存在本机
+              </span>
+              <small className="num">V{packageJson.version}</small>
+            </div>
+          </aside>
 
-        <div className="workspace">
-          <header className="page-header">
-            <h2>{pageTitles[activePage]}</h2>
-            {pagesWithDateControl.has(activePage) ? (
-              <DateControl
-                value={viewedDate}
-                today={today}
-                dataStartDate={dataStartDate}
-                onChange={(date) => setPickedDate(date < today ? date : null)}
-              />
-            ) : null}
-            <div className="window-actions">
-              {headerExport ? (
-                <ExportKey
-                  key={activePage}
-                  label={headerExport.label}
-                  icon={headerExport.icon}
-                  items={headerExport.items}
-                  busy={exportBusy}
-                  unavailable={exportUnavailable}
-                  onSelect={handleHeaderExport}
+          <div className="workspace">
+            <header className="page-header">
+              <h2>{pageTitles[activePage]}</h2>
+              {pagesWithDateControl.has(activePage) ? (
+                <DateControl
+                  value={viewedDate}
+                  today={today}
+                  dataStartDate={dataStartDate}
+                  onChange={(date) => setPickedDate(date < today ? date : null)}
                 />
               ) : null}
-            </div>
-          </header>
+              <div className="window-actions">
+                {headerExport ? (
+                  <ExportKey
+                    key={activePage}
+                    label={headerExport.label}
+                    icon={headerExport.icon}
+                    items={headerExport.items}
+                    busy={exportBusy}
+                    unavailable={exportUnavailable}
+                    onSelect={handleHeaderExport}
+                  />
+                ) : null}
+              </div>
+            </header>
 
-          {activePage === "settings" ? (
-            <SettingsPage
-              autostartBusy={autostartBusy}
-              autostartDisabled={!autostartLoaded || autostartBusy}
-              autostartEnabled={autostartEnabled}
-              closeBehavior={closeBehavior}
-              closeBehaviorDisabled={!settingsLoaded}
-              durationFormat={durationFormat}
-              durationFormatDisabled={!settingsLoaded || durationFormatBusy}
-              error={settingsError}
-              theme={theme}
-              themeDisabled={!settingsLoaded}
-              onAutostartToggle={handleAutostartToggle}
-              onCloseBehaviorToggle={handleCloseBehaviorToggle}
-              onDurationFormatToggle={handleDurationFormatToggle}
-              onThemeChange={handleThemeChange}
-            />
-          ) : activePage === "software" ? (
-            <Suspense fallback={<main id="software-content"><p role="status">正在读取软件列表…</p></main>}>
-              <SoftwarePage
+            {activePage === "settings" ? (
+              <SettingsPage
+                autostartBusy={autostartBusy}
+                autostartDisabled={!autostartLoaded || autostartBusy}
+                autostartEnabled={autostartEnabled}
+                closeBehavior={closeBehavior}
+                closeBehaviorDisabled={!settingsLoaded}
                 durationFormat={durationFormat}
-                onDefaultSummariesChanged={loadDashboard}
+                durationFormatDisabled={!settingsLoaded || durationFormatBusy}
+                error={settingsError}
+                theme={theme}
+                themeDisabled={!settingsLoaded}
+                ui={ui}
+                uiDisabled={!settingsLoaded}
+                startPageOptions={startPageOptions}
+                onAutostartToggle={handleAutostartToggle}
+                onCloseBehaviorToggle={handleCloseBehaviorToggle}
+                onDurationFormatToggle={handleDurationFormatToggle}
+                onThemeChange={handleThemeChange}
+                onUiPreferenceChange={handleUiPreferenceChange}
+                onOpenDataFolder={restore.openFolder}
+                restorePicking={restore.picking}
+                onPickRestore={() => void restore.pick()}
               />
-            </Suspense>
-          ) : activePage === "background" ? (
-            <BackgroundPage
-              date={viewedDay ?? undefined}
-              durationFormat={durationFormat}
-              onInvalidDate={() => setPickedDate(null)}
-            />
-          ) : activePage === "statistics" ? (
-            <Suspense fallback={<main id="statistics-content"><p role="status">正在读取统计…</p></main>}>
-              <StatisticsPage durationFormat={durationFormat} onScopeChange={setStatisticsScope} />
-            </Suspense>
-          ) : activePage === "achievements" ? (
-            <Suspense fallback={<main id="achievements-content"><p role="status">正在读取成就…</p></main>}>
-              <AchievementsPage durationFormat={durationFormat} onIncludeHiddenChange={setAchievementsIncludeHidden} />
-            </Suspense>
-          ) : (
-            <main
-              className={`overview-page${summaryIsStale ? " is-stale" : ""}`}
-              id="overview-content"
-              aria-busy={summaryIsStale || undefined}
-            >
-              {error ? <div className="warning" role="alert">{error}</div> : null}
-              {shownSummary ? (
-                <>
-                  <TodayReadout summary={shownSummary} durationFormat={durationFormat} />
+            ) : activePage === "software" ? (
+              <Suspense fallback={<main id="software-content"><p role="status">正在读取软件列表…</p></main>}>
+                <SoftwarePage
+                  durationFormat={durationFormat}
+                  onDefaultSummariesChanged={loadDashboard}
+                />
+              </Suspense>
+            ) : activePage === "background" ? (
+              <BackgroundPage
+                date={viewedDay ?? undefined}
+                durationFormat={durationFormat}
+                onInvalidDate={() => setPickedDate(null)}
+              />
+            ) : activePage === "statistics" ? (
+              <Suspense fallback={<main id="statistics-content"><p role="status">正在读取统计…</p></main>}>
+                <StatisticsPage durationFormat={durationFormat} onScopeChange={setStatisticsScope} />
+              </Suspense>
+            ) : activePage === "achievements" ? (
+              <Suspense fallback={<main id="achievements-content"><p role="status">正在读取成就…</p></main>}>
+                <AchievementsPage durationFormat={durationFormat} onIncludeHiddenChange={setAchievementsIncludeHidden} />
+              </Suspense>
+            ) : (
+              <main
+                className={`overview-page${summaryIsStale ? " is-stale" : ""}`}
+                id="overview-content"
+                aria-busy={summaryIsStale || undefined}
+              >
+                {error ? <div className="warning" role="alert">{error}</div> : null}
+                {shownSummary ? (
+                  <>
+                    <TodayReadout summary={shownSummary} durationFormat={durationFormat} />
 
-                  <div className="overview-grid">
-                    <AppUsageTable apps={shownSummary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
-                    {/* Nothing runs on a past day: 当日分布 takes the whole rail. */}
-                    <div className={`right-rail${shownPastDay ? " is-past" : ""}`}>
-                      <TodayMix apps={shownSummary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
-                      {shownPastDay ? null : (
-                        <RecentActivity apps={shownSummary.apps} durationFormat={durationFormat} />
-                      )}
+                    <div className="overview-grid">
+                      <AppUsageTable apps={shownSummary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
+                      {/* Nothing runs on a past day: 当日分布 takes the whole rail. */}
+                      <div className={`right-rail${shownPastDay ? " is-past" : ""}`}>
+                        <TodayMix apps={shownSummary.apps} durationFormat={durationFormat} pastDay={shownPastDay} />
+                        {shownPastDay ? null : (
+                          <RecentActivity apps={shownSummary.apps} durationFormat={durationFormat} />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </>
-              ) : !error && <p role="status" className="empty-state">正在读取概览…</p>}
-            </main>
-          )}
+                  </>
+                ) : !error && <p role="status" className="empty-state">正在读取概览…</p>}
+              </main>
+            )}
+          </div>
         </div>
-      </div>
 
-      <Toast toast={exports.toast} onDismiss={exports.dismissToast} />
+        <Toast toast={exports.toast} onDismiss={exports.dismissToast} />
 
-      {showPosterDialog && milestoneSoftware ? (
-        <Suspense fallback={null}>
-          <AchievementPosterDialog
-            software={milestoneSoftware}
-            theme={paintedTheme()}
-            busy={exports.busy}
-            onSave={handleSavePoster}
-            onCancel={() => setPosterDialogOpen(false)}
+        {showPosterDialog && milestoneSoftware ? (
+          <Suspense fallback={null}>
+            <AchievementPosterDialog
+              software={milestoneSoftware}
+              theme={paintedTheme()}
+              busy={exports.busy}
+              onSave={handleSavePoster}
+              onCancel={() => setPosterDialogOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+
+        {exports.importPreview ? (
+          <SettingsImportDialog
+            preview={exports.importPreview}
+            busy={exports.importBusy}
+            onConfirm={() => void exports.confirmImport()}
+            onCancel={exports.cancelImport}
           />
-        </Suspense>
-      ) : null}
+        ) : null}
 
-      {exports.importPreview ? (
-        <SettingsImportDialog
-          preview={exports.importPreview}
-          busy={exports.importBusy}
-          onConfirm={() => void exports.confirmImport()}
-          onCancel={exports.cancelImport}
-        />
-      ) : null}
+        {restore.dialog ? (
+          <RestoreDialog
+            key={restore.dialog.kind}
+            state={restore.dialog}
+            busy={restore.applying}
+            onConfirm={() => void restore.confirm()}
+            onClose={restore.close}
+          />
+        ) : null}
 
-      {closeDialogOpen ? (
-        <CloseChoiceDialog
-          error={closeDialogError}
-          busy={closeChoiceBusy}
-          onChoose={(choice) => void handleCloseChoice(choice)}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-interface SettingsPageProps {
-  autostartBusy: boolean;
-  autostartDisabled: boolean;
-  autostartEnabled: boolean;
-  closeBehavior: CloseBehavior;
-  closeBehaviorDisabled: boolean;
-  durationFormat: DurationFormat;
-  durationFormatDisabled: boolean;
-  error: string | null;
-  theme: ThemePreference;
-  themeDisabled: boolean;
-  onAutostartToggle: () => void;
-  onCloseBehaviorToggle: () => void;
-  onDurationFormatToggle: () => void;
-  onThemeChange: (theme: ThemePreference) => void;
-}
-
-function SettingsPage({
-  autostartBusy,
-  autostartDisabled,
-  autostartEnabled,
-  closeBehavior,
-  closeBehaviorDisabled,
-  durationFormat,
-  durationFormatDisabled,
-  error,
-  theme,
-  themeDisabled,
-  onAutostartToggle,
-  onCloseBehaviorToggle,
-  onDurationFormatToggle,
-  onThemeChange,
-}: SettingsPageProps) {
-  return (
-    <main className="settings-page" id="settings-content">
-      {error ? <div className="warning">{error}</div> : null}
-
-      <section className="readout settings-readout" aria-labelledby="settings-status-title">
-        <div className="lcd settings-lcd">
-          <img src={clockMark} width="48" height="48" alt="" />
-          <div className="lcd-cell">
-            <h3 className="lcd-label" id="settings-status-title">本机状态</h3>
-            <p>全局软件计时器</p>
-          </div>
-          <div className="lcd-cell">
-            <span className="lcd-label">当前版本</span>
-            <p>V{packageJson.version}</p>
-          </div>
-          <div className="lcd-cell">
-            <span className="lcd-label">数据存储</span>
-            <p>仅本机</p>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel settings-group" aria-labelledby="settings-run-title">
-        <h3 id="settings-run-title">运行</h3>
-        <SettingSwitchRow
-          checked={autostartEnabled}
-          description="电脑开机后自动启动并在后台记录软件时长"
-          disabled={autostartDisabled}
-          icon={<Power size={18} aria-hidden="true" />}
-          statusText={autostartBusy ? "保存中" : autostartEnabled ? "已开启" : "已关闭"}
-          title="开机自启动"
-          onToggle={onAutostartToggle}
-        />
-        <SettingSwitchRow
-          checked={closeBehavior === "minimize_to_tray"}
-          description="关闭主窗口后继续在右下角状态栏运行"
-          icon={<MonitorCog size={18} aria-hidden="true" />}
-          statusText={closeBehavior === "minimize_to_tray" ? "最小化到后台" : "直接退出"}
-          title="关闭窗口时最小化到后台"
-          disabled={closeBehaviorDisabled}
-          onToggle={onCloseBehaviorToggle}
-        />
-      </section>
-
-      <section className="panel settings-group" aria-labelledby="settings-display-title">
-        <h3 id="settings-display-title">显示</h3>
-        <SettingSwitchRow
-          checked={durationFormat === "hours_minutes"}
-          description="开启后将会显示具体分钟数，如“8小时35分钟”"
-          disabled={durationFormatDisabled}
-          icon={<Clock3 size={18} aria-hidden="true" />}
-          statusText={durationFormat === "hours_minutes" ? "已开启" : "已关闭"}
-          title="显示分钟数"
-          onToggle={onDurationFormatToggle}
-        />
-        <div className="settings-row">
-          <div className="settings-row-icon" aria-hidden="true">
-            <ThemeGlyph />
-          </div>
-          <div className="settings-row-copy">
-            <strong id="theme-setting-title">主题</strong>
-            <span>默认跟随 Windows 的浅色或深色模式</span>
-          </div>
-          <div className="settings-row-control">
-            <div className="segmented" role="radiogroup" aria-labelledby="theme-setting-title">
-              {themeOptions.map((option) => (
-                <button
-                  key={option.value}
-                  className={`segmented-option${theme === option.value ? " is-selected" : ""}`}
-                  type="button"
-                  role="radio"
-                  aria-checked={theme === option.value}
-                  disabled={themeDisabled}
-                  onClick={() => onThemeChange(option.value)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel settings-group settings-privacy" aria-labelledby="settings-privacy-title">
-        <h3 id="settings-privacy-title">隐私</h3>
-        <p>
-          软件使用记录保存在这台电脑上。GST 不上传记录，也不采集窗口标题、文档名、网页标题或键盘输入内容。
-        </p>
-      </section>
-    </main>
-  );
-}
-
-function ThemeGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-      <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" />
-    </svg>
-  );
-}
-
-interface SettingSwitchRowProps {
-  checked: boolean;
-  description: string;
-  disabled?: boolean;
-  icon: ReactNode;
-  statusText: string;
-  title: string;
-  onToggle: () => void;
-}
-
-function SettingSwitchRow({
-  checked,
-  description,
-  disabled = false,
-  icon,
-  statusText,
-  title,
-  onToggle,
-}: SettingSwitchRowProps) {
-  return (
-    <div className="settings-row">
-      <div className="settings-row-icon" aria-hidden="true">
-        {icon}
+        {closeDialogOpen ? (
+          <CloseChoiceDialog
+            error={closeDialogError}
+            busy={closeChoiceBusy}
+            onChoose={(choice) => void handleCloseChoice(choice)}
+          />
+        ) : null}
       </div>
-      <div className="settings-row-copy">
-        <strong>{title}</strong>
-        <span>{description}</span>
-      </div>
-      <div className="settings-row-control">
-        <span className={`settings-status${checked ? " is-on" : ""}`}>{statusText}</span>
-        <button
-          className={`toggle${checked ? " is-on" : ""}`}
-          type="button"
-          role="switch"
-          aria-checked={checked}
-          aria-label={title}
-          disabled={disabled}
-          onClick={onToggle}
-        >
-          <span className="toggle-knob" aria-hidden="true" />
-        </button>
-      </div>
-    </div>
+    </WeekStartContext.Provider>
   );
 }

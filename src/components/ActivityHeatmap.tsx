@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { AchievementsSummary, DurationFormat, HeatmapDay, HeatmapDays } from "../api";
 import { formatDurationPartsZh, formatDurationZh } from "../i18n";
+import { useWeekStart, weekOffset, type WeekStart } from "../weekStart";
 
 export const HEATMAP_RANGE_LABELS: Record<HeatmapDays, string> = {
   90: "近 90 天",
@@ -13,7 +14,8 @@ export type HeatLevel = 0 | 1 | 2 | 3;
 
 const LEVEL_1_MAX_SECONDS = 3600;
 const LEVEL_2_MAX_SECONDS = 3 * 3600;
-const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
+/** Indexed by `getDay()`: Sunday first. */
+const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 /** Months per row before the normal-size dot matrices wrap; 近一年 switches to small cells, seven a row. */
 const MONTHS_PER_ROW = 4;
 const COMPACT_MIN_DAYS = 200;
@@ -72,12 +74,18 @@ interface Props {
   durationFormat: DurationFormat;
 }
 
+/** The header row, starting from the first day of the week. */
+function weekdayHeader(weekStart: WeekStart = 1): string[] {
+  return WEEKDAYS.map((_, index) => WEEKDAYS[(weekStart + index) % 7]);
+}
+
 export function ActivityHeatmap({ summary, durationFormat }: Props) {
+  const weekStart = useWeekStart();
   const { heatmap, today, streak_threshold_seconds: threshold } = summary;
   const rangeLabel = HEATMAP_RANGE_LABELS[summary.heatmap_days as HeatmapDays] ?? `近 ${heatmap.length} 天`;
   const recordStart = recordStartDate(summary);
   const isRecorded = (date: string) => recordStart !== null && date >= recordStart;
-  const months = buildMonths(heatmap, today, threshold, isRecorded);
+  const months = buildMonths(heatmap, today, threshold, isRecorded, weekStart);
   const usedDays = heatmap.filter((day) => isRecorded(day.date) && day.active_seconds >= threshold).length;
   const activeTotal = heatmap.reduce((sum, day) => sum + day.active_seconds, 0);
   const hasNoRecordDays = heatmap.some((day) => !isRecorded(day.date));
@@ -120,7 +128,7 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
                   ) : null}
                 </div>
                 <div className="ach-month-grid">
-                  {compact ? null : WEEKDAYS.map((weekday) => <span className="ach-weekday" key={weekday}>{weekday}</span>)}
+                  {compact ? null : weekdayHeader(weekStart).map((weekday) => <span className="ach-weekday" key={weekday}>{weekday}</span>)}
                   {month.cells.map((cell, cellIndex) => <HeatCell key={cellIndex} cell={cell} durationFormat={durationFormat} />)}
                 </div>
               </div>
@@ -216,6 +224,7 @@ function buildMonths(
   today: string,
   threshold: number,
   isRecorded: (date: string) => boolean,
+  weekStart: WeekStart = 1,
 ): MonthBlock[] {
   const byDate = new Map(heatmap.map((day) => [day.date, day]));
   const keys = [...new Set(heatmap.map((day) => day.date.slice(0, 7)))];
@@ -225,8 +234,8 @@ function buildMonths(
     const year = Number(key.slice(0, 4));
     const month = Number(key.slice(5, 7));
     const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-    const mondayOffset = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
-    const cells: Cell[] = Array.from({ length: mondayOffset }, () => ({ kind: "blank" }));
+    const leadingBlanks = weekOffset(new Date(Date.UTC(year, month - 1, 1)).getUTCDay(), weekStart);
+    const cells: Cell[] = Array.from({ length: leadingBlanks }, () => ({ kind: "blank" }));
     let recorded = false;
     let usedDays = 0;
     let activeSeconds = 0;

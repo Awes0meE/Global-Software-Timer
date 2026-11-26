@@ -4,7 +4,13 @@
 // ?export=toolarge make the settings import pick reject with that error. The
 // import id is single use, like the app's. save_binary_export checks its raw body
 // and name header like the app before "saving".
-import type { SettingsImportPreview, SettingsImportResult } from "../../src/api";
+//
+// 从备份恢复: ?restore=invalid|newer|live|space makes the backup pick reject with
+// that error, ?restore=fail makes 恢复并重启 fail, and ?restore=ok (or none) previews
+// the approved demo backup. The restore id is single use. ?restorestatus=restored|
+// rolled_back is the one-shot status after a restart. ?export=fail also makes
+// 打开数据文件夹 fail. These two params are read on every call.
+import type { RestorePreview, SettingsImportKey, SettingsImportPreview, SettingsImportResult } from "../../src/api";
 import { formatLocalDate } from "../../src/statisticsRange";
 
 const DOWNLOADS = "C:\\Users\\demo\\Downloads\\";
@@ -18,8 +24,18 @@ export interface MockLists {
   hidden: Set<string>;
 }
 
-// The demo settings file: theme → dark, two focused (one already focused), one
-// hidden, one software this machine has never seen.
+// The demo settings file: theme → dark and five display preferences (so the
+// dialog's 760 px layout shows), two focused (one already focused), one hidden,
+// one software this machine has never seen. In the backend's plan order; a value
+// already set is not a change.
+const IMPORT_SETTINGS: readonly [key: SettingsImportKey, value: string][] = [
+  ["theme", "dark"],
+  ["accent", "violet"],
+  ["eink", "warm"],
+  ["week_start", "sunday"],
+  ["start_page", "statistics"],
+  ["reduce_motion", "reduce"],
+];
 const IMPORT_FOCUSED = ["notion", "code"];
 const IMPORT_HIDDEN = ["cloudmusic"];
 const IMPORT_UNMATCHED = 1;
@@ -38,11 +54,39 @@ function plan(lists: MockLists): SettingsImportPreview {
     IMPORT_HIDDEN.filter((key) => lists.focused.has(key)).length;
   return {
     import_id: IMPORT_ID,
-    changes: lists.settings.theme === "dark" ? [] : [{ key: "theme", from: String(lists.settings.theme), to: "dark" }],
+    changes: IMPORT_SETTINGS.filter(([key, to]) => lists.settings[key] !== to).map(([key, to]) => ({
+      key,
+      from: String(lists.settings[key]),
+      to,
+    })),
     focused_added: focusedAdded.length,
     hidden_added: hiddenAdded.length,
     unmatched: IMPORT_UNMATCHED,
     conflicts,
+  };
+}
+
+const RESTORE_ID = "preview-restore";
+let pendingRestore: string | null = null;
+let restoreStatusReported = false;
+const RESTORE_PICK_ERRORS: Record<string, string> = {
+  invalid: "restore_invalid",
+  newer: "restore_newer",
+  live: "restore_live_database",
+  space: "restore_no_space",
+};
+
+const query = (name: string) => new URLSearchParams(window.location.search).get(name);
+
+/** The backup in the approved 5-restore mock sheet. */
+function restorePreview(): RestorePreview {
+  return {
+    restore_id: RESTORE_ID,
+    file_name: "GST-数据备份-2026-11-20.db",
+    first_day: "2026-05-28",
+    last_day: "2026-11-20",
+    software_count: 142,
+    file_size_bytes: 196 * 1024 * 1024,
   };
 }
 
@@ -103,6 +147,32 @@ export function exportCommand(
         conflicts: preview.conflicts,
       };
       return { value: result };
+    }
+    case "open_data_folder":
+      if (query("export") === "fail") throw "data_folder_open_failed";
+      return { value: undefined };
+    case "pick_restore_backup": {
+      pendingRestore = null;
+      const error = RESTORE_PICK_ERRORS[query("restore") ?? ""];
+      if (error) throw error;
+      if (query("export") === "cancel") return { value: null };
+      pendingRestore = RESTORE_ID;
+      return { value: restorePreview() };
+    }
+    case "apply_restore":
+      if (pendingRestore === null || args.restoreId !== pendingRestore) throw "restore_failed";
+      pendingRestore = null;
+      if (query("restore") === "fail") throw "restore_failed";
+      // The app exits and restarts here; the preview stays put.
+      return { value: undefined };
+    case "discard_restore":
+      if (args.restoreId === pendingRestore) pendingRestore = null;
+      return { value: undefined };
+    case "get_restore_status": {
+      const status = query("restorestatus");
+      if (restoreStatusReported || (status !== "restored" && status !== "rolled_back")) return { value: "none" };
+      restoreStatusReported = true;
+      return { value: status };
     }
     default:
       return undefined;

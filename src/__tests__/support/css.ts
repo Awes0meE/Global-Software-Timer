@@ -11,6 +11,9 @@ import styles from "../../styles.css?raw";
 import achievementsCss from "../../components/AchievementsPage.css?raw";
 import statisticsCss from "../../components/StatisticsPage.css?raw";
 import headerControlsCss from "../../components/HeaderControls.css?raw";
+import { resolveAccent, type AccentPair } from "../../accent";
+import { windowsGlowAlphas, type GlowAlphaPair } from "../../glow";
+import type { AccentId, EinkId } from "../../appearancePresets";
 
 export type Theme = "light" | "dark";
 
@@ -259,6 +262,54 @@ export function parseRules(css: string): ParsedCss {
 const LIGHT_BLOCK = [":root", ':root[data-theme="light"]'];
 const DARK_BLOCK = [':root[data-theme="dark"]'];
 
+/**
+ * A v0.4.4 appearance on <html> (spec §B, §C): `data-accent` with the inline `--user-accent-*` that
+ * `applyAppearance` sets, and `data-eink`. Omitted fields mean today's look.
+ */
+export interface Appearance {
+  accent?: AccentId;
+  /** The Windows accent pair `跟随 Windows` resolves from; null when it cannot be read. */
+  windowsAccent?: AccentPair | null;
+  /**
+   * 跟随 Windows only: false leaves out the inline `--user-glow-*` alphas that `applyAppearance` sets for a
+   * readable pair, so the stylesheet's fallbacks show (as when no readable pair is known).
+   */
+  inlineGlow?: boolean;
+  eink?: EinkId;
+}
+
+// The glow search runs once per Windows pair; the sweeps measure each pair many times.
+const glowAlphaCache = new Map<string, GlowAlphaPair | null>();
+function cachedWindowsGlowAlphas(windows: AccentPair | null): GlowAlphaPair | null {
+  const key = JSON.stringify(windows);
+  if (!glowAlphaCache.has(key)) glowAlphaCache.set(key, windowsGlowAlphas(windows));
+  return glowAlphaCache.get(key) ?? null;
+}
+
+// Override selectors are scoped per theme so a light value never leaks into dark (spec §C).
+const THEME_SCOPE: Record<Theme, string> = { light: ':root:not([data-theme="dark"])', dark: ':root[data-theme="dark"]' };
+
+/** The rule that swaps today's --glow for the accent-built one: any data-accent but blue. */
+export function accentGlowSelector(theme: Theme): string {
+  return `${THEME_SCOPE[theme]}[data-accent]:not([data-accent="blue"])`;
+}
+
+/** The rule that holds one 主题色 choice's glow alphas (`--glow-alpha-1..3`) for one theme. */
+export function accentAlphaSelector(theme: Theme, accent: AccentId): string {
+  return `${THEME_SCOPE[theme]}[data-accent="${accent}"]`;
+}
+
+/** The rule that holds one e-ink palette's tokens for one theme. */
+export function einkSelector(theme: Theme, palette: EinkId): string {
+  return `${THEME_SCOPE[theme]}[data-eink="${palette}"]`;
+}
+
+let parsedStyles: CssRule[] | null = null;
+function styleRules(): CssRule[] {
+  parsedStyles ??= parseRules(styles).rules;
+  return parsedStyles;
+}
+
 function sameSelectors(rule: CssRule, wanted: string[]) {
   return (
     rule.atRules.length === 0 &&
@@ -276,19 +327,38 @@ function customProperties(rule: CssRule): Record<string, string> {
 /**
  * Raw (unresolved) custom properties of a theme: the
  * `:root, :root[data-theme="light"]` block, and for dark that block overridden
- * by the `:root[data-theme="dark"]` block.
+ * by the `:root[data-theme="dark"]` block. With an appearance, the inline accent
+ * variables (with 跟随 Windows's glow alphas) and that theme's accent-glow, glow-alpha and e-ink palette
+ * rules apply on top.
  */
-export function themeTokens(theme: Theme): Record<string, string> {
-  const rules = parseRules(styles).rules;
+export function themeTokens(theme: Theme, appearance: Appearance = {}): Record<string, string> {
+  const rules = styleRules();
   const tokens: Record<string, string> = {};
-  for (const rule of rules.filter((r) => sameSelectors(r, LIGHT_BLOCK))) {
-    Object.assign(tokens, customProperties(rule));
-  }
-  if (theme === "dark") {
-    for (const rule of rules.filter((r) => sameSelectors(r, DARK_BLOCK))) {
+  const apply = (wanted: string[]) => {
+    for (const rule of rules.filter((r) => sameSelectors(r, wanted))) {
       Object.assign(tokens, customProperties(rule));
     }
+  };
+  apply(LIGHT_BLOCK);
+  if (theme === "dark") apply(DARK_BLOCK);
+  const { accent, eink } = appearance;
+  if (accent !== undefined && accent !== "blue") {
+    // applyAppearance sets these inline on <html> for every choice but blue.
+    const pair = resolveAccent(accent, appearance.windowsAccent ?? null);
+    tokens["--user-accent-light"] = pair.light;
+    tokens["--user-accent-dark"] = pair.dark;
+    const glow = accent === "system" && appearance.inlineGlow !== false ? cachedWindowsGlowAlphas(appearance.windowsAccent ?? null) : null;
+    if (glow) {
+      (["light", "dark"] as const).forEach((side) =>
+        glow[side].forEach((alpha, blob) => {
+          tokens[`--user-glow-${side}-${blob + 1}`] = `${alpha}%`;
+        }),
+      );
+    }
+    apply([accentGlowSelector(theme)]);
+    apply([accentAlphaSelector(theme, accent)]);
   }
+  if (eink !== undefined) apply([einkSelector(theme, eink)]);
   return tokens;
 }
 
@@ -330,8 +400,8 @@ export function resolve(value: string, tokens: Record<string, string>, seen: str
 }
 
 /** Resolved value of one token in a theme. */
-export function token(theme: Theme, name: string): string {
-  const tokens = themeTokens(theme);
+export function token(theme: Theme, name: string, appearance: Appearance = {}): string {
+  const tokens = themeTokens(theme, appearance);
   if (!(name in tokens)) {
     throw new Error(`Token ${name} is not defined for the ${theme} theme`);
   }
@@ -504,28 +574,28 @@ export function radialLayers(value: string): RadialLayer[] {
 }
 
 /** First colour of every `--glow` layer, in source order. */
-export function glowCenters(theme: Theme): Rgba[] {
-  return radialLayers(token(theme, "--glow")).map((layer) => stopColour(layer.stops[0]));
+export function glowCenters(theme: Theme, appearance: Appearance = {}): Rgba[] {
+  return radialLayers(token(theme, "--glow", appearance)).map((layer) => stopColour(layer.stops[0]));
 }
 
-/** Centre of the first `--glow` layer: the top-left blue glow. */
-export function glowCenter(theme: Theme): Rgba {
-  return glowCenters(theme)[0];
+/** Centre of the first `--glow` layer: the top-left (accent) glow. */
+export function glowCenter(theme: Theme, appearance: Appearance = {}): Rgba {
+  return glowCenters(theme, appearance)[0];
 }
 
-/** Worst-case backdrop: the blue glow centre over `--base`. */
-export function backdrop(theme: Theme): Rgba {
-  return over(glowCenter(theme), parseColor(token(theme, "--base")));
+/** Worst-case backdrop: the first glow centre over `--base`. */
+export function backdrop(theme: Theme, appearance: Appearance = {}): Rgba {
+  return over(glowCenter(theme, appearance), parseColor(token(theme, "--base", appearance)));
 }
 
 /** `--eink-paper` as colours: itself, or each stop of its linear-gradient. */
-export function paperStops(theme: Theme): Rgba[] {
-  return fillStops(theme, "--eink-paper");
+export function paperStops(theme: Theme, appearance: Appearance = {}): Rgba[] {
+  return fillStops(theme, "--eink-paper", appearance);
 }
 
 /** A fill token as colours: itself, or each stop of its linear-gradient. */
-export function fillStops(theme: Theme, name: string): Rgba[] {
-  const paper = token(theme, name);
+export function fillStops(theme: Theme, name: string, appearance: Appearance = {}): Rgba[] {
+  const paper = token(theme, name, appearance);
   const args = callArgs(paper, "linear-gradient");
   if (args === null) {
     return [parseColor(paper)];

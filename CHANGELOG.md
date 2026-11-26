@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- `设置` has two new groups. `外观` holds `主题`, `主题色` and `墨水屏配色`, and `数据` holds `数据文件夹` and `从备份恢复`. `运行` gains `启动时打开`, and `显示` gains `每周起始日` and `减少动画`. The other rows keep their text and behaviour.
+- `主题色` offers eight choices: 跟随 Windows, 蓝, 青, 绿, 紫, 玫红, 琥珀 and 石墨.
+  - The accent colours the toggles, selected items, the current nav icon, focus rings, text selection and search hits.
+  - Every choice except 蓝 also tints the background glow. The tint is a little lighter than in the mockups, so text over the glow stays as readable as before.
+  - 蓝 is the default and looks exactly like v0.4.3.
+  - 跟随 Windows uses the Windows accent colour, made lighter or darker where needed to keep contrast. When the colour cannot be read it uses 蓝's colours, still with the tinted glow. GST reads it again each time the window is shown.
+  - The orange "now" lamps, software colours, warnings and posters stay the same.
+- `墨水屏配色` offers five paper and ink palettes for every e-ink screen: 极光 (the default, today's look), 石墨, 夜蓝, 暖纸 and 墨绿. Each has its own light and dark paper. Posters keep their own look.
+- `每周起始日` (周一 or 周日) sets the first day of the week in five places: the date-picker calendars, the 统计 `本周` preset, the 成就 heatmap months, the weekly labels on the 每日趋势 recorder, and the 软件 page's `这周X` / `上周X` last-opened text. Weekday names, 工作日 and 周末, CSV exports, posters and the 统计 comparison range do not change.
+- `启动时打开` (概览, 软件, 后台, 统计 or 成就) picks the page shown when GST starts: at login, when you open it yourself, or when it restarts after a restore. GST opens straight on that page, without showing 概览 first. Opening the window from the tray keeps the page you left.
+- `减少动画` turns motion off even when Windows does not ask for it.
+  - Switches, dialogs and notices still change, but instantly. The recording lamp stays lit without breathing.
+  - When it is off, the Windows setting applies as before.
+- `数据文件夹` → `打开` shows the folder that holds the database in File Explorer. If Explorer cannot open it, you see `无法打开数据文件夹`.
+- `从备份恢复` → `选择备份…` restores a full data backup from inside the app. There is no need to replace the file by hand any more.
+  - Pick a `.db`, `.sqlite3` or `.sqlite` file. GST checks a copy of it and never touches the current data at this step.
+  - A dialog shows the file name, the recorded range, the number of software and the file size. `恢复并重启` then replaces the data and restarts GST.
+  - Before the data is replaced, the current data is saved to `backups\` in the data folder as `GST-恢复前-<date>-<time>.db`. The three newest such copies are kept.
+  - Backups from older versions are upgraded. A backup from a newer version, a damaged file, or the database GST is using is refused with a message, and nothing changes.
+  - After the restart, a notice reads `已从备份恢复`. If the restored data cannot be opened, the original data is kept and the notice reads `恢复没有完成，已保留原来的数据`.
+  - If a data file stays locked during the swap (for example by antivirus), GST shows a message and opens nothing until the next start finishes the job. No data is lost.
+  - The backup's own settings apply after the restart, startup at login included.
+  - A read-only backup file can now be restored as well.
+- `导出设置` and `导入设置…` include the five new settings. Older settings files import as before.
+- Keyboard and contrast themes:
+  - `启动时打开`, `每周起始日`, `主题`, `主题色` and `墨水屏配色` each take one Tab stop. The arrow keys, Home and End move between choices and select them.
+  - In Windows contrast themes, the chosen colour or palette has a highlight-colour ring.
+  - `选择备份…` is dimmed while the backup is being checked.
+- Icons are read only from programs on a lettered local drive. Software that runs from a network share shows its first letter instead of its icon.
+- Tracking, metrics and the database schema (still 3) are unchanged. No plugin is added and nothing is fetched from the network. For 跟随 Windows and its swatch, GST reads the Windows accent colour from the registry read-only. The colour is not stored in the database.
 - The interface is set in Inter and Noto Sans SC (思源黑体) instead of Segoe UI, Microsoft YaHei UI and Bahnschrift. They are the same bundled font files the posters already use, so the installer does not grow. Both are variable fonts, so titles, software names and table heads now get a true semibold instead of YaHei's only bold, and every weight is one step lighter: titles and names 600, secondary emphasis 500, body 400. Numbers use Inter's tabular digits everywhere. The pixel font on the e-ink screens is unchanged.
 - The `今天` lamp under the `统计` trend chart no longer touches its date label.
 - E-ink screens now sit an even 8 px inside their panels on every page (they were 8 to 14 px) with 8 px corners, so screen and panel corners share one centre, as Apple's guidelines ask for nested shapes.

@@ -1,3 +1,5 @@
+import { weekOffset, type WeekStart } from "./weekStart";
+
 export type RangePreset = "last7" | "thisWeek" | "thisMonth" | "last30" | "thisYear" | "custom";
 export type FixedRangePreset = Exclude<RangePreset, "custom">;
 
@@ -33,6 +35,7 @@ export function presetRange(
   preset: FixedRangePreset,
   now: Date,
   dataStartDate: string | null,
+  weekStart: WeekStart = 1,
 ): DateRange {
   const year = now.getFullYear();
   const month = now.getMonth();
@@ -43,8 +46,8 @@ export function presetRange(
     case "last7":
       return { start: formatLocalDate(new Date(year, month, day - 6)), end };
     case "thisWeek": {
-      const daysSinceMonday = (now.getDay() + 6) % 7;
-      return { start: formatLocalDate(new Date(year, month, day - daysSinceMonday)), end };
+      const daysSinceWeekStart = weekOffset(now.getDay(), weekStart);
+      return { start: formatLocalDate(new Date(year, month, day - daysSinceWeekStart)), end };
     }
     case "thisMonth":
       return { start: formatLocalDate(new Date(year, month, 1)), end };

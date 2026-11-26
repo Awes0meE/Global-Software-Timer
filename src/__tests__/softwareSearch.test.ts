@@ -108,6 +108,24 @@ describe("softwareSearch", () => {
     expect(formatLastOpenedAt("2026-05-26T08:00:00+08:00", now, options)).toBe("2026-05-26");
   });
 
+  it("follows the configured first day of the week for 这周 and 上周", () => {
+    const options = { timeZone: "Asia/Shanghai" };
+    const sunday = { ...options, weekStartsOn: 0 as const };
+    // Sunday 06-07, opened Wednesday 06-03.
+    const onSunday = new Date("2026-06-07T12:00:00+08:00");
+    expect(formatLastOpenedAt("2026-06-03T08:00:00+08:00", onSunday, options)).toBe("这周三");
+    expect(formatLastOpenedAt("2026-06-03T08:00:00+08:00", onSunday, { ...options, weekStartsOn: 1 })).toBe(
+      "这周三",
+    );
+    expect(formatLastOpenedAt("2026-06-03T08:00:00+08:00", onSunday, sunday)).toBe("上周三");
+    // Wednesday 06-10, opened Sunday 06-07.
+    const onWednesday = new Date("2026-06-10T12:00:00+08:00");
+    expect(formatLastOpenedAt("2026-06-07T08:00:00+08:00", onWednesday, options)).toBe("上周日");
+    expect(formatLastOpenedAt("2026-06-07T08:00:00+08:00", onWednesday, sunday)).toBe("这周日");
+    // Two weeks back is a date for either start.
+    expect(formatLastOpenedAt("2026-05-30T08:00:00+08:00", onWednesday, sunday)).toBe("2026-05-30");
+  });
+
   it("sorts empty queries by last opened descending", () => {
     const rows = [
       row({ identity_key: "old", display_name: "Old", last_opened_at: "2026-06-01T01:00:00Z" }),

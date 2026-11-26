@@ -30,6 +30,8 @@ vi.mock("@tauri-apps/plugin-autostart", () => ({
 
 import packageJson from "../../package.json";
 import App from "../App";
+import { paintInitialAppearance } from "../appearance";
+import { START_PAGE_IDS, START_PAGE_NAMES } from "../appearancePresets";
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
@@ -2014,6 +2016,46 @@ describe("App", () => {
 
     expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
     await waitFor(() => expect(mockInvoke).toHaveBeenCalledWith("get_transparency_effects_enabled"));
+  });
+
+  // §E: the 启动时打开 options are the available sidebar pages other than 设置, in sidebar order.
+  it("lists the start pages exactly as the sidebar's available pages", async () => {
+    const { container } = render(<App />);
+
+    expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
+    const availablePages = Array.from(container.querySelectorAll<HTMLButtonElement>(".side-nav button"))
+      .filter((button) => button.getAttribute("aria-disabled") !== "true")
+      .map((button) => button.querySelector("span")?.textContent)
+      .filter((label) => label !== "设置");
+    expect(availablePages).toEqual(START_PAGE_IDS.map((id) => START_PAGE_NAMES[id]));
+  });
+
+  // Spec §B: the watch reads the Windows accent only while 主题色 is 跟随 Windows (main.tsx paints the cache
+  // before App renders).
+  describe("Windows accent watch", () => {
+    afterEach(() => {
+      window.localStorage.removeItem("gst.appearance");
+      paintInitialAppearance();
+    });
+
+    it("reads the Windows accent when the cached 主题色 is 跟随 Windows", async () => {
+      window.localStorage.setItem("gst.appearance", JSON.stringify({ accent: "system" }));
+      paintInitialAppearance();
+      render(<App />);
+
+      expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
+      await waitFor(() => expect(mockInvoke).toHaveBeenCalledWith("get_windows_accent"));
+    });
+
+    it("does not read the Windows accent for a preset 主题色", async () => {
+      window.localStorage.setItem("gst.appearance", JSON.stringify({ accent: "green" }));
+      paintInitialAppearance();
+      render(<App />);
+
+      expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
+      await waitFor(() => expect(mockInvoke).toHaveBeenCalledWith("get_transparency_effects_enabled"));
+      expect(mockInvoke).not.toHaveBeenCalledWith("get_windows_accent");
+    });
   });
 
   it("still marks the timeline entry as unavailable", async () => {

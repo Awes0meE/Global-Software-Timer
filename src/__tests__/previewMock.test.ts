@@ -133,3 +133,10 @@ describe("preview mock exports", () => {
     ).rejects.toThrow("statistics_invalid_range");
   });
 });
+
+// v0.4.4 跟随 Windows: the browser cannot read the registry, so the preview answers a fixed sample.
+describe("preview mock Windows accent", () => {
+  it("answers the default blue's AccentDark1 / AccentLight2", async () => {
+    await expect(invoke("get_windows_accent")).resolves.toEqual({ light: "#0067c0", dark: "#4cc2ff" });
+  });
+});

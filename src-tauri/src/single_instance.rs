@@ -1,4 +1,5 @@
 use std::io;
+use std::time::Duration;
 
 const APP_MUTEX_NAME: &str = r"Local\GlobalSoftwareTimer.SingleInstance";
 
@@ -9,6 +10,30 @@ pub enum SingleInstance {
 
 pub fn acquire_app_lock() -> io::Result<SingleInstance> {
     try_acquire_single_instance(APP_MUTEX_NAME)
+}
+
+/// Tries up to `attempts` times while another instance still holds the lock,
+/// e.g. the old process during the handover after a restore.
+pub fn acquire_app_lock_with_retry(attempts: u32, delay: Duration) -> io::Result<SingleInstance> {
+    acquire_lock_with_retry(APP_MUTEX_NAME, attempts, delay)
+}
+
+/// `acquire_app_lock_with_retry` for the mutex `name`.
+pub fn acquire_lock_with_retry(
+    name: &str,
+    attempts: u32,
+    delay: Duration,
+) -> io::Result<SingleInstance> {
+    let mut attempt = 1;
+    loop {
+        match try_acquire_single_instance(name)? {
+            SingleInstance::AlreadyRunning if attempt < attempts => {
+                attempt += 1;
+                std::thread::sleep(delay);
+            }
+            result => return Ok(result),
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -146,4 +171,31 @@ pub use platform::SingleInstanceGuard;
 
 pub fn try_acquire_single_instance(name: &str) -> io::Result<SingleInstance> {
     platform::try_acquire_single_instance(name)
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+
+    #[test]
+    fn the_lock_retry_gets_the_lock_once_the_holder_releases_it() {
+        let name = format!(r"Local\GlobalSoftwareTimer.Test.{}", uuid::Uuid::new_v4());
+        let (ready, holding) = mpsc::channel();
+        let holder_name = name.clone();
+        let holder = std::thread::spawn(move || {
+            let guard = try_acquire_single_instance(&holder_name).unwrap();
+            assert!(matches!(guard, SingleInstance::Acquired(_)));
+            ready.send(()).unwrap();
+            std::thread::sleep(Duration::from_millis(300));
+            drop(guard);
+        });
+        holding.recv().unwrap();
+
+        let once = acquire_lock_with_retry(&name, 1, Duration::from_millis(10)).unwrap();
+        assert!(matches!(once, SingleInstance::AlreadyRunning));
+        let retried = acquire_lock_with_retry(&name, 25, Duration::from_millis(100)).unwrap();
+        assert!(matches!(retried, SingleInstance::Acquired(_)));
+        holder.join().unwrap();
+    }
 }

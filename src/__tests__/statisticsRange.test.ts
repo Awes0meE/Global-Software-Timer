@@ -39,6 +39,24 @@ describe("statisticsRange presets", () => {
     });
   });
 
+  it("starts this week on Sunday when the week starts on Sunday", () => {
+    // Saturday is the last day of the week that started on Sunday 11-15.
+    expect(presetRange("thisWeek", now, dataStartDate, 0)).toEqual({
+      start: "2026-11-15",
+      end: "2026-11-21",
+    });
+    // Sunday is the first day of its own week.
+    expect(presetRange("thisWeek", new Date(2026, 10, 22, 9), dataStartDate, 0)).toEqual({
+      start: "2026-11-22",
+      end: "2026-11-22",
+    });
+    // Monday belongs to the week that started the day before.
+    expect(presetRange("thisWeek", new Date(2026, 10, 16, 9), dataStartDate, 0)).toEqual({
+      start: "2026-11-15",
+      end: "2026-11-16",
+    });
+  });
+
   it("covers this month, the last 30 days and this year", () => {
     expect(presetRange("thisMonth", now, dataStartDate)).toEqual({
       start: "2026-11-01",

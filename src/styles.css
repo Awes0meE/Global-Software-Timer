@@ -93,7 +93,8 @@
   --rule: rgba(20, 30, 60, 0.07);
   --glass-hi: rgba(255, 255, 255, 0.8);
   --glass-shadow: 0 18px 46px rgba(60, 70, 110, 0.14), 0 0 0 1px rgba(20, 30, 60, 0.06);
-  --accent: #2f7de1;
+  /* 主题色 (v0.4.4): appearance.ts sets --user-accent-* inline on <html> for every choice but 蓝. */
+  --accent: var(--user-accent-light, #2f7de1);
   --alert-ink: #b42318;
   --alert-wash: rgba(180, 35, 24, 0.1);
   --eink-paper: #fafaf7;
@@ -111,7 +112,9 @@
   /* 3D slide switch (.toggle): recessed well, track rims, knob rim, ball face and lift. The off rims are
      the same in both themes and resolve here, not against the switch's ancestors. */
   --tg-well-off: inset 0 2px 3px -1px rgba(20, 30, 60, 0.34), inset 0 -1px 0 rgba(255, 255, 255, 0.75);
-  --tg-well-on: inset 0 2px 3px -1px rgba(8, 30, 80, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.32);
+  --tg-well-on:
+    inset 0 2px 3px -1px color-mix(in srgb, color-mix(in srgb, var(--accent) 30%, #000) 50%, transparent),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.32);
   --tg-rim-off: var(--edge-strong);
   --tg-rim-off-hover: color-mix(in srgb, var(--muted) 45%, transparent);
   --tg-rim-on: color-mix(in srgb, var(--accent) 70%, var(--ink));
@@ -181,7 +184,7 @@
   --rule: rgba(255, 255, 255, 0.07);
   --glass-hi: rgba(255, 255, 255, 0.07);
   --glass-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-  --accent: #5aa9ff;
+  --accent: var(--user-accent-dark, #5aa9ff);
   --alert-ink: #ff8a80;
   --alert-wash: rgba(255, 138, 128, 0.08);
   --eink-paper: linear-gradient(105deg, #1f2d40 0%, #281f40 45%, #401f40 100%);
@@ -197,7 +200,9 @@
   --eink-grain: 0.45;
   --eink-grain-blend: soft-light;
   --tg-well-off: inset 0 2px 3px -1px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.1);
-  --tg-well-on: inset 0 2px 3px -1px rgba(0, 20, 60, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.28);
+  --tg-well-on:
+    inset 0 2px 3px -1px color-mix(in srgb, color-mix(in srgb, var(--accent) 22%, #000) 60%, transparent),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.28);
   --tg-rim-on: color-mix(in srgb, var(--accent) 78%, #000);
   --tg-knob-rim: rgba(0, 0, 0, 0.22);
   --tg-knob-rim-on: rgba(0, 0, 0, 0.5);
@@ -221,6 +226,301 @@
   --nk-groove: var(--nk-lo);
 }
 
+/* 主题色 variant B (v0.4.4): every choice but 蓝 builds the glow from the accent. The blobs keep today's
+   sizes, positions and fade stops; 蓝 (or no data-accent) keeps today's --glow exactly. Each override is
+   scoped to one theme, so a light value never leaks into dark.
+
+   Blob alphas (--glow-alpha-1 / -2 / -3): for each choice and theme, the largest whole percent, capped at the
+   mock's 45/26/30 light and 50/24/28 dark, at which every readability check over that blob's centre passes
+   (src/glow.ts, checked by glow.test.ts and contrast.test.ts). The bound is real text: in light --alert-ink
+   on --alert-wash over the glass, in dark --muted on the glass. 跟随 Windows has no row: appearance.ts runs
+   the same search on the clamped Windows pair and sets --user-glow-<theme>-1..3 inline; the fallbacks in the
+   glow rules (one set that holds for every accent the clamp can return) apply only while no readable pair
+   is known: a first frame without a cached pair, or a Windows accent that cannot be read.
+
+     choice        light        dark
+     跟随 Windows  runtime      runtime    (fallbacks 16 18 17 / 23 20 22)
+     青 cyan       26 26 29     27 24 28
+     绿 green      25 26 28     27 24 28
+     紫 violet     25 26 28     32 24 28
+     玫红 rose     22 26 26     31 24 28
+     琥珀 amber    27 26 30     25 24 28
+     石墨 graphite 25 26 28     27 24 28 */
+:root:not([data-theme="dark"])[data-accent]:not([data-accent="blue"]) {
+  --glow:
+    radial-gradient(
+      820px 600px at 8% -6%,
+      color-mix(in srgb, var(--accent) var(--glow-alpha-1, var(--user-glow-light-1, 16%)), transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      760px 640px at 98% 10%,
+      color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(240, 120, 190)) var(--glow-alpha-2, var(--user-glow-light-2, 18%)), transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      860px 600px at 52% 110%,
+      color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(160, 130, 255)) var(--glow-alpha-3, var(--user-glow-light-3, 17%)), transparent),
+      transparent 62%
+    );
+}
+
+:root[data-theme="dark"][data-accent]:not([data-accent="blue"]) {
+  --glow:
+    radial-gradient(
+      820px 600px at 10% -4%,
+      color-mix(in srgb, var(--accent) var(--glow-alpha-1, var(--user-glow-dark-1, 23%)), transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      760px 640px at 96% 14%,
+      color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, rgb(236, 92, 170)) var(--glow-alpha-2, var(--user-glow-dark-2, 20%)), transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      860px 600px at 52% 108%,
+      color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, rgb(150, 110, 255)) var(--glow-alpha-3, var(--user-glow-dark-3, 22%)), transparent),
+      transparent 62%
+    );
+}
+
+:root:not([data-theme="dark"])[data-accent="cyan"] {
+  --glow-alpha-1: 26%;
+  --glow-alpha-2: 26%;
+  --glow-alpha-3: 29%;
+}
+
+:root:not([data-theme="dark"])[data-accent="green"] {
+  --glow-alpha-1: 25%;
+  --glow-alpha-2: 26%;
+  --glow-alpha-3: 28%;
+}
+
+:root:not([data-theme="dark"])[data-accent="violet"] {
+  --glow-alpha-1: 25%;
+  --glow-alpha-2: 26%;
+  --glow-alpha-3: 28%;
+}
+
+:root:not([data-theme="dark"])[data-accent="rose"] {
+  --glow-alpha-1: 22%;
+  --glow-alpha-2: 26%;
+  --glow-alpha-3: 26%;
+}
+
+:root:not([data-theme="dark"])[data-accent="amber"] {
+  --glow-alpha-1: 27%;
+  --glow-alpha-2: 26%;
+  --glow-alpha-3: 30%;
+}
+
+:root:not([data-theme="dark"])[data-accent="graphite"] {
+  --glow-alpha-1: 25%;
+  --glow-alpha-2: 26%;
+  --glow-alpha-3: 28%;
+}
+
+:root[data-theme="dark"][data-accent="cyan"] {
+  --glow-alpha-1: 27%;
+  --glow-alpha-2: 24%;
+  --glow-alpha-3: 28%;
+}
+
+:root[data-theme="dark"][data-accent="green"] {
+  --glow-alpha-1: 27%;
+  --glow-alpha-2: 24%;
+  --glow-alpha-3: 28%;
+}
+
+:root[data-theme="dark"][data-accent="violet"] {
+  --glow-alpha-1: 32%;
+  --glow-alpha-2: 24%;
+  --glow-alpha-3: 28%;
+}
+
+:root[data-theme="dark"][data-accent="rose"] {
+  --glow-alpha-1: 31%;
+  --glow-alpha-2: 24%;
+  --glow-alpha-3: 28%;
+}
+
+:root[data-theme="dark"][data-accent="amber"] {
+  --glow-alpha-1: 25%;
+  --glow-alpha-2: 24%;
+  --glow-alpha-3: 28%;
+}
+
+:root[data-theme="dark"][data-accent="graphite"] {
+  --glow-alpha-1: 27%;
+  --glow-alpha-2: 24%;
+  --glow-alpha-3: 28%;
+}
+
+/* 墨水屏配色 (v0.4.4): each palette sets all 11 --eink-* tokens per theme. 极光 (or no data-eink) is the
+   token blocks above. */
+:root:not([data-theme="dark"])[data-eink="graphite"] {
+  --eink-paper: #e3e3e1;
+  --eink-paper-solid: #e3e3e1;
+  --eink-dial-paper: #e3e3e1;
+  --eink-ink: #111111;
+  --eink-dim: #434346;
+  --eink-mid: #6e6e72;
+  --eink-off: rgba(17, 17, 17, 0.28);
+  --eink-track: rgba(17, 17, 17, 0.12);
+  --eink-ghost: rgba(17, 17, 17, 0.04);
+  --eink-grain: 0.06;
+  --eink-grain-blend: multiply;
+}
+
+:root[data-theme="dark"][data-eink="graphite"] {
+  --eink-paper: linear-gradient(105deg, #22252b, #2a2c33);
+  --eink-paper-solid: #26282e;
+  --eink-dial-paper: #2c2f36;
+  --eink-ink: #ededf0;
+  --eink-dim: #b4b5bb;
+  --eink-mid: #85868d;
+  --eink-off: rgba(237, 237, 240, 0.2);
+  --eink-track: rgba(237, 237, 240, 0.14);
+  --eink-ghost: rgba(237, 237, 240, 0.05);
+  --eink-grain: 0.4;
+  --eink-grain-blend: soft-light;
+}
+
+:root:not([data-theme="dark"])[data-eink="night"] {
+  --eink-paper: #e2ebf6;
+  --eink-paper-solid: #e2ebf6;
+  --eink-dial-paper: #e2ebf6;
+  --eink-ink: #0b1422;
+  --eink-dim: #30435e;
+  --eink-mid: #5d7392;
+  --eink-off: rgba(11, 20, 34, 0.28);
+  --eink-track: rgba(11, 20, 34, 0.12);
+  --eink-ghost: rgba(11, 20, 34, 0.04);
+  --eink-grain: 0.06;
+  --eink-grain-blend: multiply;
+}
+
+:root[data-theme="dark"][data-eink="night"] {
+  --eink-paper: linear-gradient(105deg, #14233a, #1a2f4d);
+  --eink-paper-solid: #172943;
+  --eink-dial-paper: #1d3150;
+  --eink-ink: #e7eef8;
+  --eink-dim: #a9bad0;
+  --eink-mid: #6f84a1;
+  --eink-off: rgba(231, 238, 248, 0.2);
+  --eink-track: rgba(231, 238, 248, 0.14);
+  --eink-ghost: rgba(231, 238, 248, 0.05);
+  --eink-grain: 0.4;
+  --eink-grain-blend: soft-light;
+}
+
+:root:not([data-theme="dark"])[data-eink="warm"] {
+  --eink-paper: #f4eee1;
+  --eink-paper-solid: #f4eee1;
+  --eink-dial-paper: #f4eee1;
+  --eink-ink: #2a2218;
+  --eink-dim: #5a4d3c;
+  --eink-mid: #857660;
+  --eink-off: rgba(42, 34, 24, 0.28);
+  --eink-track: rgba(42, 34, 24, 0.13);
+  --eink-ghost: rgba(42, 34, 24, 0.05);
+  --eink-grain: 0.08;
+  --eink-grain-blend: multiply;
+}
+
+:root[data-theme="dark"][data-eink="warm"] {
+  --eink-paper: linear-gradient(105deg, #2a231b, #3a2c20);
+  --eink-paper-solid: #322719;
+  --eink-dial-paper: #3a2e22;
+  --eink-ink: #f4ead8;
+  --eink-dim: #cdbfa6;
+  --eink-mid: #958670;
+  --eink-off: rgba(244, 234, 216, 0.2);
+  --eink-track: rgba(244, 234, 216, 0.14);
+  --eink-ghost: rgba(244, 234, 216, 0.05);
+  --eink-grain: 0.42;
+  --eink-grain-blend: soft-light;
+}
+
+:root:not([data-theme="dark"])[data-eink="forest"] {
+  --eink-paper: #e1ede4;
+  --eink-paper-solid: #e1ede4;
+  --eink-dial-paper: #e1ede4;
+  --eink-ink: #0e1a14;
+  --eink-dim: #31503f;
+  --eink-mid: #5e7a6b;
+  --eink-off: rgba(14, 26, 20, 0.28);
+  --eink-track: rgba(14, 26, 20, 0.12);
+  --eink-ghost: rgba(14, 26, 20, 0.04);
+  --eink-grain: 0.06;
+  --eink-grain-blend: multiply;
+}
+
+:root[data-theme="dark"][data-eink="forest"] {
+  --eink-paper: linear-gradient(105deg, #16302a, #1d3b33);
+  --eink-paper-solid: #1a352e;
+  --eink-dial-paper: #1f3d35;
+  --eink-ink: #e8f2ec;
+  --eink-dim: #aac3b6;
+  --eink-mid: #6f9183;
+  --eink-off: rgba(232, 242, 236, 0.2);
+  --eink-track: rgba(232, 242, 236, 0.14);
+  --eink-ghost: rgba(232, 242, 236, 0.05);
+  --eink-grain: 0.4;
+  --eink-grain-blend: soft-light;
+}
+
+/* The 墨水屏配色 chips in 设置: each chip carries its own palette's paper and ink for the theme shown,
+   whatever palette the root has (settingsPage.test.tsx checks them against the blocks above). */
+:root:not([data-theme="dark"]) [data-eink-chip="aurora"] {
+  --eink-paper: #fafaf7;
+  --eink-ink: #0b0b0a;
+}
+
+:root[data-theme="dark"] [data-eink-chip="aurora"] {
+  --eink-paper: linear-gradient(105deg, #1f2d40 0%, #281f40 45%, #401f40 100%);
+  --eink-ink: #f7f7f9;
+}
+
+:root:not([data-theme="dark"]) [data-eink-chip="graphite"] {
+  --eink-paper: #e3e3e1;
+  --eink-ink: #111111;
+}
+
+:root[data-theme="dark"] [data-eink-chip="graphite"] {
+  --eink-paper: linear-gradient(105deg, #22252b, #2a2c33);
+  --eink-ink: #ededf0;
+}
+
+:root:not([data-theme="dark"]) [data-eink-chip="night"] {
+  --eink-paper: #e2ebf6;
+  --eink-ink: #0b1422;
+}
+
+:root[data-theme="dark"] [data-eink-chip="night"] {
+  --eink-paper: linear-gradient(105deg, #14233a, #1a2f4d);
+  --eink-ink: #e7eef8;
+}
+
+:root:not([data-theme="dark"]) [data-eink-chip="warm"] {
+  --eink-paper: #f4eee1;
+  --eink-ink: #2a2218;
+}
+
+:root[data-theme="dark"] [data-eink-chip="warm"] {
+  --eink-paper: linear-gradient(105deg, #2a231b, #3a2c20);
+  --eink-ink: #f4ead8;
+}
+
+:root:not([data-theme="dark"]) [data-eink-chip="forest"] {
+  --eink-paper: #e1ede4;
+  --eink-ink: #0e1a14;
+}
+
+:root[data-theme="dark"] [data-eink-chip="forest"] {
+  --eink-paper: linear-gradient(105deg, #16302a, #1d3b33);
+  --eink-ink: #e8f2ec;
+}
 /* Glass switch: panels and the sidebar draw through these, never --glass / --side directly. */
 :root {
   --glass-surface: var(--glass);
@@ -2164,6 +2464,88 @@ mark {
   cursor: default;
 }
 
+/* 主题色 swatches and 墨水屏配色 chips (v0.4.4): the chosen one has a 2px --ink ring 2px out; keyboard focus
+   adds the --focus ring outside it. */
+.swatches,
+.eink-chips {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.swatch {
+  --swatch-fill: var(--swatch-light);
+  --swatch-rim: rgba(20, 30, 60, 0.16);
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--swatch-fill);
+  box-shadow: inset 0 0 0 1px var(--swatch-rim);
+}
+
+:root[data-theme="dark"] .swatch {
+  --swatch-fill: var(--swatch-dark);
+  --swatch-rim: rgba(255, 255, 255, 0.14);
+}
+
+.swatch svg {
+  display: block;
+}
+
+.lcd-chip {
+  width: 36px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: var(--eink-paper);
+  color: var(--eink-ink);
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  line-height: 22px;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px var(--edge-strong);
+}
+
+:is(.swatch, .lcd-chip).is-selected {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.swatch:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--swatch-rim), var(--focus);
+}
+
+.lcd-chip:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--edge-strong), var(--focus);
+}
+
+/* The ring sits where --focus would, so the focus ring moves outside it. */
+.swatch.is-selected:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--swatch-rim), 0 0 0 6px var(--glass-solid), 0 0 0 8px var(--accent);
+}
+
+.lcd-chip.is-selected:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--edge-strong), 0 0 0 6px var(--glass-solid), 0 0 0 8px var(--accent);
+}
+
+:is(.swatch, .lcd-chip):disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 选择备份… while the backup is picked and checked: dimmed like an unavailable key, still focusable. */
+.settings-row .button[aria-busy="true"] {
+  --muted: inherit;
+  background: var(--glass-2);
+  opacity: 0.5;
+  cursor: progress;
+}
+
 .settings-privacy p {
   padding: 4px 20px 14px;
   color: var(--muted);
@@ -2357,6 +2739,29 @@ mark {
   .toggle.is-on:active:not(:disabled) .toggle-knob {
     transform: translateX(24px);
   }
+}
+
+/* 减少动画 (v0.4.4): the same rules as the media block above, for data-motion="reduced". CSS cannot OR a
+   media query with a selector; a parity test keeps the two blocks identical. */
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Switches: no press stretch and no overshoot. */
+:root[data-motion="reduced"] .toggle-knob {
+  transition-timing-function: var(--ease);
+}
+
+:root[data-motion="reduced"] .toggle:active:not(:disabled) .toggle-knob {
+  width: 22px;
+}
+
+:root[data-motion="reduced"] .toggle.is-on:active:not(:disabled) .toggle-knob {
+  transform: translateX(24px);
 }
 
 /* Contrast themes: system colours only; glow and screen texture go, focus uses an outline. */
@@ -2582,6 +2987,37 @@ mark {
   /* forced-color-adjust is inherited, so the knob needs the theme's own pair colour to stay visible. */
   .toggle.is-on .toggle-knob {
     background: HighlightText;
+  }
+
+  /* A swatch or chip is its colour, so it keeps it; the chosen one is ringed in system colours. */
+  .swatch,
+  .lcd-chip {
+    forced-color-adjust: none;
+  }
+
+  /* The chosen one is ringed in Highlight like every other chosen option; focus is a second Highlight ring
+     outside it, so a focused choice still differs from an unfocused one. */
+  :is(.swatch, .lcd-chip).is-selected {
+    outline-color: Highlight;
+  }
+
+  :is(.swatch, .lcd-chip):focus-visible {
+    outline: none;
+  }
+
+  :is(.swatch, .lcd-chip).is-selected:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .swatch:focus-visible,
+  .swatch.is-selected:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--swatch-rim), 0 0 0 6px Canvas, 0 0 0 8px Highlight;
+  }
+
+  .lcd-chip:focus-visible,
+  .lcd-chip.is-selected:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--edge-strong), 0 0 0 6px Canvas, 0 0 0 8px Highlight;
   }
 }
 

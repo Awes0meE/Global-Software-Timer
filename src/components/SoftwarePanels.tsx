@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import type { DurationFormat, SoftwarePageRow } from "../api";
 import { formatDurationZh } from "../i18n";
 import { formatLastOpenedAt, highlightDisplayName, rankSoftwareRows } from "../softwareSearch";
+import { useWeekStart } from "../weekStart";
 import { ActiveTimeHelpPopover, HelpPopover } from "./ActiveTimeHelpPopover";
 import { SoftwareIcon } from "./SoftwareIcon";
 
@@ -168,6 +169,8 @@ function FocusedSoftwareTable({
   editing: boolean;
   onRemove: (identityKey: string) => void;
 }) {
+  const weekStartsOn = useWeekStart();
+
   return (
     <div className="software-table-scroll" role="region" aria-label="特别关注明细" tabIndex={0}>
       <div className="focused-table">
@@ -201,7 +204,7 @@ function FocusedSoftwareTable({
             <span>{formatDurationZh(totalForegroundSeconds(row), durationFormat)}</span>
             <span>{formatDurationZh(totalBackgroundSeconds(row), durationFormat)}</span>
             <span>{formatDurationZh(row.total_focused_seconds, durationFormat)}</span>
-            <span>{formatLastOpenedAt(row.last_opened_at)}</span>
+            <span>{formatLastOpenedAt(row.last_opened_at, undefined, { weekStartsOn })}</span>
           </div>
         ))}
       </div>
@@ -249,6 +252,7 @@ function HiddenSoftwareList({
 
 function DiscoveredSoftwareRow({ row, query }: { row: SoftwarePageRow; query: string }) {
   const segments = highlightDisplayName(row.display_name, query);
+  const weekStartsOn = useWeekStart();
 
   return (
     <div className="discovered-row">
@@ -266,7 +270,7 @@ function DiscoveredSoftwareRow({ row, query }: { row: SoftwarePageRow; query: st
         <small>{row.process_name}</small>
       </span>
       <SoftwareMarkBadge mark={row.mark} />
-      <span className="discovered-last-opened">{formatLastOpenedAt(row.last_opened_at)}</span>
+      <span className="discovered-last-opened">{formatLastOpenedAt(row.last_opened_at, undefined, { weekStartsOn })}</span>
     </div>
   );
 }

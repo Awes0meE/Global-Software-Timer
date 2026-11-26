@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RankingRow, StatisticsDay, StatisticsSummary } from "../api";
 import { StatisticsPage } from "../components/StatisticsPage";
+import { WeekStartContext } from "../weekStart";
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
@@ -123,6 +124,36 @@ describe("StatisticsPage", () => {
       ["get_statistics_summary", { start: "2026-11-15", end: "2026-11-21", includeHidden: false }],
     ]);
     expect(screen.getByRole("radio", { name: "近 7 天" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("starts 本周 on the configured first day of the week", async () => {
+    invoke.mockResolvedValue(summary());
+    await renderPage();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("radio", { name: "本周" }));
+    });
+    expect(lastStatisticsCall()).toEqual([
+      "get_statistics_summary",
+      { start: "2026-11-16", end: "2026-11-21", includeHidden: false },
+    ]);
+    cleanup();
+
+    invoke.mockReset();
+    invoke.mockResolvedValue(summary());
+    await act(async () => {
+      render(
+        <WeekStartContext.Provider value={0}>
+          <StatisticsPage />
+        </WeekStartContext.Provider>,
+      );
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("radio", { name: "本周" }));
+    });
+    expect(lastStatisticsCall()).toEqual([
+      "get_statistics_summary",
+      { start: "2026-11-15", end: "2026-11-21", includeHidden: false },
+    ]);
   });
 
   it("requests the new range when the preset changes and ignores a late older response", async () => {
@@ -322,6 +353,24 @@ describe("StatisticsPage", () => {
       expect(dayLabels()).toEqual(["11-12", "11-16", "今天"]);
     });
 
+    async function renderSundayStart() {
+      await act(async () => {
+        render(
+          <WeekStartContext.Provider value={0}>
+            <StatisticsPage />
+          </WeekStartContext.Provider>,
+        );
+      });
+    }
+
+    it("marks Sundays instead of Mondays in sparse labels when the week starts on Sunday", async () => {
+      paperWidth = 600;
+      invoke.mockResolvedValue(tenDays());
+      await renderSundayStart();
+
+      expect(dayLabels()).toEqual(["11-12", "11-15", "今天"]);
+    });
+
     // Every day from `start` to `end` inclusive, each with 8 h recorded.
     function longRange(start: string, end: string): StatisticsSummary {
       const days: StatisticsDay[] = [];
@@ -330,6 +379,21 @@ describe("StatisticsPage", () => {
       }
       return summary({ start, end, days_count: days.length, days });
     }
+
+    it("drops a week-start label that would collide with the first label of a mid-length range", async () => {
+      paperWidth = 600;
+      // 29 days from Saturday 10-24, about 17 px a column: the first week start sits 1 or 2 columns
+      // after 10-24, too close to its label; the later ones stay clear of 今天.
+      invoke.mockResolvedValue(longRange("2026-10-24", "2026-11-21"));
+      await renderPage();
+      expect(dayLabels()).toEqual(["10-24", "11-02", "11-09", "11-16", "今天"]);
+      cleanup();
+
+      invoke.mockReset();
+      invoke.mockResolvedValue(longRange("2026-10-24", "2026-11-21"));
+      await renderSundayStart();
+      expect(dayLabels()).toEqual(["10-24", "11-01", "11-08", "11-15", "今天"]);
+    });
 
     it("drops month labels that would collide with the first or last label of a long range", async () => {
       paperWidth = 1080;

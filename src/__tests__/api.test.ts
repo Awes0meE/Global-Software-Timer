@@ -29,9 +29,16 @@ import {
   saveBinaryExport,
   saveTextExport,
   getStatisticsSummary,
+  normalizeAccent,
+  normalizeEink,
+  normalizeReduceMotion,
+  normalizeStartPage,
+  normalizeWeekStart,
   setDurationFormatPreference,
   setThemePreference,
+  setUiPreference,
 } from "../api";
+import { ACCENT_IDS, EINK_IDS, START_PAGE_IDS } from "../appearancePresets";
 
 describe("api statistics and achievements", () => {
   afterEach(() => {
@@ -192,6 +199,114 @@ describe("api settings", () => {
     await setThemePreference("light");
 
     expect(mockInvoke).toHaveBeenCalledWith("set_theme_preference", { theme: "light" });
+  });
+
+  it("defaults the display preferences when the backend has none", async () => {
+    mockInvoke.mockResolvedValue({});
+
+    await expect(getAppSettings()).resolves.toMatchObject({
+      accent: "blue",
+      accent_configured: false,
+      eink: "aurora",
+      eink_configured: false,
+      week_start: "monday",
+      week_start_configured: false,
+      start_page: "overview",
+      start_page_configured: false,
+      reduce_motion: "system",
+      reduce_motion_configured: false,
+    });
+  });
+
+  it("keeps valid display preferences and their configured flags", async () => {
+    mockInvoke.mockResolvedValue({
+      accent: "system",
+      accent_configured: true,
+      eink: "forest",
+      eink_configured: true,
+      week_start: "sunday",
+      week_start_configured: true,
+      start_page: "achievements",
+      start_page_configured: true,
+      reduce_motion: "reduce",
+      reduce_motion_configured: true,
+    });
+
+    await expect(getAppSettings()).resolves.toMatchObject({
+      accent: "system",
+      accent_configured: true,
+      eink: "forest",
+      eink_configured: true,
+      week_start: "sunday",
+      week_start_configured: true,
+      start_page: "achievements",
+      start_page_configured: true,
+      reduce_motion: "reduce",
+      reduce_motion_configured: true,
+    });
+  });
+
+  it("treats unknown display preference values as unchosen defaults", async () => {
+    mockInvoke.mockResolvedValue({
+      accent: "red",
+      accent_configured: true,
+      eink: "sepia",
+      eink_configured: true,
+      week_start: "saturday",
+      week_start_configured: true,
+      start_page: "timeline",
+      start_page_configured: true,
+      reduce_motion: true,
+      reduce_motion_configured: true,
+    });
+
+    await expect(getAppSettings()).resolves.toMatchObject({
+      accent: "blue",
+      accent_configured: false,
+      eink: "aurora",
+      eink_configured: false,
+      week_start: "monday",
+      week_start_configured: false,
+      start_page: "overview",
+      start_page_configured: false,
+      reduce_motion: "system",
+      reduce_motion_configured: false,
+    });
+  });
+
+  it("normalises each display preference on its own", () => {
+    expect(ACCENT_IDS.map(normalizeAccent)).toEqual(ACCENT_IDS);
+    expect([undefined, null, "", "Blue", "#2f7de1", 3].map(normalizeAccent)).toEqual(Array(6).fill("blue"));
+    expect(EINK_IDS.map(normalizeEink)).toEqual(EINK_IDS);
+    expect([undefined, "Aurora", "blue"].map(normalizeEink)).toEqual(["aurora", "aurora", "aurora"]);
+    expect(["monday", "sunday", "saturday", 0, undefined].map(normalizeWeekStart)).toEqual([
+      "monday",
+      "sunday",
+      "monday",
+      "monday",
+      "monday",
+    ]);
+    expect(START_PAGE_IDS.map(normalizeStartPage)).toEqual(START_PAGE_IDS);
+    expect(["settings", "timeline", "Overview", null].map(normalizeStartPage)).toEqual(Array(4).fill("overview"));
+    expect(["system", "reduce", "true", true, undefined].map(normalizeReduceMotion)).toEqual([
+      "system",
+      "reduce",
+      "system",
+      "system",
+      "system",
+    ]);
+  });
+
+  it("saves a display preference through the one set_ui_preference command", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+
+    await setUiPreference("accent", "violet");
+    await setUiPreference("week_start", "sunday");
+    await setUiPreference("reduce_motion", "reduce");
+
+    expect(mockInvoke).toHaveBeenNthCalledWith(1, "set_ui_preference", { key: "accent", value: "violet" });
+    expect(mockInvoke).toHaveBeenNthCalledWith(2, "set_ui_preference", { key: "week_start", value: "sunday" });
+    expect(mockInvoke).toHaveBeenNthCalledWith(3, "set_ui_preference", { key: "reduce_motion", value: "reduce" });
   });
 });
 

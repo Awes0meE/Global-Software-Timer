@@ -8,6 +8,7 @@ import { ExportKey, type ExportKeyItem } from "../components/ExportKey";
 import { RangeControl } from "../components/RangeControl";
 import { Toast } from "../components/Toast";
 import { PAGE_EXPORTS } from "../pageExports";
+import { WeekStartContext } from "../weekStart";
 import { allCss, parseRules } from "./support/css";
 
 afterEach(() => {
@@ -248,6 +249,24 @@ describe("DateControl", () => {
     expect(cellOf(leading)).not.toHaveClass("rdp-hidden");
   });
 
+  it("starts the week on Sunday when the week start is Sunday", () => {
+    render(
+      <WeekStartContext.Provider value={0}>
+        <DateControl value="2026-10-28" today="2026-11-24" dataStartDate="2026-10-28" onChange={() => {}} />
+      </WeekStartContext.Provider>,
+    );
+    const calendar = openCalendar();
+
+    const weekdays = Array.from(calendar.querySelectorAll(".rdp-weekday"), (header) => header.textContent);
+    expect(weekdays).toEqual(["日", "一", "二", "三", "四", "五", "六"]);
+    // October 2026 starts on a Thursday: Sunday 27 September leads the first week.
+    const firstWeek = calendar.querySelector(".rdp-week") as HTMLElement;
+    const firstDay = within(firstWeek).getAllByRole("button")[0];
+    expect(firstDay).toHaveAccessibleName(/^2026年9月27日/);
+    expect(cellOf(firstDay)).toHaveClass("rdp-outside", "rdp-disabled");
+    expect(calendar.querySelectorAll(".rdp-week")).toHaveLength(6);
+  });
+
   it("hands focus to the caption key when a month or year key reaches the end", () => {
     renderDateControl({ value: "2026-11-17", dataStartDate: "2025-11-20" });
     const calendar = openCalendar();
@@ -355,6 +374,31 @@ describe("RangeControl", () => {
     expect(cellOf(day(calendar, /^2026年11月3日/))).toHaveClass("rdp-range_middle");
     expect(cellOf(day(calendar, /^2026年11月21日/))).toHaveClass("rdp-range_end", "rdp-selected");
     expect(cellOf(day(calendar, /^2026年11月22日/))).not.toHaveClass("rdp-selected");
+  });
+});
+
+describe("RangeControl week start", () => {
+  it("starts the range calendar's week on Sunday when the week start is Sunday", () => {
+    render(
+      <WeekStartContext.Provider value={0}>
+        <RangeControl
+          value={{ start: "2026-11-15", end: "2026-11-21" }}
+          today="2026-11-24"
+          dataStartDate="2026-10-28"
+          onChange={() => {}}
+        />
+      </WeekStartContext.Provider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^统计区间/ }));
+    const calendar = screen.getByRole("dialog", { name: "选择统计区间" });
+
+    const weekdays = Array.from(calendar.querySelectorAll(".rdp-weekday"), (header) => header.textContent);
+    expect(weekdays).toEqual(["日", "一", "二", "三", "四", "五", "六"]);
+    // A Sunday-to-Saturday range fills exactly one week row.
+    expect(cellOf(day(calendar, /^2026年11月15日/))).toHaveClass("rdp-range_start");
+    expect(day(calendar, /^2026年11月15日/).closest(".rdp-week")).toBe(
+      day(calendar, /^2026年11月21日/).closest(".rdp-week"),
+    );
   });
 });
 

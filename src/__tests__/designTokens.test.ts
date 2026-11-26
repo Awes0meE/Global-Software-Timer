@@ -185,7 +185,42 @@ describe("glass and e-ink limits", () => {
 
   // Plan「迁移表：深色选择器覆盖」: dark values live in the token block; the only theme-scoped rules
   // left are trade-off 1 (--muted on dark sub-plates) and the light icon hairline, plus that hairline's
-  // forced-colours reset.
+  // forced-colours reset. v0.4.4 adds the theme-scoped token overrides of spec §B (the accent-built glow
+  // and its per-choice glow alphas) and §C (the four e-ink palettes besides 极光).
+  const APPEARANCE_OVERRIDES = [
+    ':root:not([data-theme="dark"])[data-accent]:not([data-accent="blue"])',
+    ':root[data-theme="dark"][data-accent]:not([data-accent="blue"])',
+    ...["cyan", "green", "violet", "rose", "amber", "graphite"].flatMap((accent) => [
+      `:root:not([data-theme="dark"])[data-accent="${accent}"]`,
+      `:root[data-theme="dark"][data-accent="${accent}"]`,
+    ]),
+    ...["graphite", "night", "warm", "forest"].flatMap((palette) => [
+      `:root:not([data-theme="dark"])[data-eink="${palette}"]`,
+      `:root[data-theme="dark"][data-eink="${palette}"]`,
+    ]),
+  ];
+
+  // The 设置 主题色 swatches show the theme's half of each pair, and every 墨水屏配色 chip carries its own
+  // palette's paper and ink for the theme (settingsPage.test.tsx checks those against the palettes).
+  const SETTINGS_CONTROL_OVERRIDES = [
+    ':root[data-theme="dark"] .swatch',
+    ...["aurora", "graphite", "night", "warm", "forest"].flatMap((palette) => [
+      `:root:not([data-theme="dark"]) [data-eink-chip="${palette}"]`,
+      `:root[data-theme="dark"] [data-eink-chip="${palette}"]`,
+    ]),
+  ];
+
+  it("keeps the settings control overrides to custom properties", () => {
+    const overrides = allRules().filter((rule) =>
+      rule.selectors.some((selector) => SETTINGS_CONTROL_OVERRIDES.includes(selector)),
+    );
+    expect(overrides.flatMap((rule) => rule.selectors).sort()).toEqual([...SETTINGS_CONTROL_OVERRIDES].sort());
+    for (const rule of overrides) {
+      expect(rule.atRules, rule.selector).toEqual([]);
+      expect(Object.keys(rule.declarations).filter((name) => !name.startsWith("--")), rule.selector).toEqual([]);
+    }
+  });
+
   it("has no dark-theme selector overrides outside the token block", () => {
     const themed = allRules().flatMap((rule) =>
       rule.selectors
@@ -199,8 +234,21 @@ describe("glass and e-ink limits", () => {
         ':root[data-theme="dark"] :is(.mix-plate, .ach-plate.is-reached)',
         ':root[data-theme="light"] .software-icon:has(img:not([hidden]))',
         '@media (forced-colors: active) :root[data-theme="light"] .software-icon:has(img:not([hidden]))',
+        ...APPEARANCE_OVERRIDES,
+        ...SETTINGS_CONTROL_OVERRIDES,
       ].sort(),
     );
+  });
+
+  // The appearance overrides only set tokens, never a property, so they cannot restyle a component.
+  it("keeps the appearance overrides to custom properties", () => {
+    const overrides = allRules().filter((rule) => rule.selectors.some((selector) => APPEARANCE_OVERRIDES.includes(selector)));
+    expect(overrides.flatMap((rule) => rule.selectors).sort()).toEqual([...APPEARANCE_OVERRIDES].sort());
+    for (const rule of overrides) {
+      expect(rule.atRules, rule.selector).toEqual([]);
+      expect(rule.selectors, rule.selector).toHaveLength(1);
+      expect(Object.keys(rule.declarations).filter((name) => !name.startsWith("--")), rule.selector).toEqual([]);
+    }
   });
 
   it("lists every SVG text class the components draw", () => {

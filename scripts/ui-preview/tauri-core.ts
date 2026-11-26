@@ -1,5 +1,6 @@
 // Browser-only stand-in for @tauri-apps/api/core used by `npm run preview:ui`.
 import type { HeatmapDays } from "../../src/api";
+import { ACCENT_IDS, EINK_IDS, START_PAGE_IDS } from "../../src/appearancePresets";
 import {
   achievementsSummary,
   backgroundSummary,
@@ -24,6 +25,25 @@ const params = new URLSearchParams(window.location.search);
 const empty = params.has("empty");
 const focused = new Set<string>(empty ? [] : ["code", "excel", "typora", "matlab"]);
 const hidden = new Set<string>(empty ? [] : ["onedrive", "snipaste"]);
+
+// The values set_ui_preference accepts per key, default first, as the Rust enums in commands.rs.
+const uiPreferenceValues: Record<string, readonly string[]> = {
+  accent: ["blue", ...ACCENT_IDS.filter((id) => id !== "blue")],
+  eink: EINK_IDS,
+  week_start: ["monday", "sunday"],
+  start_page: START_PAGE_IDS,
+  reduce_motion: ["system", "reduce"],
+};
+
+// ?accent=<id> ?eink=<id> ?weekstart=sun ?startpage=<id> ?motion=reduce set the stored value only; an
+// unknown value stays the unchosen default. §J: ?startpage never opens that page, so the probe still
+// opens on 概览 unless ?page is given.
+function uiPreference(key: string, value: string | null): Record<string, unknown> {
+  const allowed = uiPreferenceValues[key];
+  const chosen = value !== null && allowed.includes(value);
+  return { [key]: chosen ? value : allowed[0], [`${key}_configured`]: chosen };
+}
+
 const settings: Record<string, unknown> = {
   close_behavior: "minimize_to_tray",
   close_behavior_configured: true,
@@ -33,7 +53,13 @@ const settings: Record<string, unknown> = {
   duration_format_configured: true,
   theme: params.get("theme") ?? "system",
   theme_configured: params.has("theme"),
+  ...uiPreference("accent", params.get("accent")),
+  ...uiPreference("eink", params.get("eink")),
+  ...uiPreference("week_start", params.get("weekstart") === "sun" ? "sunday" : null),
+  ...uiPreference("start_page", params.get("startpage")),
+  ...uiPreference("reduce_motion", params.get("motion")),
 };
+let holdStartPage = params.has("startpage");
 // ?tick: each dashboard poll adds another 6 minutes to today's two readings (0, 6, 12, ... minutes), so the
 // shown value changes on every poll and the readout ghost can be seen. Ignored with ?empty.
 const tick = params.has("tick") && !empty;
@@ -113,6 +139,13 @@ export async function invoke<T>(
       if (key) hidden.delete(key);
       return undefined as T;
     case "get_app_settings":
+      if (holdStartPage) {
+        // §J: App asks for its settings after the first render, so the sidebar is there. Choosing 概览
+        // like a user would, before the answer, keeps App's one-time switch to the stored start page (§E)
+        // from firing in the preview.
+        holdStartPage = false;
+        if (!targetPage) buttonByText("概览")()?.click();
+      }
       return { ...settings } as T;
     case "set_close_behavior_preference":
       settings.close_behavior = args.choice;
@@ -127,10 +160,24 @@ export async function invoke<T>(
       settings.theme = args.theme;
       settings.theme_configured = true;
       return undefined as T;
+    case "set_ui_preference": {
+      const uiKey = String(args.key);
+      const allowed = Object.prototype.hasOwnProperty.call(uiPreferenceValues, uiKey)
+        ? uiPreferenceValues[uiKey]
+        : null;
+      if (allowed === null) throw "ui_preference_unknown_key";
+      if (!allowed.includes(String(args.value))) throw "ui_preference_invalid_value";
+      settings[uiKey] = args.value;
+      settings[`${uiKey}_configured`] = true;
+      return undefined as T;
+    }
     case "get_close_behavior_preference":
       return settings.close_behavior as T;
     case "get_transparency_effects_enabled":
       return (params.get("glass") !== "off") as T;
+    case "get_windows_accent":
+      // AccentDark1 / AccentLight2 of the Windows default blue: the browser cannot read the real one.
+      return { light: "#0067c0", dark: "#4cc2ff" } as T;
     case "apply_window_close_choice":
       return undefined as T;
     default: {
@@ -142,7 +189,7 @@ export async function invoke<T>(
 }
 
 // ?page=software|background|statistics|achievements|settings opens that page after the first render;
-// ?dialog=add|close opens a dialog.
+// ?dialog=add opens the add dialog, and ?dialog=restore (with ?page=settings) picks the 从备份恢复 backup.
 const pageLabels: Record<string, string> = {
   software: "软件",
   background: "后台",
@@ -173,4 +220,8 @@ if (targetPage) {
 
 if (targetDialog === "add") {
   window.setTimeout(() => clickWhenReady(() => document.querySelector<HTMLElement>(".panel-add-button") ?? undefined), 400);
+}
+
+if (targetDialog === "restore") {
+  window.setTimeout(() => clickWhenReady(buttonByText("选择备份…")), 400);
 }
