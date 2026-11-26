@@ -2824,7 +2824,8 @@ mark {
   .discovered-scroll,
   .ach-coming-list,
   .poster-list,
-  .add-software-results {
+  .add-software-results,
+  .ach-tier-list {
     mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent 100%);
     animation: scroll-edge-fade linear both;
     animation-timeline: scroll(self);
@@ -2849,6 +2850,7 @@ mark {
   .ach-coming-list:focus-visible,
   .poster-list:focus-visible,
   .add-software-results:focus-visible,
+  .ach-tier-list:focus-visible,
   .stats-page:focus-visible,
   .achievements-page:focus-visible,
   .settings-page:focus-visible {

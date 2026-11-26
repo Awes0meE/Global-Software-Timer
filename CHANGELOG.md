@@ -6,6 +6,7 @@
 - The top of each page (the title and the empty space beside the date and export keys) moves the window like the title bar, and dragging across the page no longer selects the labels and readouts. Text fields and error notices can still be selected.
 - The small notices in the bottom right (`已复制群号`, `已保存` and the like) rise in and sink out instead of appearing and vanishing at once, and sit on a lighter surface tinted with the accent colour (red for a failure), so they stand out from the dark glass under them. `减少动画` turns the motion off.
 - `检查更新…` now ends every check in a dialog closed with `确定` instead of a small notice: `已是最新版本` (with the current version), `无法连接到 GitHub`, or `更新没有完成` when an update fails.
+- On `成就`, a lit milestone plate is a key: pointing at it brightens its edge, and clicking it opens every software that has reached that tier, most focus first, with its focus time and either the day it reached this tier or the higher tier it has reached since. `×`, `Esc` or a click outside closes it. Unlit plates stay inert.
 
 ## v0.4.6 - 2026-11-26
 

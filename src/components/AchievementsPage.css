@@ -484,8 +484,40 @@
 }
 
 .ach-plate.is-reached {
+  position: relative;
   background: var(--glass-2);
   box-shadow: inset 0 0 0 1px var(--edge);
+  transition: box-shadow 180ms var(--ease), background-color 180ms var(--ease);
+}
+
+/* A lit plate is one key (v0.4.7): a clear button over the whole plate opens its software list. Under the
+   pointer or keyboard focus the plate's edge brightens towards the accent; unlit plates stay inert. */
+.ach-plate-open {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ach-plate-open:focus-visible {
+  outline: none;
+}
+
+.ach-plate.is-reached:has(.ach-plate-open:hover) {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--edge)),
+    0 0 14px -2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.ach-plate.is-reached:has(.ach-plate-open:focus-visible) {
+  box-shadow: inset 0 0 0 1px var(--edge), var(--focus);
+}
+
+.ach-plate.is-reached:has(.ach-plate-open:active) {
+  background-color: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
 /* The light --edge vanishes on glass, so unlit plates use a dashed --edge-strong line (trade-off 7). It is an
@@ -501,6 +533,12 @@
 /* 终极成就：达成后才换成强调色描边。 */
 .ach-plate.is-reached.is-ultimate {
   box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.ach-plate.is-reached.is-ultimate:has(.ach-plate-open:hover) {
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 16px -2px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .ach-plate-tier {
@@ -839,5 +877,92 @@
   /* The no-record dot at 34% CanvasText falls under 3:1 on Canvas; GrayText keeps it a quiet but clear mark. */
   .ach-cell.is-norecord::after {
     background: GrayText;
+  }
+}
+
+/* ---------- A lit plate's software list (v0.4.7) ---------- */
+
+.ach-tier-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(460px, 100%);
+  max-height: min(560px, calc(100vh - 48px));
+  padding-bottom: 10px;
+}
+
+.ach-tier-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 12px 12px 20px;
+}
+
+.ach-tier-head h2 {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.ach-tier-head h2 b {
+  font: 500 22px/1 var(--font-num);
+}
+
+.ach-tier-count {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: var(--type-small);
+}
+
+.ach-tier-list {
+  display: grid;
+  align-content: start;
+  margin: 0;
+  padding: 0 10px;
+  overflow: auto;
+  list-style: none;
+}
+
+.ach-tier-list:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+  border-radius: var(--radius-key);
+}
+
+.ach-tier-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto 92px;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius-key);
+}
+
+.ach-tier-list li + li {
+  box-shadow: inset 0 1px 0 var(--edge);
+}
+
+.ach-tier-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ach-tier-hours {
+  color: var(--ink-2);
+}
+
+.ach-tier-date,
+.ach-tier-tag {
+  color: var(--muted);
+  font-size: var(--type-label);
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (forced-colors: active) {
+  .ach-plate.is-reached:has(.ach-plate-open:hover),
+  .ach-plate.is-reached:has(.ach-plate-open:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
   }
 }

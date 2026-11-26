@@ -452,6 +452,55 @@ describe("AchievementsPage", () => {
     expect(comings.querySelector(".panel-count")).toBeNull();
   });
 
+  it("opens a lit plate's whole software list, and leaves unlit plates without a key", async () => {
+    invoke.mockResolvedValue(summary());
+    await renderPage();
+    const shelf = screen.getByRole("region", { name: "里程碑" });
+    expect(within(within(shelf).getByRole("group", { name: "500 小时" })).queryByRole("button")).toBeNull();
+
+    const open = within(shelf).getByRole("button", { name: "查看达到 10 小时的 2 个软件" });
+    expect(open).toHaveAttribute("aria-haspopup", "dialog");
+    open.focus();
+    fireEvent.click(open);
+
+    const dialog = screen.getByRole("dialog", { name: "10 小时" });
+    expect(dialog).toHaveTextContent("2 个软件");
+    const rows = within(dialog).getAllByRole("listitem");
+    // Most focus first (each after its icon initial); one past this tier says how far it got, one on it gives its
+    // unlock date.
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "CChatGPT225.0小时已到 100 小时",
+      "VVisual Studio Code12.0小时2026-11-11",
+    ]);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(open).toHaveFocus();
+  });
+
+  it("closes the plate list with × or a press outside it, but not a press inside", async () => {
+    invoke.mockResolvedValue(summary());
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "查看达到 100 小时的 1 个软件" }));
+    const dialog = screen.getByRole("dialog", { name: "100 小时" });
+
+    fireEvent.mouseDown(dialog);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.mouseDown(dialog.parentElement as HTMLElement);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "查看达到 100 小时的 1 个软件" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "关闭" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("brightens a lit plate's edge under the pointer, from the lit plates only", () => {
+    const rules = parseRules(allCss()["AchievementsPage.css"]).rules.filter((rule) => rule.atRules.length === 0);
+    const hover = rules.find((rule) => rule.selectors.includes(".ach-plate.is-reached:has(.ach-plate-open:hover)"));
+    expect(hover?.declarations["box-shadow"]).toContain("var(--accent)");
+    expect(rules.find((rule) => rule.selectors.includes(".ach-plate-open"))?.declarations.cursor).toBe("pointer");
+  });
+
   it("outlines the 6666-hour plate only once it is reached", async () => {
     invoke.mockResolvedValue(
       summary({

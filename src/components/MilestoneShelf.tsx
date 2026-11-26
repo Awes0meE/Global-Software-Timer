@@ -1,7 +1,10 @@
-import type { CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import type { DayRecord, DurationFormat, MilestoneRow, SoftwareDayRecord } from "../api";
 import { formatDurationPartsZh, formatDurationZh } from "../i18n";
 import { SoftwareIcon } from "./SoftwareIcon";
+import { useModalDialog } from "./useModalDialog";
 
 const HOUR = 3600;
 const PLATE_LIST_LIMIT = 3;
@@ -85,8 +88,12 @@ interface ShelfProps {
   durationFormat: DurationFormat;
 }
 
-/** One engraved plate per tier. Each software sits on the plate of its highest tier, with that tier's unlock date. */
+/**
+ * One engraved plate per tier. Each software sits on the plate of its highest tier, with that tier's unlock date.
+ * A lit plate opens (v0.4.7) a list of every software that has reached its tier.
+ */
 export function MilestoneShelf({ tiers, milestones, durationFormat }: ShelfProps) {
+  const [openTier, setOpenTier] = useState<number | null>(null);
   const litCount = tiers.filter((tier) => milestones.some((row) => (row.reached_hours ?? 0) >= tier)).length;
   const ultimate = tiers[tiers.length - 1];
   const leader = milestones.reduce<MilestoneRow | null>(
@@ -112,9 +119,18 @@ export function MilestoneShelf({ tiers, milestones, durationFormat }: ShelfProps
             residents={milestones.filter((row) => row.reached_hours === tier)}
             leader={leader}
             durationFormat={durationFormat}
+            onOpen={() => setOpenTier(tier)}
           />
         ))}
       </div>
+      {openTier !== null ? (
+        <TierDialog
+          tier={openTier}
+          rows={milestones.filter((row) => (row.reached_hours ?? 0) >= openTier)}
+          durationFormat={durationFormat}
+          onClose={() => setOpenTier(null)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -126,6 +142,7 @@ function MilestonePlate({
   residents,
   leader,
   durationFormat,
+  onOpen,
 }: {
   tier: number;
   isUltimate: boolean;
@@ -133,6 +150,7 @@ function MilestonePlate({
   residents: MilestoneRow[];
   leader: MilestoneRow | null;
   durationFormat: DurationFormat;
+  onOpen: () => void;
 }) {
   const reached = reachedCount > 0;
   const classes = ["ach-plate", reached ? "is-reached" : "is-slot"];
@@ -151,7 +169,84 @@ function MilestonePlate({
       ) : (
         <PlateProgress tier={tier} leader={leader} durationFormat={durationFormat} />
       )}
+      {/* The whole lit plate is the key: a button laid over it, since a button cannot hold the list. */}
+      {reached ? (
+        <button
+          type="button"
+          className="ach-plate-open"
+          aria-label={`查看达到 ${tier} 小时的 ${reachedCount} 个软件`}
+          aria-haspopup="dialog"
+          onClick={onOpen}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Every software at or past `tier`, most focus first. Closed with ×, Esc or a click anywhere outside it; it
+ * sits with the other glass dialogs (beside the toast), so the page and the sidebar go inert under it.
+ */
+function TierDialog({
+  tier,
+  rows,
+  durationFormat,
+  onClose,
+}: {
+  tier: number;
+  rows: MilestoneRow[];
+  durationFormat: DurationFormat;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLElement>(null);
+  useModalDialog(dialogRef, { onCancel: onClose, busy: false });
+  const sorted = [...rows].sort(
+    (left, right) =>
+      right.focused_seconds - left.focused_seconds || left.display_name.localeCompare(right.display_name, "zh-CN"),
+  );
+  const host = document.querySelector(".desktop-root") ?? document.body;
+
+  return createPortal(
+    <div
+      className="modal-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        ref={dialogRef}
+        className="dialog ach-tier-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ach-tier-title"
+        tabIndex={-1}
+      >
+        <header className="ach-tier-head">
+          <h2 id="ach-tier-title">
+            <b className="num">{tier}</b> 小时
+          </h2>
+          <span className="ach-tier-count">{sorted.length} 个软件</span>
+          <button type="button" className="add-software-close" aria-label="关闭" onClick={onClose}>
+            <X size={18} aria-hidden="true" />
+          </button>
+        </header>
+        <ul className="ach-tier-list" tabIndex={0} aria-label={`达到 ${tier} 小时的软件`}>
+          {sorted.map((row) => (
+            <li key={row.identity_key}>
+              <SoftwareIcon app={row} size="sm" />
+              <span className="ach-tier-name">{row.display_name}</span>
+              <span className="ach-tier-hours num">{formatDurationZh(row.focused_seconds, durationFormat)}</span>
+              {row.reached_hours === tier ? (
+                <span className="ach-tier-date num">{row.reached_on ?? ""}</span>
+              ) : (
+                <span className="ach-tier-tag">已到 {row.reached_hours} 小时</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>,
+    host,
   );
 }
 
