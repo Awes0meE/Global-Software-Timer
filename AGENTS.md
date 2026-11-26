@@ -181,6 +181,11 @@ v0.1 excludes:
 - Administrator-permission enhanced detection.
 - Window-title, document-name, or webpage-title collection.
 
+## Code Signing
+
+- `CODE_SIGNING_POLICY.md` is the code signing policy SignPath Foundation requires; keep it linked from the README download section.
+- Every `docs/releases/vX.md` ends with a `## 代码签名 / Code signing policy` line linking that file, because the release page is the download page.
+
 ## Privacy And Security
 
 - Do not add telemetry.

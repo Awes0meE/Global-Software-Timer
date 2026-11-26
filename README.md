@@ -312,7 +312,7 @@ GST 打不开、没法用上面的按钮时，也可以手动恢复：右键托�
    | `Global.Software.Timer_<版本号>_x64_en-US.msi` | MSI 安装包，适合需要 MSI 的部署场景。 |
    | `SHA256SUMS.txt` | 校验值，可以用来确认安装包没有损坏或被改动。 |
 
-2. 双击安装。安装包暂时没有数字签名，Windows 可能会提示“Windows 已保护你的电脑”，点 **更多信息 → 仍要运行** 即可。
+2. 双击安装。安装包暂时没有数字签名（已在申请免费签名，见 [代码签名政策 Code signing policy](./CODE_SIGNING_POLICY.md)），Windows 可能会提示“Windows 已保护你的电脑”，点 **更多信息 → 仍要运行** 即可。
 3. 安装后打开一次，它就会默认开机自启（可以在设置里关闭）。之后在右下角托盘找到小时钟图标，就能随时打开主界面。
 
 <a id="privacy"></a>
@@ -414,7 +414,7 @@ GST 打不开、没法用上面的按钮时，也可以手动恢复：右键托�
 <summary><b>Windows 提示“已保护你的电脑”怎么办？</b></summary>
 <br />
 
-安装包暂时没有代码签名，SmartScreen 会对没签名的新软件弹出这个提示。点 **更多信息 → 仍要运行** 即可。如果担心安装包被改动，可以对照 Releases 里的 `SHA256SUMS.txt` 校验：
+安装包暂时没有代码签名，SmartScreen 会对没签名的新软件弹出这个提示（签名的进展见 [代码签名政策 Code signing policy](./CODE_SIGNING_POLICY.md)）。点 **更多信息 → 仍要运行** 即可。如果担心安装包被改动，可以对照 Releases 里的 `SHA256SUMS.txt` 校验：
 
 ```powershell
 Get-FileHash .\Global.Software.Timer_0.4.5_x64-setup.exe -Algorithm SHA256
