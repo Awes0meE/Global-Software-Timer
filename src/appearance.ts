@@ -31,6 +31,8 @@ export const defaultAppearance: Appearance = { accent: "blue", windowsAccent: nu
 const cacheKey = "gst.appearance";
 
 let current: Appearance = { ...defaultAppearance };
+/** Told after every commit, e.g. so the 跟随 Windows swatch shows a pair the watch has just read. */
+const listeners = new Set<() => void>();
 /** Set while a watch runs: asks it to read the Windows accent now. */
 let requestWindowsRead: (() => void) | null = null;
 
@@ -101,6 +103,20 @@ function commit(appearance: Appearance) {
   current = appearance;
   paint(appearance);
   cacheAppearance(appearance);
+  for (const listener of listeners) listener();
+}
+
+/** The appearance painted now; a new object after every change (for `useSyncExternalStore`). */
+export function currentAppearance(): Appearance {
+  return current;
+}
+
+/** Calls `listener` after every applied change; returns the unsubscribe. */
+export function subscribeAppearance(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 /**
