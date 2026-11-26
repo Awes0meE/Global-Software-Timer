@@ -188,6 +188,11 @@ v0.1 excludes:
 - New dependencies, fonts and assets must be GPL-3.0-compatible (MIT, BSD, Apache-2.0, OFL and similar are fine; no proprietary or non-commercial-only components).
 - Keep the copyright holder as `Global Software Timer Contributors`; do not add personal names.
 
+## Code Signing
+
+- `CODE_SIGNING_POLICY.md` is the code signing policy SignPath Foundation requires; keep it linked from the README download section.
+- Every `docs/releases/vX.md` ends with a `## 代码签名 / Code signing policy` line linking that file, because the release page is the download page.
+
 ## Privacy And Security
 
 - Do not add telemetry.
