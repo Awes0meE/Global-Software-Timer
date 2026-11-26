@@ -90,9 +90,10 @@ pub enum RestoreStatus {
 pub enum StartupError<E> {
     /// Opening the live database failed.
     Open(E),
-    /// A restore file could not be moved into place, so nothing was opened:
-    /// opening the live name would create an empty database. The files stay
-    /// as they are and the next start resumes.
+    /// A restore file could not be moved into place or out of the way, so
+    /// nothing was opened: opening the live name would create an empty
+    /// database, or a later start would apply a restore reported as rolled
+    /// back. The files stay as they are and the next start resumes.
     RestoreStuck,
 }
 
@@ -459,7 +460,9 @@ pub fn run_startup_swap<T, E>(
             && checkpoint_into_single_file(&paths.live).is_ok()
             && rename_with_retry(&paths.live, &paths.before).is_ok();
         if !set_aside {
-            let _ = rename_with_retry(&paths.pending, &paths.failed);
+            if !retire_pending(&paths) {
+                return (Err(StartupError::RestoreStuck), RestoreStatus::None);
+            }
             return open_after_rollback(&paths.live, &mut open);
         }
     }
@@ -471,7 +474,10 @@ pub fn run_startup_swap<T, E>(
         if rename_with_retry(&paths.pending, &paths.live).is_ok() {
             promoted = true;
         } else if paths.before.exists() {
-            let _ = rename_with_retry(&paths.pending, &paths.failed);
+            if !retire_pending(&paths) {
+                // The next start finishes the restore, the original kept as its pre-restore copy.
+                return (Err(StartupError::RestoreStuck), RestoreStatus::None);
+            }
             let _ = rename_with_retry(&paths.before, &paths.live);
             return open_after_rollback(&paths.live, &mut open);
         } else {
@@ -511,6 +517,17 @@ pub fn run_startup_swap<T, E>(
             open_after_rollback(&paths.live, &mut open)
         }
     }
+}
+
+/// Moves a pending restore that is rolled back to `.restore-failed`, or else
+/// deletes it: it is a copy of a file the user still has. Returns false when
+/// it stays, since the next start would then apply it.
+fn retire_pending(paths: &RestorePaths) -> bool {
+    if rename_with_retry(&paths.pending, &paths.failed).is_ok() {
+        return true;
+    }
+    remove_with_side_files(&paths.pending);
+    !paths.pending.exists()
 }
 
 /// Opens the original after a rollback, unless it could not be put back under
@@ -1584,15 +1601,51 @@ mod tests {
         assert!(paths.pending.exists() && !paths.live.exists() && !paths.failed.exists());
     }
 
+    // Rolling back while the pending file stays would let the next start apply
+    // it over the days recorded since, so the start stops and resumes instead.
     #[cfg(windows)]
     #[test]
-    fn a_pending_restore_that_cannot_be_moved_rolls_back_to_the_original() {
+    fn a_pending_restore_that_cannot_be_moved_or_retired_is_finished_next_start() {
         let (data, paths) = queued_restore();
         // A crash after step 2: live set aside, pending not yet moved.
         checkpoint_into_single_file(&paths.live).unwrap();
         std::fs::rename(&paths.live, &paths.before).unwrap();
+        let mut opened = 0;
 
         let held = hold_exclusively(&paths.pending);
+        let (store, status) = run_startup_swap(data.path(), at(26, (10, 15, 0)), |path| {
+            opened += 1;
+            open_store(path)
+        });
+        drop(held);
+
+        assert!(matches!(store, Err(StartupError::RestoreStuck)));
+        assert_eq!(status, RestoreStatus::None);
+        assert_eq!(opened, 0);
+        assert!(paths.pending.exists() && paths.before.exists() && !paths.live.exists());
+
+        let (store, status) = run_startup_swap(data.path(), at(26, (10, 16, 0)), open_store);
+        assert_eq!(status, RestoreStatus::Restored);
+        assert_eq!(
+            store.unwrap().setting_value(MARKER).unwrap().as_deref(),
+            Some("backup")
+        );
+        assert_eq!(
+            pre_restore_copies(&paths),
+            vec!["GST-恢复前-2026-11-26-101600.db".to_string()]
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn an_aborted_restore_deletes_the_pending_file_when_it_cannot_be_renamed() {
+        let (data, paths) = queued_restore();
+        gst_database(&paths.before, "earlier");
+        // A folder in the way of `.restore-failed`.
+        std::fs::create_dir(&paths.failed).unwrap();
+        std::fs::write(paths.failed.join("x"), b"x").unwrap();
+
+        let held = hold_exclusively(&paths.before);
         let (store, status) = run_startup_swap(data.path(), at(26, (10, 15, 0)), open_store);
         drop(held);
 
@@ -1601,7 +1654,28 @@ mod tests {
             store.unwrap().setting_value(MARKER).unwrap().as_deref(),
             Some("live")
         );
-        assert!(!paths.before.exists());
+        assert!(!paths.pending.exists());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn an_aborted_restore_whose_pending_file_stays_opens_nothing() {
+        let (data, paths) = queued_restore();
+        gst_database(&paths.before, "earlier");
+        let mut opened = 0;
+
+        let held = (hold_exclusively(&paths.before), hold_exclusively(&paths.pending));
+        let (store, status) = run_startup_swap(data.path(), at(26, (10, 15, 0)), |path| {
+            opened += 1;
+            open_store(path)
+        });
+        drop(held);
+
+        assert!(matches!(store, Err(StartupError::RestoreStuck)));
+        assert_eq!(status, RestoreStatus::None);
+        assert_eq!(opened, 0);
+        assert!(paths.pending.exists() && !paths.failed.exists());
+        assert_eq!(marker_of(&paths.live).as_deref(), Some("live"));
     }
 
     #[test]
