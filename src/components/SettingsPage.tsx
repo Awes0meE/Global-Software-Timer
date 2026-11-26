@@ -85,6 +85,8 @@ interface SettingsPageProps {
   /** 关于与反馈 (v0.4.6): opens a GitHub page in the default browser. */
   onOpenFeedback: (link: FeedbackLink) => void;
   onCopyQqGroup: () => void;
+  /** 检查更新… opens the consent dialog; nothing goes online before it is agreed to. */
+  onCheckForUpdate: () => void;
 }
 
 export function SettingsPage({
@@ -111,6 +113,7 @@ export function SettingsPage({
   onPickRestore,
   onOpenFeedback,
   onCopyQqGroup,
+  onCheckForUpdate,
 }: SettingsPageProps) {
   const warning = useRef<HTMLDivElement>(null);
   // A failed save rolls its row back; 外观 and 数据 sit below the fold, so bring the message into view.
@@ -300,6 +303,9 @@ export function SettingsPage({
         <SettingRow icon={<Info size={18} aria-hidden="true" />} title="当前版本">
           <span className="settings-status num">V{packageJson.version}</span>
           <LinkKey label="更新日志" onClick={() => onOpenFeedback("releases")} />
+          <button type="button" className="button button-secondary" onClick={onCheckForUpdate}>
+            检查更新…
+          </button>
         </SettingRow>
         <SettingRow icon={<Bug size={18} aria-hidden="true" />} title="报告问题">
           <LinkKey label="打开" name="报告问题" onClick={() => onOpenFeedback("bug")} />

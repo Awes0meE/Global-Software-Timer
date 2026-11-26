@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import {
   ACCENT_IDS,
@@ -648,6 +648,52 @@ export type RestoreStatus = "restored" | "rolled_back" | "none";
 export async function getRestoreStatus(): Promise<RestoreStatus> {
   const status = await invoke<unknown>("get_restore_status");
   return status === "restored" || status === "rolled_back" ? status : "none";
+}
+
+/** 发现新版本 (v0.4.6): the latest stable release, newer than the running version. */
+export interface UpdateInfo {
+  version: string;
+  current_version: string;
+  /** The installer size the release manifest lists; null when it lists none. */
+  size_bytes: number | null;
+}
+
+/** Bytes of the installer downloaded so far, of `total` when known. */
+export interface UpdateProgress {
+  downloaded: number;
+  total: number | null;
+}
+
+/** Error codes `checkForUpdate` and `installUpdate` reject with. */
+export const UPDATE_ERRORS = {
+  check: "update_check_failed",
+  backup: "update_backup_failed",
+  download: "update_download_failed",
+  install: "update_install_failed",
+  cancelled: "update_cancelled",
+} as const;
+
+/**
+ * Goes online: asks GitHub for the latest release manifest; null when this is the latest version. GST's
+ * only network access: call it only after the user agreed in the 检查更新 dialog, never on its own.
+ */
+export async function checkForUpdate(): Promise<UpdateInfo | null> {
+  return invoke<UpdateInfo | null>("check_for_update");
+}
+
+/**
+ * 更新并重启: backs up the data, downloads and verifies the installer found by the last check, then starts it
+ * (on Windows the app exits and the installer restarts it). Progress arrives through `onProgress`.
+ */
+export async function installUpdate(onProgress: (progress: UpdateProgress) => void): Promise<void> {
+  const channel = new Channel<UpdateProgress>();
+  channel.onmessage = onProgress;
+  return invoke("install_update", { onProgress: channel });
+}
+
+/** Stops the download; `installUpdate` then rejects with `update_cancelled` and nothing is installed. */
+export async function cancelUpdate(): Promise<void> {
+  return invoke("cancel_update");
 }
 
 function normalizeCloseBehavior(value: unknown): CloseBehavior {

@@ -10,7 +10,19 @@
 // the approved demo backup. The restore id is single use. ?restorestatus=restored|
 // rolled_back is the one-shot status after a restart. ?export=fail also makes
 // 打开数据文件夹 fail. These two params are read on every call.
-import type { RestorePreview, SettingsImportKey, SettingsImportPreview, SettingsImportResult } from "../../src/api";
+//
+// 检查更新 (nothing goes online): check_for_update finds nothing by default,
+// ?update=found finds V0.4.7 with a 6.3 MB installer, ?update=offline rejects like
+// a failed request. install_update streams fake download progress, then resolves
+// (the app would exit here); cancel_update stops it with update_cancelled.
+import type {
+  RestorePreview,
+  SettingsImportKey,
+  SettingsImportPreview,
+  SettingsImportResult,
+  UpdateInfo,
+  UpdateProgress,
+} from "../../src/api";
 import { formatLocalDate } from "../../src/statisticsRange";
 
 const DOWNLOADS = "C:\\Users\\demo\\Downloads\\";
@@ -78,6 +90,38 @@ const RESTORE_PICK_ERRORS: Record<string, string> = {
 };
 
 const query = (name: string) => new URLSearchParams(window.location.search).get(name);
+
+export const PREVIEW_UPDATE: UpdateInfo = {
+  version: "0.4.7",
+  current_version: "0.4.6",
+  size_bytes: Math.round(6.3 * 1024 * 1024),
+};
+const UPDATE_STEP_BYTES = 400 * 1024;
+const UPDATE_STEP_MS = 120;
+let cancelDownload: (() => void) | null = null;
+
+/** Sends progress to the channel's `onmessage` until the whole installer is "downloaded". */
+function fakeInstall(channel: unknown): Promise<void> {
+  const send = (channel as { onmessage?: (progress: UpdateProgress) => void } | null)?.onmessage;
+  const total = PREVIEW_UPDATE.size_bytes as number;
+  return new Promise((resolve, reject) => {
+    let downloaded = 0;
+    const timer = window.setInterval(() => {
+      downloaded = Math.min(total, downloaded + UPDATE_STEP_BYTES);
+      send?.({ downloaded, total });
+      if (downloaded === total) {
+        window.clearInterval(timer);
+        cancelDownload = null;
+        resolve();
+      }
+    }, UPDATE_STEP_MS);
+    cancelDownload = () => {
+      window.clearInterval(timer);
+      cancelDownload = null;
+      reject("update_cancelled");
+    };
+  });
+}
 
 /** The backup in the approved 5-restore mock sheet. */
 function restorePreview(): RestorePreview {
@@ -171,6 +215,14 @@ export function exportCommand(
       return { value: undefined };
     case "discard_restore":
       if (args.restoreId === pendingRestore) pendingRestore = null;
+      return { value: undefined };
+    case "check_for_update":
+      if (query("update") === "offline") throw "update_check_failed";
+      return { value: query("update") === "found" ? PREVIEW_UPDATE : null };
+    case "install_update":
+      return { value: fakeInstall(args.onProgress) };
+    case "cancel_update":
+      cancelDownload?.();
       return { value: undefined };
     case "get_restore_status": {
       const status = query("restorestatus");

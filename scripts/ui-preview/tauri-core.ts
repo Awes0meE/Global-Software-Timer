@@ -70,6 +70,15 @@ let dashboardCalls = 0;
 // ?milestones=30: pads the 成就海报 list to the approved 30-row stress frame (picker-30). Ignored with ?empty.
 const stressMilestones = params.get("milestones") === "30" && !empty;
 
+/** Stand-in for the IPC channel: the mock commands call `onmessage` directly. */
+export class Channel<T = unknown> {
+  onmessage: (response: T) => void = () => {};
+
+  constructor(onmessage?: (response: T) => void) {
+    if (onmessage) this.onmessage = onmessage;
+  }
+}
+
 export async function invoke<T>(
   command: string,
   body: Record<string, unknown> | Uint8Array = {},

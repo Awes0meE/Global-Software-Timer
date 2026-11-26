@@ -34,6 +34,7 @@ import { addLocalDays } from "./components/DayCalendar";
 import { ExportKey } from "./components/ExportKey";
 import { RecentActivity } from "./components/RecentActivity";
 import { RestoreDialog } from "./components/RestoreDialog";
+import { UpdateDialog } from "./components/UpdateDialog";
 import { TodayMix } from "./components/TodayMix";
 import { SettingsImportDialog } from "./components/SettingsImportDialog";
 import { SettingsPage, type StartPageOption } from "./components/SettingsPage";
@@ -52,6 +53,7 @@ import { useSidebarCollapse } from "./useSidebarCollapse";
 import { useFeedbackActions } from "./useFeedbackActions";
 import { useMilestoneSoftware } from "./useMilestoneSoftware";
 import { useRestoreActions } from "./useRestoreActions";
+import { useUpdateActions } from "./useUpdateActions";
 import { answersDay, isDayInvalidDate, useLocalToday } from "./viewedDay";
 import { startVisiblePolling } from "./visiblePolling";
 import { WeekStartContext, weekStartFromSetting } from "./weekStart";
@@ -673,6 +675,7 @@ export default function App() {
   const { handleExport, saveAchievementPoster, showToast } = exports;
   const restore = useRestoreActions(showToast);
   const feedback = useFeedbackActions(showToast);
+  const update = useUpdateActions(showToast);
   const { reload: reloadMilestones } = milestones;
 
   const handleHeaderExport = useCallback(
@@ -844,6 +847,7 @@ export default function App() {
                 onPickRestore={() => void restore.pick()}
                 onOpenFeedback={feedback.open}
                 onCopyQqGroup={feedback.copyQqGroup}
+                onCheckForUpdate={update.open}
               />
             ) : activePage === "software" ? (
               <Suspense fallback={<main id="software-content"><p role="status">正在读取软件列表…</p></main>}>
@@ -924,6 +928,18 @@ export default function App() {
             busy={restore.applying}
             onConfirm={() => void restore.confirm()}
             onClose={restore.close}
+          />
+        ) : null}
+
+        {update.dialog ? (
+          <UpdateDialog
+            key={update.dialog.kind === "consent" ? "consent" : "update"}
+            state={update.dialog}
+            checking={update.checking}
+            onCheck={() => void update.check()}
+            onInstall={() => void update.install()}
+            onOpenNotes={() => feedback.open("releases")}
+            onClose={update.close}
           />
         ) : null}
 
