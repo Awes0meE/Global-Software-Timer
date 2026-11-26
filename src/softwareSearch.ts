@@ -1,4 +1,5 @@
 import { pinyin } from "pinyin-pro";
+import { weekOffset, type WeekStart } from "./weekStart";
 
 export type SoftwareMark = "none" | "focused" | "hidden";
 
@@ -17,6 +18,8 @@ export interface HighlightSegment {
 
 export interface LastOpenedFormatOptions {
   timeZone?: string;
+  /** The first day of the week for 这周 / 上周; Monday by default. */
+  weekStartsOn?: WeekStart;
 }
 
 interface RankedRow<T extends SearchableSoftwareRow> {
@@ -171,8 +174,9 @@ export function formatLastOpenedAt(
   }
 
   if (diffDays > 2 && diffDays < 14) {
-    const openedWeekStart = weekStartDayNumber(openedParts);
-    const currentWeekStart = weekStartDayNumber(nowParts);
+    const weekStartsOn = options.weekStartsOn ?? 1;
+    const openedWeekStart = weekStartDayNumber(openedParts, weekStartsOn);
+    const currentWeekStart = weekStartDayNumber(nowParts, weekStartsOn);
 
     if (openedWeekStart === currentWeekStart) {
       return `这周${formatWeekday(openedParts)}`;
@@ -380,11 +384,8 @@ function calendarDayNumber(parts: ZonedDateParts): number {
   return Date.UTC(parts.year, parts.month - 1, parts.day) / DAY_MS;
 }
 
-function weekStartDayNumber(parts: ZonedDateParts): number {
-  const dayNumber = calendarDayNumber(parts);
-  const mondayBasedDay = (parts.weekday + 6) % 7;
-
-  return dayNumber - mondayBasedDay;
+function weekStartDayNumber(parts: ZonedDateParts, weekStartsOn: WeekStart): number {
+  return calendarDayNumber(parts) - weekOffset(parts.weekday, weekStartsOn);
 }
 
 function pad2(value: number): string {

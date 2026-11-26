@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type { SoftwareMark, SoftwarePageRow } from "../api";
 import { formatLastOpenedAt, highlightDisplayName, rankSoftwareRows } from "../softwareSearch";
+import { useWeekStart } from "../weekStart";
 import { SoftwareIcon } from "./SoftwareIcon";
 
 export type AddTarget = "focused" | "hidden";
@@ -236,6 +237,7 @@ function AddSoftwareRow({
   onClick: () => void;
 }) {
   const segments = highlightDisplayName(row.display_name, query);
+  const weekStartsOn = useWeekStart();
 
   return (
     <button
@@ -260,7 +262,7 @@ function AddSoftwareRow({
         <small>{row.process_name}</small>
       </span>
       <SoftwareMarkBadge mark={row.mark} />
-      <span className="add-software-last-opened">{formatLastOpenedAt(row.last_opened_at)}</span>
+      <span className="add-software-last-opened">{formatLastOpenedAt(row.last_opened_at, undefined, { weekStartsOn })}</span>
     </button>
   );
 }
