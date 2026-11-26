@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Security: the update plugin moves from tauri-plugin-updater 2.12.0 to 2.14.1, which replaces the `zip` 4.6.1 library flagged by three advisories (one critical) with `zip` 9.8.2. GST never handled zip archives in an update, and every download is checked against the update signature first, so this was not exploitable, but the flagged code is gone. The plugin needs a newer Tauri, so the app also moves from Tauri 2.11.2 to 2.12.7 (with its window, tray and WebView2 libraries) and the frontend packages to `@tauri-apps/api` 2.12.5 and `@tauri-apps/cli` 2.12.6.
+
 ## v0.4.6 - 2026-11-26
 
 - The license changes from MIT to GPL-3.0-or-later for this and later versions. You may still use, study, change and share GST freely, but a changed version you distribute must also be GPL with its full source. v0.4.5 and earlier stay MIT. The names 全局软件计时器, Global Software Timer and GST and the clock icons are not licensed with the code: a changed version needs its own name and icon (`TRADEMARKS.md`).
