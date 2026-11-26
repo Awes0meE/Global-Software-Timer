@@ -351,6 +351,24 @@ describe("StatisticsPage", () => {
       expect(dayLabels()).toEqual(["11-12", "11-16", "今天"]);
     });
 
+    async function renderSundayStart() {
+      await act(async () => {
+        render(
+          <WeekStartContext.Provider value={0}>
+            <StatisticsPage />
+          </WeekStartContext.Provider>,
+        );
+      });
+    }
+
+    it("marks Sundays instead of Mondays in sparse labels when the week starts on Sunday", async () => {
+      paperWidth = 600;
+      invoke.mockResolvedValue(tenDays());
+      await renderSundayStart();
+
+      expect(dayLabels()).toEqual(["11-12", "11-15", "今天"]);
+    });
+
     // Every day from `start` to `end` inclusive, each with 8 h recorded.
     function longRange(start: string, end: string): StatisticsSummary {
       const days: StatisticsDay[] = [];
@@ -359,6 +377,21 @@ describe("StatisticsPage", () => {
       }
       return summary({ start, end, days_count: days.length, days });
     }
+
+    it("drops a week-start label that would collide with the first label of a mid-length range", async () => {
+      paperWidth = 600;
+      // 29 days from Saturday 10-24, about 17 px a column: the first week start sits 1 or 2 columns
+      // after 10-24, too close to its label; the later ones stay clear of 今天.
+      invoke.mockResolvedValue(longRange("2026-10-24", "2026-11-21"));
+      await renderPage();
+      expect(dayLabels()).toEqual(["10-24", "11-02", "11-09", "11-16", "今天"]);
+      cleanup();
+
+      invoke.mockReset();
+      invoke.mockResolvedValue(longRange("2026-10-24", "2026-11-21"));
+      await renderSundayStart();
+      expect(dayLabels()).toEqual(["10-24", "11-01", "11-08", "11-15", "今天"]);
+    });
 
     it("drops month labels that would collide with the first or last label of a long range", async () => {
       paperWidth = 1080;

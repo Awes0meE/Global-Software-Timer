@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import type { DurationFormat, StatisticsDay, StatisticsSummary } from "../api";
 import { formatDurationZh } from "../i18n";
 import { percentChange } from "../statisticsRange";
+import { useWeekStart, type WeekStart } from "../weekStart";
 import { Duration, localDate } from "./StatisticsLedgers";
 
 interface Props {
@@ -38,7 +39,7 @@ const LABEL_GAP = 8;
  * the active ratio as a thin trace and the daily average active time as a dashed rule.
  * Up to 10 days every day is labelled, with its values when they fit side by side in their
  * columns (see LabelStyle). Longer ranges, or a short one too narrow for even the day line,
- * label Mondays (≤ 40 days) or months; a day without values on the paper shows them in a hover card.
+ * label the first day of each week (≤ 40 days, following 每周起始日) or months; a day without values on the paper shows them in a hover card.
  */
 export function TrendRecorder({ summary, durationFormat, today }: Props) {
   const { days } = summary;
@@ -156,6 +157,7 @@ function RecorderPaper({
   const paperRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(1080);
   const [hover, setHover] = useState<number | null>(null);
+  const weekStart = useWeekStart();
 
   useLayoutEffect(() => {
     const paper = paperRef.current;
@@ -189,7 +191,7 @@ function RecorderPaper({
   const ratioTop = Math.max(0, ...ratioPoints.flat().map((point) => point.ratio)) <= 0.5 ? 0.5 : 1;
   const yRatio = (ratio: number) => bottom - (Math.min(ratio, ratioTop) / ratioTop) * (bottom - top);
   const needleWidth = density === "small" ? 18 : density === "mid" ? 12 : Math.max(columnWidth - 1.4, 1);
-  const labels = density === "small" ? new Map<number, string>() : sparseLabels(days, density, today, columnWidth);
+  const labels = density === "small" ? new Map<number, string>() : sparseLabels(days, density, today, columnWidth, weekStart);
   const lastDay = days[n - 1];
   const endsToday = lastDay?.date === today;
   const dayBoundaries =
@@ -531,7 +533,7 @@ function dayLabelsFit(
 }
 
 /**
- * Up to 40 days: the first day, Mondays and the last day. Longer: the first day, month starts, the last day.
+ * Up to 40 days: the first day, each first day of the week (`weekStart`, a `getDay()` index) and the last day. Longer: the first day, month starts, the last day.
  * A middle label is dropped when its box would come within LABEL_GAP of the previous label or of the
  * end-anchored last label (and today's lamp before it). Positions are relative to the plot's left edge.
  */
@@ -540,6 +542,7 @@ function sparseLabels(
   density: Density,
   today: string,
   columnWidth: number,
+  weekStart: WeekStart = 1,
 ): Map<number, string> {
   const n = days.length;
   const first = monthDay(days[0].date);
@@ -550,7 +553,7 @@ function sparseLabels(
   days.forEach((day, index) => {
     if (index === 0 || index === n - 1) return;
     const text =
-      density === "mid" && localDate(day.date).getDay() === 1
+      density === "mid" && localDate(day.date).getDay() === weekStart
         ? monthDay(day.date)
         : density === "dense" && day.date.endsWith("-01")
           ? `${Number(day.date.slice(5, 7))}月`
