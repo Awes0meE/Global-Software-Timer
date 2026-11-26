@@ -35,10 +35,10 @@ const uiPreferenceValues: Record<string, readonly string[]> = {
   reduce_motion: ["system", "reduce"],
 };
 
-// ?accent=<id> ?eink=<id> ?weekstart=sun ?startpage=<id> ?motion=reduce set the stored value only.
-// An unknown value stays the unchosen default. §J: ?startpage must never open that page (use ?page), so
-// the probe opens on 概览 — when App gains the §E one-time switch to the stored start page, keep it
-// from firing here and add a probe test for it.
+// ?accent=<id> ?eink=<id> ?weekstart=sun ?startpage=<id> ?motion=reduce set the stored value; an unknown
+// value stays the unchosen default. As in the app, ?startpage=<id> opens that page once settings load
+// (§E), so probe.mjs, which waits for the page ?page names (概览 without it), must also be given
+// ?page=<id>.
 function uiPreference(key: string, value: string | null): Record<string, unknown> {
   const allowed = uiPreferenceValues[key];
   const chosen = value !== null && allowed.includes(value);
@@ -182,7 +182,7 @@ export async function invoke<T>(
 }
 
 // ?page=software|background|statistics|achievements|settings opens that page after the first render;
-// ?dialog=add|close opens a dialog.
+// ?dialog=add opens the add dialog, and ?dialog=restore (with ?page=settings) picks the 从备份恢复 backup.
 const pageLabels: Record<string, string> = {
   software: "软件",
   background: "后台",
@@ -213,4 +213,8 @@ if (targetPage) {
 
 if (targetDialog === "add") {
   window.setTimeout(() => clickWhenReady(() => document.querySelector<HTMLElement>(".panel-add-button") ?? undefined), 400);
+}
+
+if (targetDialog === "restore") {
+  window.setTimeout(() => clickWhenReady(buttonByText("选择备份…")), 400);
 }
