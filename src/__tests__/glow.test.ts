@@ -7,7 +7,6 @@ import {
   glowAlphas,
   glowCentre,
   glowCentreFailures,
-  validGlowAlphas,
   windowsGlowAlphas,
   type GlowAlphas,
 } from "../glow";
@@ -138,27 +137,5 @@ describe("windowsGlowAlphas", () => {
     expect(windowsGlowAlphas(null)).toBeNull();
     expect(windowsGlowAlphas({ light: "blue", dark: "#4cc2ff" })).toBeNull();
     expect(windowsGlowAlphas({ light: "#0067c0" } as never)).toBeNull();
-  });
-});
-
-describe("validGlowAlphas", () => {
-  it("keeps three whole percents per theme within the caps", () => {
-    const value = { light: [21, 26, 25], dark: [27, 24, 28] };
-    expect(validGlowAlphas(value)).toEqual(value);
-    expect(validGlowAlphas({ light: [0, 0, 0], dark: GLOW_ALPHA_CAPS.dark })).toEqual({ light: [0, 0, 0], dark: [50, 24, 28] });
-  });
-
-  it.each([
-    ["null", null],
-    ["not an object", "21"],
-    ["a missing theme", { light: [21, 26, 25] }],
-    ["two blobs", { light: [21, 26], dark: [27, 24, 28] }],
-    ["a fraction", { light: [21.5, 26, 25], dark: [27, 24, 28] }],
-    ["a string", { light: ["21", 26, 25], dark: [27, 24, 28] }],
-    ["a negative alpha", { light: [-1, 26, 25], dark: [27, 24, 28] }],
-    ["an alpha over the cap", { light: [46, 26, 25], dark: [27, 24, 28] }],
-    ["CSS in a value", { light: ["21%;--x:1", 26, 25], dark: [27, 24, 28] }],
-  ])("rejects %s", (_case, value) => {
-    expect(validGlowAlphas(value)).toBeNull();
   });
 });

@@ -173,20 +173,3 @@ export function windowsGlowAlphas(windows: AccentPair | null): GlowAlphaPair | n
   const pair = resolveAccent("system", windows);
   return { light: glowAlphas("light", pair.light), dark: glowAlphas("dark", pair.dark) };
 }
-
-/** A cached value as glow alphas: three whole percents from 0 to the cap per theme, or null. */
-export function validGlowAlphas(value: unknown): GlowAlphaPair | null {
-  if (typeof value !== "object" || value === null) return null;
-  const entry = value as Record<string, unknown>;
-  const valid = (theme: AccentTheme) => {
-    const alphas = entry[theme];
-    return (
-      Array.isArray(alphas) &&
-      alphas.length === 3 &&
-      alphas.every((alpha, blob) => Number.isInteger(alpha) && alpha >= 0 && alpha <= GLOW_ALPHA_CAPS[theme][blob])
-    );
-  };
-  return valid("light") && valid("dark")
-    ? { light: [...(entry.light as GlowAlphas)] as GlowAlphas, dark: [...(entry.dark as GlowAlphas)] as GlowAlphas }
-    : null;
-}

@@ -132,12 +132,11 @@ describe("applyAppearance", () => {
     expect(cached()).toEqual({
       accent: "system",
       windows: resolveAccent("system", WINDOWS_YELLOW),
-      glow: windowsGlowAlphas(WINDOWS_YELLOW),
       eink: "night",
       motion: "reduce",
     });
     applyAppearance({ accent: "system", windowsAccent: null, eink: "night", motion: "reduce" });
-    expect(cached()).toEqual({ accent: "system", windows: null, glow: null, eink: "night", motion: "reduce" });
+    expect(cached()).toEqual({ accent: "system", windows: null, eink: "night", motion: "reduce" });
   });
 });
 
@@ -176,19 +175,14 @@ describe("the first-frame cache", () => {
     expect(painted()).toEqual({ accent: "system", light: "#0067c0", dark: "#4cc2ff", eink: "forest", motion: "reduced" });
   });
 
-  it("paints the cached glow alphas with the cached pair", () => {
-    const glow = { light: [20, 20, 20], dark: [30, 22, 26] };
-    window.localStorage.setItem(CACHE_KEY, JSON.stringify({ accent: "system", windows: WINDOWS_BLUE, glow, eink: "aurora", motion: "system" }));
-    paintInitialAppearance();
-    expect(glowPainted()).toEqual(percents(glow));
-  });
-
+  // Alphas cached by another version (after a token, clamp or search change) may no longer pass the checks:
+  // dark blob 1 at 30% with #4cc2ff fails --muted on the glass. So the first frame always runs the search.
   it.each([
     ["missing", undefined],
+    ["stale but well formed", { light: [20, 20, 20], dark: [30, 22, 26] }],
     ["malformed", { light: [20, 20], dark: [30, 22, 26] }],
-    ["over the cap", { light: [46, 20, 20], dark: [30, 22, 26] }],
     ["CSS in a value", { light: ["20%;--x:1", 20, 20], dark: [30, 22, 26] }],
-  ])("computes the glow alphas from the cached pair when the cached ones are %s", (_case, glow) => {
+  ])("computes the glow alphas from the cached pair, ignoring cached alphas that are %s", (_case, glow) => {
     window.localStorage.setItem(CACHE_KEY, JSON.stringify({ accent: "system", windows: WINDOWS_BLUE, glow, eink: "aurora", motion: "system" }));
     paintInitialAppearance();
     expect(glowPainted()).toEqual(percents(windowsGlowAlphas(WINDOWS_BLUE)));

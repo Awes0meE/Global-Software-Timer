@@ -2,7 +2,7 @@
 // only sets data-accent / data-eink / data-motion, the inline --user-accent-* pair and, for 跟随 Windows,
 // the inline --user-glow-* alphas on <html>.
 import { isHexColour, resolveAccent, type AccentPair } from "./accent";
-import { validGlowAlphas, windowsGlowAlphas, type GlowAlphaPair } from "./glow";
+import { windowsGlowAlphas, type GlowAlphaPair } from "./glow";
 import {
   getWindowsAccent,
   normalizeAccent,
@@ -62,8 +62,8 @@ function paintGlowAlphas(root: HTMLElement, alphas: GlowAlphaPair | null) {
   }
 }
 
-/** Paints an appearance; `cachedGlow` stands in for the glow search on the first frame. */
-function paint(appearance: Appearance, cachedGlow: GlowAlphaPair | null = null) {
+/** Paints an appearance. 跟随 Windows's glow alphas are searched on every paint, the first frame included. */
+function paint(appearance: Appearance) {
   const root = document.documentElement;
   if (appearance.accent === "blue") {
     delete root.dataset.accent;
@@ -75,8 +75,7 @@ function paint(appearance: Appearance, cachedGlow: GlowAlphaPair | null = null) 
     root.style.setProperty("--user-accent-light", pair.light);
     root.style.setProperty("--user-accent-dark", pair.dark);
   }
-  const readable = appearance.accent === "system" && appearance.windowsAccent !== null;
-  paintGlowAlphas(root, readable ? (cachedGlow ?? windowsGlowAlphas(appearance.windowsAccent)) : null);
+  paintGlowAlphas(root, appearance.accent === "system" ? windowsGlowAlphas(appearance.windowsAccent) : null);
   if (appearance.eink === "aurora") {
     delete root.dataset.eink;
   } else {
@@ -90,44 +89,37 @@ function paint(appearance: Appearance, cachedGlow: GlowAlphaPair | null = null) 
 }
 
 /**
- * Writes the first-frame cache: the choices, the Windows pair as resolved by the clamp (`#rrggbb` only) and
- * its glow alphas. SQLite stays the source of truth; the cache only avoids a flash before settings load.
+ * Writes the first-frame cache: the choices and the Windows pair as resolved by the clamp (`#rrggbb` only).
+ * No glow alphas: they are searched again from the pair, so a cache from another version cannot paint stale
+ * ones. SQLite stays the source of truth; the cache only avoids a flash before settings load.
  */
 export function cacheAppearance(appearance: Appearance): void {
   const windows = appearance.windowsAccent ? resolveAccent("system", appearance.windowsAccent) : null;
-  const glow = windowsGlowAlphas(appearance.windowsAccent);
   try {
     window.localStorage.setItem(
       cacheKey,
-      JSON.stringify({ accent: appearance.accent, windows, glow, eink: appearance.eink, motion: appearance.motion }),
+      JSON.stringify({ accent: appearance.accent, windows, eink: appearance.eink, motion: appearance.motion }),
     );
   } catch {
     // Storage may be blocked; the next load paints from SQLite.
   }
 }
 
-function readCacheEntry(): Record<string, unknown> {
+/** The cached appearance, validated field by field; today's look where anything is missing or invalid. */
+export function readCachedAppearance(): Appearance {
   let raw: unknown = null;
   try {
     raw = JSON.parse(window.localStorage.getItem(cacheKey) ?? "null");
   } catch {
     raw = null;
   }
-  return (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
-}
-
-function appearanceOf(entry: Record<string, unknown>): Appearance {
+  const entry = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
   return {
     accent: normalizeAccent(entry.accent),
     windowsAccent: validPair(entry.windows),
     eink: normalizeEink(entry.eink),
     motion: normalizeReduceMotion(entry.motion),
   };
-}
-
-/** The cached appearance, validated field by field; today's look where anything is missing or invalid. */
-export function readCachedAppearance(): Appearance {
-  return appearanceOf(readCacheEntry());
 }
 
 function commit(appearance: Appearance) {
@@ -159,14 +151,10 @@ export function applyAppearance(update: AppearanceUpdate): void {
   if (current.accent === "system") requestWindowsRead?.();
 }
 
-/**
- * Paints the cached appearance synchronously before React renders, with the cached glow alphas when they
- * are valid (otherwise the search runs on the cached pair).
- */
+/** Paints the cached appearance synchronously before React renders. */
 export function paintInitialAppearance(): void {
-  const entry = readCacheEntry();
-  current = appearanceOf(entry);
-  paint(current, validGlowAlphas(entry.glow));
+  current = readCachedAppearance();
+  paint(current);
 }
 
 /** Reads the Windows accent once. A malformed answer counts as unreadable (蓝); a failed read keeps the last pair. */
