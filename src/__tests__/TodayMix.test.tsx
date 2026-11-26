@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AppUsageRow } from "../api";
 import { TodayMix } from "../components/TodayMix";
+import { allCss, parseRules } from "./support/css";
 
 function appRow(id: number, todaySeconds: number, activeTodaySeconds: number): AppUsageRow {
   return {
@@ -22,31 +23,29 @@ describe("TodayMix", () => {
     cleanup();
   });
 
-  it("uses foreground active time for the total and ordering", () => {
+  it("uses foreground active time for the shares and ordering", () => {
     const apps = [
       appRow(1, 3600, 10),
       appRow(2, 65, 125),
       appRow(3, 65, 0),
     ];
 
-    const { container } = render(<TodayMix apps={apps} />);
+    render(<TodayMix apps={apps} />);
 
-    expect(container.querySelector(".mix-total")).toHaveTextContent("0.0小时");
     expect(screen.getByText("App 2")).toBeInTheDocument();
     expect(screen.queryByText("App 3")).not.toBeInTheDocument();
     expect(screen.queryByText("1.0小时")).not.toBeInTheDocument();
     expect(screen.queryByText("其他")).not.toBeInTheDocument();
   });
 
-  it("uses the selected duration format for the total and rows", () => {
+  it("uses the selected duration format for the rows", () => {
     const apps = [
       appRow(1, 3600, 10),
       appRow(2, 65, 125),
     ];
 
-    const { container } = render(<TodayMix apps={apps} durationFormat="hours_minutes" />);
+    render(<TodayMix apps={apps} durationFormat="hours_minutes" />);
 
-    expect(container.querySelector(".mix-total")).toHaveTextContent("2分钟");
     expect(screen.getAllByText("2分钟").length).toBeGreaterThan(0);
   });
 
@@ -76,12 +75,23 @@ describe("TodayMix", () => {
     expect(screen.queryByText(/今日|今天/)).not.toBeInTheDocument();
   });
 
-  // v0.4.1: no explanatory line under the total; the plate follows the figure directly.
-  it("puts the bar straight under the total, with no caption", () => {
+  // v0.4.7: no total, which fell short of 今日活跃 and read as a contradicting figure; the plate follows the head.
+  it("puts the bar straight under the head, with no total and no caption", () => {
     const { container } = render(<TodayMix apps={[appRow(1, 3600, 300)]} />);
 
+    expect(container.querySelector(".mix-total")).toBeNull();
     expect(container.querySelector(".mix-caption")).toBeNull();
     expect(screen.queryByText(/按前台软件拆分/)).not.toBeInTheDocument();
-    expect(container.querySelector(".mix-total")?.nextElementSibling).toHaveClass("mix-plate");
+    expect(container.querySelector(".panel-head")?.nextElementSibling).toHaveClass("mix-plate");
+  });
+
+  it("keeps each row's share at every window width", () => {
+    const rules = parseRules(allCss()["styles.css"]).rules;
+    const hidden = rules.filter(
+      (rule) => rule.selectors.includes(".mix-row strong") && rule.declarations.display === "none",
+    );
+    expect(hidden).toEqual([]);
+    render(<TodayMix apps={[appRow(1, 3600, 300), appRow(2, 65, 100)]} />);
+    expect(screen.getByText("75.0%")).toBeInTheDocument();
   });
 });

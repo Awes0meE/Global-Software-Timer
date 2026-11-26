@@ -14,6 +14,11 @@ function mixColor(index: number): string {
   return `var(--mix-${(index % MIX_COLORS) + 1})`;
 }
 
+/**
+ * Each software's share of the day's foreground active time. No total (v0.4.7): the sum covers only time spent
+ * in software GST lists, so it fell short of 今日活跃 (GST's own window, the desktop and hidden software are left
+ * out) and read as a second, contradicting total.
+ */
 export function TodayMix({ apps, durationFormat = "decimal_hours", pastDay = false }: Props) {
   const rows = apps
     .filter((app) => app.active_today_seconds > 0)
@@ -27,7 +32,6 @@ export function TodayMix({ apps, durationFormat = "decimal_hours", pastDay = fal
       <header className="panel-head">
         <h2>{day}分布</h2>
       </header>
-      <p className="mix-total num">{formatDurationZh(total, durationFormat)}</p>
       <div className="mix-plate">
         <div className="mix-bar" aria-label={`${day}使用分布条`}>
           {rows.map((app, index) => (

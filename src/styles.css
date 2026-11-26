@@ -1670,12 +1670,6 @@ main > p[role="status"] {
 }
 
 /* Software identity colours; the distribution plate is where they appear today. */
-.mix-total {
-  padding: 0 18px 12px;
-  font-size: 26px;
-  line-height: 1.1;
-}
-
 .mix-plate {
   display: flex;
   flex-direction: column;
@@ -2745,14 +2739,6 @@ mark {
   .focused-table,
   .focused-table-row {
     column-gap: 6px;
-  }
-
-  .mix-row {
-    grid-template-columns: 10px minmax(0, 1fr) auto;
-  }
-
-  .mix-row strong {
-    display: none;
   }
 
   .mix-scroll {

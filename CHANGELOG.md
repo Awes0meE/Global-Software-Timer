@@ -8,6 +8,7 @@
 - `检查更新…` now ends every check in a dialog closed with `确定` instead of a small notice: `已是最新版本` (with the current version), `无法连接到 GitHub`, or `更新没有完成` when an update fails.
 - On `成就`, a lit milestone plate is a key: pointing at it brightens its edge, and clicking it opens every software that has reached that tier, most focus first, with its focus time and either the day it reached this tier or the higher tier it has reached since. `×`, `Esc` or a click outside closes it. Unlit plates stay inert.
 - The `成就` heatmap shades a used day in proportion to its active time instead of in three steps (under 1 hour, under 3 hours, 3 hours or more): the shade deepens in a straight line up to 12 hours, which gets the full ink. Unused days stay an empty frame and days still to come a dashed one. The legend reads `没用`, a light-to-full strip up to `12小时`, and `未到`.
+- `概览` → `今日分布` drops its large total. It added up only the active time spent in software GST lists, so it came out below `今日活跃` (time in GST itself, on the desktop or in hidden software is left out) and read as a second, contradicting total. The bar and the list stay, and each row keeps its percentage at every window width (narrow windows and `文字大小 大` used to hide it), with room for four rows at `大`.
 
 ## v0.4.6 - 2026-11-26
 

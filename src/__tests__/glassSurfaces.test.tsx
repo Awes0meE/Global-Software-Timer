@@ -1160,9 +1160,10 @@ describe("today distribution bar", () => {
     expect(topLevel(".mix-bar")["align-items"] ?? "stretch").toBe("stretch");
   });
 
-  it("leaves a gap under the total in place of the old caption", () => {
-    expect(topLevel(".mix-total").padding).toBe("0 18px 12px");
-    expect(allRules().filter((rule) => rule.selectors.some((selector) => selector.includes(".mix-caption")))).toEqual([]);
+  it("keeps neither the old caption nor the dropped total (v0.4.7)", () => {
+    const mixRules = (name: string) => allRules().filter((rule) => rule.selectors.some((selector) => selector.includes(name)));
+    expect(mixRules(".mix-caption")).toEqual([]);
+    expect(mixRules(".mix-total")).toEqual([]);
   });
 
   it("drops the glow token from both themes", () => {
