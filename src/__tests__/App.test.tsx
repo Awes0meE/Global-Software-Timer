@@ -442,8 +442,8 @@ describe("App", () => {
 
   it.each([
     { label: "概览", keys: ["导出日报"] },
-    { label: "软件", keys: ["导出软件清单 CSV"] },
-    { label: "后台", keys: ["导出后台记录 CSV"] },
+    { label: "软件", keys: ["导出软件清单… CSV"] },
+    { label: "后台", keys: ["导出后台记录… CSV"] },
     { label: "统计", keys: ["导出报表"] },
     { label: "成就", keys: ["导出成就… PNG"] },
     { label: "设置", keys: ["迁移与备份"] },

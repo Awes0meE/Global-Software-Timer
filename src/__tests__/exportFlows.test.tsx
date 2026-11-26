@@ -184,7 +184,7 @@ describe("page CSV exports", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "导出日报" }));
 
-    expect(menuRows("导出日报")).toEqual(["日报海报PNG", "当日明细CSV"]);
+    expect(menuRows("导出日报")).toEqual(["日报海报…PNG", "当日明细…CSV"]);
   });
 
   it("saves 概览's 当日明细 from the menu and offers to show the file", async () => {
@@ -220,7 +220,7 @@ describe("page CSV exports", () => {
     await openPage("后台");
 
     await userEvent.click(await screen.findByRole("button", { name: "前一天" }));
-    await userEvent.click(screen.getByRole("button", { name: "导出后台记录 CSV" }));
+    await userEvent.click(screen.getByRole("button", { name: "导出后台记录… CSV" }));
 
     await waitFor(() => expect(calls("save_text_export")).toHaveLength(1));
     expect(mockInvoke).toHaveBeenCalledWith("get_background_page_summary", { date: "2026-11-23" });
@@ -231,7 +231,7 @@ describe("page CSV exports", () => {
     render(<App />);
     await openPage("软件");
 
-    await userEvent.click(await screen.findByRole("button", { name: "导出软件清单 CSV" }));
+    await userEvent.click(await screen.findByRole("button", { name: "导出软件清单… CSV" }));
 
     await waitFor(() => expect(calls("save_text_export")).toHaveLength(1));
     expect(calls("save_text_export")[0][1]).toMatchObject({ suggestedName: "GST-软件清单-2026-11-24.csv" });
@@ -243,7 +243,7 @@ describe("page CSV exports", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "导出报表" }));
 
-    expect(menuRows("导出报表")).toEqual(["区间汇总CSV", "每日明细CSV"]);
+    expect(menuRows("导出报表")).toEqual(["区间汇总…CSV", "每日明细…CSV"]);
   });
 
   it("exports the 统计 range the page shows, with its hidden switch", async () => {
@@ -313,7 +313,7 @@ describe("page CSV exports", () => {
     render(<App />);
     await openPage("软件");
 
-    const key = await screen.findByRole("button", { name: "导出软件清单 CSV" });
+    const key = await screen.findByRole("button", { name: "导出软件清单… CSV" });
     await userEvent.click(key);
     await waitFor(() => expect(key).toHaveAttribute("aria-busy", "true"));
     await userEvent.click(key);

@@ -530,8 +530,9 @@ describe("page export keys (v0.4.2 C, v0.4.3 C to E)", () => {
   const rows = (page: keyof typeof PAGE_EXPORTS) => PAGE_EXPORTS[page].items.map((item) => [item.title, item.format ?? null]);
 
   it("gives 软件 and 后台 a one-format CSV key, 成就 a one-format PNG key, and the others menus", () => {
-    expect(PAGE_EXPORTS.software.label).toBe("导出软件清单");
-    expect(PAGE_EXPORTS.background.label).toBe("导出后台记录");
+    // Apple HIG: a command that asks for more (here the Windows save dialog) ends with "…"; a menu key does not.
+    expect(PAGE_EXPORTS.software.label).toBe("导出软件清单…");
+    expect(PAGE_EXPORTS.background.label).toBe("导出后台记录…");
     for (const page of ["software", "background"] as const) {
       expect(PAGE_EXPORTS[page].items.map((item) => item.format)).toEqual(["CSV"]);
     }
@@ -539,19 +540,19 @@ describe("page export keys (v0.4.2 C, v0.4.3 C to E)", () => {
     expect(rows("achievements")).toEqual([["成就海报", "PNG"]]);
     expect(PAGE_EXPORTS.overview.label).toBe("导出日报");
     expect(rows("overview")).toEqual([
-      ["日报海报", "PNG"],
-      ["当日明细", "CSV"],
+      ["日报海报…", "PNG"],
+      ["当日明细…", "CSV"],
     ]);
     expect(PAGE_EXPORTS.statistics.label).toBe("导出报表");
     expect(rows("statistics")).toEqual([
-      ["区间汇总", "CSV"],
-      ["每日明细", "CSV"],
+      ["区间汇总…", "CSV"],
+      ["每日明细…", "CSV"],
     ]);
     expect(PAGE_EXPORTS.settings.label).toBe("迁移与备份");
     expect(rows("settings")).toEqual([
-      ["导出设置", "JSON"],
+      ["导出设置…", "JSON"],
       ["导入设置…", null],
-      ["备份全部数据", "DB"],
+      ["备份全部数据…", "DB"],
     ]);
   });
 

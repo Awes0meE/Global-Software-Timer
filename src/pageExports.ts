@@ -26,22 +26,24 @@ type ExportPageId = "overview" | "software" | "background" | "statistics" | "ach
 /**
  * The header export key of each page (spec v0.4.2 decision C, v0.4.3 C to E). The unavailable 时间轴 has
  * none. A one-item page acts straight from the key (成就 opens the 成就海报 dialog); the others open a menu.
+ * Every command that asks for more before it runs (the Windows save dialog, a file picker or a dialog) ends with
+ * "…", as Apple's guidelines ask; a key that only opens its menu does not.
  */
 export const PAGE_EXPORTS: Readonly<Record<ExportPageId, PageExport>> = {
   overview: {
     label: "导出日报",
     items: [
-      { id: "overview-poster", title: "日报海报", format: "PNG", icon: FileImage },
-      { id: "overview-csv", title: "当日明细", format: "CSV" },
+      { id: "overview-poster", title: "日报海报…", format: "PNG", icon: FileImage },
+      { id: "overview-csv", title: "当日明细…", format: "CSV" },
     ],
   },
-  software: { label: "导出软件清单", items: [{ id: "software-csv", title: "软件清单", format: "CSV" }] },
-  background: { label: "导出后台记录", items: [{ id: "background-csv", title: "后台记录", format: "CSV" }] },
+  software: { label: "导出软件清单…", items: [{ id: "software-csv", title: "软件清单", format: "CSV" }] },
+  background: { label: "导出后台记录…", items: [{ id: "background-csv", title: "后台记录", format: "CSV" }] },
   statistics: {
     label: "导出报表",
     items: [
-      { id: "statistics-csv", title: "区间汇总", format: "CSV" },
-      { id: "statistics-daily-csv", title: "每日明细", format: "CSV" },
+      { id: "statistics-csv", title: "区间汇总…", format: "CSV" },
+      { id: "statistics-daily-csv", title: "每日明细…", format: "CSV" },
     ],
   },
   achievements: {
@@ -53,9 +55,9 @@ export const PAGE_EXPORTS: Readonly<Record<ExportPageId, PageExport>> = {
     label: "迁移与备份",
     icon: ArchiveRestore,
     items: [
-      { id: "settings-export", title: "导出设置", format: "JSON", icon: FileOutput },
+      { id: "settings-export", title: "导出设置…", format: "JSON", icon: FileOutput },
       { id: "settings-import", title: "导入设置…", icon: FileInput },
-      { id: "data-backup", title: "备份全部数据", format: "DB", icon: DatabaseBackup, separatorBefore: true },
+      { id: "data-backup", title: "备份全部数据…", format: "DB", icon: DatabaseBackup, separatorBefore: true },
     ],
   },
 };
