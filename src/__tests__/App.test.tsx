@@ -1059,6 +1059,9 @@ describe("App", () => {
 
     // Apple HIG: a button that opens another window ends its title with an ellipsis.
     expect(screen.getByRole("button", { name: "添加特别关注" })).toHaveTextContent(/^添加…$/);
+    // Only one prominent 添加… per page: the hidden list's is a secondary key.
+    expect(screen.getByRole("button", { name: "添加特别关注" })).not.toHaveClass("is-secondary");
+    expect(screen.getByRole("button", { name: "添加隐藏软件" })).toHaveClass("panel-add-button", "is-secondary");
     fireEvent.click(screen.getByRole("button", { name: "添加特别关注" }));
     expect(screen.getByRole("dialog", { name: "添加特别关注" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "移出 Visual Studio Code" })).not.toBeInTheDocument();

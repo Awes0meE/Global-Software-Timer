@@ -128,7 +128,7 @@ function ManagedSoftwarePanel({
             </button>
           ) : null}
           <button
-            className="panel-add-button"
+            className={`panel-add-button${kind === "hidden" ? " is-secondary" : ""}`}
             type="button"
             aria-label={addLabel}
             onClick={(event) => onAdd(event.currentTarget)}

@@ -1267,3 +1267,18 @@ describe("scroll edges", () => {
     expect(inMedia("@media (forced-colors: active)", ".usage-scroll")["mask-image"]).toBe("none");
   });
 });
+
+// Apple HIG: one or two prominent buttons per view. 软件 keeps the dark 添加… key on 特别关注 only; the hidden
+// list's 添加… is a secondary key, drawn like the 编辑 key beside it.
+describe("secondary add key", () => {
+  it("draws the hidden list's 添加… like the panel's other secondary keys", () => {
+    const key = topLevel(".panel-add-button.is-secondary");
+    expect(key.background).toBe("var(--glass-2)");
+    expect(key.color).toBe("var(--ink-2)");
+    expect(normalize(key["box-shadow"])).toBe("inset 0 0 0 1px var(--edge-strong)");
+    expect(normalize(topLevel(".panel-add-button.is-secondary:focus-visible")["box-shadow"])).toBe(
+      "inset 0 0 0 1px var(--edge-strong), var(--focus)",
+    );
+    expect(topLevel(".panel-add-button.is-secondary:hover").background).toBe("var(--on)");
+  });
+});

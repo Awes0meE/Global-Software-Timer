@@ -9,6 +9,7 @@
 - Chinese titles, table heads and labels are no longer letter-spaced; only Latin capitals such as `CSV` and the version, figures and the `终极成就` plaque keep their tracking.
 - Scrolling lists inside panels fade out over their last 16 px where more rows continue past the edge, instead of cutting a row in half; a list that fits, or the end you have scrolled to, has no fade. The `后台` table, with its sticky head, fades only at the bottom.
 - Buttons that open a dialog end with an ellipsis, as Apple's guidelines ask: `添加…` on `软件` and `导出成就…` on `成就`.
+- `软件` has one dark primary key: the `添加…` of `隐藏软件列表` is now a light secondary key like the `编辑` beside it.
 - The round `?` help keys keep their 16 px look but react to clicks and hover within 28 px, Apple's default pointer target.
 
 ## v0.4.3 - 2026-11-25
