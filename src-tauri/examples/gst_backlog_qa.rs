@@ -35,7 +35,7 @@ const CHECK_RENDER: &str = r##"
     const elapsed = Math.round(performance.now() - start);
 
     openPage("设置");
-    await waitFor("#settings-status-title");
+    await waitFor(".settings-readout .settings-slogan");
     await report(elapsed < 1000, JSON.stringify({
       overview_data_paint_ms: overviewPaint,
       software_first_paint_ms: elapsed,
