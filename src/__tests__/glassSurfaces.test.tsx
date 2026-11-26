@@ -1293,6 +1293,17 @@ describe("scroll edges", () => {
     expect(inMedia(SUPPORTS, ".usage-scroll:has(.background-table)")["animation-name"]).toBe("scroll-edge-fade-bottom");
   });
 
+  it.each([".stats-page", ".achievements-page", ".settings-page"])(
+    "%s fades only at the top, under the page title",
+    (selector) => {
+      const declarations = inMedia(SUPPORTS, selector);
+      expect(normalize(declarations["mask-image"]), selector).toBe("linear-gradient(to bottom, transparent 0, #000 var(--fade-top))");
+      expect(normalize(declarations.animation), selector).toContain("scroll-edge-fade-top");
+      expect(declarations["animation-timeline"], selector).toBe("scroll(self)");
+      expect(inMedia("@media (forced-colors: active)", selector)["mask-image"], selector).toBe("none");
+    },
+  );
+
   it("drops the fade while the list has keyboard focus, so its focus ring stays whole", () => {
     expect(inMedia(SUPPORTS, ".usage-scroll:focus-visible")["mask-image"]).toBe("none");
   });

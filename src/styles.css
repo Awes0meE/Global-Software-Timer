@@ -2651,7 +2651,8 @@ mark {
 /* Scroll edges (Apple HIG scroll edge effect): a list that continues past its top or bottom edge fades out over
    16px there instead of being cut hard. The fade follows each list's own scroll position, so a list that fits
    has none, and it is gone at the end the list has reached. The 后台 table keeps a sticky head, so it fades only
-   at the bottom; keyboard focus drops the fade so the focus ring stays whole. */
+   at the bottom; keyboard focus drops the fade so the focus ring stays whole. The pages that scroll as a whole
+   (统计, 成就, 设置) fade only at the top, under the page title; their bottom is the window's own edge. */
 @property --fade-top {
   syntax: "<length>";
   inherits: false;
@@ -2669,6 +2670,12 @@ mark {
   10% { --fade-top: 16px; }
   90% { --fade-bottom: 16px; }
   100% { --fade-top: 16px; --fade-bottom: 0px; }
+}
+
+@keyframes scroll-edge-fade-top {
+  0% { --fade-top: 0px; }
+  10% { --fade-top: 16px; }
+  100% { --fade-top: 16px; }
 }
 
 @keyframes scroll-edge-fade-bottom {
@@ -2694,13 +2701,24 @@ mark {
     animation-name: scroll-edge-fade-bottom;
   }
 
+  .stats-page,
+  .achievements-page,
+  .settings-page {
+    mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top));
+    animation: scroll-edge-fade-top linear both;
+    animation-timeline: scroll(self);
+  }
+
   .usage-scroll:focus-visible,
   .mix-scroll:focus-visible,
   .recent-scroll:focus-visible,
   .discovered-scroll:focus-visible,
   .ach-coming-list:focus-visible,
   .poster-list:focus-visible,
-  .add-software-results:focus-visible {
+  .add-software-results:focus-visible,
+  .stats-page:focus-visible,
+  .achievements-page:focus-visible,
+  .settings-page:focus-visible {
     mask-image: none;
   }
 }
@@ -2712,7 +2730,10 @@ mark {
   .discovered-scroll,
   .ach-coming-list,
   .poster-list,
-  .add-software-results {
+  .add-software-results,
+  .stats-page,
+  .achievements-page,
+  .settings-page {
     mask-image: none;
     animation: none;
   }
