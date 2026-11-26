@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.5 - 2026-11-26
 
 - The last explanatory small print is gone. The sidebar drops `本地软件时长记录` and `数据只保存在本机`; `设置` → `数据存储` still reads `仅本机`. The rows in `设置` show only their titles. Empty lists show only their one-line title, without the hint below it. The first-close dialog keeps a single line, `GST 在状态栏里运行时才会记录，退出后就不再记录。`, so you know that exiting stops the recording. The two warnings in the `从备份恢复` dialog and the privacy note at the bottom of `设置` stay.
 - The database shrinks from about 200 MB to a few MB on a long-used install. Versions up to v0.1.x logged a heartbeat event for every running app on every scan. Nothing reads that log, and the sessions keep their own heartbeat. The first start of this version removes those rows and compacts the file, which takes about two seconds on a six-month database. It first saves a full copy as `backups\GST-清理前-<date>-<time>.db` in the data folder, and only the newest such copy is kept. If the copy cannot be made, nothing is removed. Upgrade backups, `备份全部数据` and `从备份恢复` all get faster with the smaller file. Restoring an older backup brings the rows back, and the next start removes them the same way.

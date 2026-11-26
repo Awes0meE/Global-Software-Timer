@@ -14,7 +14,7 @@ Last updated: 2026-11-26
 - App mark: a skeuomorphic wall clock (steel bezel, ivory dial, 10:10 hands, orange second hand). `scripts/brand/build-clock-mark.py` writes `src/assets/gst-clock.svg` and `gst-clock-small.svg`; `scripts/brand/build-icons.py` rasterises them into `src-tauri/icons/` (also the tray icon) with headless Edge and Pillow.
 - Theme: 跟随系统 / 浅色 / 深色, default follows Windows. Since v0.4.4 the accent (`ui.accent`, default 蓝) and the e-ink palette (`ui.eink`, default 极光) are user choices on top of the theme; the first frame paints them from the validated localStorage entry `gst.appearance`. Stored as `ui.theme` in SQLite `app_settings`; the native title bar follows through the window `setTheme` permission; `localStorage` key `gst.theme` only caches the last choice to avoid a first-frame flash.
 - Default Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`. The 2026-06-06 duration-format setting adds an optional concrete-minute display such as `8小时35分钟`.
-- Latest published release: `v0.4.4` (2026-11-26); publication is gated by complete Windows checks and installer builds.
+- Latest published release: `v0.4.5` (2026-11-26); publication is gated by complete Windows checks and installer builds.
 - v0.1.2 adds a Settings page with startup-at-login and close-window behavior controls.
 - Startup at login defaults to enabled in v0.1.2, uses the current-user autostart mechanism, and does not require administrator permission.
 - First window close still asks whether to exit or minimize to tray; the choice is saved automatically and can be changed later in Settings.
@@ -35,6 +35,7 @@ Last updated: 2026-11-26
   - 玻璃透明度 was dropped (option 甲), and posters keep their own look.
   - The glow ships softer than the mock. Each blob alpha is the largest, up to the mock's, at which the real readability checks pass over each glow centre (`src/glow.ts`; table in `src/styles.css`, `DESIGN.md` and spec §B). Blob 1 is bound by real text (light `--alert-ink` on `--alert-wash` over the glass, dark `--muted` on the glass). 跟随 Windows computes its alphas at runtime from the clamped pair, on the first frame too (from the cached pair; the alphas themselves are not cached); the stylesheet fallbacks apply only while no readable pair is known (no cached pair on the first frame, or an unreadable accent). The Windows default blue gets light 21/26/25, dark 27/24/28, below 蓝's own 27/26/29 and 30/24/28 on light blobs 1, 3 and dark blob 1. The user accepted this strength on 2026-11-26 (「保持现在」) instead of darkening text per accent to reach the mock.
   - Scope and rules: the v0.4.4 entry in `AGENTS.md`. Binding decisions: `docs/superpowers/specs/2026-11-26-v044-personalization-and-data-design.md`.
+- v0.4.5 (released 2026-11-26) polishes the UI along Apple's guidelines (Inter and Noto Sans SC with lighter weights, a floating glass sidebar that folds into an icon rail, 文字大小 标准 / 大 at 125%, concentric e-ink screens, one type ladder, no letter-spacing on Chinese, scroll-edge fades, ellipses on commands that ask for more, one primary key on `软件`, keyboard shortcuts, 28px `?` hit areas), removes the remaining explanatory small print, makes the `概览` summary about 4x faster, and once removes the legacy `app_heartbeat` rows of `run_events` after a full copy to `backups\GST-清理前-…db`. Schema 3, no tracking or metric change.
 - v0.3.0 adds the `统计` and `成就` pages. Scope and rules: the v0.3.0 entry in `AGENTS.md`; binding decisions: `docs/superpowers/specs/2026-11-21-statistics-and-achievements-design.md`; metric definitions: `docs/CURRENT_STATE.md`.
 
 ## Technical Decisions
@@ -72,7 +73,7 @@ Last updated: 2026-11-26
   - `get_restore_status` reports `restored` / `rolled_back` once for the toast. Tests run only on temp directories.
 - Local paths (v0.4.4): `local_path::is_local_drive_path` gates `IconStore::url_for` and `executable_path_score`, so UNC and device paths, from tracking or from a restored backup, are never opened. Software run from a network share therefore gets no icon.
 - Active time: v0.1 tracks daily machine-level active time using keyboard/mouse idle state.
-- App settings are stored locally in the existing SQLite `app_settings` table, including `window.close_behavior`, `startup.autostart_enabled`, the `ui.duration_format` display preference, the `ui.theme` preference and, since v0.4.4, `ui.accent`, `ui.eink`, `ui.week_start`, `ui.start_page` and `ui.reduce_motion` (one setter, `set_ui_preference`).
+- App settings are stored locally in the existing SQLite `app_settings` table, including `window.close_behavior`, `startup.autostart_enabled`, the `ui.duration_format` display preference, the `ui.theme` preference and, since v0.4.4, `ui.accent`, `ui.eink`, `ui.week_start`, `ui.start_page` and `ui.reduce_motion` (one setter, `set_ui_preference`), and since v0.4.5 `ui.text_size` (`standard` / `large`; Rust applies `large` as window zoom 1.25 with a 1280×800 minimum window). The sidebar fold choice is kept only in localStorage `gst.sidebar-collapsed`.
 - Current software-page focus attribution is part of v0.1.3. Future additional privacy-sensitive window/workspace features must be explicit and opt-in; do not describe existing foreground-PID attribution as an unimplemented future feature.
 - Permissions: v0.1.3 runs as a normal user-space app and does not request administrator permission by default, including for startup at login.
 
@@ -89,6 +90,7 @@ Last updated: 2026-11-26
   - The Windows accent colour is read read-only from HKCU and never stored in the database. Only the last resolved colour pair is cached in WebView localStorage for the first frame.
   - A restore reads only the file the user picks. Its working files (`.gst-restore-*.tmp`, `.restore-pending`, `.before-restore`, `.restore-failed`) and the pre-restore copies in `backups\` (newest 3) all stay in the data folder.
   - Nothing leaves the machine. `PRIVACY.md` describes each file.
+- From v0.4.5 the first start saves a full copy to `backups\GST-清理前-YYYY-MM-DD-HHMMSS.db` (newest 1 kept) and only then deletes the legacy `app_heartbeat` rows and compacts the database (`src-tauri/src/maintenance.rs`); nothing is removed when the copy fails. It all stays in the data folder.
 
 ## Product Strategy
 
@@ -107,6 +109,9 @@ Last updated: 2026-11-26
 
 ## Current Repository State
 
+- Version `0.4.5` polishes the UI along Apple's guidelines, adds 文字大小 and the foldable sidebar, removes the last explanatory small print, speeds up the `概览` summary (44 ms to 12 ms on a six-month database copy) and removes the legacy heartbeat log once after a backup (about 200 MB to a few MB).
+  - Developed on branch `feat/v0.4.5` (worktree `.worktrees/ui-polish`). Schema 3, no tracking or metric change, no new plugin.
+  - Still to check with the installed build: 文字大小 大 at 125% and the first-start heartbeat cleanup on a real database.
 - Version `0.4.4` adds 主题色, 墨水屏配色, 每周起始日, 启动时打开, 减少动画, 打开数据文件夹 and an in-app 从备份恢复 to `设置`.
   - Developed on branch `feat/v0.4.4` (worktree `.worktrees/v044`). Schema 3, no tracking or metric change, no new plugin.
   - On 2026-11-26 (`8952c68`), `scripts/check.ps1` and clippy passed with 2934 frontend and 229 Rust lib tests.
@@ -136,6 +141,7 @@ Last updated: 2026-11-26
 
 ## Release State
 
+- `v0.4.5` (2026-11-26): Apple-guideline UI polish (Inter and Noto Sans SC, floating foldable sidebar, 文字大小 at 125%, concentric screens, one type ladder, scroll-edge fades, ellipses, one primary key, shortcuts, 28px `?` targets), the last small print removed, a 4x faster `概览` summary, and a one-time backed-up removal of the legacy heartbeat log; schema 3, no tracking or metric change.
 - `v0.4.4` (2026-11-26): the 设置 groups 外观 (主题, 8 主题色 including 跟随 Windows with an accent-tinted glow, 5 墨水屏配色) and 数据 (打开数据文件夹, 从备份恢复 with pre-restore copies in `backups`), plus 启动时打开, 每周起始日 and 减少动画, carried by settings export and import; the Windows accent is read read-only from HKCU; software run from a network share shows a letter tile; schema 3, no tracking or metric change.
 - `v0.4.3` (2026-11-25): share posters (`日报海报` D2 from the 概览 `导出日报` menu, `成就海报` A3 for one picked software from `导出成就`, 1080×1440 PNG in the app theme, bundled Inter and Noto Sans SC under SIL OFL 1.1, drawn locally), the 统计 `导出报表` menu with a fuller `区间汇总` (every software, `后台(小时)`, `使用天数`) and the new `每日明细` CSV, the toast above dialog scrims; schema 3, no tracking or metric change.
 - `v0.4.2` (2026-11-25): past days on 概览 and 后台 with a plain e-ink calendar and a 今天 key, the 统计 custom range on the same calendar, page CSV exports, 迁移与备份 (settings export/import, full data backup with a manual restore), no `更多` buttons, a taller 后台 strip; files are written only where the user picks; schema 3, no tracking or metric change.
@@ -166,7 +172,7 @@ Last updated: 2026-11-26
 - Final local validation: 66 frontend tests, TypeScript/Vite build, 95 Rust tests, Rust formatting, and both release-script failure regressions passed. Independent spec/quality reviews passed. Full `npm.cmd run check` exits 1 at npm audit because its registry endpoint is unreachable; real sleep/hibernate and tray interaction were not manually tested.
 - Release dependency remediation: compatible lockfile updates resolved seven npm findings; cloud npm audit reports zero vulnerabilities. CI now enforces audit. Windows release builds rerun the complete gate and produce EXE/MSI plus SHA256SUMS.txt.
 - These changes do not unify the accounting model, rebuild corrupted historical time, delete old events, compact databases, or implement backup/restore. No production database was opened or modified during this repair.
-- Still pending: Windows power/session hooks and real sleep/hibernate validation; materialized summary/performance benchmarks; safe historic cleanup with recoverable backup; identity/rule redesign; live tracker-health UI; persistent logs, CSP, signing, updates, and export/restore (export and a manual-restore backup arrive with v0.4.2; the in-app restore arrives with v0.4.4). See `docs/CURRENT_STATE.md`.
+- Still pending: Windows power/session hooks and real sleep/hibernate validation; materialized summary/performance benchmarks; safe historic cleanup with recoverable backup (v0.4.5 removes only the unused legacy heartbeat log, after a full copy); identity/rule redesign; live tracker-health UI; persistent logs, CSP, signing, updates, and export/restore (export and a manual-restore backup arrive with v0.4.2; the in-app restore arrives with v0.4.4). See `docs/CURRENT_STATE.md`.
 
 ## Historical Implementation Plan
 

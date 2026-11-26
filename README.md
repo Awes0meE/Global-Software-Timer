@@ -361,6 +361,7 @@ GST 打不开、没法用上面的按钮时，也可以手动恢复：右键托�
 - **数据放在哪**：
   - 数据库：`%APPDATA%\com.globalsoftwaretimer.app\global-software-timer.sqlite3`
   - 恢复前的自动备份（v0.4.4 起）：同一个文件夹里的 `backups\`，每次从备份恢复前存一份当前数据，只留最近 3 份。
+  - 清理前的自动备份（v0.4.5 起）：同样在 `backups\` 里，文件名是 `GST-清理前-…db`。升级后第一次启动删掉早期的心跳日志之前存一份完整数据，只留最新的一份，确认没问题后可以自己删掉。
   - 图标缓存（v0.2.4 起）：`%LOCALAPPDATA%\com.globalsoftwaretimer.app\icons\`。只存 96px 的软件图标，文件名是哈希值，不含路径或软件名；写入超过 90 天的图标会在启动时自动清理，也可以随时整个删掉。
 
 完整的隐私声明见 [PRIVACY.md](./PRIVACY.md)（英文）。
@@ -416,7 +417,7 @@ GST 打不开、没法用上面的按钮时，也可以手动恢复：右键托�
 安装包暂时没有代码签名，SmartScreen 会对没签名的新软件弹出这个提示。点 **更多信息 → 仍要运行** 即可。如果担心安装包被改动，可以对照 Releases 里的 `SHA256SUMS.txt` 校验：
 
 ```powershell
-Get-FileHash .\Global.Software.Timer_0.4.4_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Global.Software.Timer_0.4.5_x64-setup.exe -Algorithm SHA256
 ```
 
 </details>

@@ -1,8 +1,8 @@
 # Privacy
 
-Global Software Timer v0.4.4 is local-first.
+Global Software Timer v0.4.5 is local-first.
 
-## What v0.4.4 records
+## What v0.4.5 records
 
 - Application executable identity
 - User-facing application name
@@ -12,14 +12,14 @@ Global Software Timer v0.4.4 is local-first.
 - Software-page marks, such as focused or hidden
 - Software-page foreground/background runtime aggregates
 - Software-page focused active time based on the Windows foreground focused software identity
-- Local app preferences, including startup at login, close-window behavior, duration format, theme and, from v0.4.4, accent colour, e-ink palette, week start, start page and reduced motion
+- Local app preferences, including startup at login, close-window behavior, duration format, theme and, from v0.4.4, accent colour, e-ink palette, week start, start page and reduced motion, and from v0.4.5 text size (`文字大小`, stored as `ui.text_size`); whether the sidebar is folded into its icons is kept only in the app window's local storage (`gst.sidebar-collapsed`), not in the database
 - Background processes without a window or tray icon: executable name and path, daily running time, CPU time, peak memory and process count, for the `后台` page
 - A timeline of recorded time in consecutive stretches: which software identity had the Windows foreground focus, and whether the computer was active
 - For each software identity, the stretches of time in which it had a taskbar window
 
 To tell windowed, tray and background apps apart, GST reads window styles and class names, process command lines (checked in memory for helper flags such as `--type=`, never stored), and the executable paths Windows lists under `HKCU\Control Panel\NotifyIconSettings`. It does not read window titles or tray icon tooltips.
 
-## What v0.4.4 does not record
+## What v0.4.5 does not record
 
 - Window titles
 - Document names
@@ -66,7 +66,7 @@ From v0.4.2, you can save some of these records as files: the page CSV exports, 
 - `导出报表` → `区间汇总` (`统计`): for the chosen range, every software with focused, window or background time, with its display name, process name, rank, focused and window time, idle-open time, opens, average and longest session, background time and number of days used. It follows the page's `包含隐藏软件` switch.
 - `导出报表` → `每日明细` (`统计`, from v0.4.3): for the chosen range, one row per day and software with its display name, process name and that day's focused, window and background time. It follows the page's `包含隐藏软件` switch.
 - `导出成就` (`成就`, from v0.4.3): a PNG picture of one software you pick: its display name and icon, its highest focus milestone and the date it was reached, the number of days it was used and its total focused time. The list to pick from follows the page's `包含隐藏软件` switch.
-- `导出设置`: the theme, duration format and close-window behaviour you chose, and from v0.4.4 also the accent colour, e-ink palette, week start, start page and reduced-motion choice (settings you never changed are left empty), and the focused and hidden lists. Each list entry holds only a display name, a process name and a one-way SHA-256 digest of the software identity key, never the key itself, because identity keys are built from install paths. The settings file does not contain the startup-at-login setting, usage history or executable paths.
+- `导出设置`: the theme, duration format and close-window behaviour you chose, and from v0.4.4 also the accent colour, e-ink palette, week start, start page and reduced-motion choice, from v0.4.5 also the text size (settings you never changed are left empty), and the focused and hidden lists. Each list entry holds only a display name, a process name and a one-way SHA-256 digest of the software identity key, never the key itself, because identity keys are built from install paths. The settings file does not contain the startup-at-login setting, usage history or executable paths.
 - `备份全部数据`: a full copy of the local database. It contains the whole usage history, including the timeline and the executable paths of background processes, and the app settings. Treat it like the database itself.
 
 The CSV files, the posters and the settings file never contain executable paths; posters do not show process names either. Once saved, these files are ordinary files under your control; GST does not track or remove them.
@@ -76,6 +76,8 @@ Posters are drawn on this computer, inside the app window, from the local record
 `导入设置…` reads only the file you pick in the open dialog, up to 1 MB, and shows what it would change before anything is written. Importing adds to the focused and hidden lists and never removes local entries.
 
 After a save, `在文件夹中显示` opens File Explorer with the saved file selected. GST does this only for a file it saved in the current session.
+
+From v0.4.5, the first start removes the legacy `app_heartbeat` rows of the local `run_events` log, which versions up to v0.1.x wrote and nothing reads, and then compacts the database. Before removing anything, GST saves a full copy of the database to `backups\GST-清理前-YYYY-MM-DD-HHMMSS.db` in the data folder; if that copy cannot be made, nothing is removed. Only the newest such copy is kept. Like a backup, it holds your whole usage history and app settings. Everything stays on this computer, and you can delete the copy once you are satisfied.
 
 ## Restore from backup
 
@@ -92,14 +94,14 @@ Nothing in a restore is uploaded or sent anywhere.
 
 ## Network
 
-v0.4.4 does not upload usage data or require an account.
+v0.4.5 does not upload usage data or require an account.
 
 ## Permissions
 
-v0.4.4 runs as a normal user-space app and does not request administrator permission by default.
+v0.4.5 runs as a normal user-space app and does not request administrator permission by default.
 
 GST reads the Windows "Transparency effects" setting only to decide how panels look; it is not stored.
 
 From v0.4.4, GST also reads the Windows accent colour to show the `跟随 Windows` accent choice. It reads `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent\AccentPalette`, or `HKCU\Software\Microsoft\Windows\DWM\AccentColor` when that is missing. The reads are read-only. GST reads the colour only while `跟随 Windows` is chosen, at startup and whenever the window is shown again, and once when `设置` opens, to paint the `跟随 Windows` swatch. The colour is never written to the database or sent anywhere. The last colour used is kept in the app window's local storage, together with the other appearance choices, only so the next start paints the right colours from the first frame.
 
-Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.4.4, can be turned off in Settings, and does not require administrator permission.
+Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.4.5, can be turned off in Settings, and does not require administrator permission.
