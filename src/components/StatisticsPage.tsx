@@ -12,6 +12,7 @@ import {
   type RangePreset,
 } from "../statisticsRange";
 import { startVisiblePolling } from "../visiblePolling";
+import { useWeekStart } from "../weekStart";
 import { RangeControl } from "./RangeControl";
 import { StatisticsLedgers } from "./StatisticsLedgers";
 import { TrendRecorder } from "./TrendRecorder";
@@ -39,12 +40,13 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
   const [failedKey, setFailedKey] = useState<string | null>(null);
   const mountedRef = useRef(false);
   const latestRequestRef = useRef(0);
+  const weekStart = useWeekStart();
 
   const now = new Date();
   const today = formatLocalDate(now);
   const range =
     preset !== "custom"
-      ? presetRange(preset, now, dataStartDate)
+      ? presetRange(preset, now, dataStartDate, weekStart)
       : (customRange ?? presetRange("last7", now, dataStartDate));
   const { start, end } = range;
   const draftError = preset === "custom" ? validateCustomRange(draft.start, draft.end, now, dataStartDate) : null;

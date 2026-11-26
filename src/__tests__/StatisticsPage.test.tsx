@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RankingRow, StatisticsDay, StatisticsSummary } from "../api";
 import { StatisticsPage } from "../components/StatisticsPage";
+import { WeekStartContext } from "../weekStart";
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
@@ -123,6 +124,36 @@ describe("StatisticsPage", () => {
       ["get_statistics_summary", { start: "2026-11-15", end: "2026-11-21", includeHidden: false }],
     ]);
     expect(screen.getByRole("radio", { name: "近 7 天" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("starts 本周 on the configured first day of the week", async () => {
+    invoke.mockResolvedValue(summary());
+    await renderPage();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("radio", { name: "本周" }));
+    });
+    expect(lastStatisticsCall()).toEqual([
+      "get_statistics_summary",
+      { start: "2026-11-16", end: "2026-11-21", includeHidden: false },
+    ]);
+    cleanup();
+
+    invoke.mockReset();
+    invoke.mockResolvedValue(summary());
+    await act(async () => {
+      render(
+        <WeekStartContext.Provider value={0}>
+          <StatisticsPage />
+        </WeekStartContext.Provider>,
+      );
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("radio", { name: "本周" }));
+    });
+    expect(lastStatisticsCall()).toEqual([
+      "get_statistics_summary",
+      { start: "2026-11-15", end: "2026-11-21", includeHidden: false },
+    ]);
   });
 
   it("requests the new range when the preset changes and ignores a late older response", async () => {
