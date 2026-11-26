@@ -33,10 +33,12 @@ const uiPreferenceValues: Record<string, readonly string[]> = {
   week_start: ["monday", "sunday"],
   start_page: START_PAGE_IDS,
   reduce_motion: ["system", "reduce"],
+  text_size: ["standard", "large"],
 };
 
-// ?accent=<id> ?eink=<id> ?weekstart=sun ?startpage=<id> ?motion=reduce set the stored value only; an
-// unknown value stays the unchosen default. §J: ?startpage never opens that page, so the probe still
+// ?accent=<id> ?eink=<id> ?weekstart=sun ?startpage=<id> ?motion=reduce ?textsize=large set the stored
+// value only (the real app's zoom is applied in Rust, so the preview never zooms); an unknown value stays
+// the unchosen default. §J: ?startpage never opens that page, so the probe still
 // opens on 概览 unless ?page is given.
 function uiPreference(key: string, value: string | null): Record<string, unknown> {
   const allowed = uiPreferenceValues[key];
@@ -58,6 +60,7 @@ const settings: Record<string, unknown> = {
   ...uiPreference("week_start", params.get("weekstart") === "sun" ? "sunday" : null),
   ...uiPreference("start_page", params.get("startpage")),
   ...uiPreference("reduce_motion", params.get("motion")),
+  ...uiPreference("text_size", params.get("textsize")),
 };
 let holdStartPage = params.has("startpage");
 // ?tick: each dashboard poll adds another 6 minutes to today's two readings (0, 6, 12, ... minutes), so the

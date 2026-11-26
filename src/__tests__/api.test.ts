@@ -33,6 +33,7 @@ import {
   normalizeEink,
   normalizeReduceMotion,
   normalizeStartPage,
+  normalizeTextSize,
   normalizeWeekStart,
   setDurationFormatPreference,
   setThemePreference,
@@ -215,6 +216,8 @@ describe("api settings", () => {
       start_page_configured: false,
       reduce_motion: "system",
       reduce_motion_configured: false,
+      text_size: "standard",
+      text_size_configured: false,
     });
   });
 
@@ -230,6 +233,8 @@ describe("api settings", () => {
       start_page_configured: true,
       reduce_motion: "reduce",
       reduce_motion_configured: true,
+      text_size: "large",
+      text_size_configured: true,
     });
 
     await expect(getAppSettings()).resolves.toMatchObject({
@@ -243,6 +248,8 @@ describe("api settings", () => {
       start_page_configured: true,
       reduce_motion: "reduce",
       reduce_motion_configured: true,
+      text_size: "large",
+      text_size_configured: true,
     });
   });
 
@@ -258,6 +265,8 @@ describe("api settings", () => {
       start_page_configured: true,
       reduce_motion: true,
       reduce_motion_configured: true,
+      text_size: "huge",
+      text_size_configured: true,
     });
 
     await expect(getAppSettings()).resolves.toMatchObject({
@@ -271,6 +280,8 @@ describe("api settings", () => {
       start_page_configured: false,
       reduce_motion: "system",
       reduce_motion_configured: false,
+      text_size: "standard",
+      text_size_configured: false,
     });
   });
 
@@ -295,6 +306,13 @@ describe("api settings", () => {
       "system",
       "system",
     ]);
+    expect(["standard", "large", "Large", 1.25, undefined].map(normalizeTextSize)).toEqual([
+      "standard",
+      "large",
+      "standard",
+      "standard",
+      "standard",
+    ]);
   });
 
   it("saves a display preference through the one set_ui_preference command", async () => {
@@ -303,10 +321,12 @@ describe("api settings", () => {
     await setUiPreference("accent", "violet");
     await setUiPreference("week_start", "sunday");
     await setUiPreference("reduce_motion", "reduce");
+    await setUiPreference("text_size", "large");
 
     expect(mockInvoke).toHaveBeenNthCalledWith(1, "set_ui_preference", { key: "accent", value: "violet" });
     expect(mockInvoke).toHaveBeenNthCalledWith(2, "set_ui_preference", { key: "week_start", value: "sunday" });
     expect(mockInvoke).toHaveBeenNthCalledWith(3, "set_ui_preference", { key: "reduce_motion", value: "reduce" });
+    expect(mockInvoke).toHaveBeenNthCalledWith(4, "set_ui_preference", { key: "text_size", value: "large" });
   });
 });
 

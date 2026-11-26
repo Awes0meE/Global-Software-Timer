@@ -121,6 +121,16 @@ pub fn run() {
                 }
             });
             state.restore.set_status(restore_status);
+            // Apply 文字大小 before the page loads so it never shows at 100% first.
+            let text_size = {
+                let tracker = app_state::lock_tracker(&state.tracker);
+                commands::app_settings_from_store(tracker.store())
+                    .map(|settings| settings.text_size)
+            };
+            match text_size {
+                Ok(size) => commands::apply_main_window_text_size(app.handle(), size),
+                Err(error) => eprintln!("could not read the text size: {error}"),
+            }
             let tracker = state.tracker.clone();
             let live = state.live.clone();
             app.manage(state);

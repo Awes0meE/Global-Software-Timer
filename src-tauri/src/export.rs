@@ -4,10 +4,11 @@
 
 use crate::app_state::{lock_recovering, lock_tracker, AppState};
 use crate::commands::{
-    app_settings_from_store, AccentPreference, CloseBehavior, DurationFormat, EinkPalette,
-    ReduceMotion, StartPage, ThemePreference, WeekStart, ACCENT_SETTING_KEY,
-    CLOSE_BEHAVIOR_SETTING_KEY, DURATION_FORMAT_SETTING_KEY, EINK_SETTING_KEY,
-    REDUCE_MOTION_SETTING_KEY, START_PAGE_SETTING_KEY, THEME_SETTING_KEY, WEEK_START_SETTING_KEY,
+    app_settings_from_store, apply_main_window_text_size, AccentPreference, CloseBehavior,
+    DurationFormat, EinkPalette, ReduceMotion, StartPage, TextSize, ThemePreference, WeekStart,
+    ACCENT_SETTING_KEY, CLOSE_BEHAVIOR_SETTING_KEY, DURATION_FORMAT_SETTING_KEY, EINK_SETTING_KEY,
+    REDUCE_MOTION_SETTING_KEY, START_PAGE_SETTING_KEY, TEXT_SIZE_SETTING_KEY, THEME_SETTING_KEY,
+    WEEK_START_SETTING_KEY,
 };
 use crate::storage::{Store, StoreError};
 use chrono::{Local, SecondsFormat};
@@ -120,6 +121,8 @@ pub struct SettingsSection {
     pub start_page: Option<String>,
     #[serde(default)]
     pub reduce_motion: Option<String>,
+    #[serde(default)]
+    pub text_size: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -282,6 +285,9 @@ pub fn build_settings_file(
             reduce_motion: settings
                 .reduce_motion_configured
                 .then(|| settings.reduce_motion.as_str().to_string()),
+            text_size: settings
+                .text_size_configured
+                .then(|| settings.text_size.as_str().to_string()),
         },
         focused: entries(store.focused_software_identity_keys()?),
         hidden: entries(store.hidden_software_identity_keys()?),
@@ -428,6 +434,17 @@ pub fn plan_settings_import(store: &Store, file: &SettingsFile) -> Result<Import
             .as_deref()
             .and_then(ReduceMotion::from_setting)
             .map(ReduceMotion::as_str),
+    );
+    plan_setting(
+        "text_size",
+        TEXT_SIZE_SETTING_KEY,
+        current.text_size_configured,
+        current.text_size.as_str(),
+        file.settings
+            .text_size
+            .as_deref()
+            .and_then(TextSize::from_setting)
+            .map(TextSize::as_str),
     );
 
     let identities = store.software_identity_names()?;
@@ -912,6 +929,7 @@ pub async fn pick_settings_import(app: AppHandle) -> Result<Option<SettingsImpor
 
 #[tauri::command(async)]
 pub fn apply_settings_import(
+    app: AppHandle,
     state: tauri::State<'_, AppState>,
     import_id: String,
 ) -> Result<SettingsImportResult, String> {
@@ -919,8 +937,21 @@ pub fn apply_settings_import(
         .export_session
         .take_import(&import_id)
         .ok_or_else(|| SETTINGS_IMPORT_EXPIRED.to_string())?;
-    let tracker = lock_tracker(&state.tracker);
-    apply_settings_file(tracker.store(), &file).map_err(|error| error.to_string())
+    let (result, text_size) = {
+        let tracker = lock_tracker(&state.tracker);
+        let result =
+            apply_settings_file(tracker.store(), &file).map_err(|error| error.to_string())?;
+        (
+            result,
+            app_settings_from_store(tracker.store()).map(|settings| settings.text_size),
+        )
+    };
+    // The import may have changed 文字大小; apply what is stored now.
+    match text_size {
+        Ok(size) => apply_main_window_text_size(&app, size),
+        Err(error) => eprintln!("could not read the text size after an import: {error}"),
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -1070,6 +1101,7 @@ mod tests {
                 "eink",
                 "reduce_motion",
                 "start_page",
+                "text_size",
                 "theme",
                 "week_start"
             ]
@@ -1080,6 +1112,7 @@ mod tests {
             "week_start",
             "start_page",
             "reduce_motion",
+            "text_size",
         ] {
             assert!(json["settings"][key].is_null(), "{key}");
         }
@@ -1178,7 +1211,7 @@ mod tests {
         assert!(explorer_path().is_absolute());
     }
 
-    /// The five display preferences set on `store` as the user would choose them.
+    /// The six display preferences set on `store` as the user would choose them.
     fn choose_ui_preferences(store: &Store) {
         for (key, value) in [
             ("ui.accent", "rose"),
@@ -1186,6 +1219,7 @@ mod tests {
             ("ui.week_start", "sunday"),
             ("ui.start_page", "background"),
             ("ui.reduce_motion", "reduce"),
+            ("ui.text_size", "large"),
         ] {
             store.set_setting_value(key, value).unwrap();
         }
@@ -1204,6 +1238,7 @@ mod tests {
         assert_eq!(file.settings.week_start.as_deref(), Some("sunday"));
         assert_eq!(file.settings.start_page.as_deref(), Some("background"));
         assert_eq!(file.settings.reduce_motion.as_deref(), Some("reduce"));
+        assert_eq!(file.settings.text_size.as_deref(), Some("large"));
         let json = serde_json::to_vec(&file).unwrap();
         assert_eq!(parse_settings_file(&json).unwrap(), file);
     }
@@ -1233,6 +1268,7 @@ mod tests {
                 owned("eink", "aurora", "night"),
                 owned("reduce_motion", "system", "reduce"),
                 owned("start_page", "overview", "background"),
+                owned("text_size", "standard", "large"),
                 owned("week_start", "monday", "sunday"),
             ]
         );
@@ -1244,12 +1280,14 @@ mod tests {
         assert_eq!(after.week_start.as_str(), "sunday");
         assert_eq!(after.start_page.as_str(), "background");
         assert_eq!(after.reduce_motion.as_str(), "reduce");
+        assert_eq!(after.text_size.as_str(), "large");
         assert!(
             after.accent_configured
                 && after.eink_configured
                 && after.week_start_configured
                 && after.start_page_configured
                 && after.reduce_motion_configured
+                && after.text_size_configured
         );
     }
 
@@ -1272,13 +1310,14 @@ mod tests {
         assert_eq!(after.week_start.as_str(), "sunday");
         assert_eq!(after.start_page.as_str(), "background");
         assert_eq!(after.reduce_motion.as_str(), "reduce");
+        assert_eq!(after.text_size.as_str(), "large");
     }
 
     #[test]
     fn unknown_future_ui_preference_values_are_dropped() {
         let (_db, store) = migrated_store();
         store.set_setting_value("ui.eink", "warm").unwrap();
-        let text = "{\"kind\":\"gst-settings\",\"schema\":1,\"settings\":{\"accent\":\"teal\",\"eink\":\"ocean\",\"week_start\":\"saturday\",\"start_page\":\"timeline\",\"reduce_motion\":\"always\",\"theme\":\"light\"}}";
+        let text = "{\"kind\":\"gst-settings\",\"schema\":1,\"settings\":{\"accent\":\"teal\",\"eink\":\"ocean\",\"week_start\":\"saturday\",\"start_page\":\"timeline\",\"reduce_motion\":\"always\",\"text_size\":\"huge\",\"theme\":\"light\"}}";
         let file = parse_settings_file(text.as_bytes()).unwrap();
 
         let plan = plan_settings_import(&store, &file).unwrap();
@@ -1298,11 +1337,13 @@ mod tests {
         assert!(!after.week_start_configured);
         assert!(!after.start_page_configured);
         assert!(!after.reduce_motion_configured);
+        assert!(!after.text_size_configured);
         for key in [
             "ui.accent",
             "ui.week_start",
             "ui.start_page",
             "ui.reduce_motion",
+            "ui.text_size",
         ] {
             assert_eq!(store.setting_value(key).unwrap(), None, "{key}");
         }

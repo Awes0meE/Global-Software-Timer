@@ -118,6 +118,7 @@ const uiSaveErrors: Record<UiPreferenceKey, string> = {
   week_start: "每周起始日保存失败",
   start_page: "启动时打开保存失败",
   reduce_motion: "减少动画保存失败",
+  text_size: "文字大小保存失败",
 };
 
 const uiPreferencesOf = (settings: AppSettings): UiPreferences => ({
@@ -126,6 +127,7 @@ const uiPreferencesOf = (settings: AppSettings): UiPreferences => ({
   week_start: settings.week_start,
   start_page: settings.start_page,
   reduce_motion: settings.reduce_motion,
+  text_size: settings.text_size,
 });
 
 /** Before settings load: the first-frame caches, so nothing flips once they arrive. */
@@ -137,6 +139,7 @@ function cachedUiPreferences(): UiPreferences {
     week_start: "monday",
     start_page: readCachedStartPage(),
     reduce_motion: appearance.motion,
+    text_size: "standard",
   };
 }
 
@@ -189,6 +192,7 @@ export default function App() {
     week_start: 0,
     start_page: 0,
     reduce_motion: 0,
+    text_size: 0,
   });
   const uiWrites = useRef(Promise.resolve());
   const dashboardMountedRef = useRef(false);

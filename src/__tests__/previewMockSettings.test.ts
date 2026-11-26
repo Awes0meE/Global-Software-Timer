@@ -27,11 +27,13 @@ describe("preview mock display preferences", () => {
       start_page_configured: false,
       reduce_motion: "system",
       reduce_motion_configured: false,
+      text_size: "standard",
+      text_size_configured: false,
     });
   });
 
   it("takes each preference from the query", async () => {
-    const invoke = await mockAt("?accent=rose&eink=night&weekstart=sun&startpage=statistics&motion=reduce");
+    const invoke = await mockAt("?accent=rose&eink=night&weekstart=sun&startpage=statistics&motion=reduce&textsize=large");
 
     await expect(invoke<AppSettings>("get_app_settings")).resolves.toMatchObject({
       accent: "rose",
@@ -44,6 +46,8 @@ describe("preview mock display preferences", () => {
       start_page_configured: true,
       reduce_motion: "reduce",
       reduce_motion_configured: true,
+      text_size: "large",
+      text_size_configured: true,
     });
   });
 
@@ -52,17 +56,23 @@ describe("preview mock display preferences", () => {
 
     await invoke("set_ui_preference", { key: "accent", value: "system" });
     await invoke("set_ui_preference", { key: "week_start", value: "sunday" });
+    await invoke("set_ui_preference", { key: "text_size", value: "large" });
     await expect(invoke<AppSettings>("get_app_settings")).resolves.toMatchObject({
       accent: "system",
       accent_configured: true,
       week_start: "sunday",
       week_start_configured: true,
+      text_size: "large",
+      text_size_configured: true,
     });
 
     await expect(invoke("set_ui_preference", { key: "glass", value: "clear" })).rejects.toBe(
       "ui_preference_unknown_key",
     );
     await expect(invoke("set_ui_preference", { key: "start_page", value: "settings" })).rejects.toBe(
+      "ui_preference_invalid_value",
+    );
+    await expect(invoke("set_ui_preference", { key: "text_size", value: "small" })).rejects.toBe(
       "ui_preference_invalid_value",
     );
     await expect(invoke<AppSettings>("get_app_settings")).resolves.toMatchObject({ start_page: "overview" });
@@ -79,6 +89,7 @@ describe("preview mock display preferences", () => {
       { key: "week_start", from: "monday", to: "sunday" },
       { key: "start_page", from: "overview", to: "statistics" },
       { key: "reduce_motion", from: "system", to: "reduce" },
+      { key: "text_size", from: "standard", to: "large" },
     ]);
 
     await invoke("apply_settings_import", { importId: preview.import_id });
@@ -93,6 +104,8 @@ describe("preview mock display preferences", () => {
       start_page_configured: true,
       reduce_motion: "reduce",
       reduce_motion_configured: true,
+      text_size: "large",
+      text_size_configured: true,
     });
   });
 });

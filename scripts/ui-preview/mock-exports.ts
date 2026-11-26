@@ -24,7 +24,7 @@ export interface MockLists {
   hidden: Set<string>;
 }
 
-// The demo settings file: theme → dark and five display preferences (so the
+// The demo settings file: theme → dark and six display preferences (so the
 // dialog's 760 px layout shows), two focused (one already focused), one hidden,
 // one software this machine has never seen. In the backend's plan order; a value
 // already set is not a change.
@@ -35,6 +35,7 @@ const IMPORT_SETTINGS: readonly [key: SettingsImportKey, value: string][] = [
   ["week_start", "sunday"],
   ["start_page", "statistics"],
   ["reduce_motion", "reduce"],
+  ["text_size", "large"],
 ];
 const IMPORT_FOCUSED = ["notion", "code"];
 const IMPORT_HIDDEN = ["cloudmusic"];

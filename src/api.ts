@@ -24,6 +24,8 @@ export type ThemePreference = "system" | "light" | "dark";
 export type WeekStartSetting = "monday" | "sunday";
 /** 减少动画 as stored (`ui.reduce_motion`): `system` follows Windows, `reduce` always reduces. */
 export type ReduceMotion = "system" | "reduce";
+/** 文字大小 as stored (`ui.text_size`): `standard` is 100%, `large` is 125%; Rust applies it as the window zoom. */
+export type TextSize = "standard" | "large";
 
 /** The v0.4.4 display preferences, keyed by their `set_ui_preference` and settings-file names. */
 export interface UiPreferences {
@@ -32,6 +34,7 @@ export interface UiPreferences {
   week_start: WeekStartSetting;
   start_page: StartPage;
   reduce_motion: ReduceMotion;
+  text_size: TextSize;
 }
 
 export type UiPreferenceKey = keyof UiPreferences;
@@ -105,6 +108,8 @@ export interface AppSettings {
   start_page_configured: boolean;
   reduce_motion: ReduceMotion;
   reduce_motion_configured: boolean;
+  text_size: TextSize;
+  text_size_configured: boolean;
 }
 
 /** Error for a malformed or future `date` on the date-browsing summaries. */
@@ -401,6 +406,7 @@ export async function getAppSettings(): Promise<AppSettings> {
   const weekStart = normalizeWeekStart(settings.week_start);
   const startPage = normalizeStartPage(settings.start_page);
   const reduceMotion = normalizeReduceMotion(settings.reduce_motion);
+  const textSize = normalizeTextSize(settings.text_size);
 
   return {
     close_behavior: normalizeCloseBehavior(settings.close_behavior),
@@ -423,6 +429,8 @@ export async function getAppSettings(): Promise<AppSettings> {
     reduce_motion: reduceMotion,
     reduce_motion_configured:
       settings.reduce_motion_configured === true && settings.reduce_motion === reduceMotion,
+    text_size: textSize,
+    text_size_configured: settings.text_size_configured === true && settings.text_size === textSize,
   };
 }
 
@@ -669,4 +677,8 @@ export function normalizeStartPage(value: unknown): StartPage {
 
 export function normalizeReduceMotion(value: unknown): ReduceMotion {
   return value === "reduce" ? value : "system";
+}
+
+export function normalizeTextSize(value: unknown): TextSize {
+  return value === "large" ? value : "standard";
 }

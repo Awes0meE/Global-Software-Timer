@@ -599,6 +599,8 @@ describe("importFacts", () => {
         { key: "start_page", from: "overview", to: "achievements" },
         { key: "start_page", from: "software", to: "statistics" },
         { key: "reduce_motion", from: "system", to: "reduce" },
+        { key: "text_size", from: "standard", to: "large" },
+        { key: "text_size", from: "large", to: "standard" },
       ],
       focused_added: 0,
       hidden_added: 0,
@@ -606,7 +608,7 @@ describe("importFacts", () => {
       conflicts: 0,
     });
 
-    expect(facts.slice(0, 8)).toEqual([
+    expect(facts.slice(0, 10)).toEqual([
       { label: "主题色", value: "蓝", to: "跟随 Windows" },
       { label: "主题色", value: "琥珀", to: "石墨" },
       { label: "墨水屏配色", value: "极光", to: "暖纸" },
@@ -615,6 +617,8 @@ describe("importFacts", () => {
       { label: "启动时打开", value: "概览", to: "成就" },
       { label: "启动时打开", value: "软件", to: "统计" },
       { label: "减少动画", value: "跟随系统", to: "开启" },
+      { label: "文字大小", value: "标准", to: "大" },
+      { label: "文字大小", value: "大", to: "标准" },
     ]);
   });
 

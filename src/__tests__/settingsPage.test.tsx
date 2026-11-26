@@ -127,7 +127,7 @@ describe("设置 layout (spec §A)", () => {
     }));
     expect(groups).toEqual([
       { title: "运行", rows: ["开机自启动", "关闭窗口时最小化到后台", "启动时打开"] },
-      { title: "显示", rows: ["显示分钟数", "每周起始日", "减少动画"] },
+      { title: "显示", rows: ["显示分钟数", "每周起始日", "文字大小", "减少动画"] },
       { title: "外观", rows: ["主题", "主题色", "墨水屏配色"] },
       { title: "数据", rows: ["数据文件夹", "从备份恢复"] },
       { title: "隐私", rows: [] },
@@ -136,6 +136,7 @@ describe("设置 layout (spec §A)", () => {
     const descriptions: Record<string, string> = {
       启动时打开: "启动 GST 后先显示的页面",
       每周起始日: "日历、热力图和“本周”从哪天开始",
+      文字大小: "放大界面里的文字和图标",
       减少动画: "关闭开关滑动、弹窗和指示灯呼吸等动效",
       主题: "默认跟随 Windows 的浅色或深色模式",
       主题色: "开关、选中项、导航图标和背景光晕的颜色",
@@ -151,6 +152,7 @@ describe("设置 layout (spec §A)", () => {
       within(screen.getByRole("radiogroup", { name })).getAllByRole("radio").map((radio) => radio.textContent);
     expect(options("启动时打开")).toEqual(["概览", "软件", "后台", "统计", "成就"]);
     expect(options("每周起始日")).toEqual(["周一", "周日"]);
+    expect(options("文字大小")).toEqual(["标准", "大"]);
     expect(options("主题")).toEqual(["跟随系统", "浅色", "深色"]);
     expect(within(rowOf("数据文件夹")).getByRole("button", { name: "打开" })).toBeEnabled();
     expect(within(rowOf("从备份恢复")).getByRole("button", { name: "选择备份…" })).toBeEnabled();
@@ -169,6 +171,7 @@ describe("设置 layout (spec §A)", () => {
       ...within(screen.getByRole("radiogroup", { name: "墨水屏配色" })).getAllByRole("radio"),
       ...within(screen.getByRole("radiogroup", { name: "启动时打开" })).getAllByRole("radio"),
       ...within(screen.getByRole("radiogroup", { name: "每周起始日" })).getAllByRole("radio"),
+      ...within(screen.getByRole("radiogroup", { name: "文字大小" })).getAllByRole("radio"),
     ];
     for (const radio of radios) expect(radio).toBeDisabled();
     expect(screen.getByRole("switch", { name: "减少动画" })).toBeDisabled();
@@ -180,11 +183,12 @@ describe("设置 layout (spec §A)", () => {
 
   // One keyboard model for every radio group on the page: Tab reaches the chosen option, the arrow keys,
   // Home and End move to another one and choose it.
-  it("moves and selects 启动时打开, 每周起始日 and 主题 with the arrow keys, Home and End", async () => {
+  it("moves and selects 启动时打开, 每周起始日, 文字大小 and 主题 with the arrow keys, Home and End", async () => {
     await openSettings();
     const radios = (name: string) => within(screen.getByRole("radiogroup", { name })).getAllByRole("radio");
     expect(radios("启动时打开").map((radio) => radio.tabIndex)).toEqual([0, -1, -1, -1, -1]);
     expect(radios("每周起始日").map((radio) => radio.tabIndex)).toEqual([0, -1]);
+    expect(radios("文字大小").map((radio) => radio.tabIndex)).toEqual([0, -1]);
     expect(radios("主题").map((radio) => radio.tabIndex)).toEqual([-1, 0, -1]);
 
     const start = radios("启动时打开");
@@ -205,6 +209,17 @@ describe("设置 layout (spec §A)", () => {
     fireEvent.keyDown(week[0], { key: "ArrowLeft" });
     expect(week[1]).toHaveFocus();
     await waitFor(() => expect(uiSaves().slice(-1)[0]).toEqual({ key: "week_start", value: "sunday" }));
+
+    const size = radios("文字大小");
+    size[0].focus();
+    fireEvent.keyDown(size[0], { key: "End" });
+    expect(size[1]).toHaveFocus();
+    expect(size[1]).toHaveAttribute("aria-checked", "true");
+    expect(size[1].tabIndex).toBe(0);
+    await waitFor(() => expect(uiSaves().slice(-1)[0]).toEqual({ key: "text_size", value: "large" }));
+    fireEvent.keyDown(size[1], { key: "ArrowRight" });
+    expect(size[0]).toHaveFocus();
+    await waitFor(() => expect(uiSaves().slice(-1)[0]).toEqual({ key: "text_size", value: "standard" }));
 
     const theme = radios("主题");
     theme[1].focus();
@@ -474,6 +489,37 @@ describe("每周起始日 and 减少动画 (spec §D, §F)", () => {
   });
 });
 
+describe("文字大小", () => {
+  it("shows the stored size and saves 大 through set_ui_preference", async () => {
+    await openSettings();
+    const standard = screen.getByRole("radio", { name: "标准" });
+    expect(standard).toHaveAttribute("aria-checked", "true");
+
+    await userEvent.click(screen.getByRole("radio", { name: "大" }));
+
+    expect(screen.getByRole("radio", { name: "大" })).toHaveAttribute("aria-checked", "true");
+    await waitFor(() => expect(uiSaves()).toEqual([{ key: "text_size", value: "large" }]));
+  });
+
+  it("opens on 大 when it is stored", async () => {
+    settings.text_size = "large";
+    settings.text_size_configured = true;
+    await openSettings();
+
+    expect(screen.getByRole("radio", { name: "大" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("rolls 文字大小 back with 文字大小保存失败", async () => {
+    overrides.set_ui_preference = () => Promise.reject(new Error("locked"));
+    await openSettings();
+
+    await userEvent.click(screen.getByRole("radio", { name: "大" }));
+
+    expect(await screen.findByText("文字大小保存失败")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "标准" })).toHaveAttribute("aria-checked", "true");
+  });
+});
+
 describe("启动时打开 (spec §E)", () => {
   it("opens the cached start page on the first render", async () => {
     window.localStorage.setItem("gst.startPage", "background");
@@ -541,7 +587,7 @@ describe("启动时打开 (spec §E)", () => {
 });
 
 describe("settings import (spec §I)", () => {
-  it("applies all five imported preferences without navigating", async () => {
+  it("applies all six imported preferences without navigating", async () => {
     overrides.pick_settings_import = () => ({
       import_id: "import-1",
       changes: [{ key: "accent", from: "blue", to: "rose" }],
@@ -558,6 +604,7 @@ describe("settings import (spec §I)", () => {
         week_start: "sunday",
         start_page: "achievements",
         reduce_motion: "reduce",
+        text_size: "large",
       };
       return { focused_added: 0, hidden_added: 0, unmatched: 0, conflicts: 0 };
     };
@@ -576,6 +623,7 @@ describe("settings import (spec §I)", () => {
       "true",
     );
     expect(screen.getByRole("switch", { name: "减少动画" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "大" })).toHaveAttribute("aria-checked", "true");
     expect(root().dataset.accent).toBe("rose");
     expect(root().dataset.eink).toBe("forest");
     expect(root().dataset.motion).toBe("reduced");

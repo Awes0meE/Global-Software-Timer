@@ -9,7 +9,7 @@ use crate::storage::{
 use chrono::{DateTime, Duration, Local, NaiveDate, NaiveTime, SecondsFormat, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, LogicalSize, Manager, State};
 
 pub(crate) const CLOSE_BEHAVIOR_SETTING_KEY: &str = "window.close_behavior";
 const AUTOSTART_SETTING_KEY: &str = "startup.autostart_enabled";
@@ -20,6 +20,7 @@ pub(crate) const EINK_SETTING_KEY: &str = "ui.eink";
 pub(crate) const WEEK_START_SETTING_KEY: &str = "ui.week_start";
 pub(crate) const START_PAGE_SETTING_KEY: &str = "ui.start_page";
 pub(crate) const REDUCE_MOTION_SETTING_KEY: &str = "ui.reduce_motion";
+pub(crate) const TEXT_SIZE_SETTING_KEY: &str = "ui.text_size";
 const DEFAULT_CLOSE_BEHAVIOR: CloseBehavior = CloseBehavior::MinimizeToTray;
 const DEFAULT_AUTOSTART_ENABLED: bool = true;
 const DEFAULT_DURATION_FORMAT: DurationFormat = DurationFormat::DecimalHours;
@@ -29,6 +30,13 @@ const DEFAULT_EINK: EinkPalette = EinkPalette::Aurora;
 const DEFAULT_WEEK_START: WeekStart = WeekStart::Monday;
 const DEFAULT_START_PAGE: StartPage = StartPage::Overview;
 const DEFAULT_REDUCE_MOTION: ReduceMotion = ReduceMotion::System;
+const DEFAULT_TEXT_SIZE: TextSize = TextSize::Standard;
+/// Main window minimum logical sizes. 标准 keeps `tauri.conf.json`'s minimum;
+/// the layout needs 1024×640 CSS px, which at 大 (125% zoom) is 1280×800.
+const STANDARD_MIN_WINDOW_SIZE: (f64, f64) = (1180.0, 760.0);
+const LARGE_MIN_WINDOW_SIZE: (f64, f64) = (1280.0, 800.0);
+const STANDARD_ZOOM: f64 = 1.0;
+const LARGE_ZOOM: f64 = 1.25;
 const UI_PREFERENCE_UNKNOWN_KEY: &str = "ui_preference_unknown_key";
 const UI_PREFERENCE_INVALID_VALUE: &str = "ui_preference_invalid_value";
 const STATISTICS_INVALID_RANGE: &str = "statistics_invalid_range";
@@ -463,6 +471,14 @@ ui_setting_enum!(
     }
 );
 
+ui_setting_enum!(
+    /// 文字大小. Applied in Rust as the main webview's zoom (`apply_text_size`).
+    TextSize {
+        Standard => "standard",
+        Large => "large",
+    }
+);
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AppSettings {
     pub close_behavior: CloseBehavior,
@@ -483,6 +499,8 @@ pub struct AppSettings {
     pub start_page_configured: bool,
     pub reduce_motion: ReduceMotion,
     pub reduce_motion_configured: bool,
+    pub text_size: TextSize,
+    pub text_size_configured: bool,
 }
 
 // Summaries use a read-only transaction and the last published process sample.
@@ -844,16 +862,76 @@ pub fn set_theme_preference(
 }
 
 /// Saves one display preference. `key` is its settings-file name (`accent`,
-/// `eink`, `week_start`, `start_page`, `reduce_motion`); `value` must be one of
-/// that key's stored values.
+/// `eink`, `week_start`, `start_page`, `reduce_motion`, `text_size`); `value`
+/// must be one of that key's stored values. A saved `text_size` is applied to
+/// the main window right away.
 #[tauri::command(async)]
 pub fn set_ui_preference(
+    app: AppHandle,
     state: State<'_, AppState>,
     key: String,
     value: String,
 ) -> Result<(), String> {
-    let tracker = crate::app_state::lock_tracker(&state.tracker);
-    save_ui_preference(tracker.store(), &key, &value)
+    {
+        let tracker = crate::app_state::lock_tracker(&state.tracker);
+        save_ui_preference(tracker.store(), &key, &value)?;
+    }
+    if key == "text_size" {
+        if let Some(size) = TextSize::from_setting(&value) {
+            apply_main_window_text_size(&app, size);
+        }
+    }
+    Ok(())
+}
+
+/// The webview zoom and the main window's minimum logical size (width,
+/// height) for a text size.
+pub(crate) fn text_size_window(size: TextSize) -> (f64, (f64, f64)) {
+    match size {
+        TextSize::Standard => (STANDARD_ZOOM, STANDARD_MIN_WINDOW_SIZE),
+        TextSize::Large => (LARGE_ZOOM, LARGE_MIN_WINDOW_SIZE),
+    }
+}
+
+/// The logical size to grow a window to so it meets `min`, or `None` when it
+/// already does.
+pub(crate) fn grown_window_size(current: (f64, f64), min: (f64, f64)) -> Option<(f64, f64)> {
+    (current.0 < min.0 || current.1 < min.1).then(|| (current.0.max(min.0), current.1.max(min.1)))
+}
+
+/// Applies a text size to the main window, if there is one. Failures are only
+/// logged: the setting itself is already saved.
+pub(crate) fn apply_main_window_text_size(app: &AppHandle, size: TextSize) {
+    if let Some(window) = app.get_webview_window("main") {
+        apply_text_size(&window, size);
+    }
+}
+
+/// Sets the webview zoom and the window's minimum size, growing the window
+/// when it is smaller than the new minimum.
+pub(crate) fn apply_text_size(window: &tauri::WebviewWindow, size: TextSize) {
+    let (zoom, (min_width, min_height)) = text_size_window(size);
+    if let Err(error) = window.set_zoom(zoom) {
+        eprintln!("could not set the text size zoom: {error}");
+    }
+    if let Err(error) = window.set_min_size(Some(LogicalSize::new(min_width, min_height))) {
+        eprintln!("could not set the window minimum size: {error}");
+    }
+    let current = window
+        .inner_size()
+        .and_then(|inner| Ok(inner.to_logical::<f64>(window.scale_factor()?)));
+    match current {
+        Ok(current) => {
+            if let Some((width, height)) =
+                grown_window_size((current.width, current.height), (min_width, min_height))
+            {
+                if let Err(error) = window.set_size(LogicalSize::new(width, height)) {
+                    eprintln!("could not grow the window to its minimum size: {error}");
+                }
+            }
+        }
+        Err(error) => eprintln!("could not read the window size: {error}"),
+    }
 }
 
 #[tauri::command(async)]
@@ -906,6 +984,7 @@ pub(crate) fn app_settings_from_store(store: &Store) -> Result<AppSettings, Stor
     let stored_start_page = stored_setting(store, START_PAGE_SETTING_KEY, StartPage::from_setting)?;
     let stored_reduce_motion =
         stored_setting(store, REDUCE_MOTION_SETTING_KEY, ReduceMotion::from_setting)?;
+    let stored_text_size = stored_setting(store, TEXT_SIZE_SETTING_KEY, TextSize::from_setting)?;
 
     Ok(AppSettings {
         close_behavior,
@@ -926,6 +1005,8 @@ pub(crate) fn app_settings_from_store(store: &Store) -> Result<AppSettings, Stor
         start_page_configured: stored_start_page.is_some(),
         reduce_motion: stored_reduce_motion.unwrap_or(DEFAULT_REDUCE_MOTION),
         reduce_motion_configured: stored_reduce_motion.is_some(),
+        text_size: stored_text_size.unwrap_or(DEFAULT_TEXT_SIZE),
+        text_size_configured: stored_text_size.is_some(),
     })
 }
 
@@ -960,6 +1041,10 @@ fn ui_preference_setting(key: &str, value: &str) -> Result<(&'static str, &'stat
         "reduce_motion" => (
             REDUCE_MOTION_SETTING_KEY,
             ReduceMotion::from_setting(value).map(ReduceMotion::as_str),
+        ),
+        "text_size" => (
+            TEXT_SIZE_SETTING_KEY,
+            TextSize::from_setting(value).map(TextSize::as_str),
         ),
         _ => return Err(UI_PREFERENCE_UNKNOWN_KEY.to_string()),
     };
@@ -2238,10 +2323,11 @@ mod most_used_tests {
 #[cfg(test)]
 mod tests {
     use super::{
-        app_settings_from_store, dashboard_summary_from_store, local_date_start_utc,
-        save_duration_format_preference, save_theme_preference, save_ui_preference,
-        software_list_command_error, AccentPreference, CloseBehavior, DurationFormat, EinkPalette,
-        ReduceMotion, StartPage, ThemePreference, WeekStart,
+        app_settings_from_store, dashboard_summary_from_store, grown_window_size,
+        local_date_start_utc, save_duration_format_preference, save_theme_preference,
+        save_ui_preference, software_list_command_error, text_size_window, AccentPreference,
+        CloseBehavior, DurationFormat, EinkPalette, ReduceMotion, StartPage, TextSize,
+        ThemePreference, WeekStart,
     };
     use crate::domain::AppRuntimeStatus;
     use crate::storage::{Store, StoreError};
@@ -2923,6 +3009,12 @@ mod tests {
                 Some(value)
             );
         }
+        for value in ["standard", "large"] {
+            assert_eq!(
+                TextSize::from_setting(value).map(TextSize::as_str),
+                Some(value)
+            );
+        }
         assert_eq!(AccentPreference::from_setting("red"), None);
         assert_eq!(AccentPreference::from_setting("Blue"), None);
         assert_eq!(EinkPalette::from_setting("sepia"), None);
@@ -2931,6 +3023,36 @@ mod tests {
         assert_eq!(StartPage::from_setting("settings"), None);
         assert_eq!(StartPage::from_setting("timeline"), None);
         assert_eq!(ReduceMotion::from_setting("true"), None);
+        assert_eq!(TextSize::from_setting("small"), None);
+        assert_eq!(TextSize::from_setting("Large"), None);
+    }
+
+    #[test]
+    fn text_size_window_sets_zoom_and_minimum_size() {
+        assert_eq!(text_size_window(TextSize::Standard), (1.0, (1180.0, 760.0)));
+        assert_eq!(text_size_window(TextSize::Large), (1.25, (1280.0, 800.0)));
+        // At 125% the large minimum still leaves the layout's 1024×640 CSS px.
+        let (zoom, (width, height)) = text_size_window(TextSize::Large);
+        assert!(width / zoom >= 1024.0 && height / zoom >= 640.0);
+    }
+
+    #[test]
+    fn grown_window_size_only_grows_the_sides_below_the_minimum() {
+        let min = (1280.0, 800.0);
+        assert_eq!(grown_window_size((1440.0, 900.0), min), None);
+        assert_eq!(grown_window_size((1280.0, 800.0), min), None);
+        assert_eq!(
+            grown_window_size((1180.0, 900.0), min),
+            Some((1280.0, 900.0))
+        );
+        assert_eq!(
+            grown_window_size((1500.0, 760.0), min),
+            Some((1500.0, 800.0))
+        );
+        assert_eq!(
+            grown_window_size((1180.0, 760.0), min),
+            Some((1280.0, 800.0))
+        );
     }
 
     #[test]
@@ -2945,11 +3067,13 @@ mod tests {
         assert_eq!(settings.week_start, WeekStart::Monday);
         assert_eq!(settings.start_page, StartPage::Overview);
         assert_eq!(settings.reduce_motion, ReduceMotion::System);
+        assert_eq!(settings.text_size, TextSize::Standard);
         assert!(!settings.accent_configured);
         assert!(!settings.eink_configured);
         assert!(!settings.week_start_configured);
         assert!(!settings.start_page_configured);
         assert!(!settings.reduce_motion_configured);
+        assert!(!settings.text_size_configured);
 
         for (key, value) in [
             ("ui.accent", "violet"),
@@ -2957,6 +3081,7 @@ mod tests {
             ("ui.week_start", "sunday"),
             ("ui.start_page", "statistics"),
             ("ui.reduce_motion", "reduce"),
+            ("ui.text_size", "large"),
         ] {
             store.set_setting_value(key, value).expect("set setting");
         }
@@ -2966,11 +3091,13 @@ mod tests {
         assert_eq!(settings.week_start, WeekStart::Sunday);
         assert_eq!(settings.start_page, StartPage::Statistics);
         assert_eq!(settings.reduce_motion, ReduceMotion::Reduce);
+        assert_eq!(settings.text_size, TextSize::Large);
         assert!(settings.accent_configured);
         assert!(settings.eink_configured);
         assert!(settings.week_start_configured);
         assert!(settings.start_page_configured);
         assert!(settings.reduce_motion_configured);
+        assert!(settings.text_size_configured);
 
         for (key, value) in [
             ("ui.accent", "red"),
@@ -2978,6 +3105,7 @@ mod tests {
             ("ui.week_start", "saturday"),
             ("ui.start_page", "timeline"),
             ("ui.reduce_motion", "always"),
+            ("ui.text_size", "huge"),
         ] {
             store.set_setting_value(key, value).expect("set setting");
         }
@@ -2987,11 +3115,13 @@ mod tests {
         assert_eq!(settings.week_start, WeekStart::Monday);
         assert_eq!(settings.start_page, StartPage::Overview);
         assert_eq!(settings.reduce_motion, ReduceMotion::System);
+        assert_eq!(settings.text_size, TextSize::Standard);
         assert!(!settings.accent_configured);
         assert!(!settings.eink_configured);
         assert!(!settings.week_start_configured);
         assert!(!settings.start_page_configured);
         assert!(!settings.reduce_motion_configured);
+        assert!(!settings.text_size_configured);
 
         store
             .set_setting_value("ui.start_page", "settings")
@@ -3020,6 +3150,8 @@ mod tests {
         assert_eq!(json["week_start_configured"], true);
         assert_eq!(json["start_page"], "overview");
         assert_eq!(json["reduce_motion"], "system");
+        assert_eq!(json["text_size"], "standard");
+        assert_eq!(json["text_size_configured"], false);
     }
 
     #[test]
@@ -3034,6 +3166,7 @@ mod tests {
             ("week_start", "sunday", "ui.week_start"),
             ("start_page", "achievements", "ui.start_page"),
             ("reduce_motion", "reduce", "ui.reduce_motion"),
+            ("text_size", "large", "ui.text_size"),
         ] {
             save_ui_preference(&store, key, value).expect("save");
             assert_eq!(
@@ -3072,6 +3205,8 @@ mod tests {
             ("start_page", "timeline"),
             ("reduce_motion", "true"),
             ("reduce_motion", ""),
+            ("text_size", "small"),
+            ("text_size", "125"),
         ] {
             assert_eq!(
                 save_ui_preference(&store, key, value),
@@ -3085,6 +3220,7 @@ mod tests {
             "ui.week_start",
             "ui.start_page",
             "ui.reduce_motion",
+            "ui.text_size",
             "theme",
         ] {
             assert_eq!(

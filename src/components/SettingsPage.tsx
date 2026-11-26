@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import {
+  AArrowUp,
   ArchiveRestore,
   CalendarDays,
   Clock3,
@@ -17,6 +18,7 @@ import type {
   CloseBehavior,
   DurationFormat,
   StartPage,
+  TextSize,
   ThemePreference,
   UiPreferenceKey,
   UiPreferences,
@@ -37,6 +39,11 @@ const weekStartOptions: { value: WeekStartSetting; label: string }[] = [
   { value: "sunday", label: "周日" },
 ];
 
+const textSizeOptions: { value: TextSize; label: string }[] = [
+  { value: "standard", label: "标准" },
+  { value: "large", label: "大" },
+];
+
 export interface StartPageOption {
   value: StartPage;
   label: string;
@@ -53,7 +60,7 @@ interface SettingsPageProps {
   error: string | null;
   theme: ThemePreference;
   themeDisabled: boolean;
-  /** 主题色, 墨水屏配色, 每周起始日, 启动时打开 and 减少动画 (spec v0.4.4 §A). */
+  /** 主题色, 墨水屏配色, 每周起始日, 启动时打开, 减少动画 (spec v0.4.4 §A) and 文字大小. */
   ui: UiPreferences;
   uiDisabled: boolean;
   /** The 启动时打开 choices: the available sidebar pages but 设置. */
@@ -183,6 +190,20 @@ export function SettingsPage({
             value={ui.week_start}
             disabled={uiDisabled}
             onChange={(weekStart) => onUiPreferenceChange("week_start", weekStart)}
+          />
+        </SettingRow>
+        <SettingRow
+          icon={<AArrowUp size={18} aria-hidden="true" />}
+          title="文字大小"
+          titleId="text-size-setting-title"
+          description="放大界面里的文字和图标"
+        >
+          <Segmented
+            labelledBy="text-size-setting-title"
+            options={textSizeOptions}
+            value={ui.text_size}
+            disabled={uiDisabled}
+            onChange={(textSize) => onUiPreferenceChange("text_size", textSize)}
           />
         </SettingRow>
         <SettingSwitchRow
