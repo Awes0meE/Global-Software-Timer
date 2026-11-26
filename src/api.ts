@@ -580,6 +580,11 @@ export async function openDataFolder(): Promise<void> {
   return invoke("open_data_folder");
 }
 
+/** The database and its write-ahead log on disk, in bytes (设置 → 本机数据, v0.4.7). */
+export async function getDataSize(): Promise<number> {
+  return invoke<number>("get_data_size");
+}
+
 // 关于与反馈 (v0.4.6). Rust opens only its own fixed GitHub pages in the default browser.
 
 export type FeedbackLink = "bug" | "idea" | "releases" | "qq";

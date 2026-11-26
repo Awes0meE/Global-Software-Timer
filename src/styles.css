@@ -2384,6 +2384,32 @@ mark {
   line-height: 1.25;
 }
 
+/* A reading's unit (天, MB) in the interface font beside the pixel figure. */
+.settings-lcd p small {
+  margin-left: 4px;
+  color: var(--eink-dim);
+  font: 14px var(--font-ui);
+}
+
+/* The project's line (v0.4.7) at the screen's right end: the promise one step larger than its details. */
+.settings-lcd .settings-slogan {
+  display: grid;
+  justify-items: end;
+  align-self: center;
+  gap: 4px;
+  margin: 0;
+  color: var(--eink-ink);
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  text-align: right;
+}
+
+.settings-slogan strong {
+  font-size: 17px;
+  font-weight: 400;
+}
+
 .settings-group {
   flex: 1 0 auto;
   justify-content: center;

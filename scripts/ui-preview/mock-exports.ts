@@ -199,6 +199,8 @@ export function exportCommand(
     case "open_data_folder":
       if (query("export") === "fail") throw "data_folder_open_failed";
       return { value: undefined };
+    case "get_data_size":
+      return { value: 2.9 * 1024 * 1024 };
     case "pick_restore_backup": {
       pendingRestore = null;
       const error = RESTORE_PICK_ERRORS[query("restore") ?? ""];

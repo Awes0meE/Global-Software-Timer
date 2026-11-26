@@ -824,6 +824,8 @@ export default function App() {
 
             {activePage === "settings" ? (
               <SettingsPage
+                dataStartDate={dataStartDate}
+                today={today}
                 autostartBusy={autostartBusy}
                 autostartDisabled={!autostartLoaded || autostartBusy}
                 autostartEnabled={autostartEnabled}

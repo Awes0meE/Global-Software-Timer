@@ -782,6 +782,23 @@ fn data_dir(state: &AppState) -> Result<&Path, String> {
         .ok_or_else(|| RestoreError::Failed.into())
 }
 
+/// The live database's size on disk in bytes (v0.4.7, 设置 → 本机数据): the file
+/// plus its write-ahead log, which holds the newest pages until a checkpoint
+/// folds them in. A missing file counts as 0.
+pub fn data_size_bytes(db_path: &Path) -> u64 {
+    let size = |path: &Path| std::fs::metadata(path).map(|meta| meta.len()).unwrap_or(0);
+    let mut wal = db_path.as_os_str().to_owned();
+    wal.push("-wal");
+    size(db_path) + size(Path::new(&wal))
+}
+
+/// The size of the data on this computer, for the settings readout. The path
+/// comes from the app state, never from the webview.
+#[tauri::command(async)]
+pub fn get_data_size(state: tauri::State<'_, AppState>) -> u64 {
+    data_size_bytes(&state.db_path)
+}
+
 /// Opens the folder holding the live database in Explorer. The path comes
 /// from the app state, never from the webview.
 #[tauri::command(async)]

@@ -1439,15 +1439,31 @@ describe("App", () => {
   });
 
   it("opens the settings page while keeping the existing left navigation", async () => {
+    // Records began 181 days before today, so today is the 182nd recorded day.
+    const ymd = (date: Date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const start = new Date();
+    start.setDate(start.getDate() - 181);
+    const base = mockInvoke.getMockImplementation();
+    mockInvoke.mockImplementation((command: string, args: unknown) => {
+      if (command === "get_data_size") return Promise.resolve(2.9 * 1024 * 1024);
+      if (command === "get_calendar_summary") {
+        return Promise.resolve({ today: ymd(new Date()), data_start_date: ymd(start) });
+      }
+      return base?.(command, args);
+    });
     render(<App />);
 
     expect(await screen.findByText("全局软件计时器")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
 
     expect(screen.getByRole("heading", { name: "设置" })).toBeInTheDocument();
-    const status = within(screen.getByRole("region", { name: "本机状态" }));
-    expect(status.getByText(`V${packageJson.version}`)).toBeVisible();
-    expect(status.getByText("仅本机")).toBeVisible();
+    // v0.4.7: 已记录 N 天, 本机数据 and the project's line; the version lives in 关于与反馈 only.
+    const readout = screen.getByRole("region", { name: "本机状态" });
+    await waitFor(() => expect(readout).toHaveTextContent("已记录182天"));
+    await waitFor(() => expect(readout).toHaveTextContent("本机数据2.9MB"));
+    expect(readout).toHaveTextContent("绝对隐私，数据只存本地不联网、不登录、零遥测、零请求");
+    expect(readout).not.toHaveTextContent(`V${packageJson.version}`);
     expect(screen.getByRole("button", { name: "概览" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "软件" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "统计" })).toBeInTheDocument();

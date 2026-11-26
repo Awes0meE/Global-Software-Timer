@@ -1,4 +1,12 @@
-import { useEffect, useRef, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import {
   AArrowUp,
   ArchiveRestore,
@@ -20,7 +28,8 @@ import {
 } from "lucide-react";
 import packageJson from "../../package.json";
 import { resolveAccent } from "../accent";
-import type { FeedbackLink } from "../api";
+import { getDataSize, type FeedbackLink } from "../api";
+import { formatFileSize } from "./RestoreDialog";
 import { QQ_GROUP } from "../useFeedbackActions";
 import type {
   CloseBehavior,
@@ -58,6 +67,9 @@ export interface StartPageOption {
 }
 
 interface SettingsPageProps {
+  /** The first day with local records ("YYYY-MM-DD"), or null before any; with `today`, 已记录 N 天. */
+  dataStartDate: string | null;
+  today: string;
   autostartBusy: boolean;
   autostartDisabled: boolean;
   autostartEnabled: boolean;
@@ -90,6 +102,8 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({
+  dataStartDate,
+  today,
   autostartBusy,
   autostartDisabled,
   autostartEnabled,
@@ -121,6 +135,22 @@ export function SettingsPage({
     if (error) warning.current?.scrollIntoView?.({ block: "nearest" });
   }, [error]);
 
+  const recordedDays = dataStartDate === null ? null : daysBetween(dataStartDate, today) + 1;
+  // Read each time the page opens; the readout shows — until the size is in or when it cannot be read.
+  const [dataBytes, setDataBytes] = useState<number | null>(null);
+  useEffect(() => {
+    let current = true;
+    getDataSize()
+      .then((bytes) => {
+        if (current && typeof bytes === "number") setDataBytes(bytes);
+      })
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, []);
+  const size = dataBytes === null ? null : splitSize(formatFileSize(dataBytes));
+
   return (
     <main className="settings-page" id="settings-content">
       {error ? (
@@ -129,21 +159,27 @@ export function SettingsPage({
         </div>
       ) : null}
 
-      <section className="readout settings-readout" aria-labelledby="settings-status-title">
+      <section className="readout settings-readout" aria-label="本机状态">
         <div className="lcd settings-lcd">
           <img src={clockMark} width="48" height="48" alt="" />
           <div className="lcd-cell">
-            <h3 className="lcd-label" id="settings-status-title">本机状态</h3>
-            <p>全局软件计时器</p>
+            <span className="lcd-label">已记录</span>
+            <p>
+              {recordedDays === null ? "—" : recordedDays}
+              <small>天</small>
+            </p>
           </div>
           <div className="lcd-cell">
-            <span className="lcd-label">当前版本</span>
-            <p>V{packageJson.version}</p>
+            <span className="lcd-label">本机数据</span>
+            <p>
+              {size ? size[0] : "—"}
+              {size ? <small>{size[1]}</small> : null}
+            </p>
           </div>
-          <div className="lcd-cell">
-            <span className="lcd-label">数据存储</span>
-            <p>仅本机</p>
-          </div>
+          <p className="settings-slogan">
+            <strong>绝对隐私，数据只存本地</strong>
+            <span>不联网、不登录、零遥测、零请求</span>
+          </p>
         </div>
       </section>
 
@@ -594,4 +630,19 @@ function SettingSwitchRow({
       </button>
     </SettingRow>
   );
+}
+
+/** Whole days from `start` to `end`, both local "YYYY-MM-DD"; never below 0. */
+function daysBetween(start: string, end: string): number {
+  const utc = (date: string) => {
+    const [year, month, day] = date.split("-").map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
+  return Math.max(0, Math.round((utc(end) - utc(start)) / 86_400_000));
+}
+
+/** `2.9 MB` → [`2.9`, `MB`], for a figure with its unit beside it. */
+function splitSize(text: string): [string, string] {
+  const [value, unit = ""] = text.split(" ");
+  return [value, unit];
 }

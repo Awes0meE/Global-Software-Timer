@@ -192,6 +192,7 @@ pub fn run() {
             export::apply_settings_import,
             export::backup_all_data,
             restore::open_data_folder,
+            restore::get_data_size,
             feedback::open_feedback_link,
             restore::pick_restore_backup,
             restore::apply_restore,
