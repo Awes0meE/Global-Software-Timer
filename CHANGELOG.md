@@ -11,6 +11,7 @@
 - Buttons that open a dialog end with an ellipsis, as Apple's guidelines ask: `添加…` on `软件` and `导出成就…` on `成就`.
 - `软件` has one dark primary key: the `添加…` of `隐藏软件列表` is now a light secondary key like the `编辑` beside it.
 - Keyboard shortcuts: `Ctrl+1` to `Ctrl+6` open the sidebar's pages in order (the unavailable `时间轴` is skipped), `Ctrl+,` opens `设置`, and `Ctrl+←` / `Ctrl+→` step the day on `概览` and `后台`, stopping where the `‹ ›` keys stop. Text fields and open dialogs keep their keys. The README lists them.
+- The sidebar floats as a glass card, inset 10 px from the top and bottom of the window and 12 px from its left edge, with rounded corners and the panels' edge and shadow, so the background glow runs on beneath it. The content panels keep their glass.
 - The round `?` help keys keep their 16 px look but react to clicks and hover within 28 px, Apple's default pointer target.
 
 ## v0.4.3 - 2026-11-25

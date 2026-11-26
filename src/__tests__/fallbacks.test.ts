@@ -211,12 +211,13 @@ describe("forced colors", () => {
       expect(declarations.background, selector).toBe("Canvas");
       expect(declarations.color, selector).toBe("CanvasText");
     }
-    for (const selector of [".sidebar", ".dialog", ".add-software-dialog"]) {
+    for (const selector of [".dialog", ".add-software-dialog"]) {
       expect(normalize(declarationsFor(selector, FORCED).border ?? ""), selector).toBe("1px solid CanvasText");
     }
     // Glass panels keep their inset outline (decision 2A), so a border would move their content. The
     // e-ink screens take the same inset outline (decision G-B), so the readout keeps its v0.3.1 height.
-    for (const selector of [".panel", ".readout", ".software-panel", ".lcd", ".paper"]) {
+    // The floating sidebar is a glass card like the panels (glass decision C), so it does the same.
+    for (const selector of [".sidebar", ".panel", ".readout", ".software-panel", ".lcd", ".paper"]) {
       const declarations = declarationsFor(selector, FORCED);
       expect(declarations.border, selector).toBeUndefined();
       expect(normalize(declarations.outline ?? ""), selector).toBe("1px solid CanvasText");

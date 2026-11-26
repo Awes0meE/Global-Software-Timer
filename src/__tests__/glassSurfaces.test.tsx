@@ -1282,3 +1282,23 @@ describe("secondary add key", () => {
     expect(topLevel(".panel-add-button.is-secondary:hover").background).toBe("var(--on)");
   });
 });
+
+// Glass decision C (user, 2026-11-26): the content panels keep their glass, and the sidebar floats as a glass
+// card inset from the window, as in Apple's floating sidebars, with the glow running beneath it.
+describe("floating sidebar", () => {
+  it("insets the sidebar from the window as a glass card on the panel recipe", () => {
+    const sidebar = topLevel(".sidebar");
+    expect(sidebar.margin).toBe("10px 0 10px 12px");
+    expect(sidebar["border-radius"]).toBe("var(--radius-panel)");
+    expect(sidebar["border-right"]).toBeUndefined();
+    expect(sidebar.outline).toBe("1px solid var(--edge)");
+    expect(sidebar["outline-offset"]).toBe("-1px");
+    expect(normalize(sidebar["box-shadow"])).toBe("var(--glass-shadow), inset 0 2px 0 var(--glass-hi)");
+    expect(sidebar.background).toBe("var(--side-surface)");
+  });
+
+  it("keeps the sidebar 232px (196px under 1200px) inside its wider column", () => {
+    expect(topLevel(".app-shell")["grid-template-columns"]).toBe("244px minmax(0, 1fr)");
+    expect(inMedia("@media (max-width: 1200px)", ".app-shell")["grid-template-columns"]).toBe("208px minmax(0, 1fr)");
+  });
+});
