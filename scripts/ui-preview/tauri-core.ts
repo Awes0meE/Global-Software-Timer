@@ -35,10 +35,9 @@ const uiPreferenceValues: Record<string, readonly string[]> = {
   reduce_motion: ["system", "reduce"],
 };
 
-// ?accent=<id> ?eink=<id> ?weekstart=sun ?startpage=<id> ?motion=reduce set the stored value; an unknown
-// value stays the unchosen default. As in the app, ?startpage=<id> opens that page once settings load
-// (§E), so probe.mjs, which waits for the page ?page names (概览 without it), must also be given
-// ?page=<id>.
+// ?accent=<id> ?eink=<id> ?weekstart=sun ?startpage=<id> ?motion=reduce set the stored value only; an
+// unknown value stays the unchosen default. §J: ?startpage never opens that page, so the probe still
+// opens on 概览 unless ?page is given.
 function uiPreference(key: string, value: string | null): Record<string, unknown> {
   const allowed = uiPreferenceValues[key];
   const chosen = value !== null && allowed.includes(value);
@@ -60,6 +59,7 @@ const settings: Record<string, unknown> = {
   ...uiPreference("start_page", params.get("startpage")),
   ...uiPreference("reduce_motion", params.get("motion")),
 };
+let holdStartPage = params.has("startpage");
 // ?tick: each dashboard poll adds another 6 minutes to today's two readings (0, 6, 12, ... minutes), so the
 // shown value changes on every poll and the readout ghost can be seen. Ignored with ?empty.
 const tick = params.has("tick") && !empty;
@@ -139,6 +139,13 @@ export async function invoke<T>(
       if (key) hidden.delete(key);
       return undefined as T;
     case "get_app_settings":
+      if (holdStartPage) {
+        // §J: App asks for its settings after the first render, so the sidebar is there. Choosing 概览
+        // like a user would, before the answer, keeps App's one-time switch to the stored start page (§E)
+        // from firing in the preview.
+        holdStartPage = false;
+        if (!targetPage) buttonByText("概览")()?.click();
+      }
       return { ...settings } as T;
     case "set_close_behavior_preference":
       settings.close_behavior = args.choice;
