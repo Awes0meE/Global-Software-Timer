@@ -575,6 +575,10 @@ describe("数据 (spec §G, §H)", () => {
     expect(within(dialog).getAllByRole("button").map((button) => button.textContent)).toEqual(["取消", "恢复并重启"]);
     expect(within(dialog).getByRole("button", { name: "恢复并重启" })).toHaveClass("button-primary");
     expect(within(dialog).getByRole("button", { name: "取消" })).toHaveFocus();
+    // The warning is read with the dialog, not the facts.
+    expect(dialog).toHaveAccessibleDescription(
+      "当前数据会被这份备份替换，备份日期之后的记录将不再保留。 替换前，当前数据会自动另存到数据文件夹的 backups 里。",
+    );
     expect(document.querySelector(".app-shell")?.closest("[inert]")).not.toBeNull();
 
     await userEvent.click(within(dialog).getByRole("button", { name: "取消" }));

@@ -57,7 +57,7 @@ export function RestoreDialog({ state, busy, onConfirm, onClose }: RestoreDialog
         role="dialog"
         aria-modal="true"
         aria-labelledby="restore-dialog-title"
-        aria-describedby={state.kind === "error" ? "restore-dialog-message" : undefined}
+        aria-describedby={state.kind === "error" ? "restore-dialog-message" : "restore-dialog-copy"}
         aria-busy={busy || undefined}
         tabIndex={-1}
       >
@@ -77,7 +77,7 @@ export function RestoreDialog({ state, busy, onConfirm, onClose }: RestoreDialog
                 </div>
               ))}
             </dl>
-            <div className="restore-copy">
+            <div className="restore-copy" id="restore-dialog-copy">
               <p>当前数据会被这份备份替换，备份日期之后的记录将不再保留。</p>
               <p>替换前，当前数据会自动另存到数据文件夹的 backups 里。</p>
             </div>
