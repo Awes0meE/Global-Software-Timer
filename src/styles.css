@@ -2862,15 +2862,29 @@ mark {
     forced-color-adjust: none;
   }
 
+  /* The chosen one is ringed in Highlight like every other chosen option; focus is a second Highlight ring
+     outside it, so a focused choice still differs from an unfocused one. */
   :is(.swatch, .lcd-chip).is-selected {
-    outline-color: CanvasText;
+    outline-color: Highlight;
   }
 
-  :is(.swatch, .lcd-chip):focus-visible,
+  :is(.swatch, .lcd-chip):focus-visible {
+    outline: none;
+  }
+
   :is(.swatch, .lcd-chip).is-selected:focus-visible {
     outline: 2px solid Highlight;
     outline-offset: 2px;
-    box-shadow: none;
+  }
+
+  .swatch:focus-visible,
+  .swatch.is-selected:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--swatch-rim), 0 0 0 6px Canvas, 0 0 0 8px Highlight;
+  }
+
+  .lcd-chip:focus-visible,
+  .lcd-chip.is-selected:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--edge-strong), 0 0 0 6px Canvas, 0 0 0 8px Highlight;
   }
 }
 

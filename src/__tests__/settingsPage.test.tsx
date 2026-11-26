@@ -341,12 +341,25 @@ describe("墨水屏配色 chips (spec §A, §C)", () => {
     expect(look(":is(.swatch, .lcd-chip):disabled")).toMatchObject({ opacity: look(".toggle:disabled")?.opacity });
   });
 
-  // The selected-and-focused rings outrank the plain focus rule, so forced colours drops them by name too.
-  it("keeps only the Highlight outline on a focused swatch or chip in forced colours, chosen or not", () => {
+  // Forced colours: the chosen swatch or chip is ringed in Highlight like every other chosen option, and
+  // focus is a second Highlight ring outside it, so a focused choice still differs from an unfocused one.
+  it("rings the chosen swatch or chip in Highlight and focus outside it in forced colours", () => {
     const forced = parseRules(styles).rules.filter((rule) => rule.atRules.join(" ") === "@media (forced-colors: active)");
-    for (const selector of [":is(.swatch, .lcd-chip):focus-visible", ":is(.swatch, .lcd-chip).is-selected:focus-visible"]) {
-      const rule = forced.find((candidate) => candidate.selectors.includes(selector));
-      expect(rule?.declarations, selector).toMatchObject({ outline: "2px solid Highlight", "box-shadow": "none" });
+    const look = (selector: string) =>
+      Object.assign({}, ...forced.filter((rule) => rule.selectors.includes(selector)).map((rule) => rule.declarations));
+    expect(look(":is(.swatch, .lcd-chip).is-selected")).toMatchObject({ "outline-color": "Highlight" });
+    expect(look(":is(.swatch, .lcd-chip):focus-visible")).toMatchObject({ outline: "none" });
+    expect(look(":is(.swatch, .lcd-chip).is-selected:focus-visible")).toMatchObject({
+      outline: "2px solid Highlight",
+      "outline-offset": "2px",
+    });
+    for (const [kind, rim] of [
+      ["swatch", "var(--swatch-rim)"],
+      ["lcd-chip", "var(--edge-strong)"],
+    ]) {
+      for (const selector of [`.${kind}:focus-visible`, `.${kind}.is-selected:focus-visible`]) {
+        expect(look(selector)["box-shadow"], selector).toBe(`inset 0 0 0 1px ${rim}, 0 0 0 6px Canvas, 0 0 0 8px Highlight`);
+      }
     }
   });
 
