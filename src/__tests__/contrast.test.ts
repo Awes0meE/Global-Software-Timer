@@ -33,11 +33,6 @@ interface Surfaces {
   B: Rgba;
   /** Glass panel G = --glass over B. */
   G: Rgba;
-  /**
-   * The glass where spec §B measures the accent itself ("as measured in the mock README"): --glass over
-   * today's first glow centre over --base. G for today's look.
-   */
-  accentG: Rgba;
   /** Sidebar S = --side over B. */
   S: Rgba;
   /** Opaque floating surface. */
@@ -57,7 +52,6 @@ function surfaces(theme: Theme, appearance: Appearance = {}, glowFrom: Appearanc
     colour,
     B,
     G: over(colour("--glass"), B),
-    accentG: over(colour("--glass"), backdrop(theme)),
     S: over(colour("--side"), B),
     solid: colour("--glass-solid"),
   };
@@ -149,7 +143,7 @@ const COMBOS: Combo[] = [
     pair: (s) => [s.colour("--alert-ink"), over(s.colour("--alert-wash"), s.G)],
   },
   // Accent is a graphic colour (focus ring, selection marks).
-  { name: "--accent on G", threshold: GRAPHIC, pair: (s) => [s.colour("--accent"), s.accentG] },
+  { name: "--accent on G", threshold: GRAPHIC, pair: (s) => [s.colour("--accent"), s.G] },
   { name: "--accent on glass-solid", threshold: GRAPHIC, pair: (s) => [s.colour("--accent"), s.solid] },
   { name: "--ink on accent 30% over G (selection)", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(accentAt(s, 0.3), s.G)] },
   { name: "--ink on accent 16% over G (mark)", threshold: TEXT, pair: (s) => [s.colour("--ink"), over(accentAt(s, 0.16), s.G)] },
@@ -564,13 +558,15 @@ it.each(ACCENT_CASES.filter(([, appearance]) => appearance.windowsAccent))(
 // unchanged for every 主题色, but at the centre of the accent-built glow (blob 1 is the accent at 45% light /
 // 50% dark, where today's blue blob is 34% / 30%) many of the COMBOS above fall under their target. Each
 // row: how many COMBOS fail over the accent's own glow, --ink-2 straight on its worst centre B, and --muted
-// on the glass there. 蓝 keeps today's glow and passes them all. Pinned so the shortfall stays visible and
-// cannot grow unnoticed; delete this table once the glow is decided.
+// on the glass there. The counts include --accent on G: in light, 青, 绿 and the 蓝 fallback of 跟随 Windows
+// fall under 3:1 on the glass over their own glow (accent.test.ts). 蓝 keeps today's glow and passes them
+// all. Pinned so the shortfall stays visible and cannot grow unnoticed; delete this table once the glow is
+// decided.
 const OWN_GLOW_SHORTFALL: Record<string, Record<Theme, [fails: number, ink2OnB: number, mutedOnG: number]>> = {
-  "system: unreadable": { light: [4, 6.05, 4.57], dark: [10, 4.6, 3.53] },
+  "system: unreadable": { light: [5, 6.05, 4.57], dark: [10, 4.6, 3.53] },
   blue: { light: [0, 7.86, 5.16], dark: [0, 7.71, 4.73] },
-  cyan: { light: [4, 6.01, 4.55], dark: [15, 4.03, 3.27] },
-  green: { light: [4, 5.92, 4.52], dark: [16, 3.94, 3.23] },
+  cyan: { light: [5, 6.01, 4.55], dark: [15, 4.03, 3.27] },
+  green: { light: [5, 5.92, 4.52], dark: [16, 3.94, 3.23] },
   violet: { light: [5, 5.81, 4.5], dark: [10, 4.89, 3.65] },
   rose: { light: [5, 5.42, 4.34], dark: [10, 4.64, 3.57] },
   amber: { light: [4, 6.03, 4.57], dark: [18, 3.67, 3.08] },
