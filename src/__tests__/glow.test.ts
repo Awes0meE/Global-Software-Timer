@@ -25,7 +25,8 @@ const PRESET_GLOW_ALPHAS: Record<Exclude<AccentId, "blue" | "system">, Record<Th
   graphite: { light: [25, 26, 28], dark: [27, 24, 28] },
 };
 
-// The stylesheet's 跟随 Windows fallbacks: the first frame and an unreadable Windows accent.
+// The stylesheet's 跟随 Windows fallbacks, while no readable pair is known: a first frame without a cached
+// pair, or an unreadable Windows accent.
 const FALLBACKS: Record<Theme, GlowAlphas> = { light: [16, 18, 17], dark: [23, 20, 22] };
 
 const close = (a: number, b: number) => Math.abs(a - b) < 1e-9;
@@ -122,15 +123,22 @@ describe("windowsGlowAlphas", () => {
   }, 60_000);
 
   // The default Windows blue (AccentDark1 #0067c0 / AccentLight2 #4cc2ff) gets its own largest alphas: far
-  // stronger than the fallbacks. Light blobs 1 and 3 stay under the 蓝 accent's (27 / 29), because
-  // #0067c0 is darker and --alert-ink on --alert-wash over the glass is the bound; the tint they show is
-  // about the same (OKLab distance from --base about 0.102 against 0.110 for blob 1).
+  // stronger than the fallbacks, but not everywhere as strong as the 蓝 accent's own search (light #2f7de1
+  // 27 / 26 / 29, dark #5aa9ff 30 / 24 / 28). Light blobs 1 and 3 and dark blob 1 stay under it. In light
+  // #0067c0 is darker and --alert-ink on --alert-wash over the glass is the bound; the tint shown is about the
+  // same (OKLab distance from --base about 0.102 against 0.110 for blob 1). In dark --muted on the glass is
+  // the bound.
   it("gives the default Windows blue far stronger alphas than the fallbacks", () => {
     const alphas = windowsGlowAlphas({ light: "#0067c0", dark: "#4cc2ff" })!;
     expect(alphas).toEqual({ light: [21, 26, 25], dark: [27, 24, 28] });
     THEMES.forEach((theme) =>
       alphas[theme].forEach((alpha, blob) => expect(alpha).toBeGreaterThan(FALLBACKS[theme][blob])),
     );
+    const blue = ACCENT_PRESETS.find((preset) => preset.id === "blue")!;
+    expect({ light: glowAlphas("light", blue.light), dark: glowAlphas("dark", blue.dark) }).toEqual({
+      light: [27, 26, 29],
+      dark: [30, 24, 28],
+    });
   });
 
   it("is null when the Windows accent cannot be read, so the fallbacks apply", () => {
