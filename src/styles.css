@@ -2238,6 +2238,76 @@ mark {
   }
 }
 
+/* Scroll edges (Apple HIG scroll edge effect): a list that continues past its top or bottom edge fades out over
+   16px there instead of being cut hard. The fade follows each list's own scroll position, so a list that fits
+   has none, and it is gone at the end the list has reached. The 后台 table keeps a sticky head, so it fades only
+   at the bottom; keyboard focus drops the fade so the focus ring stays whole. */
+@property --fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-edge-fade {
+  0% { --fade-top: 0px; --fade-bottom: 16px; }
+  10% { --fade-top: 16px; }
+  90% { --fade-bottom: 16px; }
+  100% { --fade-top: 16px; --fade-bottom: 0px; }
+}
+
+@keyframes scroll-edge-fade-bottom {
+  0% { --fade-bottom: 16px; }
+  90% { --fade-bottom: 16px; }
+  100% { --fade-bottom: 0px; }
+}
+
+@supports (animation-timeline: scroll()) {
+  .usage-scroll,
+  .mix-scroll,
+  .recent-scroll,
+  .discovered-scroll,
+  .ach-coming-list,
+  .poster-list,
+  .add-software-results {
+    mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent 100%);
+    animation: scroll-edge-fade linear both;
+    animation-timeline: scroll(self);
+  }
+
+  .usage-scroll:has(.background-table) {
+    animation-name: scroll-edge-fade-bottom;
+  }
+
+  .usage-scroll:focus-visible,
+  .mix-scroll:focus-visible,
+  .recent-scroll:focus-visible,
+  .discovered-scroll:focus-visible,
+  .ach-coming-list:focus-visible,
+  .poster-list:focus-visible,
+  .add-software-results:focus-visible {
+    mask-image: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .usage-scroll,
+  .mix-scroll,
+  .recent-scroll,
+  .discovered-scroll,
+  .ach-coming-list,
+  .poster-list,
+  .add-software-results {
+    mask-image: none;
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

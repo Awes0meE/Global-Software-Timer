@@ -7,6 +7,7 @@
 - E-ink screens now sit an even 8 px inside their panels on every page (they were 8 to 14 px) with 8 px corners, so screen and panel corners share one centre, as Apple's guidelines ask for nested shapes.
 - Text outside the e-ink screens uses one size ladder, Apple's macOS steps plus Windows' 14 px body: dialog titles and the trend totals are 17 px (were 18), the `今日分布` total and personal-record figures 26 px (were 30 and 28), milestone tiers 22 px (were 24).
 - Chinese titles, table heads and labels are no longer letter-spaced; only Latin capitals such as `CSV` and the version, figures and the `终极成就` plaque keep their tracking.
+- Scrolling lists inside panels fade out over their last 16 px where more rows continue past the edge, instead of cutting a row in half; a list that fits, or the end you have scrolled to, has no fade. The `后台` table, with its sticky head, fades only at the bottom.
 - The round `?` help keys keep their 16 px look but react to clicks and hover within 28 px, Apple's default pointer target.
 
 ## v0.4.3 - 2026-11-25

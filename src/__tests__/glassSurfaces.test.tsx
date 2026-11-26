@@ -1231,3 +1231,39 @@ describe("sidebar nav keys", () => {
     expect(parseColor(resolve("var(--nk-fill)", tokens)).a).toBeGreaterThan(0);
   });
 });
+
+// Apple HIG scroll edge effect: a list that continues past an edge fades out there instead of being cut hard.
+// Driven by each list's own scroll position, so a list that fits shows no fade.
+describe("scroll edges", () => {
+  const SUPPORTS = "@supports (animation-timeline: scroll())";
+  const LISTS = [
+    ".usage-scroll",
+    ".mix-scroll",
+    ".recent-scroll",
+    ".discovered-scroll",
+    ".ach-coming-list",
+    ".poster-list",
+    ".add-software-results",
+  ];
+
+  it.each(LISTS)("%s fades at the edges it scrolls past", (selector) => {
+    const declarations = inMedia(SUPPORTS, selector);
+    expect(normalize(declarations["mask-image"]), selector).toBe(
+      "linear-gradient(to bottom, transparent 0, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent 100%)",
+    );
+    expect(declarations["animation-name"] ?? normalize(declarations.animation), selector).toContain("scroll-edge-fade");
+    expect(declarations["animation-timeline"], selector).toBe("scroll(self)");
+  });
+
+  it("keeps the sticky 后台 table head clear by fading only the bottom", () => {
+    expect(inMedia(SUPPORTS, ".usage-scroll:has(.background-table)")["animation-name"]).toBe("scroll-edge-fade-bottom");
+  });
+
+  it("drops the fade while the list has keyboard focus, so its focus ring stays whole", () => {
+    expect(inMedia(SUPPORTS, ".usage-scroll:focus-visible")["mask-image"]).toBe("none");
+  });
+
+  it("drops the fade in contrast themes", () => {
+    expect(inMedia("@media (forced-colors: active)", ".usage-scroll")["mask-image"]).toBe("none");
+  });
+});
