@@ -8,6 +8,7 @@ pub mod domain;
 pub mod export;
 pub mod foreground;
 pub mod local_path;
+pub mod maintenance;
 pub mod native_icon;
 pub mod process_source;
 pub mod restore;
@@ -108,8 +109,24 @@ pub fn run() {
             }
             let db_path = app_data_dir.join(restore::DB_FILE_NAME);
             // Swaps in a pending restore before any connection opens.
+            let backups_dir = app_data_dir.join(restore::BACKUPS_DIR_NAME);
             let (state, restore_status) =
                 restore::run_startup_swap(&app_data_dir, Local::now().naive_local(), |path| {
+                    // v0.4.5: drop the legacy heartbeat log once, after a backup,
+                    // before any connection to the live file opens.
+                    match maintenance::prune_legacy_heartbeats(
+                        path,
+                        &backups_dir,
+                        Local::now().naive_local(),
+                    ) {
+                        Ok(Some(report)) => eprintln!(
+                            "removed {} legacy heartbeat events; copy kept at {}",
+                            report.removed,
+                            report.backup.display()
+                        ),
+                        Ok(None) => {}
+                        Err(error) => eprintln!("legacy heartbeat cleanup skipped: {error}"),
+                    }
                     AppState::new(path.to_path_buf())
                 });
             let state = state.unwrap_or_else(|error| match error {
