@@ -44,6 +44,7 @@ import { Toast } from "./components/Toast";
 import { TodayReadout } from "./components/TodayReadout";
 import { UnavailableTooltip } from "./components/UnavailableTooltip";
 import type { StatisticsScope } from "./exports";
+import { startAccentWatch } from "./appearance";
 import { startTransparencyWatch } from "./glass";
 import { pageExport, type ExportActionId } from "./pageExports";
 import { applyThemePreference, paintedTheme, readCachedThemePreference } from "./theme";
@@ -302,6 +303,7 @@ export default function App() {
 
   useEffect(() => applyThemePreference(theme), [theme]);
   useEffect(() => startTransparencyWatch(), []);
+  useEffect(() => startAccentWatch(), []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
