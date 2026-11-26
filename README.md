@@ -455,6 +455,12 @@ Get-FileHash .\Global.Software.Timer_0.4.5_x64-setup.exe -Algorithm SHA256
 | 晒晒我的日报海报、成就海报 | [讨论区 · 晒图](https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/show-and-tell) |
 | 没有 GitHub 账号，或者想和其他用户直接聊 | [加入 QQ 群「GST功能交流群」](https://qm.qq.com/q/gN4qB6TVGE)，或在 QQ 里搜群号 **937943526** |
 
+<p align="center">
+  <img src="./docs/assets/qq-group-qr.jpg" width="220" alt="QQ 群「GST功能交流群」二维码，群号 937943526" />
+  <br />
+  <sub>用手机 QQ 扫码加入「GST功能交流群」</sub>
+</p>
+
 提的时候，顺手说说你主要用电脑做什么（学习、写代码、剪辑、游戏……），以及用的是台式机还是笔记本、有几块屏幕，这能帮我少走很多弯路。
 
 被采纳的建议会写进 [更新日志](./CHANGELOG.md) 并致谢。有些需求会被礼貌地拒绝：联网上传、记录窗口标题或网页内容、设目标和打卡提醒，这些和[隐私承诺](#privacy)、「只记录，不设目标」的原则冲突。
