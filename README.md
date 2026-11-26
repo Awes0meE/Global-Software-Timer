@@ -451,6 +451,7 @@ Get-FileHash .\Global.Software.Timer_0.4.5_x64-setup.exe -Algorithm SHA256
 | 还没想清楚，想先聊聊 | [讨论区 · 想法](https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/ideas) |
 | 不知道某个功能怎么用 | [讨论区 · 求助](https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/q-a) |
 | 晒晒我的日报海报、成就海报 | [讨论区 · 晒图](https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/show-and-tell) |
+| 没有 GitHub 账号，或者想和其他用户直接聊 | QQ 交流群 **937943526**（在 QQ 里搜群号加入） |
 
 提的时候，顺手说说你主要用电脑做什么（学习、写代码、剪辑、游戏……），以及用的是台式机还是笔记本、有几块屏幕，这能帮我少走很多弯路。
 
