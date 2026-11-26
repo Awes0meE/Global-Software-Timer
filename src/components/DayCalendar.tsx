@@ -7,6 +7,7 @@ import { zhCN } from "react-day-picker/locale";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { DateRange } from "../statisticsRange";
 import { formatLocalDate } from "../statisticsRange";
+import { useWeekStart } from "../weekStart";
 
 const WEEKDAYS = "日一二三四五六";
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -214,6 +215,7 @@ function CalendarFrame({ initialMonth, today, dataStartDate, children }: FramePr
   const range = useMemo(() => bounds(today, dataStartDate), [today, dataStartDate]);
   const [month, setMonth] = useState(() => startOfMonth(initialMonth));
   const [view, setView] = useState<"days" | "months">("days");
+  const weekStart = useWeekStart();
 
   const caption = useMemo<CaptionState>(
     () => ({ openMonths: () => setView("months"), firstMonth: startOfMonth(range.first), lastMonth: startOfMonth(range.today) }),
@@ -241,7 +243,7 @@ function CalendarFrame({ initialMonth, today, dataStartDate, children }: FramePr
     month,
     onMonthChange: setMonth,
     locale: zhCN,
-    weekStartsOn: 1,
+    weekStartsOn: weekStart,
     today: range.today,
     startMonth: new Date(range.first.getFullYear(), range.first.getMonth() - 1, 1),
     endMonth: new Date(range.today.getFullYear(), range.today.getMonth() + 1, 1),
