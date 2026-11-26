@@ -1,0 +1,21 @@
+/* v0.4.4 从备份恢复 dialog: the 导入设置 dialog (SettingsImportDialog.css), wide enough that each warning
+   sentence keeps to one line. */
+
+.restore-dialog {
+  width: min(460px, 100%);
+}
+
+.restore-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.restore-copy p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+/* The file name may be long: let it wrap rather than push the dialog wider. */
+.restore-dialog .import-fact dd {
+  overflow-wrap: anywhere;
+}
