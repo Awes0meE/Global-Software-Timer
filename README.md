@@ -12,6 +12,8 @@
 
 Windows 托盘常驻 · 全自动记录 · 数据只存在本机
 
+[English](./README.en.md) · [中文](./README.md)
+
 <p>
   <a href="https://github.com/Awes0meE/Global-Software-Timer/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/Awes0meE/Global-Software-Timer?style=for-the-badge&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&color=2f81f7&logo=github" /></a>
   <a href="https://github.com/Awes0meE/Global-Software-Timer/releases"><img alt="下载量" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FAwes0meE%2FGlobal-Software-Timer%2Fbadges%2Fdownloads.json&style=for-the-badge&cacheSeconds=3600" /></a>
@@ -454,7 +456,13 @@ Get-FileHash .\Global.Software.Timer_0.4.5_x64-setup.exe -Algorithm SHA256
 | 还没想清楚，想先聊聊 | [讨论区 · 想法](https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/ideas) |
 | 不知道某个功能怎么用 | [讨论区 · 求助](https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/q-a) |
 | 晒晒我的日报海报、成就海报 | [讨论区 · 晒图](https://github.com/Awes0meE/Global-Software-Timer/discussions/categories/show-and-tell) |
-| 没有 GitHub 账号，或者想和其他用户直接聊 | QQ 交流群 **937943526**（在 QQ 里搜群号加入） |
+| 没有 GitHub 账号，或者想和其他用户直接聊 | [加入 QQ 群「GST功能交流群」](https://qm.qq.com/q/gN4qB6TVGE)，或在 QQ 里搜群号 **937943526** |
+
+<p align="center">
+  <img src="./docs/assets/qq-group-qr.jpg" width="220" alt="QQ 群「GST功能交流群」二维码，群号 937943526" />
+  <br />
+  <sub>用手机 QQ 扫码加入「GST功能交流群」</sub>
+</p>
 
 提的时候，顺手说说你主要用电脑做什么（学习、写代码、剪辑、游戏……），以及用的是台式机还是笔记本、有几块屏幕，这能帮我少走很多弯路。
 
