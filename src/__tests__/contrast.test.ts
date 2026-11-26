@@ -544,21 +544,21 @@ describe.each(ACCENT_CASES)("contrast with the %s accent", (_label, appearance) 
         expect(ratio, `${theme}: ${name} on glow layer ${index} = ${ratio.toFixed(2)}, on B = ${onB.toFixed(2)}`).toBeGreaterThanOrEqual(onB);
       });
     });
-
-    // The clamp holds a Windows accent to 3:1 on the glass over the glow it builds itself, too.
-    it.runIf(theme === "light" && appearance.windowsAccent !== undefined)(
-      "keeps the clamped accent above 3:1 on the glass over its own glow",
-      () => {
-        const s = surfaces(theme, appearance);
-        const base = s.colour("--base");
-        [base, ...glowCenters(theme, appearance).map((centre) => over(centre, base))].forEach((under, index) => {
-          const ratio = contrast(s.colour("--accent"), over(s.colour("--glass"), under));
-          expect(ratio, `${theme}: --accent on the glass over backdrop ${index} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(GRAPHIC);
-        });
-      },
-    );
   });
 });
+
+// The clamp holds a light Windows accent to 3:1 on the glass over the glow it builds itself, too.
+it.each(ACCENT_CASES.filter(([, appearance]) => appearance.windowsAccent))(
+  "keeps the clamped %s accent above 3:1 on the light glass over its own glow",
+  (_label, appearance) => {
+    const s = surfaces("light", appearance);
+    const base = s.colour("--base");
+    [base, ...glowCenters("light", appearance).map((centre) => over(centre, base))].forEach((under, index) => {
+      const ratio = contrast(s.colour("--accent"), over(s.colour("--glass"), under));
+      expect(ratio, `--accent on the glass over backdrop ${index} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(GRAPHIC);
+    });
+  },
+);
 
 // SPEC CONFLICT, recorded for a decision (v0.4.4 spec §B). The spec says readability on the glow is
 // unchanged for every 主题色, but at the centre of the accent-built glow (blob 1 is the accent at 45% light /
