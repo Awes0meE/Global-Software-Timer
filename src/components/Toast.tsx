@@ -3,6 +3,8 @@ import { CircleAlert, CircleCheck } from "lucide-react";
 import "./HeaderControls.css";
 
 export const TOAST_DURATION_MS = 6000;
+/** How long a dismissed toast takes to slide out (`toast-out` in HeaderControls.css). */
+export const TOAST_EXIT_MS = 200;
 
 export interface ToastMessage {
   /** A new id for every toast, so the same text shown twice is announced and timed again. */
@@ -35,7 +37,8 @@ function matchesState(element: Element | null, selector: string): boolean {
  * A glass toast at the bottom of the window. It stays mounted, with empty status and alert regions, so a
  * screen reader hears a message put into them; the glass shows only while there is a message. It hides
  * itself after `durationMs`, but not while the pointer rests on it or keyboard focus is inside it, so its
- * key stays reachable. Focus left on the key by a click does not hold it.
+ * key stays reachable. Focus left on the key by a click does not hold it. A dismissed toast slides out: its
+ * glass stays for `TOAST_EXIT_MS` with the text out of the live regions, and takes no pointer or Tab.
  */
 export function Toast({ toast, durationMs = TOAST_DURATION_MS, onDismiss }: ToastProps) {
   const [held, setHeld] = useState({ hover: false, focus: false });
@@ -46,6 +49,17 @@ export function Toast({ toast, durationMs = TOAST_DURATION_MS, onDismiss }: Toas
   dismissRef.current = onDismiss;
   const paused = held.hover || held.focus;
   const id = toast?.id;
+  // The last toast shown, kept through its slide-out once `toast` goes back to null.
+  const [last, setLast] = useState<ToastMessage | null>(toast);
+  if (toast && toast !== last) setLast(toast);
+  const leaving = toast ? null : last;
+  const shown = toast ?? leaving;
+
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = window.setTimeout(() => setLast(null), TOAST_EXIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [leaving]);
 
   // A new toast, or letting go of the toast, starts the full time again.
   useEffect(() => {
@@ -71,7 +85,7 @@ export function Toast({ toast, durationMs = TOAST_DURATION_MS, onDismiss }: Toas
     });
   }, [id]);
 
-  const isError = toast?.tone === "error";
+  const isError = shown?.tone === "error";
   // Keyed by id: a fresh text node is an addition to the region, which is what gets announced.
   const text = toast ? <span key={toast.id}>{toast.message}</span> : null;
 
@@ -80,7 +94,7 @@ export function Toast({ toast, durationMs = TOAST_DURATION_MS, onDismiss }: Toas
       ref={boxRef}
       // Stays live while a glass dialog is open (useModalDialog), so a save's result is still announced.
       data-modal-keep=""
-      className={`toast${toast ? "" : " is-idle"}${isError ? " is-error" : ""}`}
+      className={`toast${shown ? "" : " is-idle"}${leaving ? " is-leaving" : ""}${isError ? " is-error" : ""}`}
       onPointerEnter={() => setHeld((current) => ({ ...current, hover: true }))}
       onPointerLeave={() => {
         pressedRef.current = false;
@@ -105,7 +119,7 @@ export function Toast({ toast, durationMs = TOAST_DURATION_MS, onDismiss }: Toas
         }
       }}
     >
-      {toast ? (
+      {shown ? (
         isError ? (
           <CircleAlert size={16} className="toast-icon" aria-hidden="true" />
         ) : (
@@ -118,9 +132,19 @@ export function Toast({ toast, durationMs = TOAST_DURATION_MS, onDismiss }: Toas
       <span className="toast-message" role="alert">
         {isError ? text : null}
       </span>
-      {toast?.action ? (
-        <button type="button" className="hk hk-solo toast-action" onClick={toast.action.onClick}>
-          {toast.action.label}
+      {leaving ? (
+        <span className="toast-message" aria-hidden="true">
+          {leaving.message}
+        </span>
+      ) : null}
+      {shown?.action ? (
+        <button
+          type="button"
+          className="hk hk-solo toast-action"
+          tabIndex={leaving ? -1 : undefined}
+          onClick={shown.action.onClick}
+        >
+          {shown.action.label}
         </button>
       ) : null}
     </div>

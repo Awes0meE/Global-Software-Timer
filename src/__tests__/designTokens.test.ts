@@ -166,10 +166,11 @@ describe("glass and e-ink limits", () => {
     expect(inKeyframes).toEqual(["lamp-breathe"]);
   });
 
-  // Spec「动效」: no new animations, except the v0.4.2 header popovers' and toast's pop-in.
+  // Spec「动效」: no new animations, except the v0.4.2 header popovers' pop-in and the v0.4.7 toast's rise in and
+  // sink out (the user asked for a toast that is seen arriving and leaving).
   it("has exactly the known keyframes", () => {
     const names = Object.values(allCss()).flatMap((css) => parseRules(css).keyframes);
-    expect(names.sort()).toEqual(["backdrop-in", "dialog-in", "lamp-breathe", "pop-in", "scroll-edge-fade", "scroll-edge-fade-bottom", "scroll-edge-fade-top"]);
+    expect(names.sort()).toEqual(["backdrop-in", "dialog-in", "lamp-breathe", "pop-in", "scroll-edge-fade", "scroll-edge-fade-bottom", "scroll-edge-fade-top", "toast-in", "toast-out"]);
   });
 
   // Spec「字体」: GST Pixel only on the e-ink screens.

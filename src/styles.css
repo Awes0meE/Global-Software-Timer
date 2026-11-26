@@ -78,6 +78,7 @@
     radial-gradient(860px 600px at 52% 110%, rgba(160, 130, 255, 0.3), transparent 62%);
   --glass: rgba(255, 255, 255, 0.5);
   --glass-solid: #f6f7f9;
+  --toast-surface: #ffffff;
   --head-solid: var(--glass-solid);
   /* Sticky table heads as a raised key strip (v0.4.1 variant B): an opaque top-lit fill, a 1px top
      highlight, a hairline bottom edge and a short soft drop onto the rows (the --head-drop colour fading out),
@@ -172,6 +173,7 @@
     radial-gradient(860px 600px at 52% 108%, rgba(150, 110, 255, 0.28), transparent 62%);
   --glass: rgba(40, 40, 46, 0.42);
   --glass-solid: #1e1e22;
+  --toast-surface: #34373f;
   --head-solid: #2a2a31;
   --head-fill: linear-gradient(to bottom, #2e2e36, #27272e);
   --head-hi: rgba(255, 255, 255, 0.07);

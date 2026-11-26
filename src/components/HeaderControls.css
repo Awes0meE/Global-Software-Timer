@@ -581,16 +581,39 @@
   min-height: 48px;
   padding: 8px 8px 8px 14px;
   border-radius: var(--radius-dialog);
-  background-color: var(--glass-solid);
+  /* A raised surface tinted with the accent, so it stands apart from the dark glass under it. */
+  --toast-tint: var(--accent);
+  background-color: color-mix(in srgb, var(--toast-tint) 14%, var(--toast-surface));
   background-image: linear-gradient(to bottom, var(--glass-hi), transparent 44px);
   color: var(--ink);
   font-size: 14px;
   box-shadow:
-    0 0 0 1px var(--edge-strong),
+    0 0 0 1px color-mix(in srgb, var(--toast-tint) 45%, transparent),
     inset 0 1px 0 var(--glass-hi),
     0 6px 14px -4px var(--shade),
     0 28px 56px -12px var(--shade-deep);
-  animation: pop-in 160ms var(--ease);
+  transform-origin: 100% 100%;
+  animation: toast-in 320ms var(--ease) both;
+}
+
+/* Rises in from just below its place; a dismissed toast sinks back and fades (TOAST_EXIT_MS). */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+}
+
+.toast.is-leaving {
+  pointer-events: none;
+  animation: toast-out 200ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 .toast-icon {
@@ -603,6 +626,7 @@
 }
 
 .toast.is-error {
+  --toast-tint: var(--alert-ink);
   color: var(--alert-ink);
   font-weight: 500;
 }

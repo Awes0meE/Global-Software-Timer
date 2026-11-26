@@ -6,7 +6,7 @@ import { DateControl } from "../components/DateControl";
 import { addLocalDays, parseLocalDate, weekdayLabel } from "../components/DayCalendar";
 import { ExportKey, type ExportKeyItem } from "../components/ExportKey";
 import { RangeControl } from "../components/RangeControl";
-import { Toast } from "../components/Toast";
+import { TOAST_EXIT_MS, Toast } from "../components/Toast";
 import { PAGE_EXPORTS } from "../pageExports";
 import { WeekStartContext } from "../weekStart";
 import { allCss, parseRules } from "./support/css";
@@ -703,6 +703,46 @@ describe("Toast", () => {
     rerender(<Toast toast={saved()} onDismiss={() => {}} />);
     expect(container.querySelector(".toast-icon")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByRole("status")).toHaveTextContent(/^已保存$/);
+  });
+
+  it("slides out once dismissed, with its text out of the live regions, then goes idle", () => {
+    vi.useFakeTimers();
+    const { container, rerender } = render(<Toast toast={saved()} onDismiss={() => {}} />);
+    const box = container.querySelector(".toast") as HTMLElement;
+    rerender(<Toast toast={null} onDismiss={() => {}} />);
+
+    expect(box).toHaveClass("is-leaving");
+    expect(box).not.toHaveClass("is-idle");
+    expect(box).toHaveTextContent("已保存");
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(screen.getByRole("button", { name: "在文件夹中显示", hidden: true })).toHaveAttribute("tabindex", "-1");
+
+    act(() => {
+      vi.advanceTimersByTime(TOAST_EXIT_MS);
+    });
+    expect(box).toHaveClass("is-idle");
+    expect(box).not.toHaveClass("is-leaving");
+    expect(box.textContent).toBe("");
+  });
+
+  it("drops the slide-out when the next toast arrives during it", () => {
+    vi.useFakeTimers();
+    const { container, rerender } = render(<Toast toast={saved(1)} onDismiss={() => {}} />);
+    rerender(<Toast toast={null} onDismiss={() => {}} />);
+    rerender(<Toast toast={{ id: 2, message: "已复制群号" }} onDismiss={() => {}} />);
+    const box = container.querySelector(".toast") as HTMLElement;
+    expect(box).not.toHaveClass("is-leaving");
+    expect(screen.getByRole("status")).toHaveTextContent(/^已复制群号$/);
+    expect(box).not.toHaveTextContent("已保存");
+  });
+
+  it("rises in and sinks out on a raised surface tinted apart from the glass", () => {
+    const rules = parseRules(allCss()["HeaderControls.css"]).rules.filter((rule) => rule.atRules.length === 0);
+    const rule = (selector: string) => rules.find((r) => r.selectors.includes(selector))?.declarations ?? {};
+    expect(rule(".toast").animation).toMatch(/^toast-in /);
+    expect(rule(".toast.is-leaving").animation).toMatch(/^toast-out 200ms /);
+    expect(rule(".toast")["background-color"]).toContain("var(--toast-surface)");
+    expect(rule(".toast")["background-color"]).not.toContain("--glass-solid");
   });
 
   it("reads a failure as an alert", () => {
