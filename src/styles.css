@@ -79,6 +79,10 @@
   --glass: rgba(255, 255, 255, 0.5);
   --glass-solid: #f6f7f9;
   --toast-surface: #ffffff;
+  /* 成就 lit plate under the pointer (v0.4.8): a white edge and halo, plus a faint lift on the light glass. */
+  --plate-hover-ring: #ffffff;
+  --plate-hover-glow: 0 0 16px 2px rgba(255, 255, 255, 0.9);
+  --plate-hover-lift: 0 4px 14px -6px rgba(20, 30, 60, 0.28);
   --head-solid: var(--glass-solid);
   /* Sticky table heads as a raised key strip (v0.4.1 variant B): an opaque top-lit fill, a 1px top
      highlight, a hairline bottom edge and a short soft drop onto the rows (the --head-drop colour fading out),
@@ -174,6 +178,9 @@
   --glass: rgba(40, 40, 46, 0.42);
   --glass-solid: #1e1e22;
   --toast-surface: #34373f;
+  --plate-hover-ring: rgba(255, 255, 255, 0.85);
+  --plate-hover-glow: 0 0 18px 0 rgba(255, 255, 255, 0.42);
+  --plate-hover-lift: 0 0 0 0 transparent;
   --head-solid: #2a2a31;
   --head-fill: linear-gradient(to bottom, #2e2e36, #27272e);
   --head-hi: rgba(255, 255, 255, 0.07);

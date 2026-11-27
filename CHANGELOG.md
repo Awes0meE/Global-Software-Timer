@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- On `成就`, a lit milestone plate under the pointer now lights up white instead of in the accent colour, and a little brighter: a white edge with a soft white halo (the `终极成就` plate keeps its accent outline). On the light theme, where a white halo alone disappears into the glass, a faint shadow lifts the plate as well.
+
 ## v0.4.7 - 2026-11-26
 
 - Security: the update plugin moves from tauri-plugin-updater 2.12.0 to 2.14.1, which replaces the `zip` 4.6.1 library flagged by three advisories (one critical) with `zip` 9.8.2. GST never handled zip archives in an update, and every download is checked against the update signature first, so this was not exploitable, but the flagged code is gone. The plugin needs a newer Tauri, so the app also moves from Tauri 2.11.2 to 2.12.7 (with its window, tray and WebView2 libraries) and the frontend packages to `@tauri-apps/api` 2.12.5 and `@tauri-apps/cli` 2.12.6.

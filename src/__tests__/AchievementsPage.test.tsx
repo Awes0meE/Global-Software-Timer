@@ -496,10 +496,20 @@ describe("AchievementsPage", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("brightens a lit plate's edge under the pointer, from the lit plates only", () => {
+  // v0.4.8: the hover light is white, not the accent, on both themes.
+  it("lights a lit plate's edge white under the pointer, from the lit plates only", () => {
     const rules = parseRules(allCss()["AchievementsPage.css"]).rules.filter((rule) => rule.atRules.length === 0);
-    const hover = rules.find((rule) => rule.selectors.includes(".ach-plate.is-reached:has(.ach-plate-open:hover)"));
-    expect(hover?.declarations["box-shadow"]).toContain("var(--accent)");
+    const rule = (selector: string) => rules.find((r) => r.selectors.includes(selector))?.declarations ?? {};
+    const hover = rule(".ach-plate.is-reached:has(.ach-plate-open:hover)")["box-shadow"];
+    expect(hover).toContain("var(--plate-hover-ring)");
+    expect(hover).toContain("var(--plate-hover-glow)");
+    expect(hover).not.toContain("--accent");
+    const tokens = parseRules(allCss()["styles.css"]).rules;
+    const token = (selector: string) =>
+      tokens.find((r) => r.atRules.length === 0 && r.selectors.includes(selector) && "--plate-hover-ring" in r.declarations)
+        ?.declarations["--plate-hover-ring"];
+    expect(token(':root[data-theme="light"]')).toBe("#ffffff");
+    expect(token(':root[data-theme="dark"]')).toMatch(/^rgba\(255, 255, 255,/);
     expect(rules.find((rule) => rule.selectors.includes(".ach-plate-open"))?.declarations.cursor).toBe("pointer");
   });
 
