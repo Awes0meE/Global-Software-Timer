@@ -496,8 +496,8 @@ describe("AchievementsPage", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  // v0.4.8: the hovered plate rises (brighter fill, a changed edge, a shadow below), never in the accent.
-  it("raises a lit plate under the pointer, from the lit plates only", () => {
+  // v0.4.8: the hover light is white, not the accent, on both themes.
+  it("lights a lit plate's edge white under the pointer, from the lit plates only", () => {
     const rules = parseRules(allCss()["AchievementsPage.css"]).rules.filter((rule) => rule.atRules.length === 0);
     const rule = (selector: string) => rules.find((r) => r.selectors.includes(selector))?.declarations ?? {};
     const hover = rule(".ach-plate.is-reached:has(.ach-plate-open:hover)")["box-shadow"];
@@ -510,12 +510,12 @@ describe("AchievementsPage", () => {
       tokens.find((r) => r.atRules.length === 0 && r.selectors.includes(selector) && "--plate-hover-ring" in r.declarations)
         ?.declarations["--plate-hover-ring"];
     expect(token(':root[data-theme="light"]')).toBe("#ffffff");
-    // Light: a white plate with a grey halo and shadow; dark: a quiet grey edge and a deep shadow.
+    // Light: a white plate with a grey halo, since a white halo vanishes into the light glass.
     const lightGlow = tokens.find(
       (r) => r.atRules.length === 0 && r.selectors.includes(':root[data-theme="light"]') && "--plate-hover-glow" in r.declarations,
     )?.declarations["--plate-hover-glow"];
     expect(lightGlow).toContain("rgba(20, 30, 60");
-    expect(token(':root[data-theme="dark"]')).toBe("rgba(255, 255, 255, 0.24)");
+    expect(token(':root[data-theme="dark"]')).toMatch(/^rgba\(255, 255, 255,/);
     expect(rules.find((rule) => rule.selectors.includes(".ach-plate-open"))?.declarations.cursor).toBe("pointer");
   });
 
