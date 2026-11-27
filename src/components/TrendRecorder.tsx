@@ -592,8 +592,8 @@ function weekday(date: string): string {
 }
 
 /**
- * Rough rendered width of a 12px label, rounded up from GST Inter (tabular digits) / GST Noto Sans SC:
- * CJK glyphs are square, digits 7.6px, other ASCII (space, dash, dot) at most 5.6px.
+ * Rough rendered width of a 12px label, rounded up from GST Num (Oxanium at 108%) / GST Noto Sans SC:
+ * CJK glyphs are square, digits 7.6px (Oxanium: 7.49px), other ASCII (space, dash, dot) at most 5.6px (Oxanium: 4.74px).
  */
 function textWidth(text: string): number {
   return Array.from(text).reduce((width, char) => {

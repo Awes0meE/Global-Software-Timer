@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import indexHtml from "../../index.html?raw";
-import { allCss } from "./support/css";
+import { allCss, allRules } from "./support/css";
 
 // N16: the LCD pixel font uses font-display: swap, so it must be preloaded from
 // index.html (fetched in parallel with the JS bundle) to avoid a visible
@@ -38,5 +38,23 @@ describe("bundled font preloads", () => {
 
     expect(declared).toContain("/src/assets/fonts/oxanium/Oxanium-Variable.woff2");
     expect(preloaded.sort()).toEqual(declared.sort());
+  });
+});
+
+describe("GST Num sizing", () => {
+  // Oxanium's digits are 0.69 em tall, Inter's 0.747 em: 108% puts the numbers back at Inter's height.
+  it("scales the number font to Inter's digit height", () => {
+    const face = allCss()["styles.css"].match(/@font-face\s*\{[^}]*font-family:\s*"GST Num"[^}]*\}/)?.[0];
+
+    expect(face).toBeDefined();
+    expect(face).toMatch(/size-adjust:\s*108%;/);
+  });
+
+  it("spaces numbers a hairline away from the Chinese units after them", () => {
+    const spaced = allRules()
+      .filter((rule) => rule.declarations["text-autospace"] === "normal")
+      .flatMap((rule) => rule.selectors);
+
+    expect(spaced).toEqual(expect.arrayContaining([".num", ".background-table td", ".recorder-svg .vals"]));
   });
 });

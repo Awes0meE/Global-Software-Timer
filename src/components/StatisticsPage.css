@@ -266,14 +266,16 @@
   display: block;
 }
 
+/* Every label on the paper (scales, dates, 活跃 / 记录 values) is in the number font; Chinese falls back to Noto Sans SC. */
 .recorder-svg text {
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
 }
 
-.recorder-svg .day,
+/* The 活跃 / 记录 values keep the hairline before 小时 that the tables have. Date labels go without it, because the
+   recorder estimates their width from fixed glyph widths. */
 .recorder-svg .vals {
-  font-family: var(--font-ui);
+  text-autospace: normal;
 }
 
 .rule-major {

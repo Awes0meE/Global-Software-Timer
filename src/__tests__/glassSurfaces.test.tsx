@@ -1051,9 +1051,10 @@ describe("statistics recorder on e-ink paper", () => {
   });
 
   it("keeps the recorder's fonts", () => {
+    // Dates and the 活跃 / 记录 values use the number font like the scales; nothing switches back to the UI font.
     expect(topLevel(".recorder-svg text")["font-family"]).toBe("var(--font-num)");
-    expect(topLevel(".recorder-svg .day")["font-family"]).toBe("var(--font-ui)");
-    expect(topLevel(".recorder-svg .vals")["font-family"]).toBe("var(--font-ui)");
+    expect(topLevel(".recorder-svg .day")["font-family"]).toBeUndefined();
+    expect(topLevel(".recorder-svg .vals")["font-family"]).toBeUndefined();
   });
 
   it("paints the recorder only with e-ink tokens, in one recipe for both themes", () => {

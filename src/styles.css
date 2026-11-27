@@ -22,11 +22,13 @@
 }
 
 /* Numbers: Oxanium (Latin, variable wght 200–800). Its digits are tabular by default; CJK units such as 小时 fall back
-   to Noto Sans SC. */
+   to Noto Sans SC. Its digits are 0.69 em tall against Inter's 0.747 em, so it is drawn at 108% to keep Inter's
+   number height (digits are then 0.624 em wide, still narrower than Inter's 0.646 em). */
 @font-face {
   font-family: "GST Num";
   src: url("./assets/fonts/oxanium/Oxanium-Variable.woff2") format("woff2");
   font-weight: 200 800;
+  size-adjust: 108%;
   font-display: swap;
 }
 
@@ -650,6 +652,17 @@ p {
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
+}
+
+/* A hairline (1/8 em) between a number and the Chinese unit that follows it, so 412.6小时 and 18分钟前 do not run
+   together. The text itself is unchanged; a WebView2 without text-autospace keeps the old tight look. */
+.num,
+.panel-count,
+.focused-table-row > span,
+.discovered-last-opened,
+.add-software-last-opened,
+.background-table td {
+  text-autospace: normal;
 }
 
 .skip-link {
@@ -1745,7 +1758,9 @@ main > p[role="status"] {
   grid-template-columns: 10px minmax(0, 1fr) auto 48px;
   white-space: nowrap;
   align-items: center;
-  gap: 9px;
+  /* 8px, not 9px: the hairline before 小时 widened the duration column, and at the 1180px minimum window the name
+     column would lose the last letters of 「Visual Studio Code」. */
+  gap: 8px;
   min-height: 28px;
   font-size: var(--type-small);
 }
