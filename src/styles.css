@@ -2224,7 +2224,7 @@ mark {
   padding: 24px;
   background: color-mix(in srgb, var(--base) 55%, var(--modal-scrim));
   backdrop-filter: blur(2px);
-  animation: backdrop-in 220ms var(--ease);
+  animation: backdrop-in calc(220ms * var(--motion-scale)) var(--ease);
 }
 
 .dialog,
@@ -2234,7 +2234,7 @@ mark {
   box-shadow:
     0 0 0 1px var(--edge-strong),
     0 24px 60px -16px rgba(0, 0, 0, 0.5);
-  animation: dialog-in 320ms var(--ease);
+  animation: dialog-in calc(320ms * var(--motion-scale)) var(--ease);
 }
 
 .close-dialog {
@@ -2379,13 +2379,22 @@ mark {
 
 /* v0.4.8 swaps (motion.ts runSwap): another page, day or range dissolves into the one on screen. Only the
    page content and the header take part; the sidebar shows its new state at once (its key glides by
-   itself), and the rest of the window does not move. Style d (preview pick) adds a little travel. */
+   itself), and the rest of the window does not move. 动画速度 scales every v0.4.8 duration through
+   --motion-scale: 快 0.6, 中 1, 慢 1.5. */
 :root {
-  --swap-duration: 400ms;
-  --swap-travel: 24px;
+  --motion-scale: 1;
+  --swap-duration: calc(400ms * var(--motion-scale));
   /* An even curve: --ease (ease-out-expo) spends most of its change in the first third, which made a
      dissolve too quick to see. */
   --swap-ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:root[data-speed="fast"] {
+  --motion-scale: 0.6;
+}
+
+:root[data-speed="slow"] {
+  --motion-scale: 1.5;
 }
 
 .sidebar {
@@ -2425,26 +2434,6 @@ mark {
   animation: swap-in var(--swap-duration) var(--swap-ease) both;
 }
 
-:root[data-swap-style="d"][data-swap="forward"]::view-transition-old(gst-page) {
-  animation-name: swap-out-left;
-}
-
-:root[data-swap-style="d"][data-swap="forward"]::view-transition-new(gst-page) {
-  animation-name: swap-in-right;
-}
-
-:root[data-swap-style="d"][data-swap="back"]::view-transition-old(gst-page) {
-  animation-name: swap-out-right;
-}
-
-:root[data-swap-style="d"][data-swap="back"]::view-transition-new(gst-page) {
-  animation-name: swap-in-left;
-}
-
-:root[data-swap-style="d"][data-swap="page"]::view-transition-new(gst-page) {
-  animation-name: swap-in-rise;
-}
-
 @keyframes swap-out {
   to {
     opacity: 0;
@@ -2454,41 +2443,6 @@ mark {
 @keyframes swap-in {
   from {
     opacity: 0;
-  }
-}
-
-@keyframes swap-out-left {
-  to {
-    opacity: 0;
-    transform: translateX(calc(-1 * var(--swap-travel)));
-  }
-}
-
-@keyframes swap-out-right {
-  to {
-    opacity: 0;
-    transform: translateX(var(--swap-travel));
-  }
-}
-
-@keyframes swap-in-right {
-  from {
-    opacity: 0;
-    transform: translateX(var(--swap-travel));
-  }
-}
-
-@keyframes swap-in-left {
-  from {
-    opacity: 0;
-    transform: translateX(calc(-1 * var(--swap-travel)));
-  }
-}
-
-@keyframes swap-in-rise {
-  from {
-    opacity: 0;
-    transform: translateY(calc(var(--swap-travel) / 2));
   }
 }
 

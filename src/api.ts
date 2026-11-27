@@ -26,6 +26,8 @@ export type WeekStartSetting = "monday" | "sunday";
 export type ReduceMotion = "system" | "reduce";
 /** 文字大小 as stored (`ui.text_size`): `standard` is 100%, `large` is 125%; Rust applies it as the window zoom. */
 export type TextSize = "standard" | "large";
+/** 动画速度 as stored (`ui.motion_speed`, v0.4.8): how long page, day and range swaps take. */
+export type MotionSpeed = "fast" | "normal" | "slow";
 
 /** The v0.4.4 display preferences, keyed by their `set_ui_preference` and settings-file names. */
 export interface UiPreferences {
@@ -35,6 +37,7 @@ export interface UiPreferences {
   start_page: StartPage;
   reduce_motion: ReduceMotion;
   text_size: TextSize;
+  motion_speed: MotionSpeed;
 }
 
 export type UiPreferenceKey = keyof UiPreferences;
@@ -110,6 +113,8 @@ export interface AppSettings {
   reduce_motion_configured: boolean;
   text_size: TextSize;
   text_size_configured: boolean;
+  motion_speed: MotionSpeed;
+  motion_speed_configured: boolean;
 }
 
 /** Error for a malformed or future `date` on the date-browsing summaries. */
@@ -407,6 +412,7 @@ export async function getAppSettings(): Promise<AppSettings> {
   const startPage = normalizeStartPage(settings.start_page);
   const reduceMotion = normalizeReduceMotion(settings.reduce_motion);
   const textSize = normalizeTextSize(settings.text_size);
+  const motionSpeed = normalizeMotionSpeed(settings.motion_speed);
 
   return {
     close_behavior: normalizeCloseBehavior(settings.close_behavior),
@@ -431,6 +437,9 @@ export async function getAppSettings(): Promise<AppSettings> {
       settings.reduce_motion_configured === true && settings.reduce_motion === reduceMotion,
     text_size: textSize,
     text_size_configured: settings.text_size_configured === true && settings.text_size === textSize,
+    motion_speed: motionSpeed,
+    motion_speed_configured:
+      settings.motion_speed_configured === true && settings.motion_speed === motionSpeed,
   };
 }
 
@@ -741,4 +750,8 @@ export function normalizeReduceMotion(value: unknown): ReduceMotion {
 
 export function normalizeTextSize(value: unknown): TextSize {
   return value === "large" ? value : "standard";
+}
+
+export function normalizeMotionSpeed(value: unknown): MotionSpeed {
+  return value === "fast" || value === "slow" ? value : "normal";
 }

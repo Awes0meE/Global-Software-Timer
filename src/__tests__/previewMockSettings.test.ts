@@ -29,6 +29,8 @@ describe("preview mock display preferences", () => {
       reduce_motion_configured: false,
       text_size: "standard",
       text_size_configured: false,
+      motion_speed: "normal",
+      motion_speed_configured: false,
     });
   });
 
@@ -90,6 +92,7 @@ describe("preview mock display preferences", () => {
       { key: "start_page", from: "overview", to: "statistics" },
       { key: "reduce_motion", from: "system", to: "reduce" },
       { key: "text_size", from: "standard", to: "large" },
+      { key: "motion_speed", from: "normal", to: "slow" },
     ]);
 
     await invoke("apply_settings_import", { importId: preview.import_id });

@@ -21,6 +21,7 @@ const SETTING_LABELS: Record<SettingsImportKey, string> = {
   week_start: "每周起始日",
   start_page: "启动时打开",
   reduce_motion: "减少动画",
+  motion_speed: "动画速度",
   text_size: "文字大小",
 };
 
@@ -36,6 +37,7 @@ const VALUE_LABELS: Record<SettingsImportKey, Record<string, string>> = {
   week_start: { monday: "周一", sunday: "周日" },
   start_page: START_PAGE_NAMES,
   reduce_motion: { system: "跟随系统", reduce: "开启" },
+  motion_speed: { fast: "快", normal: "中", slow: "慢" },
   text_size: { standard: "标准", large: "大" },
 };
 

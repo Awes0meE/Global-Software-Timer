@@ -4,7 +4,7 @@
   display: grid;
   gap: 14px;
   width: min(400px, 100%);
-  /* Up to eight setting rows plus the four list rows: scroll inside a short (760 px) window. */
+  /* Up to ten setting rows plus the four list rows: scroll inside a short (760 px) window. */
   max-height: calc(100vh - 48px);
   overflow-y: auto;
   padding: 24px;

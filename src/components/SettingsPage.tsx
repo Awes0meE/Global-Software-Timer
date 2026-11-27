@@ -10,6 +10,7 @@ import {
 import { useSelectionGlide } from "../motion";
 import {
   AArrowUp,
+  Gauge,
   ArchiveRestore,
   Bug,
   CalendarDays,
@@ -37,6 +38,7 @@ import type {
   DurationFormat,
   StartPage,
   TextSize,
+  MotionSpeed,
   ThemePreference,
   UiPreferenceKey,
   UiPreferences,
@@ -60,6 +62,12 @@ const weekStartOptions: { value: WeekStartSetting; label: string }[] = [
 const textSizeOptions: { value: TextSize; label: string }[] = [
   { value: "standard", label: "标准" },
   { value: "large", label: "大" },
+];
+
+const motionSpeedOptions: { value: MotionSpeed; label: string }[] = [
+  { value: "fast", label: "快" },
+  { value: "normal", label: "中" },
+  { value: "slow", label: "慢" },
 ];
 
 export interface StartPageOption {
@@ -251,6 +259,19 @@ export function SettingsPage({
             value={ui.text_size}
             disabled={uiDisabled}
             onChange={(textSize) => onUiPreferenceChange("text_size", textSize)}
+          />
+        </SettingRow>
+        <SettingRow
+          icon={<Gauge size={18} aria-hidden="true" />}
+          title="动画速度"
+          titleId="motion-speed-setting-title"
+        >
+          <Segmented
+            labelledBy="motion-speed-setting-title"
+            options={motionSpeedOptions}
+            value={ui.motion_speed}
+            disabled={uiDisabled || ui.reduce_motion === "reduce"}
+            onChange={(motionSpeed) => onUiPreferenceChange("motion_speed", motionSpeed)}
           />
         </SettingRow>
         <SettingSwitchRow

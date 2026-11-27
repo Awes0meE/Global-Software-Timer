@@ -44,7 +44,7 @@ import { UnavailableTooltip, unavailableTooltipMessage } from "./components/Unav
 import type { StatisticsScope } from "./exports";
 import { applyAppearance, readCachedAppearance, startAccentWatch } from "./appearance";
 import { startTransparencyWatch } from "./glass";
-import { runSwap, useContentSwap, useSelectionGlide } from "./motion";
+import { applyMotionSpeed, runSwap, useContentSwap, useSelectionGlide } from "./motion";
 import { pageExport, type ExportActionId } from "./pageExports";
 import { cacheStartPage, readCachedStartPage } from "./startPage";
 import { applyThemePreference, paintedTheme, readCachedThemePreference } from "./theme";
@@ -124,6 +124,7 @@ const uiSaveErrors: Record<UiPreferenceKey, string> = {
   start_page: "启动时打开保存失败",
   reduce_motion: "减少动画保存失败",
   text_size: "文字大小保存失败",
+  motion_speed: "动画速度保存失败",
 };
 
 const uiPreferencesOf = (settings: AppSettings): UiPreferences => ({
@@ -133,6 +134,7 @@ const uiPreferencesOf = (settings: AppSettings): UiPreferences => ({
   start_page: settings.start_page,
   reduce_motion: settings.reduce_motion,
   text_size: settings.text_size,
+  motion_speed: settings.motion_speed,
 });
 
 /** Before settings load: the first-frame caches, so nothing flips once they arrive. */
@@ -145,6 +147,7 @@ function cachedUiPreferences(): UiPreferences {
     start_page: readCachedStartPage(),
     reduce_motion: appearance.motion,
     text_size: "standard",
+    motion_speed: "normal",
   };
 }
 
@@ -198,6 +201,7 @@ export default function App() {
     start_page: 0,
     reduce_motion: 0,
     text_size: 0,
+    motion_speed: 0,
   });
   const uiWrites = useRef(Promise.resolve());
   const dashboardMountedRef = useRef(false);
@@ -367,6 +371,7 @@ export default function App() {
     [ui.accent, ui.eink, ui.reduce_motion],
   );
   useEffect(() => cacheStartPage(ui.start_page), [ui.start_page]);
+  useEffect(() => applyMotionSpeed(ui.motion_speed), [ui.motion_speed]);
   useEffect(() => startTransparencyWatch(), []);
   useEffect(() => startAccentWatch(), []);
   // The start page's lazy chunk starts loading at once.

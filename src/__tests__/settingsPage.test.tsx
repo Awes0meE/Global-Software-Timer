@@ -128,7 +128,7 @@ describe("设置 layout (spec §A)", () => {
     }));
     expect(groups).toEqual([
       { title: "运行", rows: ["开机自启动", "关闭窗口时最小化到后台", "启动时打开"] },
-      { title: "显示", rows: ["显示分钟数", "每周起始日", "文字大小", "减少动画"] },
+      { title: "显示", rows: ["显示分钟数", "每周起始日", "文字大小", "动画速度", "减少动画"] },
       { title: "外观", rows: ["主题", "主题色", "墨水屏配色"] },
       { title: "数据", rows: ["数据文件夹", "从备份恢复"] },
       { title: "关于与反馈", rows: ["当前版本", "报告问题", "提建议", "QQ 交流群"] },
@@ -143,6 +143,7 @@ describe("设置 layout (spec §A)", () => {
     expect(options("启动时打开")).toEqual(["概览", "软件", "后台", "统计", "成就"]);
     expect(options("每周起始日")).toEqual(["周一", "周日"]);
     expect(options("文字大小")).toEqual(["标准", "大"]);
+    expect(options("动画速度")).toEqual(["快", "中", "慢"]);
     expect(options("主题")).toEqual(["跟随系统", "浅色", "深色"]);
     expect(within(rowOf("数据文件夹")).getByRole("button", { name: "打开" })).toBeEnabled();
     expect(within(rowOf("从备份恢复")).getByRole("button", { name: "选择备份…" })).toBeEnabled();
@@ -162,6 +163,7 @@ describe("设置 layout (spec §A)", () => {
       ...within(screen.getByRole("radiogroup", { name: "启动时打开" })).getAllByRole("radio"),
       ...within(screen.getByRole("radiogroup", { name: "每周起始日" })).getAllByRole("radio"),
       ...within(screen.getByRole("radiogroup", { name: "文字大小" })).getAllByRole("radio"),
+      ...within(screen.getByRole("radiogroup", { name: "动画速度" })).getAllByRole("radio"),
     ];
     for (const radio of radios) expect(radio).toBeDisabled();
     expect(screen.getByRole("switch", { name: "减少动画" })).toBeDisabled();
@@ -447,6 +449,27 @@ describe("每周起始日 and 减少动画 (spec §D, §F)", () => {
 
     expect(await screen.findByText("每周起始日保存失败")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "周一" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  // v0.4.8 动画速度: 中 by default, saved as fast/normal/slow, marked on the root, and greyed out while
+  // 减少动画 is on (there is no motion to time then).
+  it("saves 动画速度, marks the root and greys it out under 减少动画", async () => {
+    await openSettings();
+    const normal = screen.getByRole("radio", { name: "中" });
+    expect(normal).toHaveAttribute("aria-checked", "true");
+    expect(root().dataset.speed).toBeUndefined();
+
+    await userEvent.click(screen.getByRole("radio", { name: "慢" }));
+    expect(root().dataset.speed).toBe("slow");
+    await waitFor(() => expect(uiSaves()).toEqual([{ key: "motion_speed", value: "slow" }]));
+
+    await userEvent.click(screen.getByRole("radio", { name: "中" }));
+    expect(root().dataset.speed).toBeUndefined();
+
+    await userEvent.click(screen.getByRole("switch", { name: "减少动画" }));
+    for (const radio of within(screen.getByRole("radiogroup", { name: "动画速度" })).getAllByRole("radio")) {
+      expect(radio).toBeDisabled();
+    }
   });
 
   it("turns 减少动画 on as reduce and marks the root", async () => {

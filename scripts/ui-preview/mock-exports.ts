@@ -48,6 +48,7 @@ const IMPORT_SETTINGS: readonly [key: SettingsImportKey, value: string][] = [
   ["start_page", "statistics"],
   ["reduce_motion", "reduce"],
   ["text_size", "large"],
+  ["motion_speed", "slow"],
 ];
 const IMPORT_FOCUSED = ["notion", "code"];
 const IMPORT_HIDDEN = ["cloudmusic"];

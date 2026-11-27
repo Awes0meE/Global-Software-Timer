@@ -207,7 +207,7 @@
     inset 0 1px 0 var(--glass-hi),
     0 4px 10px -4px var(--shade),
     0 22px 44px -14px var(--shade-deep);
-  animation: pop-in 160ms var(--ease);
+  animation: pop-in calc(160ms * var(--motion-scale)) var(--ease);
 }
 
 .hk-cal-pop {
@@ -593,7 +593,7 @@
     0 6px 14px -4px var(--shade),
     0 28px 56px -12px var(--shade-deep);
   transform-origin: 100% 100%;
-  animation: toast-in 320ms var(--ease) both;
+  animation: toast-in calc(320ms * var(--motion-scale)) var(--ease) both;
 }
 
 /* Rises in from just below its place; a dismissed toast sinks back and fades (TOAST_EXIT_MS). */
@@ -613,7 +613,7 @@
 
 .toast.is-leaving {
   pointer-events: none;
-  animation: toast-out 200ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: toast-out calc(200ms * var(--motion-scale)) cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 .toast-icon {

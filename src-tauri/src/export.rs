@@ -5,10 +5,10 @@
 use crate::app_state::{lock_recovering, lock_tracker, AppState};
 use crate::commands::{
     app_settings_from_store, apply_main_window_text_size, AccentPreference, CloseBehavior,
-    DurationFormat, EinkPalette, ReduceMotion, StartPage, TextSize, ThemePreference, WeekStart,
-    ACCENT_SETTING_KEY, CLOSE_BEHAVIOR_SETTING_KEY, DURATION_FORMAT_SETTING_KEY, EINK_SETTING_KEY,
-    REDUCE_MOTION_SETTING_KEY, START_PAGE_SETTING_KEY, TEXT_SIZE_SETTING_KEY, THEME_SETTING_KEY,
-    WEEK_START_SETTING_KEY,
+    DurationFormat, EinkPalette, MotionSpeed, ReduceMotion, StartPage, TextSize, ThemePreference,
+    WeekStart, ACCENT_SETTING_KEY, CLOSE_BEHAVIOR_SETTING_KEY, DURATION_FORMAT_SETTING_KEY,
+    EINK_SETTING_KEY, MOTION_SPEED_SETTING_KEY, REDUCE_MOTION_SETTING_KEY, START_PAGE_SETTING_KEY,
+    TEXT_SIZE_SETTING_KEY, THEME_SETTING_KEY, WEEK_START_SETTING_KEY,
 };
 use crate::storage::{Store, StoreError};
 use chrono::{Local, SecondsFormat};
@@ -123,6 +123,8 @@ pub struct SettingsSection {
     pub reduce_motion: Option<String>,
     #[serde(default)]
     pub text_size: Option<String>,
+    #[serde(default)]
+    pub motion_speed: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -288,6 +290,9 @@ pub fn build_settings_file(
             text_size: settings
                 .text_size_configured
                 .then(|| settings.text_size.as_str().to_string()),
+            motion_speed: settings
+                .motion_speed_configured
+                .then(|| settings.motion_speed.as_str().to_string()),
         },
         focused: entries(store.focused_software_identity_keys()?),
         hidden: entries(store.hidden_software_identity_keys()?),
@@ -445,6 +450,17 @@ pub fn plan_settings_import(store: &Store, file: &SettingsFile) -> Result<Import
             .as_deref()
             .and_then(TextSize::from_setting)
             .map(TextSize::as_str),
+    );
+    plan_setting(
+        "motion_speed",
+        MOTION_SPEED_SETTING_KEY,
+        current.motion_speed_configured,
+        current.motion_speed.as_str(),
+        file.settings
+            .motion_speed
+            .as_deref()
+            .and_then(MotionSpeed::from_setting)
+            .map(MotionSpeed::as_str),
     );
 
     let identities = store.software_identity_names()?;
@@ -1099,6 +1115,7 @@ mod tests {
                 "close_behavior",
                 "duration_format",
                 "eink",
+                "motion_speed",
                 "reduce_motion",
                 "start_page",
                 "text_size",
@@ -1113,6 +1130,7 @@ mod tests {
             "start_page",
             "reduce_motion",
             "text_size",
+            "motion_speed",
         ] {
             assert!(json["settings"][key].is_null(), "{key}");
         }

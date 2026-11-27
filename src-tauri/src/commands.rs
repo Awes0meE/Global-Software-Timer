@@ -21,6 +21,7 @@ pub(crate) const WEEK_START_SETTING_KEY: &str = "ui.week_start";
 pub(crate) const START_PAGE_SETTING_KEY: &str = "ui.start_page";
 pub(crate) const REDUCE_MOTION_SETTING_KEY: &str = "ui.reduce_motion";
 pub(crate) const TEXT_SIZE_SETTING_KEY: &str = "ui.text_size";
+pub(crate) const MOTION_SPEED_SETTING_KEY: &str = "ui.motion_speed";
 const DEFAULT_CLOSE_BEHAVIOR: CloseBehavior = CloseBehavior::MinimizeToTray;
 const DEFAULT_AUTOSTART_ENABLED: bool = true;
 const DEFAULT_DURATION_FORMAT: DurationFormat = DurationFormat::DecimalHours;
@@ -31,6 +32,7 @@ const DEFAULT_WEEK_START: WeekStart = WeekStart::Monday;
 const DEFAULT_START_PAGE: StartPage = StartPage::Overview;
 const DEFAULT_REDUCE_MOTION: ReduceMotion = ReduceMotion::System;
 const DEFAULT_TEXT_SIZE: TextSize = TextSize::Standard;
+const DEFAULT_MOTION_SPEED: MotionSpeed = MotionSpeed::Normal;
 /// Main window minimum logical sizes. 标准 keeps `tauri.conf.json`'s minimum;
 /// the layout needs 1024×640 CSS px, which at 大 (125% zoom) is 1280×800.
 const STANDARD_MIN_WINDOW_SIZE: (f64, f64) = (1180.0, 760.0);
@@ -472,6 +474,15 @@ ui_setting_enum!(
 );
 
 ui_setting_enum!(
+    /// 动画速度 (v0.4.8); only the frontend's animations follow it.
+    MotionSpeed {
+        Fast => "fast",
+        Normal => "normal",
+        Slow => "slow",
+    }
+);
+
+ui_setting_enum!(
     /// 文字大小. Applied in Rust as the main webview's zoom (`apply_text_size`).
     TextSize {
         Standard => "standard",
@@ -501,6 +512,8 @@ pub struct AppSettings {
     pub reduce_motion_configured: bool,
     pub text_size: TextSize,
     pub text_size_configured: bool,
+    pub motion_speed: MotionSpeed,
+    pub motion_speed_configured: bool,
 }
 
 // Summaries use a read-only transaction and the last published process sample.
@@ -862,7 +875,7 @@ pub fn set_theme_preference(
 }
 
 /// Saves one display preference. `key` is its settings-file name (`accent`,
-/// `eink`, `week_start`, `start_page`, `reduce_motion`, `text_size`); `value`
+/// `eink`, `week_start`, `start_page`, `reduce_motion`, `motion_speed`, `text_size`); `value`
 /// must be one of that key's stored values. A saved `text_size` is applied to
 /// the main window right away.
 #[tauri::command(async)]
@@ -985,6 +998,8 @@ pub(crate) fn app_settings_from_store(store: &Store) -> Result<AppSettings, Stor
     let stored_reduce_motion =
         stored_setting(store, REDUCE_MOTION_SETTING_KEY, ReduceMotion::from_setting)?;
     let stored_text_size = stored_setting(store, TEXT_SIZE_SETTING_KEY, TextSize::from_setting)?;
+    let stored_motion_speed =
+        stored_setting(store, MOTION_SPEED_SETTING_KEY, MotionSpeed::from_setting)?;
 
     Ok(AppSettings {
         close_behavior,
@@ -1007,6 +1022,8 @@ pub(crate) fn app_settings_from_store(store: &Store) -> Result<AppSettings, Stor
         reduce_motion_configured: stored_reduce_motion.is_some(),
         text_size: stored_text_size.unwrap_or(DEFAULT_TEXT_SIZE),
         text_size_configured: stored_text_size.is_some(),
+        motion_speed: stored_motion_speed.unwrap_or(DEFAULT_MOTION_SPEED),
+        motion_speed_configured: stored_motion_speed.is_some(),
     })
 }
 
@@ -1045,6 +1062,10 @@ fn ui_preference_setting(key: &str, value: &str) -> Result<(&'static str, &'stat
         "text_size" => (
             TEXT_SIZE_SETTING_KEY,
             TextSize::from_setting(value).map(TextSize::as_str),
+        ),
+        "motion_speed" => (
+            MOTION_SPEED_SETTING_KEY,
+            MotionSpeed::from_setting(value).map(MotionSpeed::as_str),
         ),
         _ => return Err(UI_PREFERENCE_UNKNOWN_KEY.to_string()),
     };
@@ -2368,7 +2389,7 @@ mod tests {
         app_settings_from_store, dashboard_summary_from_store, grown_window_size,
         local_date_start_utc, save_duration_format_preference, save_theme_preference,
         save_ui_preference, software_list_command_error, text_size_window, AccentPreference,
-        CloseBehavior, DurationFormat, EinkPalette, ReduceMotion, StartPage, TextSize,
+        CloseBehavior, DurationFormat, EinkPalette, MotionSpeed, ReduceMotion, StartPage, TextSize,
         ThemePreference, WeekStart,
     };
     use crate::domain::AppRuntimeStatus;
@@ -3057,6 +3078,13 @@ mod tests {
                 Some(value)
             );
         }
+        for value in ["fast", "normal", "slow"] {
+            assert_eq!(
+                MotionSpeed::from_setting(value).map(MotionSpeed::as_str),
+                Some(value)
+            );
+        }
+        assert_eq!(MotionSpeed::from_setting("instant"), None);
         assert_eq!(AccentPreference::from_setting("red"), None);
         assert_eq!(AccentPreference::from_setting("Blue"), None);
         assert_eq!(EinkPalette::from_setting("sepia"), None);
@@ -3110,6 +3138,8 @@ mod tests {
         assert_eq!(settings.start_page, StartPage::Overview);
         assert_eq!(settings.reduce_motion, ReduceMotion::System);
         assert_eq!(settings.text_size, TextSize::Standard);
+        assert_eq!(settings.motion_speed, MotionSpeed::Normal);
+        assert!(!settings.motion_speed_configured);
         assert!(!settings.accent_configured);
         assert!(!settings.eink_configured);
         assert!(!settings.week_start_configured);
@@ -3124,6 +3154,7 @@ mod tests {
             ("ui.start_page", "statistics"),
             ("ui.reduce_motion", "reduce"),
             ("ui.text_size", "large"),
+            ("ui.motion_speed", "fast"),
         ] {
             store.set_setting_value(key, value).expect("set setting");
         }
@@ -3134,6 +3165,8 @@ mod tests {
         assert_eq!(settings.start_page, StartPage::Statistics);
         assert_eq!(settings.reduce_motion, ReduceMotion::Reduce);
         assert_eq!(settings.text_size, TextSize::Large);
+        assert_eq!(settings.motion_speed, MotionSpeed::Fast);
+        assert!(settings.motion_speed_configured);
         assert!(settings.accent_configured);
         assert!(settings.eink_configured);
         assert!(settings.week_start_configured);
@@ -3148,6 +3181,7 @@ mod tests {
             ("ui.start_page", "timeline"),
             ("ui.reduce_motion", "always"),
             ("ui.text_size", "huge"),
+            ("ui.motion_speed", "instant"),
         ] {
             store.set_setting_value(key, value).expect("set setting");
         }
@@ -3158,6 +3192,8 @@ mod tests {
         assert_eq!(settings.start_page, StartPage::Overview);
         assert_eq!(settings.reduce_motion, ReduceMotion::System);
         assert_eq!(settings.text_size, TextSize::Standard);
+        assert_eq!(settings.motion_speed, MotionSpeed::Normal);
+        assert!(!settings.motion_speed_configured);
         assert!(!settings.accent_configured);
         assert!(!settings.eink_configured);
         assert!(!settings.week_start_configured);
@@ -3209,6 +3245,7 @@ mod tests {
             ("start_page", "achievements", "ui.start_page"),
             ("reduce_motion", "reduce", "ui.reduce_motion"),
             ("text_size", "large", "ui.text_size"),
+            ("motion_speed", "slow", "ui.motion_speed"),
         ] {
             save_ui_preference(&store, key, value).expect("save");
             assert_eq!(
@@ -3249,6 +3286,8 @@ mod tests {
             ("reduce_motion", ""),
             ("text_size", "small"),
             ("text_size", "125"),
+            ("motion_speed", "medium"),
+            ("motion_speed", "400"),
         ] {
             assert_eq!(
                 save_ui_preference(&store, key, value),
@@ -3263,6 +3302,7 @@ mod tests {
             "ui.start_page",
             "ui.reduce_motion",
             "ui.text_size",
+            "ui.motion_speed",
             "theme",
         ] {
             assert_eq!(

@@ -740,7 +740,7 @@ describe("Toast", () => {
     const rules = parseRules(allCss()["HeaderControls.css"]).rules.filter((rule) => rule.atRules.length === 0);
     const rule = (selector: string) => rules.find((r) => r.selectors.includes(selector))?.declarations ?? {};
     expect(rule(".toast").animation).toMatch(/^toast-in /);
-    expect(rule(".toast.is-leaving").animation).toMatch(/^toast-out 200ms /);
+    expect(rule(".toast.is-leaving").animation).toMatch(/^toast-out calc\(200ms \* var\(--motion-scale\)\) /);
     expect(rule(".toast")["background-color"]).toContain("var(--toast-surface)");
     expect(rule(".toast")["background-color"]).not.toContain("--glass-solid");
   });

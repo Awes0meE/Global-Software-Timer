@@ -10,6 +10,24 @@ import { flushSync } from "react-dom";
 export const MOTION_EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
 export const MOTION_EASE_IN = "cubic-bezier(0.4, 0, 1, 1)";
 
+const MOTION_SCALES = { fast: 0.6, normal: 1, slow: 1.5 } as const;
+
+/**
+ * 动画速度 (v0.4.8): `data-speed` on <html>, which sets `--motion-scale` for the stylesheet's
+ * swaps and entrances; the animations drawn here read it too. 中 (normal) leaves the attribute off.
+ */
+export function applyMotionSpeed(speed: keyof typeof MOTION_SCALES): void {
+  const root = document.documentElement;
+  if (speed === "normal") delete root.dataset.speed;
+  else root.dataset.speed = speed;
+}
+
+/** The 动画速度 factor on durations: 快 0.6, 中 1, 慢 1.5. */
+export function motionScale(): number {
+  const speed = document.documentElement.dataset.speed;
+  return speed === "fast" || speed === "slow" ? MOTION_SCALES[speed] : 1;
+}
+
 export function motionReduced(): boolean {
   if (typeof document === "undefined") return true;
   if (document.documentElement.dataset.motion === "reduced") return true;
@@ -23,7 +41,11 @@ function canAnimate(element: Element | null | undefined): element is HTMLElement
 export type SwapKind = "page" | "forward" | "back" | "fade";
 
 type TransitionDocument = Document & {
-  startViewTransition?: (update: () => void) => { ready: Promise<void>; finished: Promise<void> };
+  startViewTransition?: (update: () => void) => {
+    ready: Promise<void>;
+    finished: Promise<void>;
+    skipTransition?: () => void;
+  };
 };
 
 /**
@@ -43,8 +65,21 @@ export function runSwap(kind: SwapKind, update: () => void): void {
   }
   const root = document.documentElement;
   root.dataset.swap = kind;
-  const transition = doc.startViewTransition(() => flushSync(update));
+  let updated = false;
+  const updateOnce = () => {
+    if (updated) return;
+    updated = true;
+    flushSync(update);
+  };
+  const transition = doc.startViewTransition(updateOnce);
   runningSwap = transition;
+  // The browser runs the update on its next frame; a window that draws no frames (covered, or a hidden
+  // preview pane) would hold the click back, so after a moment the update runs without the transition.
+  window.setTimeout(() => {
+    if (updated) return;
+    updateOnce();
+    transition.skipTransition?.();
+  }, 500);
   // A quick second click skips this transition for the next one: the page is already updated, so the
   // rejection is expected.
   transition.ready.catch(() => {});
@@ -120,13 +155,14 @@ export function playExitGhost(
         if (copies[index]) copies[index].scrollTop = top;
       }
     }
-    const animation = ghost.animate(keyframes, { duration, easing: MOTION_EASE_IN, fill: "forwards" });
+    const scaled = duration * motionScale();
+    const animation = ghost.animate(keyframes, { duration: scaled, easing: MOTION_EASE_IN, fill: "forwards" });
     alsoAnimate?.(ghost);
     const remove = () => ghost.remove();
     animation.addEventListener("finish", remove);
     animation.addEventListener("cancel", remove);
     // A hidden window draws no frames, so the animation may never finish: the copy goes anyway.
-    window.setTimeout(remove, duration + 200);
+    window.setTimeout(remove, scaled + 200);
   });
 }
 
@@ -144,7 +180,7 @@ export function useDialogExit(dialogRef: RefObject<HTMLElement | null>): void {
       const index = Array.from(backdrop.children).indexOf(dialog);
       playExitGhost(backdrop, parent, [{ opacity: 1 }, { opacity: 0 }], 200, (ghost) => {
         ghost.children[index]?.animate([{ transform: "none" }, { transform: "translateY(6px) scale(0.97)" }], {
-          duration: 200,
+          duration: 200 * motionScale(),
           easing: MOTION_EASE_IN,
           fill: "forwards",
         });
@@ -227,7 +263,7 @@ export function useSelectionGlide(
         },
         { transform: "none", width: `${to.width}px`, height: `${to.height}px` },
       ],
-      { duration: 340, easing: MOTION_EASE },
+      { duration: 340 * motionScale(), easing: MOTION_EASE },
     );
     const handOver = () => {
       puck.remove();

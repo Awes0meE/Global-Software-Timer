@@ -6,5 +6,4 @@ if (params.has("poster")) {
   void import("./poster-route").then(({ mountPosterRoute }) => mountPosterRoute(params));
 } else {
   void import("../../src/main");
-  void import("./motion-switch").then(({ mountMotionSwitch }) => mountMotionSwitch(params));
 }
