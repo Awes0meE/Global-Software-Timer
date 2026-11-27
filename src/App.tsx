@@ -43,7 +43,7 @@ import { TodayReadout } from "./components/TodayReadout";
 import { UnavailableTooltip, unavailableTooltipMessage } from "./components/UnavailableTooltip";
 import type { StatisticsScope } from "./exports";
 import { applyAppearance, readCachedAppearance, startAccentWatch } from "./appearance";
-import { startTransparencyWatch } from "./glass";
+import { applyWindowBackdrop, startTransparencyWatch } from "./glass";
 import { pageExport, type ExportActionId } from "./pageExports";
 import { cacheStartPage, readCachedStartPage } from "./startPage";
 import { applyThemePreference, paintedTheme, readCachedThemePreference } from "./theme";
@@ -364,6 +364,7 @@ export default function App() {
   );
   useEffect(() => cacheStartPage(ui.start_page), [ui.start_page]);
   useEffect(() => startTransparencyWatch(), []);
+  useEffect(() => applyWindowBackdrop(), []);
   useEffect(() => startAccentWatch(), []);
   // The start page's lazy chunk starts loading at once.
   const startPageRef = useRef(activePage);

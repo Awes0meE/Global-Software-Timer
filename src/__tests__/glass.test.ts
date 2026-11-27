@@ -6,7 +6,7 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: mockInvoke,
 }));
 
-import { applyGlass, startTransparencyWatch } from "../glass";
+import { applyGlass, applyWindowBackdrop, startTransparencyWatch } from "../glass";
 
 const root = document.documentElement;
 
@@ -135,5 +135,29 @@ describe("startTransparencyWatch", () => {
     await settle();
     expect(root.hasAttribute("data-glass")).toBe(false);
     stop();
+  });
+});
+
+describe("applyWindowBackdrop", () => {
+  afterEach(() => {
+    delete root.dataset.backdrop;
+  });
+
+  it("marks the page when Mica is behind the window", async () => {
+    mockInvoke.mockResolvedValueOnce("mica");
+    applyWindowBackdrop();
+    await settle();
+    expect(mockInvoke).toHaveBeenCalledWith("get_window_backdrop");
+    expect(root.dataset.backdrop).toBe("mica");
+  });
+
+  it("keeps the opaque page for anything else", async () => {
+    applyWindowBackdrop(() => Promise.resolve("none"));
+    applyWindowBackdrop(() => Promise.reject(new Error("no backend")));
+    applyWindowBackdrop(() => {
+      throw new Error("outside Tauri");
+    });
+    await settle();
+    expect(root.hasAttribute("data-backdrop")).toBe(false);
   });
 });

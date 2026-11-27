@@ -96,6 +96,7 @@ pub fn run() {
                 if let Err(error) = window_icon::apply(&window) {
                     eprintln!("could not set the taskbar icon: {error}");
                 }
+                appearance::apply_window_backdrop(&window);
             }
             let app_data_dir = app
                 .path()
@@ -176,6 +177,7 @@ pub fn run() {
             commands::remove_hidden_software_identity,
             commands::get_app_settings,
             commands::get_transparency_effects_enabled,
+            commands::get_window_backdrop,
             commands::get_windows_accent,
             commands::get_close_behavior_preference,
             commands::set_autostart_preference,

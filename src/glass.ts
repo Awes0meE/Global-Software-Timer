@@ -1,4 +1,4 @@
-import { getTransparencyEffectsEnabled } from "./api";
+import { getTransparencyEffectsEnabled, getWindowBackdrop } from "./api";
 
 /** Opaque panels when Windows transparency effects are off; glass otherwise. */
 export function applyGlass(enabled: boolean): void {
@@ -45,4 +45,24 @@ export function startTransparencyWatch(
     latest += 1;
     document.removeEventListener("visibilitychange", check);
   };
+}
+
+/**
+ * Marks the page when the window has the Windows 11 Mica material behind it
+ * (`data-backdrop="mica"`), so the page background lets it show through.
+ * Anything but `"mica"` (Windows 10, an error, the browser preview) keeps the opaque page.
+ */
+export function applyWindowBackdrop(read: () => Promise<unknown> = getWindowBackdrop): void {
+  let pending: Promise<unknown>;
+  try {
+    pending = Promise.resolve(read());
+  } catch {
+    return;
+  }
+  pending.then(
+    (value) => {
+      if (value === "mica") document.documentElement.dataset.backdrop = "mica";
+    },
+    () => {},
+  );
 }

@@ -563,6 +563,24 @@
   }
 }
 
+/* Real Mica (v0.4.8, Windows 11): the window has the Mica material behind it and the page base lets
+   --mica-base-alpha of it through; the glow and the glass panels sit on top as before. Transparency
+   effects off or reduced transparency keep the opaque base. */
+:root {
+  --mica-base-alpha: 55%;
+  --page-base: var(--base);
+}
+
+:root[data-backdrop="mica"]:not([data-glass="off"]) {
+  --page-base: color-mix(in srgb, var(--base) var(--mica-base-alpha), transparent);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-backdrop="mica"] {
+    --page-base: var(--base);
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -575,7 +593,7 @@ body,
 }
 
 body {
-  background: var(--glow), var(--base);
+  background: var(--glow), var(--page-base);
   color: var(--ink);
   font: 14px/1.5 var(--font-ui);
   font-variant-numeric: tabular-nums;

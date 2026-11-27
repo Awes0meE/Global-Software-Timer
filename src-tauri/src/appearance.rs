@@ -42,6 +42,69 @@ fn read_enable_transparency() -> Option<u32> {
     None
 }
 
+/// The first Windows build with Mica (Windows 11 21H2). Older builds keep the
+/// opaque window they always had.
+pub const MICA_MIN_BUILD: u32 = 22000;
+
+static MICA_APPLIED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+pub fn mica_supported_on(build: Option<u32>) -> bool {
+    build.is_some_and(|build| build >= MICA_MIN_BUILD)
+}
+
+/// Puts the Windows 11 Mica material behind the main window and clears the
+/// window and webview backgrounds so it shows through. The page then decides
+/// how much of it to let through (`get_window_backdrop`). Windows 10 and any
+/// failure leave the window as it was. Runs once, at startup.
+#[cfg(target_os = "windows")]
+pub fn apply_window_backdrop<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
+    use tauri::window::{Color, Effect, EffectsBuilder};
+
+    let applied = mica_supported_on(read_windows_build())
+        && window
+            .set_effects(EffectsBuilder::new().effect(Effect::Mica).build())
+            .is_ok()
+        && window.set_background_color(Some(Color(0, 0, 0, 0))).is_ok();
+    let _ = MICA_APPLIED.set(applied);
+}
+
+/// `"mica"` when Mica is behind the window, `"none"` otherwise.
+pub fn window_backdrop() -> &'static str {
+    if MICA_APPLIED.get().copied().unwrap_or(false) {
+        "mica"
+    } else {
+        "none"
+    }
+}
+
+/// `HKLM\...\Windows NT\CurrentVersion\CurrentBuildNumber`, read-only.
+#[cfg(target_os = "windows")]
+fn read_windows_build() -> Option<u32> {
+    use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+    use windows_sys::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ};
+
+    let subkey = wide(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+    let value_name = wide("CurrentBuildNumber");
+    let mut buffer = [0u16; 32];
+    let mut size = std::mem::size_of_val(&buffer) as u32;
+    let status = unsafe {
+        RegGetValueW(
+            HKEY_LOCAL_MACHINE,
+            subkey.as_ptr(),
+            value_name.as_ptr(),
+            RRF_RT_REG_SZ,
+            std::ptr::null_mut(),
+            buffer.as_mut_ptr().cast(),
+            &mut size,
+        )
+    };
+    if status != ERROR_SUCCESS {
+        return None;
+    }
+    let len = buffer.iter().position(|&unit| unit == 0).unwrap_or(buffer.len());
+    String::from_utf16(&buffer[..len]).ok()?.trim().parse().ok()
+}
+
 /// The Windows accent as one `#rrggbb` colour per app theme. The frontend still
 /// clamps both for contrast before using them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -156,6 +219,19 @@ mod tests {
     #[test]
     fn missing_or_unreadable_value_counts_as_on() {
         assert!(transparency_from_dword(None));
+    }
+
+    #[test]
+    fn mica_needs_windows_11() {
+        assert!(!mica_supported_on(None));
+        assert!(!mica_supported_on(Some(19045)));
+        assert!(mica_supported_on(Some(22000)));
+        assert!(mica_supported_on(Some(26100)));
+    }
+
+    #[test]
+    fn backdrop_is_none_until_applied() {
+        assert_eq!(window_backdrop(), "none");
     }
 
     #[test]

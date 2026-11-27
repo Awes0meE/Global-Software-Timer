@@ -798,6 +798,12 @@ pub fn get_transparency_effects_enabled() -> bool {
     crate::appearance::transparency_effects_enabled()
 }
 
+/// Read-only: `"mica"` when the Windows 11 Mica material is behind the window, else `"none"`.
+#[tauri::command]
+pub fn get_window_backdrop() -> &'static str {
+    crate::appearance::window_backdrop()
+}
+
 /// Read-only: the Windows accent for each app theme, or null. Not stored.
 #[tauri::command(async)]
 pub fn get_windows_accent() -> Option<crate::appearance::WindowsAccent> {

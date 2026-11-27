@@ -386,6 +386,11 @@ export async function getTransparencyEffectsEnabled(): Promise<boolean> {
   return invoke<boolean>("get_transparency_effects_enabled");
 }
 
+/** Read-only: `"mica"` when the Windows 11 Mica material is behind the window, else `"none"`. */
+export async function getWindowBackdrop(): Promise<string> {
+  return invoke<string>("get_window_backdrop");
+}
+
 /** The Windows accent as `#rrggbb` per app theme (light AccentDark1, dark AccentLight2). */
 export interface WindowsAccent {
   light: string;
