@@ -504,11 +504,17 @@ describe("AchievementsPage", () => {
     expect(hover).toContain("var(--plate-hover-ring)");
     expect(hover).toContain("var(--plate-hover-glow)");
     expect(hover).not.toContain("--accent");
+    expect(rule(".ach-plate.is-reached:has(.ach-plate-open:hover)")["background-color"]).toBe("var(--plate-hover-fill)");
     const tokens = parseRules(allCss()["styles.css"]).rules;
     const token = (selector: string) =>
       tokens.find((r) => r.atRules.length === 0 && r.selectors.includes(selector) && "--plate-hover-ring" in r.declarations)
         ?.declarations["--plate-hover-ring"];
     expect(token(':root[data-theme="light"]')).toBe("#ffffff");
+    // Light: a white plate with a grey halo, since a white halo vanishes into the light glass.
+    const lightGlow = tokens.find(
+      (r) => r.atRules.length === 0 && r.selectors.includes(':root[data-theme="light"]') && "--plate-hover-glow" in r.declarations,
+    )?.declarations["--plate-hover-glow"];
+    expect(lightGlow).toContain("rgba(20, 30, 60");
     expect(token(':root[data-theme="dark"]')).toMatch(/^rgba\(255, 255, 255,/);
     expect(rules.find((rule) => rule.selectors.includes(".ach-plate-open"))?.declarations.cursor).toBe("pointer");
   });

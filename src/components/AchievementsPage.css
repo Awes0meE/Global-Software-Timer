@@ -493,9 +493,9 @@
 }
 
 /* A lit plate is one key (v0.4.7): a clear button over the whole plate opens its software list. Under the
-   pointer its edge lights up white (v0.4.8, was the accent) with a soft white halo; keyboard focus draws the
-   focus ring. Unlit plates stay inert. The --plate-hover-* tokens live in the theme blocks of styles.css: on
-   the light theme a white halo alone vanishes into the glass, so a faint shade under the plate lifts it. */
+   pointer its edge lights up white (v0.4.8, was the accent) with a soft halo, white on the dark theme and grey
+   around a white plate on the light theme, where a white halo would vanish into the glass; keyboard focus
+   draws the focus ring. Unlit plates stay inert. The --plate-* tokens live in the theme blocks of styles.css. */
 
 .ach-plate-open {
   position: absolute;
@@ -512,10 +512,10 @@
 }
 
 .ach-plate.is-reached:has(.ach-plate-open:hover) {
+  background-color: var(--plate-hover-fill);
   box-shadow:
     inset 0 0 0 1px var(--plate-hover-ring),
-    var(--plate-hover-glow),
-    var(--plate-hover-lift);
+    var(--plate-hover-glow);
 }
 
 .ach-plate.is-reached:has(.ach-plate-open:focus-visible) {
@@ -523,7 +523,7 @@
 }
 
 .ach-plate.is-reached:has(.ach-plate-open:active) {
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: var(--plate-press-fill);
 }
 
 /* The light --edge vanishes on glass, so unlit plates use a dashed --edge-strong line (trade-off 7). It is an
@@ -545,8 +545,7 @@
 .ach-plate.is-reached.is-ultimate:has(.ach-plate-open:hover) {
   box-shadow:
     inset 0 0 0 1.5px var(--accent),
-    var(--plate-hover-glow),
-    var(--plate-hover-lift);
+    var(--plate-hover-glow);
 }
 
 .ach-plate-tier {
