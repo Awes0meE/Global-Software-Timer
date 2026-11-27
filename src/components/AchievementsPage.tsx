@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useContentMotion, useSelectionGlide } from "../motion";
 import {
   getAchievementsSummary,
   type AchievementsSummary,
@@ -28,6 +29,10 @@ export function AchievementsPage({ durationFormat = "decimal_hours", onIncludeHi
   const [includeHidden, setIncludeHidden] = useState(false);
   const [summary, setSummary] = useState<AchievementsSummary | null>(null);
   const [fetchError, setFetchError] = useState(false);
+  const pageRef = useRef<HTMLElement>(null);
+  useContentMotion(pageRef, summary ? `achievements|${summary.heatmap.length}` : null);
+  const rangeRef = useRef<HTMLDivElement>(null);
+  useSelectionGlide(rangeRef, ".segmented-option.is-selected", summary ? heatmapDays : null);
 
   useEffect(() => {
     onIncludeHiddenChange?.(includeHidden);
@@ -57,7 +62,7 @@ export function AchievementsPage({ durationFormat = "decimal_hours", onIncludeHi
 
   if (!summary) {
     return (
-      <main className="achievements-page" id="achievements-content">
+      <main className="achievements-page" id="achievements-content" ref={pageRef}>
         {fetchError ? (
           <div className="warning" role="alert">无法读取成就</div>
         ) : (
@@ -70,14 +75,14 @@ export function AchievementsPage({ durationFormat = "decimal_hours", onIncludeHi
   const start = summary.heatmap[0]?.date ?? summary.today;
 
   return (
-    <main className="achievements-page" id="achievements-content">
+    <main className="achievements-page" id="achievements-content" ref={pageRef}>
       {fetchError ? <div className="warning" role="alert">无法读取成就</div> : null}
 
       <section className="readout ach-readout" aria-labelledby="ach-heatmap-title">
         <div className="ach-readout-head">
           <h2 id="ach-heatmap-title">活跃热力图</h2>
           <span className="panel-count">{start} 至 {summary.today}</span>
-          <div className="segmented" role="radiogroup" aria-label="热力图范围">
+          <div className="segmented" role="radiogroup" aria-label="热力图范围" ref={rangeRef}>
             {HEATMAP_OPTIONS.map((days) => (
               <button
                 key={days}

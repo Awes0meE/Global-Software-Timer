@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useContentMotion } from "../motion";
 import {
   addFocusedSoftwareIdentities,
   addHiddenSoftwareIdentities,
@@ -38,6 +39,8 @@ export function SoftwarePage({
   const [focusedEditing, setFocusedEditing] = useState(false);
   const [hiddenEditing, setHiddenEditing] = useState(false);
   const [addTarget, setAddTarget] = useState<AddTarget | null>(null);
+  const pageRef = useRef<HTMLElement>(null);
+  useContentMotion(pageRef, "software");
   const mountedRef = useRef(false);
   const requestRef = useRef(0);
   const addOpenerRef = useRef<HTMLButtonElement | null>(null);
@@ -136,7 +139,7 @@ export function SoftwarePage({
   };
 
   return (
-    <main className="software-page" id="software-content">
+    <main className="software-page" id="software-content" ref={pageRef}>
       {fetchError ? <div className="warning">无法读取软件列表</div> : null}
       {removeError ? <div className="warning">移出软件失败</div> : null}
 

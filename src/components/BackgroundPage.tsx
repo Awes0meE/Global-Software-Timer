@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useContentMotion } from "../motion";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react";
 import {
   getBackgroundPageSummary,
@@ -123,6 +124,8 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
   const summaryIsForView = summary !== null && answersDay(summary, date ?? null);
   const shownSummary = summaryIsForView || !fetchError ? summary : null;
   const summaryIsStale = shownSummary !== null && !summaryIsForView;
+  const pageRef = useRef<HTMLElement>(null);
+  useContentMotion(pageRef, shownSummary?.usage_date ?? null, shownSummary?.usage_date);
   // The wording and columns follow the rows on screen, so they always name the same day.
   const pastDay = shownSummary?.is_today === false;
   // A past day hides 当前 CPU and 状态; sorting by either falls back to the default.
@@ -174,7 +177,7 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
 
   if (!shownSummary) {
     return (
-      <main className="background-page" id="background-content">
+      <main className="background-page" id="background-content" ref={pageRef}>
         {fetchError ? <div className="warning" role="alert">无法读取后台进程</div>
           : <p role="status" className="empty-state">正在读取后台进程…</p>}
       </main>
@@ -183,6 +186,7 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
 
   return (
     <main
+      ref={pageRef}
       className={`background-page${summaryIsStale ? " is-stale" : ""}`}
       id="background-content"
       aria-busy={summaryIsStale || undefined}

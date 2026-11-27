@@ -1,5 +1,6 @@
 import { CalendarDays } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useContentMotion, useSelectionGlide } from "../motion";
 import { getStatisticsSummary, type DurationFormat, type StatisticsSummary } from "../api";
 import type { StatisticsScope } from "../exports";
 import {
@@ -56,6 +57,11 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
   const pending = summary !== null && loadedKey !== requestKey;
   // If the new selection cannot be read, the earlier numbers would pass for it: drop them.
   const shown = pending && fetchError ? null : summary;
+  const pageRef = useRef<HTMLElement>(null);
+  const shownKey = shown ? loadedKey : null;
+  useContentMotion(pageRef, shownKey, shownKey?.split("|")[0]);
+  const presetRef = useRef<HTMLDivElement>(null);
+  useSelectionGlide(presetRef, ".segmented-option.is-selected", preset);
 
   const refresh = useCallback(async () => {
     const request = ++latestRequestRef.current;
@@ -103,9 +109,9 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
   };
 
   return (
-    <main className="stats-page" id="statistics-content">
+    <main className="stats-page" id="statistics-content" ref={pageRef}>
       <div className="stats-range">
-        <div className="segmented" role="radiogroup" aria-label="统计区间">
+        <div className="segmented" role="radiogroup" aria-label="统计区间" ref={presetRef}>
           {PRESETS.map((option) => (
             <button
               key={option}

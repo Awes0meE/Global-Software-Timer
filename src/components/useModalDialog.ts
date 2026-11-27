@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
+import { useDialogExit } from "../motion";
 
 /** The dialog's Tab stops: enabled buttons and anything given tabIndex 0 (the 成就海报 list). */
 const TAB_STOPS = 'button:not(:disabled), [tabindex="0"]';
@@ -30,6 +31,8 @@ export function useModalDialog(dialogRef: RefObject<HTMLElement | null>, { onCan
   const initialFocusRef = useRef(initialFocus);
   initialFocusRef.current = initialFocus;
 
+  useDialogExit(dialogRef);
+
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialog = dialogRef.current;
@@ -51,7 +54,7 @@ export function useModalDialog(dialogRef: RefObject<HTMLElement | null>, { onCan
       );
     // The top dialog is the last backdrop in the document; a dialog under another one handles nothing.
     const covered = () => {
-      const backdrops = document.querySelectorAll(".modal-backdrop");
+      const backdrops = document.querySelectorAll(".modal-backdrop:not([data-exit-ghost])");
       return backdrops[backdrops.length - 1] !== backdrop;
     };
     const focusInside = (last = false) => {

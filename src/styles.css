@@ -709,6 +709,9 @@ p {
 }
 
 .side-nav {
+  /* The current page's raised key glides between keys (v0.4.8, motion.ts useSelectionGlide). */
+  position: relative;
+  isolation: isolate;
   display: grid;
   gap: 9px;
   margin-top: 16px;
@@ -2219,7 +2222,7 @@ mark {
   padding: 24px;
   background: color-mix(in srgb, var(--base) 55%, var(--modal-scrim));
   backdrop-filter: blur(2px);
-  animation: backdrop-in 180ms var(--ease);
+  animation: backdrop-in 220ms var(--ease);
 }
 
 .dialog,
@@ -2229,7 +2232,7 @@ mark {
   box-shadow:
     0 0 0 1px var(--edge-strong),
     0 24px 60px -16px rgba(0, 0, 0, 0.5);
-  animation: dialog-in 220ms var(--ease);
+  animation: dialog-in 320ms var(--ease);
 }
 
 .close-dialog {
@@ -2362,8 +2365,14 @@ mark {
 @keyframes dialog-in {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.985);
+    transform: translateY(12px) scale(0.96);
   }
+}
+
+/* v0.4.8: a leaving dialog or popover is a copy (motion.ts) that plays only its exit. */
+[data-exit-ghost],
+[data-exit-ghost] * {
+  animation: none !important;
 }
 
 /* ---------- Settings ---------- */
@@ -2581,6 +2590,8 @@ mark {
 }
 
 .segmented {
+  position: relative;
+  isolation: isolate;
   display: inline-flex;
   gap: 2px;
   padding: 3px;

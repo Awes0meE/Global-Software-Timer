@@ -44,6 +44,7 @@ import { UnavailableTooltip, unavailableTooltipMessage } from "./components/Unav
 import type { StatisticsScope } from "./exports";
 import { applyAppearance, readCachedAppearance, startAccentWatch } from "./appearance";
 import { startTransparencyWatch } from "./glass";
+import { useContentMotion, useSelectionGlide } from "./motion";
 import { pageExport, type ExportActionId } from "./pageExports";
 import { cacheStartPage, readCachedStartPage } from "./startPage";
 import { applyThemePreference, paintedTheme, readCachedThemePreference } from "./theme";
@@ -652,6 +653,10 @@ export default function App() {
   const summaryIsStale = shownSummary !== null && !summaryIsForView;
   // The wording follows the summary on screen, so labels and figures always name the same day.
   const shownPastDay = shownSummary?.is_today === false;
+  const overviewRef = useRef<HTMLElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  useSelectionGlide(navRef, ".nav-key.is-active", activePage);
+  useContentMotion(overviewRef, activePage === "overview" && shownSummary ? shownSummary.usage_date : null, shownSummary?.usage_date);
   const exports = useExportActions({
     context: { viewedDate, today, statistics: statisticsScope },
     beforeSettingsImport: settleSettingsWrites,
@@ -728,7 +733,7 @@ export default function App() {
               </div>
             </div>
 
-            <nav className="side-nav" aria-label="主导航">
+            <nav className="side-nav" aria-label="主导航" ref={navRef}>
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = item.id === activePage;
@@ -874,6 +879,7 @@ export default function App() {
               </Suspense>
             ) : (
               <main
+                ref={overviewRef}
                 className={`overview-page${summaryIsStale ? " is-stale" : ""}`}
                 id="overview-content"
                 aria-busy={summaryIsStale || undefined}

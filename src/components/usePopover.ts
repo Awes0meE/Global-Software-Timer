@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { playExitGhost } from "../motion";
 
 interface Popover {
   open: boolean;
@@ -25,6 +26,23 @@ export function usePopover(): Popover {
     triggerRef.current?.focus();
   }, []);
   const toggle = useCallback(() => setOpen((current) => !current), []);
+
+  // v0.4.8: the popover fades back towards its trigger instead of vanishing.
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const root = rootRef.current;
+    const popover = root?.querySelector<HTMLElement>(":scope > .glass-pop") ?? null;
+    return () =>
+      void playExitGhost(
+        popover,
+        root,
+        [
+          { opacity: 1, transform: "none" },
+          { opacity: 0, transform: "translateY(-4px) scale(0.98)" },
+        ],
+        140,
+      );
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;

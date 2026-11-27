@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { useContentMotion, useSelectionGlide } from "../motion";
 import {
   AArrowUp,
   ArchiveRestore,
@@ -138,6 +139,8 @@ export function SettingsPage({
   const recordedDays = dataStartDate === null ? null : daysBetween(dataStartDate, today) + 1;
   // Read each time the page opens; the readout shows — until the size is in or when it cannot be read.
   const [dataBytes, setDataBytes] = useState<number | null>(null);
+  const pageRef = useRef<HTMLElement>(null);
+  useContentMotion(pageRef, "settings");
   useEffect(() => {
     let current = true;
     getDataSize()
@@ -152,7 +155,7 @@ export function SettingsPage({
   const size = dataBytes === null ? null : splitSize(formatFileSize(dataBytes));
 
   return (
-    <main className="settings-page" id="settings-content">
+    <main className="settings-page" id="settings-content" ref={pageRef}>
       {error ? (
         <div className="warning" role="alert" ref={warning}>
           {error}
@@ -439,8 +442,10 @@ function Segmented<T extends string>({ labelledBy, options, value, disabled, onC
     disabled,
     onChange,
   );
+  const groupRef = useRef<HTMLDivElement>(null);
+  useSelectionGlide(groupRef, ".segmented-option.is-selected", value);
   return (
-    <div className="segmented" role="radiogroup" aria-labelledby={labelledBy} onKeyDown={roving.onKeyDown}>
+    <div className="segmented" role="radiogroup" aria-labelledby={labelledBy} onKeyDown={roving.onKeyDown} ref={groupRef}>
       {options.map((option, index) => (
         <button
           key={option.value}

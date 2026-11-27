@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type { SoftwareMark, SoftwarePageRow } from "../api";
 import { formatLastOpenedAt, highlightDisplayName, rankSoftwareRows } from "../softwareSearch";
+import { useDialogExit } from "../motion";
 import { useWeekStart } from "../weekStart";
 import { SoftwareIcon } from "./SoftwareIcon";
 
@@ -23,6 +24,7 @@ export function AddSoftwareDialog({ rows, target, onClose, onSubmit }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const dialogRef = useRef<HTMLElement>(null);
+  useDialogExit(dialogRef);
   const inputRef = useRef<HTMLInputElement>(null);
   const title = target === "focused" ? "添加特别关注" : "添加隐藏软件";
   const rankedRows = useMemo(() => rankSoftwareRows(rows, query), [rows, query]);
