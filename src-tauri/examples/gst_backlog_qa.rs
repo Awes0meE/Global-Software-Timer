@@ -18,6 +18,8 @@ const CHECK_RENDER: &str = r##"
 
   // Two frames, or a failure naming the step: a page that stops rendering must not hang the check.
   const steps = [];
+  window.__qaSteps = steps;
+  steps.push("script " + Math.round(performance.now()));
   function twoFrames(step) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("No frame for 5 s after " + step + "; steps: " + steps.join(", "))), 5000);
@@ -61,6 +63,19 @@ const CHECK_RENDER: &str = r##"
     await report(false, String(error));
   }
 })();
+"##;
+
+const LATE_REPORT: &str = r##"
+window.__TAURI_INTERNALS__.invoke("qa_report", { success: false, message: "late: " + JSON.stringify({
+  steps: window.__qaSteps || null,
+  visibility: document.visibilityState,
+  swap: document.documentElement.dataset.swap || null,
+  now: Math.round(performance.now()),
+  page: document.querySelector(".page-header h2")?.textContent || null,
+  usageRows: document.querySelectorAll(".usage-row").length,
+  discoveredRows: document.querySelectorAll(".discovered-row").length,
+  main: document.querySelector(".workspace > main")?.id || null,
+}) });
 "##;
 
 struct RenderReceipt(PathBuf);
@@ -182,7 +197,17 @@ fn run_window(db: &Path, scratch: &Path) {
                     .build()?;
             #[cfg(windows)]
             global_software_timer_lib::window_icon::apply(&window)?;
+            // Before the 30 s limit, ask the page where it is, so a stall reports its last step.
+            let late = window.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(24));
+                println!("Asking the page for its state after 24 s");
+                let _ = late.eval(LATE_REPORT);
+            });
             Ok(())
+        })
+        .on_page_load(|_, payload| {
+            println!("Page load {:?}: {}", payload.event(), payload.url());
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_app_settings,
