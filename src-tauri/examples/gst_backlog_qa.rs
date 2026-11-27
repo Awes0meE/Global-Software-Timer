@@ -13,7 +13,19 @@ const CHECK_RENDER: &str = r##"
       if (element?.getBoundingClientRect().height > 0) return element;
       await new Promise(resolve => setTimeout(resolve, 15));
     }
-    throw new Error("Timed out waiting for " + selector);
+    throw new Error("Timed out waiting for " + selector + "; steps: " + steps.join(", "));
+  }
+
+  // Two frames, or a failure naming the step: a page that stops rendering must not hang the check.
+  const steps = [];
+  function twoFrames(step) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("No frame for 5 s after " + step + "; steps: " + steps.join(", "))), 5000);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        clearTimeout(timer);
+        resolve();
+      }));
+    });
   }
 
   function openPage(label) {
@@ -26,12 +38,14 @@ const CHECK_RENDER: &str = r##"
     window.__TAURI_INTERNALS__.invoke("qa_report", { success, message });
   try {
     await waitFor(".usage-scroll .usage-row");
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    steps.push("overview rows " + Math.round(performance.now()));
+    await twoFrames("the overview rows");
     const overviewPaint = Math.round(performance.now());
     const start = performance.now();
     openPage("软件");
     await waitFor(".discovered-row");
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    steps.push("software rows " + Math.round(performance.now()));
+    await twoFrames("the software rows");
     const elapsed = Math.round(performance.now() - start);
 
     openPage("设置");
