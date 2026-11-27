@@ -47,7 +47,7 @@ Global Software Timer (GST) is a free, open-source tray app for Windows 10 and 1
 - **Personal touches**: 8 accent colours (including the Windows accent), 5 e-ink palettes, light and dark themes, week start, start page, a larger text size, reduced motion, decimal hours (`8.3小时`) or hours and minutes.
 - **Keyboard shortcuts**: `Ctrl+1` to `Ctrl+6` switch pages, `Ctrl+,` opens Settings, `Ctrl+←` / `Ctrl+→` step through days.
 - **Updates on request**: Settings → 关于与反馈 (About and feedback) → 检查更新… (Check for updates). GST asks before it goes online, every time. When a newer release exists, one click backs up your data, downloads the new version, verifies its signature, installs it and restarts. Releases up to v0.4.5 have no update check: install v0.4.6 by hand once.
-- **Small**: built with Tauri on the WebView2 that Windows already has; the installer is about 6 MB.
+- **Small**: built with Tauri on the WebView2 that Windows already has; the installer is about 8 MB.
 
 ## Privacy
 
