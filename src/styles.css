@@ -21,6 +21,15 @@
   font-display: swap;
 }
 
+/* Numbers: Oxanium (Latin, variable wght 200–800). Its digits are tabular by default; CJK units such as 小时 fall back
+   to Noto Sans SC. */
+@font-face {
+  font-family: "GST Num";
+  src: url("./assets/fonts/oxanium/Oxanium-Variable.woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+}
+
 @font-face {
   font-family: "GST Noto Sans SC";
   src: url("./assets/fonts/poster/NotoSansSC-VF-gb2312.woff2") format("woff2");
@@ -53,7 +62,7 @@
   --mix-7: #7b8594;
   --focus: 0 0 0 2px var(--glass-solid), 0 0 0 4px var(--accent);
   --font-ui: "GST Inter", "GST Noto Sans SC", "Microsoft YaHei UI", sans-serif;
-  --font-num: "GST Inter", "Segoe UI", sans-serif;
+  --font-num: "GST Num", "GST Noto Sans SC", "Microsoft YaHei UI", sans-serif;
   --font-pixel: "GST Pixel", "Microsoft YaHei UI", monospace;
   --type-small: 13px;
   --type-label: 12px;
@@ -632,6 +641,11 @@ p {
   scrollbar-color: var(--edge-strong) transparent;
 }
 
+/* Numbers read at 500; :where keeps b / strong numbers at their 600. */
+:where(.num) {
+  font-weight: 500;
+}
+
 .num {
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
@@ -1183,7 +1197,7 @@ p {
 
 .panel-count {
   color: var(--muted);
-  font: 12px var(--font-num);
+  font: 500 12px var(--font-num);
 }
 
 .panel-head .panel-count:last-child {
@@ -1953,6 +1967,7 @@ main > p[role="status"] {
 .focused-table-row > span:not(.software-remove-slot):not(.active-column-head) {
   white-space: nowrap;
   font-family: var(--font-num);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -2119,7 +2134,7 @@ mark {
 .discovered-last-opened,
 .add-software-last-opened {
   color: var(--muted);
-  font: var(--type-small) var(--font-num);
+  font: 500 var(--type-small) var(--font-num);
   text-align: right;
   white-space: nowrap;
 }
@@ -3548,6 +3563,7 @@ mark {
 
 .background-table td:nth-child(n+2):nth-child(-n+6) {
   font-family: var(--font-num);
+  font-weight: 500;
   font-size: var(--type-table-number);
 }
 

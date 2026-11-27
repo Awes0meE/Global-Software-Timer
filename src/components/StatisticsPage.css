@@ -296,6 +296,7 @@
 .scale {
   fill: var(--eink-dim);
   font-size: 12px;
+  font-weight: 500;
 }
 
 .day {
@@ -365,6 +366,7 @@
 .trace-label {
   fill: var(--eink-dim);
   font-size: 12px;
+  font-weight: 500;
 }
 
 .pen {

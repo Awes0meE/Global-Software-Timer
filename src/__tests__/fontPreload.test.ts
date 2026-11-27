@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import indexHtml from "../../index.html?raw";
+import { allCss } from "./support/css";
 
 // N16: the LCD pixel font uses font-display: swap, so it must be preloaded from
 // index.html (fetched in parallel with the JS bundle) to avoid a visible
@@ -21,5 +22,21 @@ describe("GST Pixel font preload", () => {
     expect(preload?.getAttribute("type")).toBe("font/woff2");
     // Fonts are fetched in CORS mode; without crossorigin the preload is not reused.
     expect(preload?.hasAttribute("crossorigin")).toBe(true);
+  });
+});
+
+describe("bundled font preloads", () => {
+  it("preloads every font file the app stylesheet declares", () => {
+    const declared = Array.from(
+      allCss()["styles.css"].matchAll(/url\("\.\/(assets\/fonts\/[^"]+\.woff2)"\)/g),
+      (match) => `/src/${match[1]}`,
+    );
+    const preloaded = Array.from(
+      parseHead().querySelectorAll<HTMLLinkElement>('link[rel="preload"][as="font"]'),
+      (link) => link.getAttribute("href"),
+    );
+
+    expect(declared).toContain("/src/assets/fonts/oxanium/Oxanium-Variable.woff2");
+    expect(preloaded.sort()).toEqual(declared.sort());
   });
 });

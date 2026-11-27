@@ -7,6 +7,7 @@
 - `设置` → `显示` has `动画速度`: `快`, `中` (the default) or `慢`. It times the page, day and range swaps, the gliding keys and the dialog, menu and notice animations (0.6×, 1× or 1.5×). It is greyed out while `减少动画` is on or Windows has animation effects off, either of which still turns all of them off. Settings files carry it, and older files import as before.
 - On `成就`, a lit milestone plate under the pointer now rises instead of glowing in the accent colour. On the light theme it turns white with a soft grey halo and a shadow below; on the dark theme it lightens a step, its edge turns a quiet grey and a pale grey glow falls below it, the light counterpart of the light theme's shadow. The `终极成就` plate keeps its accent outline.
 - The icon of `最常用` on the `概览` screen (and the clock on the `设置` screen) is shown in its own colours. It used to be printed half desaturated to look inked on the e-ink screen, which made a colourful icon such as Claude's look washed out.
+- Numbers outside the e-ink screens (durations in the tables, statistics, records, milestones, dates and the version) are set in Oxanium at weight 500 instead of Inter. Oxanium is bundled with the app (17 KB, SIL OFL 1.1, `src/assets/fonts/oxanium/`); units such as `小时` next to them are set in Noto Sans SC like the rest of the interface instead of the system font. The e-ink screens and the posters keep their fonts.
 
 ## v0.4.7 - 2026-11-26
 

@@ -420,7 +420,7 @@
 
 .ach-record-value b {
   color: var(--ink);
-  font: 400 26px/1.05 var(--font-num);
+  font: 500 26px/1.05 var(--font-num);
   font-variant-numeric: tabular-nums;
 }
 
@@ -757,7 +757,7 @@
 }
 
 .ach-coming-count b {
-  font: 400 22px/1 var(--font-num);
+  font: 500 22px/1 var(--font-num);
   font-variant-numeric: tabular-nums;
 }
 
