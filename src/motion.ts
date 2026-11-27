@@ -91,16 +91,27 @@ export function runSwap(kind: SwapKind, update: () => void): void {
   };
   const transition = doc.startViewTransition(updateOnce);
   runningSwap = transition;
-  // The browser runs the update on its next frame; a window that draws no frames (covered, or a hidden
-  // preview pane) would hold the click back, so after a moment the update runs without the transition.
+  // The browser runs the update on its next frame and holds rendering until it has pictured both states; a
+  // window that draws no frames (covered, a hidden preview pane, a session without a display) would hold the
+  // click back and the page with it. So after a moment the update runs anyway, and a transition that has
+  // still not started to animate is skipped, which lets the page render again.
+  let animating = false;
   window.setTimeout(() => {
     if (updated) return;
     updateOnce();
     transition.skipTransition?.();
   }, 500);
+  window.setTimeout(() => {
+    if (!animating) transition.skipTransition?.();
+  }, 1000);
   // A quick second click skips this transition for the next one: the page is already updated, so the
   // rejection is expected.
-  transition.ready.catch(() => {});
+  transition.ready.then(
+    () => {
+      animating = true;
+    },
+    () => {},
+  );
   const settle = () => {
     if (runningSwap !== transition) return;
     runningSwap = null;
@@ -126,12 +137,13 @@ export function useContentSwap(initialKey: string | null = null) {
   return useCallback((key: string, order: string | null, update: () => void, animate = true) => {
     const previous = shown.current;
     shown.current = { key, order };
-    if (!animate || (previous !== null && previous.key === key)) {
+    // A page's first content (after its loading line) and content read while another page shows just go in.
+    if (!animate || previous === null || previous.key === key) {
       update();
       return;
     }
     const kind: SwapKind =
-      previous !== null && previous.order !== null && order !== null && previous.order !== order
+      previous.order !== null && order !== null && previous.order !== order
         ? order > previous.order
           ? "forward"
           : "back"

@@ -79,6 +79,24 @@ describe("runSwap", () => {
     }
   });
 
+  it("skips a transition that has not started to animate a second after it began", () => {
+    vi.useFakeTimers();
+    try {
+      const skip = vi.fn();
+      doc.startViewTransition = (update: () => void) => {
+        update();
+        return { ready: new Promise(() => {}), finished: new Promise(() => {}), skipTransition: skip };
+      };
+      runSwap("page", () => {});
+      vi.advanceTimersByTime(999);
+      expect(skip).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(skip).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("ignores a transition skipped by a quicker next one", async () => {
     const rejected = Promise.reject(new DOMException("skipped", "AbortError"));
     doc.startViewTransition = (update: () => void) => {
@@ -105,14 +123,14 @@ describe("useContentSwap", () => {
       await act(async () => {});
     };
 
-    await read("2026-11-27", "2026-11-27"); // first content: fades in
+    await read("2026-11-27", "2026-11-27"); // first content after the loading line: just goes in
     await read("2026-11-27", "2026-11-27"); // the same day polled again: no swap
     await read("2026-11-26", "2026-11-26"); // an earlier day
     await read("2026-11-27", "2026-11-27"); // a later day
     await read("a|b|true", null); // no order: fades
 
     expect(update).toHaveBeenCalledTimes(5);
-    expect(kinds).toEqual(["fade", "back", "forward", "fade"]);
+    expect(kinds).toEqual(["back", "forward", "fade"]);
   });
 
   it("draws a page's first read into a page swap that still runs", () => {
