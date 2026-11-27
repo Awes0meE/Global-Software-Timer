@@ -3,6 +3,7 @@
 ## Unreleased
 
 - The `成就` heatmap spreads its shades further apart: the faintest used day now starts at 30% ink instead of 20%, and the full ink is reached at 10 hours of active time instead of 12. The legend strip reads `10小时`.
+- On the `设置` screen, `已记录` and `本机数据` are larger (labels 15px, figures 34px, units 17px) and sit in the middle of the screen, level with the clock and the slogan, instead of slightly above it.
 
 ## v0.4.8 - 2026-11-27
 

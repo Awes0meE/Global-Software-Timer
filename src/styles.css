@@ -2492,18 +2492,28 @@ mark {
   padding: 16px 28px;
 }
 
-.settings-lcd .lcd-cell { gap: 12px; }
-.settings-lcd .lcd-label { font-weight: 400; }
+/* Centred on the screen (v0.4.9): no overview padding under the cells, which only levels them with 最常用's note. */
+.settings-readout .lcd-cell:not(.lcd-cell-most) {
+  gap: 10px;
+  padding-bottom: 0;
+}
+
+.settings-lcd .lcd-label {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 15px;
+}
+
 .settings-lcd p {
-  font-size: var(--type-lcd-unit);
-  line-height: 1.25;
+  font-size: 34px;
+  line-height: 1.1;
 }
 
 /* A reading's unit (天, MB) in the interface font beside the pixel figure. */
 .settings-lcd p small {
-  margin-left: 4px;
+  margin-left: 5px;
   color: var(--eink-dim);
-  font: 14px var(--font-ui);
+  font: 17px var(--font-ui);
 }
 
 /* The project's line (v0.4.7) at the screen's right end: the promise one step larger than its details. */
