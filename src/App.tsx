@@ -44,7 +44,7 @@ import { UnavailableTooltip, unavailableTooltipMessage } from "./components/Unav
 import type { StatisticsScope } from "./exports";
 import { applyAppearance, readCachedAppearance, startAccentWatch } from "./appearance";
 import { startTransparencyWatch } from "./glass";
-import { useContentMotion, useSelectionGlide } from "./motion";
+import { runSwap, useContentSwap, useSelectionGlide } from "./motion";
 import { pageExport, type ExportActionId } from "./pageExports";
 import { cacheStartPage, readCachedStartPage } from "./startPage";
 import { applyThemePreference, paintedTheme, readCachedThemePreference } from "./theme";
@@ -224,6 +224,7 @@ export default function App() {
     await Promise.all(Array.from(pendingSettingsWrites.current));
   }, []);
 
+  const swapOverview = useContentSwap();
   const loadDashboard = useCallback(async () => {
     const day = dashboardDayRef.current;
     const isCurrent = () => dashboardMountedRef.current && dashboardDayRef.current === day;
@@ -235,8 +236,10 @@ export default function App() {
         setLiveScan(liveScanOf(nextSummary));
       }
       if (isCurrent() && answersDay(nextSummary, day)) {
-        setSummary(nextSummary);
-        setError(null);
+        swapOverview(nextSummary.usage_date, nextSummary.usage_date, () => {
+          setSummary(nextSummary);
+          setError(null);
+        });
       }
     } catch (reason) {
       if (day === null && dashboardMountedRef.current) {
@@ -252,7 +255,7 @@ export default function App() {
       }
       setError(dashboardLoadError);
     }
-  }, []);
+  }, [swapOverview]);
 
   // On a past day the page is read once, but the lamp still follows today's live scan.
   const loadLiveScan = useCallback(async () => {
@@ -410,13 +413,25 @@ export default function App() {
     return cleanup;
   }, []);
 
+  // The page the latest click or shortcut asked for while its swap has not drawn it yet (v0.4.8), so quick
+  // clicks compare against where the app is going, not where it still is.
+  const pageTargetRef = useRef<PageId | null>(null);
+  const goToPage = (page: PageId) => {
+    if (page === (pageTargetRef.current ?? activePage)) return;
+    pageTargetRef.current = page;
+    runSwap("page", () => {
+      setActivePage(page);
+      if (pageTargetRef.current === page) pageTargetRef.current = null;
+    });
+  };
+
   const handleNavClick = (item: (typeof navItems)[number]) => {
     if (!item.available) {
       return;
     }
 
     userNavigatedRef.current = true;
-    setActivePage(item.id as PageId);
+    goToPage(item.id as PageId);
   };
 
   // Ctrl+1…6 follow the sidebar's available pages, Ctrl+, opens 设置, and Ctrl+← / → step the day where the
@@ -427,7 +442,7 @@ export default function App() {
     if (action.kind === "page" || action.kind === "settings") {
       const page = action.kind === "settings" ? "settings" : shortcutPages[action.index];
       if (!page) return false;
-      setActivePage(page);
+      goToPage(page);
       return true;
     }
     if (!pagesWithDateControl.has(activePage)) return false;
@@ -653,10 +668,8 @@ export default function App() {
   const summaryIsStale = shownSummary !== null && !summaryIsForView;
   // The wording follows the summary on screen, so labels and figures always name the same day.
   const shownPastDay = shownSummary?.is_today === false;
-  const overviewRef = useRef<HTMLElement>(null);
   const navRef = useRef<HTMLElement>(null);
   useSelectionGlide(navRef, ".nav-key.is-active", activePage);
-  useContentMotion(overviewRef, activePage === "overview" && shownSummary ? shownSummary.usage_date : null, shownSummary?.usage_date);
   const exports = useExportActions({
     context: { viewedDate, today, statistics: statisticsScope },
     beforeSettingsImport: settleSettingsWrites,
@@ -879,7 +892,6 @@ export default function App() {
               </Suspense>
             ) : (
               <main
-                ref={overviewRef}
                 className={`overview-page${summaryIsStale ? " is-stale" : ""}`}
                 id="overview-content"
                 aria-busy={summaryIsStale || undefined}

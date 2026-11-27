@@ -33,6 +33,18 @@
 
 .stats-results.is-pending {
   opacity: 0.55;
+  /* v0.4.8: only a read that takes a while dims the results or says so; a quick one swaps straight in. */
+  transition-delay: 300ms;
+}
+
+.stats-loading-caption {
+  animation: stats-late 160ms var(--ease) 300ms both;
+}
+
+@keyframes stats-late {
+  from {
+    opacity: 0;
+  }
 }
 
 /* range bar */

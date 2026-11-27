@@ -1258,6 +1258,8 @@ main > p[role="status"] {
 .overview-page.is-stale > :not(.warning),
 .background-page.is-stale > :not(.warning) {
   opacity: 0.45;
+  /* v0.4.8: only a read that takes a while dims the figures; a quick one swaps straight in (runSwap). */
+  transition: opacity 160ms var(--ease) 300ms;
 }
 
 .readout {
@@ -2373,6 +2375,113 @@ mark {
 [data-exit-ghost],
 [data-exit-ghost] * {
   animation: none !important;
+}
+
+/* v0.4.8 swaps (motion.ts runSwap): another page, day or range dissolves into the one on screen. Only the
+   page content and the header take part; the sidebar shows its new state at once (its key glides by
+   itself), and the rest of the window does not move. Style d (preview pick) adds a little travel. */
+.sidebar {
+  view-transition-name: gst-sidebar;
+}
+
+.page-header {
+  view-transition-name: gst-header;
+}
+
+.workspace > main {
+  view-transition-name: gst-page;
+}
+
+::view-transition-old(root),
+::view-transition-new(root),
+::view-transition-new(gst-sidebar) {
+  animation: none;
+}
+
+::view-transition-old(gst-sidebar) {
+  display: none;
+}
+
+::view-transition-group(*) {
+  animation-duration: 240ms;
+  animation-timing-function: var(--ease);
+}
+
+::view-transition-old(gst-page),
+::view-transition-old(gst-header) {
+  animation: swap-out 240ms var(--ease) both;
+}
+
+::view-transition-new(gst-page),
+::view-transition-new(gst-header) {
+  animation: swap-in 240ms var(--ease) both;
+}
+
+:root[data-swap-style="d"][data-swap="forward"]::view-transition-old(gst-page) {
+  animation-name: swap-out-left;
+}
+
+:root[data-swap-style="d"][data-swap="forward"]::view-transition-new(gst-page) {
+  animation-name: swap-in-right;
+}
+
+:root[data-swap-style="d"][data-swap="back"]::view-transition-old(gst-page) {
+  animation-name: swap-out-right;
+}
+
+:root[data-swap-style="d"][data-swap="back"]::view-transition-new(gst-page) {
+  animation-name: swap-in-left;
+}
+
+:root[data-swap-style="d"][data-swap="page"]::view-transition-new(gst-page) {
+  animation-name: swap-in-rise;
+}
+
+@keyframes swap-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes swap-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes swap-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+
+@keyframes swap-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+
+@keyframes swap-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+
+@keyframes swap-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+
+@keyframes swap-in-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
 
 /* ---------- Settings ---------- */

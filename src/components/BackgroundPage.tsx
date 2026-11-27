@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useContentMotion } from "../motion";
+import { useContentSwap } from "../motion";
+import { pageReads } from "../pageReads";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react";
 import {
   getBackgroundPageSummary,
@@ -111,7 +112,10 @@ export function nextBackgroundSort(current: BackgroundSort, key: BackgroundSortK
 }
 
 export function BackgroundPage({ date, durationFormat = "decimal_hours", onInvalidDate }: BackgroundPageProps) {
-  const [summary, setSummary] = useState<BackgroundPageSummary | null>(null);
+  const [summary, setSummary] = useState<BackgroundPageSummary | null>(() =>
+    pageReads.background !== null && answersDay(pageReads.background, date ?? null) ? pageReads.background : null,
+  );
+  const swapContent = useContentSwap(summary?.usage_date ?? null);
   const [fetchError, setFetchError] = useState(false);
   const [sort, setSort] = useState<BackgroundSort>(DEFAULT_SORT);
   const mountedRef = useRef(false);
@@ -124,8 +128,6 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
   const summaryIsForView = summary !== null && answersDay(summary, date ?? null);
   const shownSummary = summaryIsForView || !fetchError ? summary : null;
   const summaryIsStale = shownSummary !== null && !summaryIsForView;
-  const pageRef = useRef<HTMLElement>(null);
-  useContentMotion(pageRef, shownSummary?.usage_date ?? null, shownSummary?.usage_date);
   // The wording and columns follow the rows on screen, so they always name the same day.
   const pastDay = shownSummary?.is_today === false;
   // A past day hides 当前 CPU and 状态; sorting by either falls back to the default.
@@ -143,8 +145,11 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
     try {
       const next = await getBackgroundPageSummary(day ?? undefined);
       if (!isCurrent() || !answersDay(next, day)) return;
-      setSummary(next);
-      setFetchError(false);
+      pageReads.background = next;
+      swapContent(next.usage_date, next.usage_date, () => {
+        setSummary(next);
+        setFetchError(false);
+      });
     } catch (reason) {
       if (!isCurrent()) return;
       if (day !== null && isDayInvalidDate(reason)) {
@@ -177,7 +182,7 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
 
   if (!shownSummary) {
     return (
-      <main className="background-page" id="background-content" ref={pageRef}>
+      <main className="background-page" id="background-content">
         {fetchError ? <div className="warning" role="alert">无法读取后台进程</div>
           : <p role="status" className="empty-state">正在读取后台进程…</p>}
       </main>
@@ -186,7 +191,6 @@ export function BackgroundPage({ date, durationFormat = "decimal_hours", onInval
 
   return (
     <main
-      ref={pageRef}
       className={`background-page${summaryIsStale ? " is-stale" : ""}`}
       id="background-content"
       aria-busy={summaryIsStale || undefined}

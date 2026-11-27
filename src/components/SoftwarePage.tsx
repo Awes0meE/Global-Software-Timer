@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useContentMotion } from "../motion";
+import { useContentSwap } from "../motion";
+import { pageReads } from "../pageReads";
 import {
   addFocusedSoftwareIdentities,
   addHiddenSoftwareIdentities,
@@ -32,15 +33,14 @@ export function SoftwarePage({
   durationFormat = "decimal_hours",
   onDefaultSummariesChanged,
 }: SoftwarePageProps) {
-  const [summary, setSummary] = useState<SoftwarePageSummary>(emptySoftwareSummary);
+  const [summary, setSummary] = useState<SoftwarePageSummary>(() => pageReads.software ?? emptySoftwareSummary);
   const [fetchError, setFetchError] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => pageReads.software !== null);
+  const swapContent = useContentSwap(pageReads.software === null ? null : "software");
   const [removeError, setRemoveError] = useState(false);
   const [focusedEditing, setFocusedEditing] = useState(false);
   const [hiddenEditing, setHiddenEditing] = useState(false);
   const [addTarget, setAddTarget] = useState<AddTarget | null>(null);
-  const pageRef = useRef<HTMLElement>(null);
-  useContentMotion(pageRef, "software");
   const mountedRef = useRef(false);
   const requestRef = useRef(0);
   const addOpenerRef = useRef<HTMLButtonElement | null>(null);
@@ -50,9 +50,12 @@ export function SoftwarePage({
     try {
       const nextSummary = await getSoftwarePageSummary();
       if (!mountedRef.current || request !== requestRef.current) return false;
-      setSummary(nextSummary);
-      setFetchError(false);
-      setLoaded(true);
+      pageReads.software = nextSummary;
+      swapContent("software", null, () => {
+        setSummary(nextSummary);
+        setFetchError(false);
+        setLoaded(true);
+      });
       return true;
     } catch {
       if (!mountedRef.current || request !== requestRef.current) return false;
@@ -139,7 +142,7 @@ export function SoftwarePage({
   };
 
   return (
-    <main className="software-page" id="software-content" ref={pageRef}>
+    <main className="software-page" id="software-content">
       {fetchError ? <div className="warning">无法读取软件列表</div> : null}
       {removeError ? <div className="warning">移出软件失败</div> : null}
 

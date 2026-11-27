@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useContentMotion, useSelectionGlide } from "../motion";
+import { useContentSwap, useSelectionGlide } from "../motion";
+import { pageReads } from "../pageReads";
 import {
   getAchievementsSummary,
   type AchievementsSummary,
@@ -27,10 +28,11 @@ interface AchievementsPageProps {
 export function AchievementsPage({ durationFormat = "decimal_hours", onIncludeHiddenChange }: AchievementsPageProps) {
   const [heatmapDays, setHeatmapDays] = useState<HeatmapDays>(90);
   const [includeHidden, setIncludeHidden] = useState(false);
-  const [summary, setSummary] = useState<AchievementsSummary | null>(null);
+  const [summary, setSummary] = useState<AchievementsSummary | null>(() =>
+    pageReads.achievements?.key === `${heatmapDays}|${includeHidden}` ? pageReads.achievements.summary : null,
+  );
+  const swapContent = useContentSwap(summary === null ? null : `${heatmapDays}|${includeHidden}`);
   const [fetchError, setFetchError] = useState(false);
-  const pageRef = useRef<HTMLElement>(null);
-  useContentMotion(pageRef, summary ? `achievements|${summary.heatmap.length}` : null);
   const rangeRef = useRef<HTMLDivElement>(null);
   useSelectionGlide(rangeRef, ".segmented-option.is-selected", summary ? heatmapDays : null);
 
@@ -47,8 +49,12 @@ export function AchievementsPage({ durationFormat = "decimal_hours", onIncludeHi
       try {
         const next = await getAchievementsSummary({ heatmapDays, includeHidden });
         if (!current) return;
-        setSummary(next);
-        setFetchError(false);
+        const key = `${heatmapDays}|${includeHidden}`;
+        pageReads.achievements = { key, summary: next };
+        swapContent(key, null, () => {
+          setSummary(next);
+          setFetchError(false);
+        });
       } catch {
         if (current) setFetchError(true);
       }
@@ -58,11 +64,11 @@ export function AchievementsPage({ durationFormat = "decimal_hours", onIncludeHi
       current = false;
       stopPolling();
     };
-  }, [heatmapDays, includeHidden]);
+  }, [heatmapDays, includeHidden, swapContent]);
 
   if (!summary) {
     return (
-      <main className="achievements-page" id="achievements-content" ref={pageRef}>
+      <main className="achievements-page" id="achievements-content">
         {fetchError ? (
           <div className="warning" role="alert">无法读取成就</div>
         ) : (
@@ -75,7 +81,7 @@ export function AchievementsPage({ durationFormat = "decimal_hours", onIncludeHi
   const start = summary.heatmap[0]?.date ?? summary.today;
 
   return (
-    <main className="achievements-page" id="achievements-content" ref={pageRef}>
+    <main className="achievements-page" id="achievements-content">
       {fetchError ? <div className="warning" role="alert">无法读取成就</div> : null}
 
       <section className="readout ach-readout" aria-labelledby="ach-heatmap-title">

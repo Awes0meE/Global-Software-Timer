@@ -1,6 +1,7 @@
 import { CalendarDays } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useContentMotion, useSelectionGlide } from "../motion";
+import { useContentSwap, useSelectionGlide } from "../motion";
+import { pageReads } from "../pageReads";
 import { getStatisticsSummary, type DurationFormat, type StatisticsSummary } from "../api";
 import type { StatisticsScope } from "../exports";
 import {
@@ -34,10 +35,13 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
   const [draft, setDraft] = useState<DateRange>({ start: "", end: "" });
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
   const [includeHidden, setIncludeHidden] = useState(false);
-  const [dataStartDate, setDataStartDate] = useState<string | null>(null);
-  const [summary, setSummary] = useState<StatisticsSummary | null>(null);
+  const [dataStartDate, setDataStartDate] = useState<string | null>(
+    () => pageReads.statistics?.summary.data_start_date ?? null,
+  );
+  const [summary, setSummary] = useState<StatisticsSummary | null>(() => pageReads.statistics?.summary ?? null);
   // Which request the shown summary and the last failure belong to, as `start|end|includeHidden`.
-  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [loadedKey, setLoadedKey] = useState<string | null>(() => pageReads.statistics?.key ?? null);
+  const swapContent = useContentSwap(pageReads.statistics?.key ?? null);
   const [failedKey, setFailedKey] = useState<string | null>(null);
   const mountedRef = useRef(false);
   const latestRequestRef = useRef(0);
@@ -57,9 +61,6 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
   const pending = summary !== null && loadedKey !== requestKey;
   // If the new selection cannot be read, the earlier numbers would pass for it: drop them.
   const shown = pending && fetchError ? null : summary;
-  const pageRef = useRef<HTMLElement>(null);
-  const shownKey = shown ? loadedKey : null;
-  useContentMotion(pageRef, shownKey, shownKey?.split("|")[0]);
   const presetRef = useRef<HTMLDivElement>(null);
   useSelectionGlide(presetRef, ".segmented-option.is-selected", preset);
 
@@ -69,14 +70,17 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
     try {
       const next = await getStatisticsSummary({ start, end, includeHidden });
       if (!mountedRef.current || request !== latestRequestRef.current) return;
-      setSummary(next);
-      setLoadedKey(key);
-      setDataStartDate(next.data_start_date);
-      setFailedKey(null);
+      pageReads.statistics = { key, summary: next };
+      swapContent(key, start, () => {
+        setSummary(next);
+        setLoadedKey(key);
+        setDataStartDate(next.data_start_date);
+        setFailedKey(null);
+      });
     } catch {
       if (mountedRef.current && request === latestRequestRef.current) setFailedKey(key);
     }
-  }, [start, end, includeHidden]);
+  }, [start, end, includeHidden, swapContent]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -109,7 +113,7 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
   };
 
   return (
-    <main className="stats-page" id="statistics-content" ref={pageRef}>
+    <main className="stats-page" id="statistics-content">
       <div className="stats-range">
         <div className="segmented" role="radiogroup" aria-label="统计区间" ref={presetRef}>
           {PRESETS.map((option) => (
@@ -142,7 +146,7 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
           </span>
         ) : null}
         {pending && !fetchError ? (
-          <span className="stats-range-caption num" role="status">
+          <span className="stats-range-caption stats-loading-caption num" role="status">
             正在读取 {start} 至 {shortEnd(start, end)}…
           </span>
         ) : shown ? (

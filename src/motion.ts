@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, type RefObject } from "react";
+import { useCallback, useLayoutEffect, useRef, type RefObject } from "react";
+import { flushSync } from "react-dom";
 
 /**
- * v0.4.8 motion: short entrances when a page's content appears or changes, and exits for dialogs and
- * popovers, drawn with the Web Animations API (no library). Everything is skipped under 减少动画
+ * v0.4.8 motion, with no library: page and content swaps dissolve through view transitions (`runSwap`), the
+ * selected key glides (`useSelectionGlide`), and dialogs and popovers leave with an animation (`playExitGhost`). Everything is skipped under 减少动画
  * (`data-motion="reduced"`) or the system's reduced-motion setting, and where `Element.animate` is missing.
  */
 
@@ -19,91 +20,70 @@ function canAnimate(element: Element | null | undefined): element is HTMLElement
   return element instanceof HTMLElement && typeof element.animate === "function" && !motionReduced();
 }
 
-/** Preview-only variant switch (`data-motion-style`), "a" in the app. */
-function motionStyle(): string {
-  return document.documentElement.dataset.motionStyle ?? "a";
-}
+export type SwapKind = "page" | "forward" | "back" | "fade";
 
-export type SwapDirection = "forward" | "back" | "none";
+type TransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => { ready: Promise<void>; finished: Promise<void> };
+};
 
-/** A page's content appears: it rises into place (style b: panel by panel). */
-export function playEnter(element: Element | null | undefined): void {
-  if (!canAnimate(element)) return;
-  if (motionStyle() === "b") {
-    const parts = Array.from(element.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
-    parts.slice(0, 8).forEach((part, index) => {
-      part.animate(
-        [
-          { opacity: 0, transform: "translateY(12px)" },
-          { opacity: 1, transform: "none" },
-        ],
-        { duration: 340, delay: index * 45, easing: MOTION_EASE, fill: "backwards" },
-      );
-    });
+/**
+ * Runs `update` (a React state change) inside a view transition: the browser keeps a picture of the page as
+ * it was, React draws the new state at once, and the two dissolve into each other (styles.css, by
+ * `data-swap`), so no frame is ever blank. Without motion, or without view transitions, it just updates.
+ */
+let runningSwap: object | null = null;
+
+export function runSwap(kind: SwapKind, update: () => void): void {
+  const doc = document as TransitionDocument;
+  // A page's first read landing while the page swap still runs is drawn into the incoming page as it
+  // fades in; a second transition would cut the first one short.
+  if (motionReduced() || typeof doc.startViewTransition !== "function" || (runningSwap !== null && kind === "fade")) {
+    update();
     return;
   }
-  element.animate(
-    [
-      { opacity: 0, transform: "translateY(10px)" },
-      { opacity: 1, transform: "none" },
-    ],
-    { duration: 280, easing: MOTION_EASE },
-  );
+  const root = document.documentElement;
+  root.dataset.swap = kind;
+  const transition = doc.startViewTransition(() => flushSync(update));
+  runningSwap = transition;
+  // A quick second click skips this transition for the next one: the page is already updated, so the
+  // rejection is expected.
+  transition.ready.catch(() => {});
+  const settle = () => {
+    if (runningSwap !== transition) return;
+    runningSwap = null;
+    delete root.dataset.swap;
+  };
+  transition.finished.then(settle, settle);
 }
 
-/** The content swaps for another day or range: it slides in from the side it comes from, or fades. */
-export function playSwap(element: Element | null | undefined, direction: SwapDirection): void {
-  if (!canAnimate(element)) return;
-  const shift = direction === "forward" ? 28 : direction === "back" ? -28 : 0;
-  if (motionStyle() === "b" || shift === 0) {
-    element.animate(
-      [
-        { opacity: 0.25, filter: "blur(2px)", transform: "scale(0.995)" },
-        { opacity: 1, filter: "none", transform: "none" },
-      ],
-      { duration: 260, easing: MOTION_EASE },
-    );
-    return;
-  }
-  element.animate(
-    [
-      { opacity: 0, transform: `translateX(${shift}px)` },
-      { opacity: 1, transform: "none" },
-    ],
-    { duration: 300, easing: MOTION_EASE },
-  );
-}
-
-function directionOf(previous: string, next: string): SwapDirection {
-  if (previous === next) return "none";
-  return next > previous ? "forward" : "back";
+interface ShownContent {
+  key: string;
+  order: string | null;
 }
 
 /**
- * Plays `playEnter` on `ref` when `contentKey` first has a value (the page's data is on screen) and
- * `playSwap` whenever it changes after that. `order` (a date, a range start) gives the slide direction;
- * without it the swap fades. Runs before paint, so the new content never shows a frame unmoved.
+ * For a page that reads its content: hands back a setter that swaps in new content through `runSwap` only
+ * when it is other content than what is on screen (another day, another range), and plainly for a refresh of
+ * the same content. `order` (a date, a range start) picks the side a swap comes from; without it, it fades.
+ * `initialKey` is the content already on screen at mount (a cached read), which then needs no swap.
  */
-export function useContentMotion(
-  ref: RefObject<HTMLElement | null>,
-  contentKey: string | null,
-  order?: string | null,
-): void {
-  const shown = useRef<{ key: string; order: string | null } | null>(null);
-  useLayoutEffect(() => {
-    if (contentKey === null) {
-      shown.current = null;
+export function useContentSwap(initialKey: string | null = null) {
+  const shown = useRef<ShownContent | null>(initialKey === null ? null : { key: initialKey, order: null });
+  return useCallback((key: string, order: string | null, update: () => void) => {
+    const previous = shown.current;
+    shown.current = { key, order };
+    if (previous !== null && previous.key === key) {
+      update();
       return;
     }
-    const previous = shown.current;
-    shown.current = { key: contentKey, order: order ?? null };
-    if (previous === null) {
-      playEnter(ref.current);
-    } else if (previous.key !== contentKey) {
-      const direction = previous.order !== null && order ? directionOf(previous.order, order) : "none";
-      playSwap(ref.current, direction);
-    }
-  }, [contentKey, order, ref]);
+    const kind: SwapKind =
+      previous !== null && previous.order !== null && order !== null && previous.order !== order
+        ? order > previous.order
+          ? "forward"
+          : "back"
+        : "fade";
+    runSwap(kind, update);
+  }, []);
 }
 
 /**
