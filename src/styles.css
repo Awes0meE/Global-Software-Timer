@@ -2380,6 +2380,14 @@ mark {
 /* v0.4.8 swaps (motion.ts runSwap): another page, day or range dissolves into the one on screen. Only the
    page content and the header take part; the sidebar shows its new state at once (its key glides by
    itself), and the rest of the window does not move. Style d (preview pick) adds a little travel. */
+:root {
+  --swap-duration: 400ms;
+  --swap-travel: 24px;
+  /* An even curve: --ease (ease-out-expo) spends most of its change in the first third, which made a
+     dissolve too quick to see. */
+  --swap-ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .sidebar {
   view-transition-name: gst-sidebar;
 }
@@ -2403,18 +2411,18 @@ mark {
 }
 
 ::view-transition-group(*) {
-  animation-duration: 240ms;
-  animation-timing-function: var(--ease);
+  animation-duration: var(--swap-duration);
+  animation-timing-function: var(--swap-ease);
 }
 
 ::view-transition-old(gst-page),
 ::view-transition-old(gst-header) {
-  animation: swap-out 240ms var(--ease) both;
+  animation: swap-out var(--swap-duration) var(--swap-ease) both;
 }
 
 ::view-transition-new(gst-page),
 ::view-transition-new(gst-header) {
-  animation: swap-in 240ms var(--ease) both;
+  animation: swap-in var(--swap-duration) var(--swap-ease) both;
 }
 
 :root[data-swap-style="d"][data-swap="forward"]::view-transition-old(gst-page) {
@@ -2452,35 +2460,35 @@ mark {
 @keyframes swap-out-left {
   to {
     opacity: 0;
-    transform: translateX(-14px);
+    transform: translateX(calc(-1 * var(--swap-travel)));
   }
 }
 
 @keyframes swap-out-right {
   to {
     opacity: 0;
-    transform: translateX(14px);
+    transform: translateX(var(--swap-travel));
   }
 }
 
 @keyframes swap-in-right {
   from {
     opacity: 0;
-    transform: translateX(14px);
+    transform: translateX(var(--swap-travel));
   }
 }
 
 @keyframes swap-in-left {
   from {
     opacity: 0;
-    transform: translateX(-14px);
+    transform: translateX(calc(-1 * var(--swap-travel)));
   }
 }
 
 @keyframes swap-in-rise {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(calc(var(--swap-travel) / 2));
   }
 }
 

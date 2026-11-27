@@ -41,6 +41,34 @@ export function mountMotionSwitch(params: URLSearchParams): void {
     }
   };
   for (const [, button] of buttons) panel.append(button);
+  const rule = document.createElement("span");
+  Object.assign(rule.style, { width: "1px", background: "rgba(255,255,255,0.3)", margin: "2px 4px" });
+  panel.append(rule);
+  const speeds = [
+    ["240ms", "快"],
+    ["400ms", "中"],
+    ["600ms", "慢"],
+  ] as const;
+  const speedButtons = speeds.map(([value, label]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    Object.assign(button.style, { border: "0", borderRadius: "7px", padding: "6px 10px", cursor: "pointer", font: "inherit" });
+    button.addEventListener("click", () => {
+      root.style.setProperty("--swap-duration", value);
+      paintSpeed();
+    });
+    panel.append(button);
+    return [value, button] as const;
+  });
+  const paintSpeed = () => {
+    const current = root.style.getPropertyValue("--swap-duration") || "400ms";
+    for (const [value, button] of speedButtons) {
+      button.style.background = value === current ? "#fff" : "transparent";
+      button.style.color = value === current ? "#000" : "#fff";
+    }
+  };
+  paintSpeed();
   paint();
   document.body.append(panel);
 }
