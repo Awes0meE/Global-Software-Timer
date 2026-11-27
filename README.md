@@ -623,6 +623,7 @@ npm.cmd run release:build
 - [方舟像素字体 Ark Pixel Font](https://github.com/TakWolf/ark-pixel-font)（作者 TakWolf）：墨水屏读数窗使用的像素字体，以 SIL Open Font License 1.1 授权，随应用打包在 `src/assets/fonts/`，许可文本见 [ark-pixel-OFL.txt](./src/assets/fonts/ark-pixel-OFL.txt)。
 - [Inter](https://github.com/rsms/inter)（作者 Rasmus Andersson）：分享海报里的数字和西文字体，以 SIL Open Font License 1.1 授权，Latin 子集随应用打包在 `src/assets/fonts/poster/`，许可文本见 [Inter-OFL.txt](./src/assets/fonts/poster/Inter-OFL.txt)。
 - [思源黑体 Noto Sans SC](https://github.com/notofonts/noto-cjk)（Adobe、Google）：分享海报里的中文字体，以 SIL Open Font License 1.1 授权，GB2312 子集随应用打包在 `src/assets/fonts/poster/`，许可文本见 [NotoSansSC-OFL.txt](./src/assets/fonts/poster/NotoSansSC-OFL.txt)。两款字体的来源版本、校验值和子集化脚本见 [NOTICE.md](./src/assets/fonts/poster/NOTICE.md)。
+- [Oxanium](https://github.com/sevmeyer/oxanium)（作者 Severin Meyer）：界面里墨水屏以外的数字字体（表格时长、统计、日期），以 SIL Open Font License 1.1 授权，随应用打包在 `src/assets/fonts/oxanium/`，许可文本见 [Oxanium-OFL.txt](./src/assets/fonts/oxanium/Oxanium-OFL.txt)，来源和校验值见 [NOTICE.md](./src/assets/fonts/oxanium/NOTICE.md)。
 - [modern-screenshot](https://github.com/qq15725/modern-screenshot)：把海报画成 PNG 图片，以 MIT License 授权，只在导出海报时加载。
 - [React DayPicker](https://daypicker.dev)：页头日期和统计区间的日历，以 MIT License 授权。
 - [pinyin-pro](https://github.com/zh-lx/pinyin-pro)：已发现软件的拼音搜索。
