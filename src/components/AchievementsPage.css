@@ -493,9 +493,9 @@
 }
 
 /* A lit plate is one key (v0.4.7): a clear button over the whole plate opens its software list. Under the
-   pointer its edge lights up white (v0.4.8, was the accent) with a soft halo, white on the dark theme and grey
-   around a white plate on the light theme, where a white halo would vanish into the glass; keyboard focus
-   draws the focus ring. Unlit plates stay inert. The --plate-* tokens live in the theme blocks of styles.css. */
+   pointer it rises (v0.4.8, was an accent glow): it brightens, its edge changes and a shadow falls below it;
+   keyboard focus draws the focus ring. Unlit plates stay inert. The --plate-* tokens live in the theme blocks
+   of styles.css. */
 
 .ach-plate-open {
   position: absolute;

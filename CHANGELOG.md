@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- On `成就`, a lit milestone plate under the pointer now lights up white instead of in the accent colour, and a little brighter: a white edge with a soft white halo (the `终极成就` plate keeps its accent outline). On the light theme, where a white halo would disappear into the glass, the plate turns white and gets a soft grey halo instead.
+- On `成就`, a lit milestone plate under the pointer now rises instead of glowing in the accent colour. On the light theme it turns white with a soft grey halo and a shadow below; on the dark theme it lightens a step, its edge turns a quiet grey and a deep shadow falls below. The `终极成就` plate keeps its accent outline.
 
 ## v0.4.7 - 2026-11-26
 
