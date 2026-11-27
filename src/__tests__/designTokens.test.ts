@@ -170,7 +170,7 @@ describe("glass and e-ink limits", () => {
   // sink out (the user asked for a toast that is seen arriving and leaving).
   it("has exactly the known keyframes", () => {
     const names = Object.values(allCss()).flatMap((css) => parseRules(css).keyframes);
-    expect(names.sort()).toEqual(["backdrop-in", "dialog-in", "lamp-breathe", "pop-in", "scroll-edge-fade", "scroll-edge-fade-bottom", "scroll-edge-fade-top", "stats-late", "swap-in", "swap-out", "toast-in", "toast-out"]);
+    expect(names.sort()).toEqual(["backdrop-in", "dialog-in", "lamp-breathe", "pop-in", "scroll-edge-fade", "scroll-edge-fade-bottom", "scroll-edge-fade-top", "stats-early", "stats-late", "swap-in", "swap-out", "toast-in", "toast-out"]);
   });
 
   // Spec「字体」: GST Pixel only on the e-ink screens.

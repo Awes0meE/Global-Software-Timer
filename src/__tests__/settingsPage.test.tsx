@@ -472,6 +472,25 @@ describe("每周起始日 and 减少动画 (spec §D, §F)", () => {
     }
   });
 
+  it("greys out 动画速度 while Windows asks for reduced motion", async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      await openSettings();
+      for (const radio of within(screen.getByRole("radiogroup", { name: "动画速度" })).getAllByRole("radio")) {
+        expect(radio).toBeDisabled();
+      }
+      expect(screen.getByRole("switch", { name: "减少动画" })).toBeEnabled();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
   it("turns 减少动画 on as reduce and marks the root", async () => {
     await openSettings();
     const motion = screen.getByRole("switch", { name: "减少动画" });

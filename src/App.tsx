@@ -229,6 +229,10 @@ export default function App() {
   }, []);
 
   const swapOverview = useContentSwap();
+  // 概览 and 后台 share the viewed day, so 概览's read also lands while 后台 is shown; only 概览 on screen
+  // dissolves, or its transition would cut 后台's own one short.
+  const activePageRef = useRef(activePage);
+  activePageRef.current = activePage;
   const loadDashboard = useCallback(async () => {
     const day = dashboardDayRef.current;
     const isCurrent = () => dashboardMountedRef.current && dashboardDayRef.current === day;
@@ -240,10 +244,15 @@ export default function App() {
         setLiveScan(liveScanOf(nextSummary));
       }
       if (isCurrent() && answersDay(nextSummary, day)) {
-        swapOverview(nextSummary.usage_date, nextSummary.usage_date, () => {
-          setSummary(nextSummary);
-          setError(null);
-        });
+        swapOverview(
+          nextSummary.usage_date,
+          nextSummary.usage_date,
+          () => {
+            setSummary(nextSummary);
+            setError(null);
+          },
+          activePageRef.current === "overview",
+        );
       }
     } catch (reason) {
       if (day === null && dashboardMountedRef.current) {

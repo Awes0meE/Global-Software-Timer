@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useContentSwap } from "../motion";
 import { pageReads } from "../pageReads";
+import { formatLocalDate } from "../statisticsRange";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react";
 import {
   getBackgroundPageSummary,
@@ -112,9 +113,12 @@ export function nextBackgroundSort(current: BackgroundSort, key: BackgroundSortK
 }
 
 export function BackgroundPage({ date, durationFormat = "decimal_hours", onInvalidDate }: BackgroundPageProps) {
-  const [summary, setSummary] = useState<BackgroundPageSummary | null>(() =>
-    pageReads.background !== null && answersDay(pageReads.background, date ?? null) ? pageReads.background : null,
-  );
+  const [summary, setSummary] = useState<BackgroundPageSummary | null>(() => {
+    const cached = pageReads.background;
+    if (cached === null || !answersDay(cached, date ?? null)) return null;
+    // Read as today before midnight, it is yesterday's now.
+    return date == null && cached.usage_date !== formatLocalDate(new Date()) ? null : cached;
+  });
   const swapContent = useContentSwap(summary?.usage_date ?? null);
   const [fetchError, setFetchError] = useState(false);
   const [sort, setSort] = useState<BackgroundSort>(DEFAULT_SORT);

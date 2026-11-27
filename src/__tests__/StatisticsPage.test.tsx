@@ -201,7 +201,10 @@ describe("StatisticsPage", () => {
     const [, request] = lastStatisticsCall();
     expect(screen.getByRole("status")).toHaveTextContent(`正在读取 ${request.start} 至 11-21…`);
     expect(document.querySelector(".stats-results")).toHaveAttribute("aria-busy", "true");
-    expect(screen.queryByText(/2026-11-15 至 11-21/)).not.toBeInTheDocument();
+    // v0.4.8: the earlier caption stays over its figures, hidden from assistive tech, until the loading line
+    // shows (CSS, after 300 ms); only the loading line is announced.
+    const earlier = screen.getByText(/2026-11-15 至 11-21/);
+    expect(earlier.closest(".stats-caption-earlier")).toHaveAttribute("aria-hidden", "true");
 
     await act(async () => {
       resolveYear(summary({ start: request.start, end: "2026-11-21" }));

@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, type RefObject } from "react";
+import { useCallback, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
 import { flushSync } from "react-dom";
 
 /**
@@ -28,10 +28,28 @@ export function motionScale(): number {
   return speed === "fast" || speed === "slow" ? MOTION_SCALES[speed] : 1;
 }
 
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeSystemReducedMotion(onChange: () => void): () => void {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const media = window.matchMedia(REDUCED_MOTION_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+function systemReducedMotion(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
+/** Whether Windows asks for reduced motion (its 动画效果 off), followed live. */
+export function useSystemReducedMotion(): boolean {
+  return useSyncExternalStore(subscribeSystemReducedMotion, systemReducedMotion, () => false);
+}
+
 export function motionReduced(): boolean {
   if (typeof document === "undefined") return true;
   if (document.documentElement.dataset.motion === "reduced") return true;
-  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return systemReducedMotion();
 }
 
 function canAnimate(element: Element | null | undefined): element is HTMLElement {
@@ -100,14 +118,15 @@ interface ShownContent {
  * For a page that reads its content: hands back a setter that swaps in new content through `runSwap` only
  * when it is other content than what is on screen (another day, another range), and plainly for a refresh of
  * the same content. `order` (a date, a range start) picks the side a swap comes from; without it, it fades.
- * `initialKey` is the content already on screen at mount (a cached read), which then needs no swap.
+ * `initialKey` is the content already on screen at mount (a cached read), which then needs no swap. With
+ * `animate` false (content read while another page is on screen) it only records the content and updates.
  */
 export function useContentSwap(initialKey: string | null = null) {
   const shown = useRef<ShownContent | null>(initialKey === null ? null : { key: initialKey, order: null });
-  return useCallback((key: string, order: string | null, update: () => void) => {
+  return useCallback((key: string, order: string | null, update: () => void, animate = true) => {
     const previous = shown.current;
     shown.current = { key, order };
-    if (previous !== null && previous.key === key) {
+    if (!animate || (previous !== null && previous.key === key)) {
       update();
       return;
     }
@@ -139,6 +158,9 @@ export function playExitGhost(
   const scrolled = Array.from(node.querySelectorAll<HTMLElement>("*"))
     .map((element, index) => [index, element.scrollTop] as const)
     .filter(([, top]) => top > 0);
+  // A copy takes attributes only: what was typed into a field and what a canvas shows are copied by hand.
+  const fields = Array.from(node.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea"));
+  const canvases = Array.from(node.querySelectorAll("canvas"));
   queueMicrotask(() => {
     if (node.isConnected || !parent.isConnected) return;
     const ghost = node.cloneNode(true) as HTMLElement;
@@ -155,6 +177,17 @@ export function playExitGhost(
         if (copies[index]) copies[index].scrollTop = top;
       }
     }
+    ghost.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea").forEach((copy, index) => {
+      if (fields[index]) copy.value = fields[index].value;
+    });
+    ghost.querySelectorAll("canvas").forEach((copy, index) => {
+      const source = canvases[index];
+      try {
+        if (source && source.width > 0 && source.height > 0) copy.getContext("2d")?.drawImage(source, 0, 0);
+      } catch {
+        // A canvas the page cannot read back stays blank in the copy.
+      }
+    });
     const scaled = duration * motionScale();
     const animation = ghost.animate(keyframes, { duration: scaled, easing: MOTION_EASE_IN, fill: "forwards" });
     alsoAnimate?.(ghost);
@@ -218,19 +251,24 @@ export function useSelectionGlide(
   selector: string,
   selectedKey: string | number | null,
 ): void {
-  const last = useRef<SlotRect | null>(null);
+  // The key selected before; measured again at the next change, so a fold, resize or zoom in between
+  // does not leave the glide starting from where the key used to be.
+  const last = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     const container = ref.current;
     const target = container?.querySelector<HTMLElement>(selector) ?? null;
-    if (!container || !target) {
-      last.current = null;
-      return;
-    }
+    const previous = last.current;
+    last.current = target;
+    if (!container || !target || !previous || previous === target || !container.contains(previous)) return;
+    if (!canAnimate(target)) return;
     const to = slotRect(container, target);
-    const from = last.current;
-    last.current = to;
-    if (!from || !canAnimate(target) || (from.x === to.x && from.y === to.y)) return;
+    const from = slotRect(container, previous);
+    if (from.x === to.x && from.y === to.y) return;
 
+    const saved = target.getAttribute("style");
+    // The key's own transition has just begun from its unselected look; stopping it first makes the
+    // computed face the selected one the copy must wear.
+    target.style.setProperty("transition", "none");
     const face = window.getComputedStyle(target);
     const puck = document.createElement("span");
     puck.className = "glide-puck";
@@ -249,8 +287,6 @@ export function useSelectionGlide(
       boxShadow: face.boxShadow,
     });
     container.appendChild(puck);
-    const saved = target.getAttribute("style");
-    target.style.setProperty("transition", "none");
     target.style.setProperty("background", "transparent");
     target.style.setProperty("box-shadow", "none");
 

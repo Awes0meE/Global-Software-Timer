@@ -47,6 +47,26 @@
   }
 }
 
+/* While a range is read, the earlier caption and the loading line share one place. */
+.stats-caption-swap {
+  display: inline-grid;
+}
+
+.stats-caption-swap > * {
+  grid-area: 1 / 1;
+}
+
+.stats-caption-earlier {
+  animation: stats-early 1ms linear 300ms both;
+}
+
+@keyframes stats-early {
+  to {
+    visibility: hidden;
+    opacity: 0;
+  }
+}
+
 /* range bar */
 .stats-range {
   display: flex;

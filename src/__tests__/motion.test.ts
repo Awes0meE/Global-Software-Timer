@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { applyMotionSpeed, motionScale, runSwap, useContentSwap } from "../motion";
+import { useRef } from "react";
+import { applyMotionSpeed, motionScale, playExitGhost, runSwap, useContentSwap, useSelectionGlide } from "../motion";
 
 const root = document.documentElement;
 
@@ -129,10 +130,97 @@ describe("useContentSwap", () => {
     expect(kinds).toEqual(["page"]);
   });
 
+  it("only records content read while another page is on screen", () => {
+    const kinds = fakeViewTransitions();
+    const { result } = renderHook(() => useContentSwap());
+    const update = vi.fn();
+    result.current("2026-11-26", "2026-11-26", update, false);
+    result.current("2026-11-26", "2026-11-26", update); // the same day once the page shows: no swap either
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(kinds).toEqual([]);
+  });
+
   it("needs no swap for the content already shown at mount", () => {
     const kinds = fakeViewTransitions();
     const { result } = renderHook(() => useContentSwap("software"));
     result.current("software", null, () => {});
     expect(kinds).toEqual([]);
+  });
+});
+
+/** Element.animate is missing from jsdom: a recording stand-in. */
+function stubAnimate() {
+  const calls: { target: Element; keyframes: Keyframe[] }[] = [];
+  const original = Element.prototype.animate;
+  Element.prototype.animate = function (this: Element, keyframes: Keyframe[] | PropertyIndexedKeyframes | null) {
+    calls.push({ target: this, keyframes: keyframes as Keyframe[] });
+    return { addEventListener: () => {}, finish: () => {} } as unknown as Animation;
+  };
+  return { calls, restore: () => (Element.prototype.animate = original) };
+}
+
+function rect(left: number, top: number, width: number, height: number): DOMRect {
+  return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) };
+}
+
+describe("useSelectionGlide", () => {
+  it("glides from where the previously selected key is now, wearing the selected face", () => {
+    const { calls, restore } = stubAnimate();
+    try {
+      const container = document.createElement("div");
+      const first = document.createElement("button");
+      const second = document.createElement("button");
+      container.append(first, second);
+      document.body.append(container);
+      container.getBoundingClientRect = () => rect(0, 0, 300, 200);
+      // The first key moved (the sidebar folded) after it was selected: the glide starts from where it is now.
+      first.getBoundingClientRect = () => rect(10, 40, 60, 44);
+      second.getBoundingClientRect = () => rect(10, 100, 60, 44);
+      first.className = "is-selected";
+
+      const { rerender } = renderHook(
+        ({ selected }: { selected: string }) => {
+          const ref = useRef<HTMLDivElement>(container);
+          useSelectionGlide(ref, ".is-selected", selected);
+        },
+        { initialProps: { selected: "first" } },
+      );
+      first.className = "";
+      second.className = "is-selected";
+      rerender({ selected: "second" });
+
+      const glide = calls.find((call) => (call.target as HTMLElement).classList.contains("glide-puck"));
+      expect(glide?.keyframes[0]).toMatchObject({ transform: "translate(0px, -60px)", width: "60px", height: "44px" });
+      // The key's own transition is stopped before its face is copied.
+      expect(second.style.transition).toBe("none");
+      container.remove();
+    } finally {
+      restore();
+    }
+  });
+});
+
+describe("playExitGhost", () => {
+  it("copies what was typed into the leaving copy's fields", async () => {
+    const { restore } = stubAnimate();
+    try {
+      const parent = document.createElement("div");
+      const node = document.createElement("div");
+      const input = document.createElement("input");
+      node.append(input);
+      parent.append(node);
+      document.body.append(parent);
+      input.value = "code";
+
+      parent.removeChild(node);
+      playExitGhost(node, parent, [{ opacity: 1 }, { opacity: 0 }], 200);
+      await Promise.resolve();
+
+      const copy = parent.querySelector<HTMLInputElement>("[data-exit-ghost] input");
+      expect(copy?.value).toBe("code");
+      parent.remove();
+    } finally {
+      restore();
+    }
   });
 });

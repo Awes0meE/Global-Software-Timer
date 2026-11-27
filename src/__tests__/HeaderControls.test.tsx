@@ -725,6 +725,27 @@ describe("Toast", () => {
     expect(box.textContent).toBe("");
   });
 
+  // v0.4.8: toast-out follows 动画速度, so at 慢 the leaving notice stays 1.5 times as long.
+  it("keeps a leaving toast for its whole exit at 动画速度 慢", () => {
+    vi.useFakeTimers();
+    document.documentElement.dataset.speed = "slow";
+    try {
+      const { container, rerender } = render(<Toast toast={saved()} onDismiss={() => {}} />);
+      const box = container.querySelector(".toast") as HTMLElement;
+      rerender(<Toast toast={null} onDismiss={() => {}} />);
+      act(() => {
+        vi.advanceTimersByTime(TOAST_EXIT_MS);
+      });
+      expect(box).toHaveClass("is-leaving");
+      act(() => {
+        vi.advanceTimersByTime(TOAST_EXIT_MS / 2);
+      });
+      expect(box).toHaveClass("is-idle");
+    } finally {
+      delete document.documentElement.dataset.speed;
+    }
+  });
+
   it("drops the slide-out when the next toast arrives during it", () => {
     vi.useFakeTimers();
     const { container, rerender } = render(<Toast toast={saved(1)} onDismiss={() => {}} />);

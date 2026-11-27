@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DAY_INVALID_DATE } from "../api";
 import type { BackgroundPageSummary } from "../api";
 import { allCss, parseRules } from "./support/css";
+import { pageReads } from "../pageReads";
+import { formatLocalDate } from "../statisticsRange";
 import {
   BackgroundPage,
   backgroundReadings,
@@ -574,5 +576,21 @@ describe("BackgroundPage", () => {
     expect(formatPercent(0)).toBe("0%");
     expect(formatPercent(0.04)).toBe("<0.1%");
     expect(formatBytes(512 * 1024 * 1024)).toBe("512 MB");
+  });
+});
+
+// v0.4.8: coming back to 后台 shows its last read at once, but never a read of an earlier day as today.
+describe("BackgroundPage last read", () => {
+  it("shows the last read of today at once and drops one from before midnight", () => {
+    invoke.mockReturnValue(new Promise(() => {}));
+    pageReads.background = { ...summary, usage_date: formatLocalDate(new Date()) };
+    const { unmount } = render(<BackgroundPage />);
+    expect(screen.getByText("RazerCentralService")).toBeInTheDocument();
+    unmount();
+
+    pageReads.background = { ...summary, usage_date: "2000-01-01" };
+    render(<BackgroundPage />);
+    expect(screen.queryByText("RazerCentralService")).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("正在读取后台进程…");
   });
 });

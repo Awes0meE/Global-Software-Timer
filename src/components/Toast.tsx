@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { CircleAlert, CircleCheck } from "lucide-react";
+import { motionScale } from "../motion";
 import "./HeaderControls.css";
 
 export const TOAST_DURATION_MS = 6000;
-/** How long a dismissed toast takes to slide out (`toast-out` in HeaderControls.css). */
+/** How long a dismissed toast takes to slide out at 动画速度 中 (`toast-out` in HeaderControls.css, scaled by --motion-scale). */
 export const TOAST_EXIT_MS = 200;
 
 export interface ToastMessage {
@@ -57,7 +58,8 @@ export function Toast({ toast, durationMs = TOAST_DURATION_MS, onDismiss }: Toas
 
   useEffect(() => {
     if (!leaving) return;
-    const timer = window.setTimeout(() => setLast(null), TOAST_EXIT_MS);
+    // toast-out is scaled by 动画速度 (v0.4.8), so the leaving notice stays for the scaled time.
+    const timer = window.setTimeout(() => setLast(null), TOAST_EXIT_MS * motionScale());
     return () => window.clearTimeout(timer);
   }, [leaving]);
 

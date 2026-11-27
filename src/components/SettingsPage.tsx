@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { useSelectionGlide } from "../motion";
+import { useSelectionGlide, useSystemReducedMotion } from "../motion";
 import {
   AArrowUp,
   Gauge,
@@ -147,6 +147,8 @@ export function SettingsPage({
   const recordedDays = dataStartDate === null ? null : daysBetween(dataStartDate, today) + 1;
   // Read each time the page opens; the readout shows — until the size is in or when it cannot be read.
   const [dataBytes, setDataBytes] = useState<number | null>(null);
+  // 动画速度 has nothing to time while either 减少动画 or Windows reduces motion.
+  const systemReducedMotion = useSystemReducedMotion();
   useEffect(() => {
     let current = true;
     getDataSize()
@@ -270,7 +272,7 @@ export function SettingsPage({
             labelledBy="motion-speed-setting-title"
             options={motionSpeedOptions}
             value={ui.motion_speed}
-            disabled={uiDisabled || ui.reduce_motion === "reduce"}
+            disabled={uiDisabled || ui.reduce_motion === "reduce" || systemReducedMotion}
             onChange={(motionSpeed) => onUiPreferenceChange("motion_speed", motionSpeed)}
           />
         </SettingRow>

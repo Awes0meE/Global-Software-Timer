@@ -146,8 +146,16 @@ export function StatisticsPage({ durationFormat = "decimal_hours", onScopeChange
           </span>
         ) : null}
         {pending && !fetchError ? (
-          <span className="stats-range-caption stats-loading-caption num" role="status">
-            正在读取 {start} 至 {shortEnd(start, end)}…
+          // The earlier range's caption stays over its figures until the loading line takes its place.
+          <span className="stats-caption-swap">
+            {shown ? (
+              <span className="stats-caption-earlier" aria-hidden="true">
+                <RangeCaption summary={shown} showRange />
+              </span>
+            ) : null}
+            <span className="stats-range-caption stats-loading-caption num" role="status">
+              正在读取 {start} 至 {shortEnd(start, end)}…
+            </span>
           </span>
         ) : shown ? (
           // In 自定义 the range key already shows the range it answers; the caption keeps the comparison.
