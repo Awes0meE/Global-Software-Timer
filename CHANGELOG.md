@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.8 - 2026-11-27
 
 - Moving between pages, days and ranges no longer cuts from one screen to the next. Choosing a page in the sidebar, stepping the day on `概览` and `后台` (`‹ ›`, the calendar, `Ctrl+←` / `Ctrl+→`), changing the range on `统计` and the heatmap range on `成就` now dissolve the content into the new one in place, over 0.4 s, so the window never goes blank in between. The sidebar's raised key and every segmented control's selected thumb glide from the old choice to the new one. Dialogs open from a little smaller and, when closed, fade with their scrim and sink slightly instead of vanishing; the calendar and the export menus fold back towards their key. GST draws all of this with the browser engine Windows already has (view transitions and the Web Animations API), with no animation library.
 - A quick read no longer dims the figures first: going to another day or range shows the new numbers as soon as they are read, and only a read that takes longer than 0.3 s dims the figures on screen (and, on `统计`, says `正在读取…`). Coming back to `软件`, `后台`, `统计` or `成就` shows what the page showed last at once and swaps in the fresh read, instead of a loading line first. Those last reads are kept in memory while GST runs, not stored.

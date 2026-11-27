@@ -197,6 +197,15 @@ v0.4.7 additionally includes:
 - tauri-plugin-updater 2.14.1 (drops the vulnerable `zip` 4) with Tauri 2.12.7 and `@tauri-apps/api` / `cli` 2.12.
 - No tracking, metric or schema change (still schema 3), no new plugin, no new network access.
 
+v0.4.8 additionally includes:
+
+- Motion with no animation library (`src/motion.ts`): page, day and range swaps dissolve in place through view transitions (`runSwap`, `useContentSwap`; only `.workspace > main` and `.page-header` take part), the selected key of the sidebar and of every segmented control glides (`useSelectionGlide`), and dialogs and header popovers leave through an inert copy (`playExitGhost`, `useDialogExit`). Swaps never fade in from blank. Everything is off under `减少动画` or Windows reduced motion.
+- `设置` → `显示` → `动画速度` (`快` / `中` / `慢`, stored as `ui.motion_speed`, default `normal`): `--motion-scale` 0.6 / 1 / 1.5 on every v0.4.8 duration and the dialog, popover and toast animations. Greyed out while motion is reduced.
+- A quick read swaps straight in; only a read over 300 ms dims the figures. `src/pageReads.ts` keeps each page's last read in memory for this run only (never stored), so coming back to a page shows it at once.
+- Numbers outside the e-ink screens use the bundled Oxanium (`GST Num`, `src/assets/fonts/oxanium/`, SIL OFL 1.1) at weight 500 with `size-adjust: 108%` and a `text-autospace` hairline before units. The UI text font, the e-ink pixel font and the poster fonts are unchanged.
+- The window stays opaque: no Mica, Acrylic or glass-transparency setting (user decision; the spike is kept as tag `archive/v0.4.8-mica`).
+- No tracking, metric or schema change (still schema 3), no new plugin, no new network access.
+
 v0.1 excludes:
 
 - macOS implementation.
