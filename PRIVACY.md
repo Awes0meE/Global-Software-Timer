@@ -12,7 +12,7 @@ Global Software Timer v0.4.7 is local-first.
 - Software-page marks, such as focused or hidden
 - Software-page foreground/background runtime aggregates
 - Software-page focused active time based on the Windows foreground focused software identity
-- Local app preferences, including startup at login, close-window behavior, duration format, theme and, from v0.4.4, accent colour, e-ink palette, week start, start page and reduced motion, and from v0.4.5 text size (`文字大小`, stored as `ui.text_size`); whether the sidebar is folded into its icons is kept only in the app window's local storage (`gst.sidebar-collapsed`), not in the database
+- Local app preferences, including startup at login, close-window behavior, duration format, theme and, from v0.4.4, accent colour, e-ink palette, week start, start page and reduced motion, and from v0.4.5 text size (`文字大小`, stored as `ui.text_size`) and from v0.4.8 animation speed (`动画速度`, stored as `ui.motion_speed`); whether the sidebar is folded into its icons is kept only in the app window's local storage (`gst.sidebar-collapsed`), not in the database
 - Background processes without a window or tray icon: executable name and path, daily running time, CPU time, peak memory and process count, for the `后台` page
 - A timeline of recorded time in consecutive stretches: which software identity had the Windows foreground focus, and whether the computer was active
 - For each software identity, the stretches of time in which it had a taskbar window
