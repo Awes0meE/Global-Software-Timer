@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- On `成就`, a lit milestone plate under the pointer now rises instead of glowing in the accent colour. On the light theme it turns white with a soft grey halo and a shadow below; on the dark theme it lightens a step, its edge turns a quiet grey and a deep shadow falls below. The `终极成就` plate keeps its accent outline.
+- On `成就`, a lit milestone plate under the pointer now rises instead of glowing in the accent colour. On the light theme it turns white with a soft grey halo and a shadow below; on the dark theme it lightens a step, its edge turns a quiet grey and a pale grey glow falls below it, the light counterpart of the light theme's shadow. The `终极成就` plate keeps its accent outline.
 
 ## v0.4.7 - 2026-11-26
 

@@ -80,7 +80,7 @@
   --glass-solid: #f6f7f9;
   --toast-surface: #ffffff;
   /* 成就 lit plate under the pointer (v0.4.8): it rises. Light: the plate turns white with a soft grey halo and
-     a shadow below. Dark: the plate lightens a step, its edge turns a quiet grey and a deep shadow falls below. */
+     a shadow below. Dark: the plate lightens a step, its edge turns a quiet grey and a pale grey glow falls below. */
   --plate-hover-fill: #ffffff;
   --plate-press-fill: #f2f4f7;
   --plate-hover-ring: #ffffff;
@@ -183,7 +183,7 @@
   --plate-hover-fill: rgba(255, 255, 255, 0.11);
   --plate-press-fill: rgba(255, 255, 255, 0.14);
   --plate-hover-ring: rgba(255, 255, 255, 0.24);
-  --plate-hover-glow: 0 12px 26px -8px rgba(0, 0, 0, 0.7), 0 0 12px 0 rgba(255, 255, 255, 0.05);
+  --plate-hover-glow: 0 12px 24px -10px rgba(225, 230, 240, 0.4), 0 0 12px 0 rgba(255, 255, 255, 0.05);
   --head-solid: #2a2a31;
   --head-fill: linear-gradient(to bottom, #2e2e36, #27272e);
   --head-hi: rgba(255, 255, 255, 0.07);
