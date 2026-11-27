@@ -188,8 +188,8 @@
   text-align: center;
 }
 
-/* 没用 is an empty frame; a used day's ink grows in a straight line with its active time, full at 12 hours
-   (--heat, set per cell; v0.4.7). Plus the blanks before the 1st, days before the range, days before records
+/* 没用 is an empty frame; a used day's ink grows in a straight line with its active time, full at 10 hours
+   (--heat, set per cell; v0.4.9). Plus the blanks before the 1st, days before the range, days before records
    began and days still to come in this month. */
 .ach-cell {
   display: block;
@@ -207,13 +207,13 @@
   background: color-mix(in srgb, var(--eink-ink) var(--heat, 100%), transparent);
 }
 
-/* The legend's ramp: the faintest used day on the left, 12 hours on the right. */
+/* The legend's ramp: the faintest used day on the left, 10 hours on the right. */
 .ach-heat-ramp {
   display: block;
   width: 44px;
   height: 10px;
   border-radius: 1px;
-  background: linear-gradient(to right, color-mix(in srgb, var(--eink-ink) 20%, transparent), var(--eink-ink));
+  background: linear-gradient(to right, color-mix(in srgb, var(--eink-ink) 30%, transparent), var(--eink-ink));
 }
 
 .ach-cell.is-future {

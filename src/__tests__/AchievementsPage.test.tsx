@@ -163,8 +163,8 @@ describe("AchievementsPage", () => {
     const cells = screen.getAllByLabelText(/^\d{4}-\d{2}-\d{2} 活跃/);
     expect(cells).toHaveLength(90);
     // 3 h: 20 + 80 × 3/12.
-    expect(screen.getByLabelText("2026-10-01 活跃 3.0小时")).toHaveAttribute("data-heat", "40");
-    expect(screen.getByLabelText("2026-10-01 活跃 3.0小时")).toHaveStyle({ "--heat": "40%" });
+    expect(screen.getByLabelText("2026-10-01 活跃 3.0小时")).toHaveAttribute("data-heat", "51");
+    expect(screen.getByLabelText("2026-10-01 活跃 3.0小时")).toHaveStyle({ "--heat": "51%" });
     expect(screen.getByLabelText("2026-11-21 活跃 2.7小时")).toHaveClass("is-used", "is-today");
     expect(screen.getByLabelText("2026-11-19 活跃 0.1小时")).toHaveClass("is-used");
     expect(screen.getByLabelText("2026-11-18 活跃 0.1小时")).toHaveAttribute("data-heat", "0");
@@ -364,19 +364,19 @@ describe("AchievementsPage", () => {
     ]);
     // Readings only: label, value and a streak's dates; no sentence explains them on the screen.
     expect(strip.textContent).toBe(
-      "当前连续3天11-19 至今天最长连续27天08-23 至 09-18近 90 天里用过4天近 90 天活跃6.9小时没用12小时未到",
+      "当前连续3天11-19 至今天最长连续27天08-23 至 09-18近 90 天里用过4天近 90 天活跃6.9小时没用10小时未到",
     );
   });
 
-  it("inks a used day in a straight line with its active time, full from 12 hours", () => {
+  it("inks a used day in a straight line with its active time, full from 10 hours", () => {
     expect(heatPercent(0, 300)).toBeNull();
     expect(heatPercent(299, 300)).toBeNull();
-    expect(heatPercent(300, 300)).toBe(21);
-    expect(heatPercent(3 * H, 300)).toBe(40);
-    expect(heatPercent(6 * H, 300)).toBe(60);
-    expect(heatPercent(9 * H, 300)).toBe(80);
+    expect(heatPercent(300, 300)).toBe(31);
+    expect(heatPercent(3 * H, 300)).toBe(51);
+    expect(heatPercent(5 * H, 300)).toBe(65);
+    expect(heatPercent(8 * H, 300)).toBe(86);
+    expect(heatPercent(10 * H, 300)).toBe(100);
     expect(heatPercent(12 * H, 300)).toBe(100);
-    expect(heatPercent(15 * H, 300)).toBe(100);
   });
 
   it("writes streaks and totals as a record, never as a target", async () => {
@@ -393,7 +393,7 @@ describe("AchievementsPage", () => {
     expect(heatmap).not.toHaveTextContent("不算在内");
     expect(heatmap).not.toHaveTextContent("免得开机看一眼");
     const legend = heatmap.querySelector(".ach-legend") as HTMLElement;
-    expect(legend).toHaveTextContent("没用12小时未到");
+    expect(legend).toHaveTextContent("没用10小时未到");
     expect(within(heatmap).getByText("近 90 天里用过")).toBeInTheDocument();
     expect(within(heatmap).getByText("11月")).toBeInTheDocument();
 

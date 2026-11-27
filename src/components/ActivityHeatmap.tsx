@@ -9,10 +9,10 @@ export const HEATMAP_RANGE_LABELS: Record<HeatmapDays, string> = {
   365: "近一年",
 };
 
-/** A used day's ink grows in a straight line with its active time and is full from 12 hours (v0.4.7). */
-export const HEAT_FULL_SECONDS = 12 * 3600;
+/** A used day's ink grows in a straight line with its active time and is full from 10 hours (v0.4.9). */
+export const HEAT_FULL_SECONDS = 10 * 3600;
 /** The faintest used day, so it never reads as 没用's empty frame. */
-export const HEAT_MIN_PERCENT = 20;
+export const HEAT_MIN_PERCENT = 30;
 /** Indexed by `getDay()`: Sunday first. */
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 /** Months per row before the normal-size dot matrices wrap; 近一年 switches to small cells, seven a row. */
@@ -170,7 +170,7 @@ export function ActivityHeatmap({ summary, durationFormat }: Props) {
           </div>
           <div className="ach-legend" aria-hidden="true">
             <span><i className="ach-cell l0" />没用</span>
-            <span><i className="ach-heat-ramp" />12小时</span>
+            <span><i className="ach-heat-ramp" />10小时</span>
             <span><i className="ach-cell is-future" />未到</span>
             {hasNoRecordDays ? <span><i className="ach-cell is-norecord" />无记录</span> : null}
           </div>

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The `成就` heatmap spreads its shades further apart: the faintest used day now starts at 30% ink instead of 20%, and the full ink is reached at 10 hours of active time instead of 12. The legend strip reads `10小时`.
+
 ## v0.4.8 - 2026-11-27
 
 - Moving between pages, days and ranges no longer cuts from one screen to the next. Choosing a page in the sidebar, stepping the day on `概览` and `后台` (`‹ ›`, the calendar, `Ctrl+←` / `Ctrl+→`), changing the range on `统计` and the heatmap range on `成就` now dissolve the content into the new one in place, over 0.4 s, so the window never goes blank in between. The sidebar's raised key and every segmented control's selected thumb glide from the old choice to the new one. Dialogs open from a little smaller and, when closed, fade with their scrim and sink slightly instead of vanishing; the calendar and the export menus fold back towards their key. GST draws all of this with the browser engine Windows already has (view transitions and the Web Animations API), with no animation library.
