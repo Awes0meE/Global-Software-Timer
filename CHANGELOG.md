@@ -6,6 +6,7 @@
 - A quick read no longer dims the figures first: going to another day or range shows the new numbers as soon as they are read, and only a read that takes longer than 0.3 s dims the figures on screen (and, on `统计`, says `正在读取…`). Coming back to `软件`, `后台`, `统计` or `成就` shows what the page showed last at once and swaps in the fresh read, instead of a loading line first. Those last reads are kept in memory while GST runs, not stored.
 - `设置` → `显示` has `动画速度`: `快`, `中` (the default) or `慢`. It times the page, day and range swaps, the gliding keys and the dialog, menu and notice animations (0.6×, 1× or 1.5×). It is greyed out while `减少动画` is on, which still turns all of them off. Settings files carry it, and older files import as before.
 - On `成就`, a lit milestone plate under the pointer now rises instead of glowing in the accent colour. On the light theme it turns white with a soft grey halo and a shadow below; on the dark theme it lightens a step, its edge turns a quiet grey and a pale grey glow falls below it, the light counterpart of the light theme's shadow. The `终极成就` plate keeps its accent outline.
+- The icon of `最常用` on the `概览` screen (and the clock on the `设置` screen) is shown in its own colours. It used to be printed half desaturated to look inked on the e-ink screen, which made a colourful icon such as Claude's look washed out.
 
 ## v0.4.7 - 2026-11-26
 

@@ -1421,11 +1421,6 @@ main > p[role="status"] {
   white-space: nowrap;
 }
 
-/* Images on the screen are printed half desaturated. */
-.lcd img {
-  filter: grayscale(0.55) saturate(0.7) contrast(1.05);
-}
-
 .lcd-dial {
   position: relative;
   width: 184px;

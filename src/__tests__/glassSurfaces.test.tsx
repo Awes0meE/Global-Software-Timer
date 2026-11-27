@@ -748,11 +748,14 @@ describe("e-ink screen", () => {
     expect(topLevel(".lcd-key-active").background).toBe("var(--eink-mid)");
   });
 
-  it("half-desaturates every image on the screen, without blending", () => {
-    const declarations = topLevel(".lcd img");
-    expect(normalize(declarations.filter)).toBe("grayscale(0.55) saturate(0.7) contrast(1.05)");
-    expect(declarations["mix-blend-mode"]).toBeUndefined();
-    expect(declarations.opacity).toBeUndefined();
+  // v0.4.8: icons on the screen (最常用, the settings clock) keep their own colours; they were half desaturated.
+  it("prints every image on the screen in its own colours, without filter or blending", () => {
+    const imageRules = allRules().filter((rule) => rule.selectors.some((selector) => /\.lcd\b.*\bimg\b/.test(selector)));
+    for (const rule of imageRules) {
+      expect(rule.declarations.filter, rule.selector).toBeUndefined();
+      expect(rule.declarations["mix-blend-mode"], rule.selector).toBeUndefined();
+      expect(rule.declarations.opacity, rule.selector).toBeUndefined();
+    }
     const old = allRules().filter((rule) => rule.selectors.some((selector) => selector.endsWith(".lcd-most .software-icon")));
     expect(old.map((rule) => rule.selectors.join(", "))).toEqual([]);
   });
