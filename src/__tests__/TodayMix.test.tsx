@@ -49,7 +49,7 @@ describe("TodayMix", () => {
     expect(screen.getAllByText("2分钟").length).toBeGreaterThan(0);
   });
 
-  it("paints each bar segment in its identity colour, with no glow colour left inline", () => {
+  it("paints each bar segment in its identity colour and hands it to the glow", () => {
     const apps = [
       appRow(1, 3600, 300),
       appRow(2, 65, 125),
@@ -61,9 +61,11 @@ describe("TodayMix", () => {
     expect(segments).toHaveLength(2);
     expect(segments[0].style.backgroundColor).toBe("var(--mix-1)");
     expect(segments[1].style.backgroundColor).toBe("var(--mix-2)");
-    for (const segment of segments) {
-      expect(segment.style.getPropertyValue("--mix-color")).toBe("");
-    }
+    expect(segments[0].style.getPropertyValue("--mix-color")).toBe("var(--mix-1)");
+    expect(segments[1].style.getPropertyValue("--mix-color")).toBe("var(--mix-2)");
+    // The colour number, which the dark theme's red and yellow nudge selects on.
+    expect(segments[0].dataset.mix).toBe("1");
+    expect(segments[1].dataset.mix).toBe("2");
   });
 
   it("names a past day's mix 当日分布 and says when that day had no active time", () => {

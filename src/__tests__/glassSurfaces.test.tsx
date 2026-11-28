@@ -1151,15 +1151,12 @@ describe("glass layers on every page", () => {
 // v0.4.1: in the dark theme each segment's own-colour glow hugged its top and bottom edges, so bright
 // segments read 1-2px taller than dim ones. The bar now draws flat segments of one height.
 describe("today distribution bar", () => {
-  it("draws every segment flat, with nothing that changes its edges", () => {
+  it("keeps every segment one height, with only the own-colour glow around it (v0.4.9)", () => {
     const segment = topLevel(".mix-segment");
-    for (const property of ["box-shadow", "filter", "transform", "margin", "border", "outline", "height"]) {
+    for (const property of ["filter", "transform", "margin", "border", "outline", "height"]) {
       expect(segment[property], property).toBeUndefined();
     }
-    const segmentRules = allRules().filter((rule) => rule.selectors.some((selector) => selector.includes(".mix-segment")));
-    for (const rule of segmentRules) {
-      expect(rule.declarations["box-shadow"], `${rule.atRules.join(" ")} ${rule.selector}`).toBeUndefined();
-    }
+    expect(segment["box-shadow"]).toBe("0 0 12px color-mix(in srgb, var(--mix-color) var(--mix-glow), transparent)");
     expect(topLevel(".mix-bar").display).toBe("flex");
     expect(topLevel(".mix-bar")["align-items"] ?? "stretch").toBe("stretch");
   });
@@ -1170,9 +1167,32 @@ describe("today distribution bar", () => {
     expect(mixRules(".mix-total")).toEqual([]);
   });
 
-  it("drops the glow token from both themes", () => {
-    expect(themeTokens("light")["--mix-glow"]).toBeUndefined();
-    expect(themeTokens("dark")["--mix-glow"]).toBeUndefined();
+  // v0.4.9, by the user's eye: the bright red and yellow segments sit half a physical pixel lower in the dark
+  // theme, chosen by colour number so the nudge follows the colour, not the position.
+  it("nudges the red and yellow segments half a physical pixel down in the dark theme only", () => {
+    const nudged = allRules().filter((rule) => rule.declarations.transform?.includes("--mix-nudge"));
+    expect(nudged.map((rule) => rule.selector)).toEqual(['.mix-segment:is([data-mix="2"], [data-mix="5"])']);
+    expect(nudged[0].declarations.transform).toBe("translateY(calc(var(--mix-nudge) * var(--mix-shift)))");
+    expect(nudged[0].atRules).toEqual([]);
+    expect(themeTokens("light")["--mix-shift"]).toBe("0");
+    expect(themeTokens("dark")["--mix-shift"]).toBe("1");
+    const nudge = (resolution?: string) =>
+      allRules().find(
+        (rule) =>
+          rule.selector === ".mix-bar" &&
+          rule.declarations["--mix-nudge"] !== undefined &&
+          (resolution ? rule.atRules.some((at) => at.includes(resolution)) : rule.atRules.length === 0),
+      )?.declarations["--mix-nudge"];
+    expect(nudge()).toBe("0.5px");
+    expect(nudge("1.25dppx")).toBe("0.4px");
+    expect(nudge("1.5dppx")).toBe("0.3333px");
+    expect(nudge("1.75dppx")).toBe("0.2857px");
+    expect(nudge("2dppx")).toBe("0.25px");
+  });
+
+  it("glows in the dark theme only", () => {
+    expect(themeTokens("light")["--mix-glow"]).toBe("0%");
+    expect(themeTokens("dark")["--mix-glow"]).toBe("40%");
   });
 });
 

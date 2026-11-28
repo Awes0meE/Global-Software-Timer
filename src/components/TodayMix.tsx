@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { AppUsageRow, DurationFormat } from "../api";
 import { formatDurationZh } from "../i18n";
 
@@ -10,8 +11,13 @@ interface Props {
 
 const MIX_COLORS = 7;
 
+/** The identity colour's number, 1 to MIX_COLORS, cycling down the list. */
+function mixNumber(index: number): number {
+  return (index % MIX_COLORS) + 1;
+}
+
 function mixColor(index: number): string {
-  return `var(--mix-${(index % MIX_COLORS) + 1})`;
+  return `var(--mix-${mixNumber(index)})`;
 }
 
 /**
@@ -34,13 +40,23 @@ export function TodayMix({ apps, durationFormat = "decimal_hours", pastDay = fal
       </header>
       <div className="mix-plate">
         <div className="mix-bar" aria-label={`${day}使用分布条`}>
-          {rows.map((app, index) => (
-            <span
-              className="mix-segment"
-              key={app.app_id}
-              style={{ width: `${share(app.active_today_seconds)}%`, backgroundColor: mixColor(index) }}
-            />
-          ))}
+          {rows.map((app, index) => {
+            const color = mixColor(index);
+            return (
+              <span
+                className="mix-segment"
+                key={app.app_id}
+                data-mix={mixNumber(index)}
+                style={
+                  {
+                    width: `${share(app.active_today_seconds)}%`,
+                    backgroundColor: color,
+                    "--mix-color": color,
+                  } as CSSProperties
+                }
+              />
+            );
+          })}
         </div>
         <div className="mix-scroll" role="region" aria-label={`${day}分布列表`} tabIndex={0}>
           {rows.length === 0 ? (

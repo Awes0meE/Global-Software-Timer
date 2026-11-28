@@ -127,6 +127,8 @@
   --eink-ghost: rgba(11, 11, 10, 0.04);
   --eink-grain: 0.06;
   --eink-grain-blend: multiply;
+  --mix-glow: 0%;
+  --mix-shift: 0;
   /* 3D slide switch (.toggle): recessed well, track rims, knob rim, ball face and lift. The off rims are
      the same in both themes and resolve here, not against the switch's ancestors. */
   --tg-well-off: inset 0 2px 3px -1px rgba(20, 30, 60, 0.34), inset 0 -1px 0 rgba(255, 255, 255, 0.75);
@@ -222,6 +224,8 @@
   --eink-ghost: rgba(247, 247, 249, 0.05);
   --eink-grain: 0.45;
   --eink-grain-blend: soft-light;
+  --mix-glow: 40%;
+  --mix-shift: 1;
   --tg-well-off: inset 0 2px 3px -1px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.1);
   --tg-well-on:
     inset 0 2px 3px -1px color-mix(in srgb, color-mix(in srgb, var(--accent) 22%, #000) 60%, transparent),
@@ -1718,8 +1722,9 @@ main > p[role="status"] {
   --muted: var(--ink-2);
 }
 
-/* Flat segments of one height (no glow: an own-colour halo made bright segments look taller in the dark
-   theme); the end segments carry the rounding. */
+/* Segments of one height; the end segments carry the rounding. In the dark theme each glows in its own
+   colour (v0.4.9 brings back the v0.4.0 glow). The segments line up to the device pixel either way; a
+   bright warm segment only looks a touch higher than a dim blue one on a dark ground. */
 .mix-bar {
   display: flex;
   gap: 2px;
@@ -1730,6 +1735,7 @@ main > p[role="status"] {
 
 .mix-segment {
   min-width: 2px;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--mix-color) var(--mix-glow), transparent);
 }
 
 .mix-segment:first-child {
@@ -1740,6 +1746,30 @@ main > p[role="status"] {
 .mix-segment:last-child {
   border-top-right-radius: var(--radius-tag);
   border-bottom-right-radius: var(--radius-tag);
+}
+
+/* Dark theme (--mix-shift: 1): on the dark ground the bright red (--mix-2) and yellow (--mix-5) segments
+   read a hair higher than the others, though every segment covers the same device pixels. Half a physical
+   pixel down evens that out by eye (v0.4.9); --mix-nudge is half a physical pixel at each common scale. */
+.mix-bar {
+  --mix-nudge: 0.5px;
+}
+
+@media (resolution: 1.25dppx) {
+  .mix-bar { --mix-nudge: 0.4px; }
+}
+@media (resolution: 1.5dppx) {
+  .mix-bar { --mix-nudge: 0.3333px; }
+}
+@media (resolution: 1.75dppx) {
+  .mix-bar { --mix-nudge: 0.2857px; }
+}
+@media (resolution: 2dppx) {
+  .mix-bar { --mix-nudge: 0.25px; }
+}
+
+.mix-segment:is([data-mix="2"], [data-mix="5"]) {
+  transform: translateY(calc(var(--mix-nudge) * var(--mix-shift)));
 }
 
 .mix-scroll {
@@ -3188,6 +3218,10 @@ mark {
     forced-color-adjust: none;
     outline: 1px solid CanvasText;
     outline-offset: -1px;
+  }
+
+  .mix-segment {
+    box-shadow: none;
   }
 
   /* Buttons and the round keys are drawn as a fill with an inset-shadow edge (or, for 添加, a solid fill),
