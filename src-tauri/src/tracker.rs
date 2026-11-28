@@ -594,17 +594,20 @@ fn record_daily_software_runtime_usage(
         if status == AppRuntimeStatus::Foreground {
             windowed_keys.push(identity_key.clone());
         }
-        let (foreground_seconds, background_seconds) = match status {
-            AppRuntimeStatus::Foreground => (seconds, 0),
-            // The software page splits window time from out-of-window time.
-            AppRuntimeStatus::Tray | AppRuntimeStatus::Background => (0, seconds),
-            AppRuntimeStatus::Closed => (0, 0),
+        // The software page splits window time from out-of-window time; the tray part of the
+        // latter is kept apart too (v0.4.9), though the interface calls all of it 后台.
+        let (foreground_seconds, background_seconds, tray_seconds) = match status {
+            AppRuntimeStatus::Foreground => (seconds, 0, 0),
+            AppRuntimeStatus::Tray => (0, seconds, seconds),
+            AppRuntimeStatus::Background => (0, seconds, 0),
+            AppRuntimeStatus::Closed => (0, 0, 0),
         };
-        store.increment_daily_software_runtime_usage(
+        store.increment_daily_software_runtime_split(
             usage_date,
             &identity_key,
             foreground_seconds,
             background_seconds,
+            tray_seconds,
             recorded_at,
         )?;
     }

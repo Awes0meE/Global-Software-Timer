@@ -1075,6 +1075,61 @@ fn tray_apps_are_recorded_as_running_and_background_processes_are_logged_separat
     assert_eq!(tracker.background_live().len(), 1);
 }
 
+/// (window, background, tray) seconds on `date` of the identity whose key contains `needle`.
+fn runtime_split(path: &std::path::Path, date: &str, needle: &str) -> (i64, i64, Option<i64>) {
+    let conn = rusqlite::Connection::open(path).unwrap();
+    conn.query_row(
+        "SELECT foreground_seconds, background_seconds, tray_seconds FROM daily_software_runtime_usage
+         WHERE usage_date = ?1 AND identity_key LIKE ?2",
+        rusqlite::params![date, format!("%{needle}%")],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )
+    .unwrap()
+}
+
+#[test]
+fn tray_time_is_recorded_apart_inside_background_time() {
+    let db_file = NamedTempFile::new().unwrap();
+    let store = Store::open(db_file.path()).unwrap();
+    store.migrate().unwrap();
+    store
+        .upsert_app(
+            "Code.exe",
+            code_process().executable_path.as_str(),
+            "Visual Studio Code",
+        )
+        .unwrap();
+    let mut background_code = code_process();
+    background_code.has_visible_window = false;
+    let mut tracker = Tracker::new(
+        store,
+        FakeProcessSource::new(vec![
+            vec![tray_weixin(), background_code],
+            vec![tray_weixin(), code_process()],
+        ]),
+    );
+    let activity = FakeActivitySource {
+        idle_duration: Duration::ZERO,
+    };
+    let start = Utc.with_ymd_and_hms(2026, 6, 5, 9, 0, 0).unwrap();
+    for now in [start, start + chrono::Duration::seconds(5)] {
+        run_tracker_tick(
+            &mut tracker,
+            &activity,
+            now,
+            Duration::from_secs(5),
+            Duration::from_secs(300),
+        )
+        .unwrap();
+    }
+
+    let date = start.date_naive().to_string();
+    // The tray app: all background, all of it tray.
+    assert_eq!(runtime_split(db_file.path(), &date, "weixin"), (0, 10, Some(10)));
+    // No window and no tray icon, then a window: background without tray time.
+    assert_eq!(runtime_split(db_file.path(), &date, "code.exe"), (5, 5, Some(0)));
+}
+
 #[test]
 fn overlapping_package_versions_only_credit_one_tick() {
     let file = NamedTempFile::new().unwrap();

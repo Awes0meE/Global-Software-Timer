@@ -164,7 +164,8 @@ fn startup_folds_legacy_per_version_identities_into_one() {
             [(&old_v1, 3_600, 600, 1_200), (&old_v2, 1_800, 0, 900)]
         {
             conn.execute(
-                "INSERT INTO daily_software_runtime_usage VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+                "INSERT INTO daily_software_runtime_usage (usage_date, identity_key, foreground_seconds, background_seconds, first_recorded_at, last_recorded_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
                 params![
                     date.to_string(),
                     key,
@@ -256,7 +257,8 @@ fn folding_keeps_hidden_mark_when_versions_conflict_and_caps_a_day() {
             )
             .expect("member");
             conn.execute(
-                "INSERT INTO daily_software_runtime_usage VALUES (?1, ?2, 80000, 0, ?3, ?3)",
+                "INSERT INTO daily_software_runtime_usage (usage_date, identity_key, foreground_seconds, background_seconds, first_recorded_at, last_recorded_at)
+                 VALUES (?1, ?2, 80000, 0, ?3, ?3)",
                 params![date.to_string(), key, "2026-11-18T01:00:00+00:00"],
             )
             .expect("runtime");
@@ -330,6 +332,56 @@ fn legacy_per_version_identities() -> (NamedTempFile, i64, String, String) {
         .expect("member");
     }
     (db_file, v1_id, old_v1, old_v2)
+}
+
+#[test]
+fn startup_fold_adds_tray_time_caps_it_at_background_and_keeps_unknown_days_unknown() {
+    let (db_file, _, old_v1, old_v2) = legacy_per_version_identities();
+    {
+        let conn = Connection::open(db_file.path()).expect("raw open");
+        // (date, key, window, background, tray): a plain sum, a day capped at 24 hours,
+        // and a day one version recorded before tray time was kept apart.
+        let rows: [(&str, &String, i64, i64, Option<i64>); 6] = [
+            ("2026-11-16", &old_v1, 0, 600, Some(400)),
+            ("2026-11-16", &old_v2, 0, 300, Some(200)),
+            ("2026-11-17", &old_v1, 80_000, 5_000, Some(5_000)),
+            ("2026-11-17", &old_v2, 0, 5_000, Some(5_000)),
+            ("2026-11-18", &old_v1, 0, 100, None),
+            ("2026-11-18", &old_v2, 0, 50, Some(50)),
+        ];
+        for (date, key, window, background, tray) in rows {
+            conn.execute(
+                "INSERT INTO daily_software_runtime_usage
+                     (usage_date, identity_key, foreground_seconds, background_seconds, tray_seconds,
+                      first_recorded_at, last_recorded_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+                params![date, key, window, background, tray, format!("{date}T01:00:00+00:00")],
+            )
+            .expect("runtime");
+        }
+    }
+
+    let store = Store::open(db_file.path()).expect("reopen");
+    store.migrate().expect("migrate");
+    let conn = Connection::open(db_file.path()).expect("raw open");
+    let merged: Vec<(String, i64, i64, Option<i64>)> = conn
+        .prepare(
+            "SELECT usage_date, foreground_seconds, background_seconds, tray_seconds
+             FROM daily_software_runtime_usage ORDER BY usage_date",
+        )
+        .unwrap()
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        merged,
+        vec![
+            ("2026-11-16".to_string(), 0, 900, Some(600)),
+            ("2026-11-17".to_string(), 80_000, 6_400, Some(6_400)),
+            ("2026-11-18".to_string(), 0, 150, None),
+        ]
+    );
 }
 
 #[test]

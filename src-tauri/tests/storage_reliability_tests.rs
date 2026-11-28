@@ -255,6 +255,30 @@ fn legacy_runtime_columns_are_added_without_losing_aggregates() {
             "2026-06-05T23:59:59+00:00".into()
         )
     );
+    // Tray time is recorded apart from v0.4.9 on: rows from before stay unknown (NULL), even when they grow.
+    let tray = |date: &str| -> Option<i64> {
+        conn.query_row(
+            "SELECT tray_seconds FROM daily_software_runtime_usage WHERE usage_date = ?1",
+            [date],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    assert_eq!(tray("2026-06-05"), None);
+    let at = chrono::Utc::now();
+    let old_day = chrono::NaiveDate::from_ymd_opt(2026, 6, 5).unwrap();
+    let new_day = chrono::NaiveDate::from_ymd_opt(2026, 6, 6).unwrap();
+    store
+        .increment_daily_software_runtime_split(old_day, "legacy", 0, 5, 5, at)
+        .unwrap();
+    assert_eq!(tray("2026-06-05"), None);
+    store
+        .increment_daily_software_runtime_split(new_day, "legacy", 0, 5, 5, at)
+        .unwrap();
+    store
+        .increment_daily_software_runtime_usage(new_day, "legacy", 0, 5, at)
+        .unwrap();
+    assert_eq!(tray("2026-06-06"), Some(5));
 }
 
 #[test]

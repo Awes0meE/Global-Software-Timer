@@ -255,6 +255,7 @@ impl Store {
                 background_seconds INTEGER NOT NULL DEFAULT 0,
                 first_recorded_at TEXT NOT NULL,
                 last_recorded_at TEXT NOT NULL,
+                tray_seconds INTEGER,
                 PRIMARY KEY (usage_date, identity_key),
                 FOREIGN KEY(identity_key) REFERENCES software_identities(identity_key)
             );
@@ -580,10 +581,10 @@ impl Store {
         self.conn.execute(
             r#"
             INSERT INTO daily_software_runtime_usage (
-                usage_date, identity_key, foreground_seconds, background_seconds,
+                usage_date, identity_key, foreground_seconds, background_seconds, tray_seconds,
                 first_recorded_at, last_recorded_at
             )
-            SELECT usage_date, ?2, foreground_seconds, background_seconds,
+            SELECT usage_date, ?2, foreground_seconds, background_seconds, tray_seconds,
                    first_recorded_at, last_recorded_at
             FROM daily_software_runtime_usage
             WHERE identity_key = ?1
@@ -593,6 +594,17 @@ impl Store {
                     MAX(0, 86400 - MIN(86400, foreground_seconds + excluded.foreground_seconds)),
                     background_seconds + excluded.background_seconds
                 ),
+                -- Tray time is part of background time, so it takes the same cap; unknown stays unknown.
+                tray_seconds = CASE
+                    WHEN tray_seconds IS NULL OR excluded.tray_seconds IS NULL THEN NULL
+                    ELSE MIN(
+                        MIN(
+                            MAX(0, 86400 - MIN(86400, foreground_seconds + excluded.foreground_seconds)),
+                            background_seconds + excluded.background_seconds
+                        ),
+                        tray_seconds + excluded.tray_seconds
+                    )
+                END,
                 first_recorded_at = MIN(first_recorded_at, excluded.first_recorded_at),
                 last_recorded_at = MAX(last_recorded_at, excluded.last_recorded_at)
             "#,
@@ -687,6 +699,17 @@ impl Store {
             )?;
             self.conn.execute(
                 "UPDATE daily_software_runtime_usage SET last_recorded_at = first_recorded_at WHERE last_recorded_at IS NULL",
+                [],
+            )?;
+        }
+
+        // v0.4.9: the tray part of background_seconds. Rows from before stay NULL (not recorded apart).
+        if !self
+            .table_columns("daily_software_runtime_usage")?
+            .contains(&"tray_seconds".to_string())
+        {
+            self.conn.execute(
+                "ALTER TABLE daily_software_runtime_usage ADD COLUMN tray_seconds INTEGER",
                 [],
             )?;
         }
@@ -1844,12 +1867,34 @@ impl Store {
         Ok(())
     }
 
+    /// Adds window and background seconds, none of the background in the tray.
     pub fn increment_daily_software_runtime_usage(
         &self,
         date: NaiveDate,
         identity_key: &str,
         foreground_seconds: i64,
         background_seconds: i64,
+        recorded_at: DateTime<Utc>,
+    ) -> StoreResult<()> {
+        self.increment_daily_software_runtime_split(
+            date,
+            identity_key,
+            foreground_seconds,
+            background_seconds,
+            0,
+            recorded_at,
+        )
+    }
+
+    /// Adds window and background seconds, `tray_seconds` of the background with only a tray icon.
+    /// A row from before tray time was kept apart keeps `tray_seconds` NULL.
+    pub fn increment_daily_software_runtime_split(
+        &self,
+        date: NaiveDate,
+        identity_key: &str,
+        foreground_seconds: i64,
+        background_seconds: i64,
+        tray_seconds: i64,
         recorded_at: DateTime<Utc>,
     ) -> StoreResult<()> {
         let recorded_at = recorded_at.to_rfc3339();
@@ -1860,13 +1905,15 @@ impl Store {
                 identity_key,
                 foreground_seconds,
                 background_seconds,
+                tray_seconds,
                 first_recorded_at,
                 last_recorded_at
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
             ON CONFLICT(usage_date, identity_key) DO UPDATE SET
                 foreground_seconds = foreground_seconds + excluded.foreground_seconds,
                 background_seconds = background_seconds + excluded.background_seconds,
+                tray_seconds = tray_seconds + excluded.tray_seconds,
                 first_recorded_at = CASE
                     WHEN daily_software_runtime_usage.first_recorded_at < excluded.first_recorded_at
                     THEN daily_software_runtime_usage.first_recorded_at
@@ -1883,6 +1930,7 @@ impl Store {
                 identity_key,
                 foreground_seconds.max(0),
                 background_seconds.max(0),
+                tray_seconds.clamp(0, background_seconds.max(0)),
                 recorded_at,
             ],
         )?;
