@@ -170,15 +170,15 @@ function FocusedSoftwareTable({
         <div className="focused-table-row focused-table-head">
           <span aria-hidden="true" />
           <span>软件</span>
-          <span>今日前台</span>
+          <span>今日窗口</span>
           <span>今日后台</span>
           <span className="active-column-head">
-            今日活跃
+            今日专注
             <ActiveTimeHelpPopover />
           </span>
-          <span>共计前台</span>
-          <span>共计后台</span>
-          <span>共计活跃</span>
+          <span>累计窗口</span>
+          <span>累计后台</span>
+          <span>累计专注</span>
           <span>上次打开</span>
         </div>
         {rows.map((row) => (

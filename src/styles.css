@@ -1145,11 +1145,6 @@ p {
   box-shadow: 0 0 0 3px var(--signal-wash), 0 0 8px var(--signal);
 }
 
-.status-badge.background .lamp {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--muted);
-}
-
 .lamp.is-breathing {
   animation: lamp-breathe 2.8s ease-in-out infinite;
 }
@@ -3065,7 +3060,7 @@ mark {
     background: Canvas;
   }
 
-  /* A dialog's primary key (保存图片, 导入, 最小化到状态栏) stays marked apart from 取消, as its fill does.
+  /* A dialog's primary key (保存图片, 导入, 最小化到后台) stays marked apart from 取消, as its fill does.
      Not adjusted, or the forced text backplate (Canvas) would hide the HighlightText label. */
   .dialog .button-primary:not(:disabled) {
     forced-color-adjust: none;
@@ -3316,16 +3311,16 @@ mark {
   }
 }
 
-/* Background processes */
-.status-badge.tray .lamp {
+/* 后台运行, tray icons included (v0.4.9): a signal ring, live but out of sight. */
+.status-badge.background .lamp {
   background: var(--signal-wash);
   box-shadow: inset 0 0 0 2px var(--signal-ink);
 }
 
 /* Contrast themes: the lamps are fills and shadows, which forced colours remove, and in the usage list a
    lamp is the only mark of an app's state. They keep their own paint in system colours, still apart:
-   off a GrayText dot, foreground (and recording) a Highlight dot, tray a Highlight ring, background a
-   CanvasText ring. Here, after the tray rule above; paint only, the breathing stops. */
+   off a GrayText dot, a window (and recording) a Highlight dot, background a Highlight ring. Here, after
+   the background rule above; paint only, the breathing stops. */
 @media (forced-colors: active) {
   .lamp {
     forced-color-adjust: none;
@@ -3339,14 +3334,9 @@ mark {
     animation: none;
   }
 
-  .status-badge.tray .lamp {
-    background: Canvas;
-    box-shadow: inset 0 0 0 2px Highlight;
-  }
-
   .status-badge.background .lamp {
     background: Canvas;
-    box-shadow: inset 0 0 0 1.5px CanvasText;
+    box-shadow: inset 0 0 0 2px Highlight;
   }
 }
 

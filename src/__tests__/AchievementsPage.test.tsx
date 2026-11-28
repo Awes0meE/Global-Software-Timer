@@ -559,7 +559,7 @@ describe("AchievementsPage", () => {
     const records = screen.getByRole("region", { name: "个人纪录" });
     // The labels stand alone, with no faint definitions after them.
     expect(within(records).getByText("活跃最长的一天")).toBeInTheDocument();
-    expect(within(records).getByText("单个软件单日焦点最长")).toBeInTheDocument();
+    expect(within(records).getByText("单个软件单日专注最长")).toBeInTheDocument();
     expect(records.querySelector(".ach-record-def")).toBeNull();
     expect(records).not.toHaveTextContent("无操作");
     expect(within(records).getByText("2026-08-30")).toBeInTheDocument();

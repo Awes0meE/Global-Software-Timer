@@ -82,11 +82,8 @@ function statusClassName(status: AppRuntimeStatus): string {
     return "running";
   }
 
-  if (status === "tray") {
-    return "tray";
-  }
-
-  if (status === "background") {
+  // A tray icon is one kind of background run: both read 后台运行 under one lamp (v0.4.9).
+  if (status === "tray" || status === "background") {
     return "background";
   }
 

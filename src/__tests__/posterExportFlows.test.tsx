@@ -377,17 +377,17 @@ describe("导出成就", () => {
       await closeRequest.handler?.({ preventDefault: () => {} });
     });
     const closeDialog = screen.getByRole("dialog", { name: "关闭全局软件计时器" });
-    expect(within(closeDialog).getByRole("button", { name: "最小化到状态栏" })).toHaveFocus();
+    expect(within(closeDialog).getByRole("button", { name: "最小化到后台" })).toHaveFocus();
     await userEvent.tab();
     expect(within(closeDialog).getByRole("button", { name: "退出软件" })).toHaveFocus();
     await userEvent.tab();
-    expect(within(closeDialog).getByRole("button", { name: "最小化到状态栏" })).toHaveFocus();
+    expect(within(closeDialog).getByRole("button", { name: "最小化到后台" })).toHaveFocus();
     // Esc belongs to the top dialog: the poster dialog underneath stays open.
     await userEvent.keyboard("{Escape}");
     expect(dialog).toBeInTheDocument();
     expect(dialog.closest("[inert]")).not.toBeNull();
 
-    await userEvent.click(within(closeDialog).getByRole("button", { name: "最小化到状态栏" }));
+    await userEvent.click(within(closeDialog).getByRole("button", { name: "最小化到后台" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "关闭全局软件计时器" })).not.toBeInTheDocument());
     expect(dialog.closest("[inert]")).toBeNull();
     expect(list).toHaveFocus();

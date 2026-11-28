@@ -142,9 +142,9 @@ export function HelpPopover({ label, title, children, align = "end" }: HelpPopov
 
 export function ActiveTimeHelpPopover() {
   return (
-    <HelpPopover label="什么是活跃时长" title="什么是活跃时长？">
-      <p>运行时长表示软件被 GST 记录为正在运行的时间。</p>
-      <p>活跃时长表示这个软件窗口真正获得 Windows 焦点的时间。</p>
+    <HelpPopover label="什么是专注时长" title="什么是专注时长？">
+      <p>窗口是软件开着任务栏窗口的时间；后台是没有窗口、进程还在跑的时间。</p>
+      <p>专注是它的窗口被选中、在最前面的时间，不管有没有键鼠操作；概览的活跃只算其中 5 分钟内有键鼠操作的部分。</p>
     </HelpPopover>
   );
 }

@@ -34,7 +34,7 @@ export function CloseChoiceDialog({ error, busy, onChoose }: CloseChoiceDialogPr
       >
         <img className="dialog-mark" src={clockMark} alt="" width={40} height={40} />
         <h2 id="close-dialog-title">关闭全局软件计时器</h2>
-        <p id="close-dialog-note">GST 在状态栏里运行时才会记录，退出后就不再记录。</p>
+        <p id="close-dialog-note">GST 在后台运行时也会照常记录，退出后就不再记录。</p>
         {error ? <p className="dialog-error">{error}</p> : null}
         <div className="dialog-actions">
           <button type="button" className="button button-secondary" disabled={busy} onClick={() => onChoose("exit")}>
@@ -47,7 +47,7 @@ export function CloseChoiceDialog({ error, busy, onChoose }: CloseChoiceDialogPr
             disabled={busy}
             onClick={() => onChoose("minimize_to_tray")}
           >
-            最小化到状态栏
+            最小化到后台
           </button>
         </div>
       </section>

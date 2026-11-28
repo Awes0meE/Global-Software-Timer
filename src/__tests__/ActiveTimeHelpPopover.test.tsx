@@ -23,7 +23,7 @@ function openInClippingContainer(buttonRect: DOMRect) {
       <ActiveTimeHelpPopover />
     </div>,
   );
-  const button = screen.getByRole("button", { name: "什么是活跃时长" });
+  const button = screen.getByRole("button", { name: "什么是专注时长" });
   vi.spyOn(button, "getBoundingClientRect").mockReturnValue(buttonRect);
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
     this: HTMLElement,
@@ -33,7 +33,7 @@ function openInClippingContainer(buttonRect: DOMRect) {
     return rect(0, 0, 0, 0);
   });
   fireEvent.click(button);
-  return screen.getByRole("dialog", { name: "什么是活跃时长？" });
+  return screen.getByRole("dialog", { name: "什么是专注时长？" });
 }
 
 describe("ActiveTimeHelpPopover", () => {
@@ -69,7 +69,7 @@ describe("ActiveTimeHelpPopover", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "什么是活跃时长" }));
+    fireEvent.click(screen.getByRole("button", { name: "什么是专注时长" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -77,7 +77,7 @@ describe("ActiveTimeHelpPopover", () => {
 
   it("closes on a second click of its button", () => {
     openInClippingContainer(rect(600, 100, 16, 16));
-    const button = screen.getByRole("button", { name: "什么是活跃时长" });
+    const button = screen.getByRole("button", { name: "什么是专注时长" });
     expect(button).toHaveAttribute("aria-expanded", "true");
 
     fireEvent.pointerDown(button);

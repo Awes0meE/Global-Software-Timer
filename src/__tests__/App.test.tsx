@@ -331,8 +331,8 @@ describe("App", () => {
     const recentPanel = screen.getByRole("complementary", { name: "正在运行" });
     expect(await within(recentPanel).findByText("3.3小时")).toBeInTheDocument();
     expect(within(recentPanel).getByText("0.8小时")).toBeInTheDocument();
-    expect(within(recentPanel).getByRole("img", { name: "前台运行" })).toHaveClass("running");
-    expect(within(recentPanel).getByRole("img", { name: "托盘运行" })).toHaveClass("tray");
+    expect(within(recentPanel).getByRole("img", { name: "窗口运行" })).toHaveClass("running");
+    expect(within(recentPanel).getByRole("img", { name: "后台运行" })).toHaveClass("background");
     expect(screen.getByRole("button", { name: "导出日报" })).toHaveAttribute("aria-haspopup", "menu");
     const readout = screen.getByRole("region", { name: "今日总览" });
     expect(within(readout).getByText("今日记录")).toBeInTheDocument();
@@ -603,18 +603,18 @@ describe("App", () => {
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "软件" }));
 
-    expect(await screen.findByText("今日前台")).toBeInTheDocument();
+    expect(await screen.findByText("今日窗口")).toBeInTheDocument();
     expect(screen.getByText("今日后台")).toBeInTheDocument();
-    expect(screen.getByText("今日活跃")).toBeInTheDocument();
-    expect(screen.getByText("共计前台")).toBeInTheDocument();
-    expect(screen.getByText("共计后台")).toBeInTheDocument();
-    expect(screen.getByText("共计活跃")).toBeInTheDocument();
+    expect(screen.getByText("今日专注")).toBeInTheDocument();
+    expect(screen.getByText("累计窗口")).toBeInTheDocument();
+    expect(screen.getByText("累计后台")).toBeInTheDocument();
+    expect(screen.getByText("累计专注")).toBeInTheDocument();
     expect(screen.queryByText("今日运行")).not.toBeInTheDocument();
-    expect(screen.queryByText("共计运行")).not.toBeInTheDocument();
-    fireEvent.click(await screen.findByRole("button", { name: "什么是活跃时长" }));
+    expect(screen.queryByText("累计运行")).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "什么是专注时长" }));
 
-    expect(screen.getByRole("dialog", { name: "什么是活跃时长？" })).toBeInTheDocument();
-    expect(screen.getByText(/运行时长表示软件被 GST 记录为正在运行的时间/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "什么是专注时长？" })).toBeInTheDocument();
+    expect(screen.getByText(/窗口是软件开着任务栏窗口的时间/)).toBeInTheDocument();
   });
 
   it("uses the selected duration format on the focused software page", async () => {
@@ -1905,7 +1905,7 @@ describe("App", () => {
     expect(screen.getAllByLabelText("Microsoft Edge 图标")[0]).toHaveTextContent("M");
     expect(screen.getAllByLabelText("Steam 图标")[0]).toHaveTextContent("S");
     expect(screen.getAllByLabelText("WPS Office 图标")[0]).toHaveTextContent("W");
-    expect(screen.getAllByText("前台运行").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("窗口运行").length).toBeGreaterThan(0);
     expect(screen.getAllByText("后台运行").length).toBeGreaterThan(0);
     expect(screen.getAllByText("未运行").length).toBeGreaterThan(0);
     expect(screen.getByText("后台运行").closest(".status-badge")).toHaveClass("background");
@@ -1925,12 +1925,12 @@ describe("App", () => {
     expect(screen.getByRole("dialog", { name: "关闭全局软件计时器" })).toBeInTheDocument();
     // One line says why closing matters: GST records only while it runs in the tray.
     expect(screen.getByRole("dialog", { name: "关闭全局软件计时器" })).toHaveAccessibleDescription(
-      "GST 在状态栏里运行时才会记录，退出后就不再记录。",
+      "GST 在后台运行时也会照常记录，退出后就不再记录。",
     );
     expect(screen.queryByText("后续可在设置中更改。")).not.toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: "记住本次选择" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "最小化到状态栏" }));
+    fireEvent.click(screen.getByRole("button", { name: "最小化到后台" }));
 
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("apply_window_close_choice", {
@@ -1976,7 +1976,7 @@ describe("App", () => {
       await closeRequestMock.handler?.({ preventDefault: vi.fn() });
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "最小化到状态栏" }));
+    fireEvent.click(screen.getByRole("button", { name: "最小化到后台" }));
 
     expect(await screen.findByText("关闭操作失败，请重试。")).toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "关闭全局软件计时器" })).toBeInTheDocument();

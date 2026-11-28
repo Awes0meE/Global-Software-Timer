@@ -299,7 +299,7 @@ describe("BackgroundPage", () => {
 
     await user.click(help);
     const bubble = screen.getByRole("dialog", { name: "什么是后台进程？" });
-    expect(bubble).toHaveTextContent("没有窗口、也不在托盘里的第三方程序");
+    expect(bubble).toHaveTextContent("没有窗口、右下角也没有图标的第三方程序");
     // Date-neutral: the same words fit today and a past day.
     expect(bubble).toHaveTextContent("内存：运行中的进程显示当前占用，其余显示当日峰值。");
     // A past day's 峰值内存 reading adds up each software's own peak, which need not coincide.

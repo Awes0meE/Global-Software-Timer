@@ -223,12 +223,12 @@ describe("softwareListCsv", () => {
 
     expect(rows[0]).toEqual([...SOFTWARE_LIST_CSV_COLUMNS]);
     expect(rows.slice(1).map((row) => [row[0], row[2], row[3]])).toEqual([
-      ["Visual Studio Code", "特别关注", "前台运行"],
-      ["Edge", "隐藏", "托盘运行"],
+      ["Visual Studio Code", "特别关注", "窗口运行"],
+      ["Edge", "隐藏", "后台运行"],
       ["记事本", "已发现", "未运行"],
     ]);
     expect(rows[1]).toEqual([
-      "Visual Studio Code", "Code.exe", "特别关注", "前台运行", "2026-11-24 09:05",
+      "Visual Studio Code", "Code.exe", "特别关注", "窗口运行", "2026-11-24 09:05",
       "4.00", "1.00", "2.00", "80.00", "20.00", "50.00",
     ]);
     expect(rows[2][4]).toBe("");
@@ -278,14 +278,14 @@ describe("statisticsCsv", () => {
   it("lists every software of the export in its order, with the ledgers' figures where they have them", () => {
     const rows = parse(statisticsCsv(statistics(), statisticsExport()));
 
-    // The page's 名次 column shows the change in rank, and its legend calls the window figure 窗口开着.
+    // The page's 名次 column shows the change in rank, and its legend calls the window figure 窗口.
     expect(rows[0]).toEqual([...STATISTICS_CSV_COLUMNS]);
     expect(rows[0]).toEqual([
       "软件名称",
       "进程名",
       "排名",
-      "焦点(小时)",
-      "窗口开着(小时)",
+      "专注(小时)",
+      "窗口(小时)",
       "开着没用(小时)",
       "打开次数",
       "平均单次(小时)",
@@ -371,7 +371,7 @@ describe("statisticsDailyCsv", () => {
     expect(csv.startsWith("﻿")).toBe(false);
     const rows = parse(csv);
 
-    expect(rows[0]).toEqual(["日期", "软件名称", "进程名", "焦点(小时)", "窗口开着(小时)", "后台(小时)"]);
+    expect(rows[0]).toEqual(["日期", "软件名称", "进程名", "专注(小时)", "窗口(小时)", "后台(小时)"]);
     expect(rows[0]).toEqual([...STATISTICS_DAILY_CSV_COLUMNS]);
     expect(rows.slice(1)).toEqual([
       ["2026-11-01", "Visual Studio Code", "Code.exe", "2.00", "3.00", "0.00"],

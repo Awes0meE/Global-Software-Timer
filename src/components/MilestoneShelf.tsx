@@ -33,7 +33,7 @@ export function PersonalRecords({ bestActiveDay, bestSoftwareDay, durationFormat
         <div className="ach-record">
           {bestSoftwareDay ? <SoftwareIcon app={bestSoftwareDay} /> : null}
           <div className="ach-record-copy">
-            <span className="ach-record-label">单个软件单日焦点最长</span>
+            <span className="ach-record-label">单个软件单日专注最长</span>
             <RecordValue
               seconds={bestSoftwareDay?.seconds ?? null}
               durationFormat={durationFormat}
@@ -304,7 +304,7 @@ function PlateProgress({
 }
 
 function residentTitle(row: MilestoneRow, durationFormat: DurationFormat): string {
-  const total = `${row.display_name} 累计焦点 ${formatDurationZh(row.focused_seconds, durationFormat)}`;
+  const total = `${row.display_name} 累计专注 ${formatDurationZh(row.focused_seconds, durationFormat)}`;
   if (row.next_hours === null) return total;
   return `${total} · 下一档 ${row.next_hours} 小时 ${progressPercent(row.focused_seconds, row.next_hours)}%`;
 }

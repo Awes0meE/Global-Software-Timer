@@ -152,7 +152,7 @@ describe("glass and e-ink limits", () => {
 
   // Spec「信号橙与强调色」: signal orange only marks what is happening now.
   it("keeps signal orange on the live lamps", () => {
-    const allowed = [".lamp.is-lit", ".status-badge.running .lamp", ".status-badge.tray .lamp", ".pen-lamp"];
+    const allowed = [".lamp.is-lit", ".status-badge.running .lamp", ".status-badge.background .lamp", ".pen-lamp"];
     const users = selectorsUsing(SIGNAL);
     expect(users.length).toBeGreaterThan(0);
     for (const selector of users) expect(allowed, selector).toContain(selector);

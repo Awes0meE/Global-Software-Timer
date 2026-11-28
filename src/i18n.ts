@@ -3,8 +3,8 @@ import type { AppRuntimeStatus } from "./api";
 export type DurationFormat = "decimal_hours" | "hours_minutes";
 
 const RUNTIME_STATUS_LABELS: Record<AppRuntimeStatus, string> = {
-  foreground: "前台运行",
-  tray: "托盘运行",
+  foreground: "窗口运行",
+  tray: "后台运行",
   background: "后台运行",
   closed: "未运行",
 };

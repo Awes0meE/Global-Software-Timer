@@ -72,14 +72,14 @@ function RankingPanel({ summary, durationFormat }: LedgerProps) {
       </header>
       {summary.ranking.length === 0 ? (
         <div className="empty-state stats-empty">
-          <strong>这段时间没有软件焦点记录</strong>
+          <strong>这段时间没有软件专注记录</strong>
         </div>
       ) : (
         <>
           <div className="stats-row rank-row stats-head" aria-hidden="true">
             <span>#</span>
             <span>软件</span>
-            <span>焦点</span>
+            <span>专注</span>
             <span>名次</span>
           </div>
           {summary.ranking.map((row) => (
@@ -148,8 +148,8 @@ function IdleOpenPanel({ rows, durationFormat }: { rows: IdleOpenRow[]; duration
       <header className="panel-head">
         <h2 id="stats-idle-title">开着没用</h2>
         <HelpPopover label="开着没用怎么算" title="开着没用怎么算？" align="start">
-          <p>区间内窗口开着不少于 5 小时、焦点却不到窗口时间 5% 的软件才上榜。</p>
-          <p>托盘和后台时间不算。</p>
+          <p>区间内窗口时间不少于 5 小时、专注却不到窗口时间 5% 的软件才上榜。</p>
+          <p>后台时间不算。</p>
           <p>条长按本榜最长的窗口时长。</p>
         </HelpPopover>
       </header>
@@ -162,7 +162,7 @@ function IdleOpenPanel({ rows, durationFormat }: { rows: IdleOpenRow[]; duration
           <div className="stats-row idle-row stats-head" aria-hidden="true">
             <span>软件</span>
             <span>窗口</span>
-            <span>焦点 · 占比</span>
+            <span>专注 · 占比</span>
             <span>开着没用</span>
           </div>
           <div className="idle-rows">
@@ -197,11 +197,11 @@ function IdleOpenPanel({ rows, durationFormat }: { rows: IdleOpenRow[]; duration
           <p className="stats-foot">
             <span className="idle-key">
               <i aria-hidden="true" />
-              焦点
+              专注
             </span>
             <span className="idle-key is-light">
               <i aria-hidden="true" />
-              窗口开着
+              窗口
             </span>
           </p>
         </>

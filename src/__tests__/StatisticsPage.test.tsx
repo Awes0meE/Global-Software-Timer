@@ -535,7 +535,7 @@ describe("StatisticsPage", () => {
     await renderPage();
 
     const ranking = screen.getByRole("region", { name: "区间排行" });
-    expect(ranking).not.toHaveTextContent("按焦点时长");
+    expect(ranking).not.toHaveTextContent("按专注时长");
     expect(ranking).not.toHaveTextContent("与前 7 天比");
     const sessions = screen.getByRole("region", { name: "会话" });
     expect(sessions).not.toHaveTextContent("按打开次数");
@@ -544,7 +544,7 @@ describe("StatisticsPage", () => {
     expect(idle).not.toHaveTextContent("条长按本榜");
     expect(idle).not.toHaveTextContent("才上榜");
     // The bar key stays: it names the two bar colours.
-    expect(idle.querySelector(".stats-foot")).toHaveTextContent(/^焦点窗口开着$/);
+    expect(idle.querySelector(".stats-foot")).toHaveTextContent(/^专注窗口$/);
     const rhythm = screen.getByRole("region", { name: "作息" });
     for (const text of ["有记录 5 天", "条长满格", "空白日计入", "按有记录的", "中位时间"]) {
       expect(rhythm).not.toHaveTextContent(text);
@@ -571,7 +571,7 @@ describe("StatisticsPage", () => {
     const bubble = screen.getByRole("dialog", { name: "开着没用怎么算？" });
     expect(bubble).toHaveTextContent("不少于 5 小时");
     expect(bubble).toHaveTextContent("不到窗口时间 5%");
-    expect(bubble).toHaveTextContent("托盘和后台");
+    expect(bubble).toHaveTextContent("后台时间不算");
     expect(bubble).toHaveTextContent("最长的窗口时长");
   });
 

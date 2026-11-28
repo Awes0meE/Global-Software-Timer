@@ -57,8 +57,8 @@ export const STATISTICS_CSV_COLUMNS = [
   "软件名称",
   "进程名",
   "排名",
-  "焦点(小时)",
-  "窗口开着(小时)",
+  "专注(小时)",
+  "窗口(小时)",
   "开着没用(小时)",
   "打开次数",
   "平均单次(小时)",
@@ -71,8 +71,8 @@ export const STATISTICS_DAILY_CSV_COLUMNS = [
   "日期",
   "软件名称",
   "进程名",
-  "焦点(小时)",
-  "窗口开着(小时)",
+  "专注(小时)",
+  "窗口(小时)",
   "后台(小时)",
 ] as const;
 
@@ -156,7 +156,7 @@ export function backgroundCsv(summary: BackgroundPageSummary): string {
  * 统计 区间汇总 (spec v0.4.3 E): one row per software with any focus, window or background time in the
  * range. Rows with a 排名 come first in 排名 order, so the column reads 1, 2, 3, …; the rest follow in the
  * export's order (focus, then window, highest first, then name). The two orders differ on ties: the
- * ranking breaks them by name. 焦点, 窗口开着, 后台 and 使用天数 come from the export; 排名, 开着没用 and the
+ * ranking breaks them by name. 专注, 窗口, 后台 and 使用天数 come from the export; 排名, 开着没用 and the
  * session figures from the page's ledgers, left empty for a software those ledgers do not list.
  */
 export function statisticsCsv(summary: StatisticsSummary, data: StatisticsExport): string {

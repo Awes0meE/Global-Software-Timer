@@ -622,17 +622,16 @@ describe("forced colors: e-ink inks, keys, buttons and scrollers", () => {
     expect(lit.background).toBe("Highlight");
     expect(lit["box-shadow"]).toBe("none");
     expect(lit.animation).toBe("none");
-    const tray = declarationsFor(".status-badge.tray .lamp", FORCED);
-    expect(tray.background).toBe("Canvas");
-    expect(normalize(tray["box-shadow"] ?? "")).toBe("inset 0 0 0 2px Highlight");
+    // 后台运行, tray icons included, is one Highlight ring (v0.4.9).
     const background = declarationsFor(".status-badge.background .lamp", FORCED);
     expect(background.background).toBe("Canvas");
-    expect(normalize(background["box-shadow"] ?? "")).toBe("inset 0 0 0 1.5px CanvasText");
-    // Same selector as the normal tray rule, which sits after the main forced block, so it must come later.
+    expect(normalize(background["box-shadow"] ?? "")).toBe("inset 0 0 0 2px Highlight");
+    expect(rules.some((rule) => rule.selectors.includes(".status-badge.tray .lamp"))).toBe(false);
+    // Same selector as the normal background rule, which sits after the main forced block, so it must come later.
     const index = (forced: boolean) =>
       rules.findIndex(
         (rule) =>
-          rule.selectors.includes(".status-badge.tray .lamp") &&
+          rule.selectors.includes(".status-badge.background .lamp") &&
           (forced ? rule.atRules.length === 1 && normalize(rule.atRules[0]) === FORCED[0] : rule.atRules.length === 0),
       );
     expect(index(true)).toBeGreaterThan(index(false));

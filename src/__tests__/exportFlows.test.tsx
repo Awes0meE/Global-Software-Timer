@@ -261,7 +261,7 @@ describe("page CSV exports", () => {
     const [, args] = calls("save_text_export")[0];
     expect(args).toMatchObject({ suggestedName: "GST-统计-2026-11-18至2026-11-24.csv" });
     expect(args.contents).toBe(
-      "软件名称,进程名,排名,焦点(小时),窗口开着(小时),开着没用(小时),打开次数,平均单次(小时),最长单次(小时),后台(小时),使用天数\r\n" +
+      "软件名称,进程名,排名,专注(小时),窗口(小时),开着没用(小时),打开次数,平均单次(小时),最长单次(小时),后台(小时),使用天数\r\n" +
         "Visual Studio Code,Code.exe,,2.00,3.00,,,,,0.50,4\r\n",
     );
   });
@@ -279,7 +279,7 @@ describe("page CSV exports", () => {
     const [, args] = calls("save_text_export")[0];
     expect(args).toMatchObject({ suggestedName: "GST-统计每日明细-2026-11-18至2026-11-24.csv" });
     expect(args.contents).toBe(
-      "日期,软件名称,进程名,焦点(小时),窗口开着(小时),后台(小时)\r\n2026-11-24,Visual Studio Code,Code.exe,2.00,3.00,0.50\r\n",
+      "日期,软件名称,进程名,专注(小时),窗口(小时),后台(小时)\r\n2026-11-24,Visual Studio Code,Code.exe,2.00,3.00,0.50\r\n",
     );
   });
 
