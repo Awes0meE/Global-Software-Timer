@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-11-26
+Last updated: 2026-11-28
 
 ## Product Decisions
 
@@ -14,7 +14,7 @@ Last updated: 2026-11-26
 - App mark: a skeuomorphic wall clock (steel bezel, ivory dial, 10:10 hands, orange second hand). `scripts/brand/build-clock-mark.py` writes `src/assets/gst-clock.svg` and `gst-clock-small.svg`; `scripts/brand/build-icons.py` rasterises them into `src-tauri/icons/` (also the tray icon) with headless Edge and Pillow.
 - Theme: 跟随系统 / 浅色 / 深色, default follows Windows. Since v0.4.4 the accent (`ui.accent`, default 蓝) and the e-ink palette (`ui.eink`, default 极光) are user choices on top of the theme; the first frame paints them from the validated localStorage entry `gst.appearance`. Stored as `ui.theme` in SQLite `app_settings`; the native title bar follows through the window `setTheme` permission; `localStorage` key `gst.theme` only caches the last choice to avoid a first-frame flash.
 - Default Chinese duration format: decimal hours with one fractional digit, for example `8.3小时` or `0.7小时`. The 2026-06-06 duration-format setting adds an optional concrete-minute display such as `8小时35分钟`.
-- Latest published release: `v0.4.8` (2026-11-27); publication is gated by complete Windows checks and installer builds.
+- Latest published release: `v0.4.9` (2026-11-28); publication is gated by complete Windows checks and installer builds.
 - v0.1.2 adds a Settings page with startup-at-login and close-window behavior controls.
 - Startup at login defaults to enabled in v0.1.2, uses the current-user autostart mechanism, and does not require administrator permission.
 - First window close still asks whether to exit or minimize to tray; the choice is saved automatically and can be changed later in Settings.
@@ -35,6 +35,7 @@ Last updated: 2026-11-26
   - 玻璃透明度 was dropped (option 甲), and posters keep their own look. The later native-window spike the spec mentions was tried in v0.4.8 and shelved (tag `archive/v0.4.8-mica`): Windows 11 Mica only tints from the wallpaper, and the user (2026-11-27) wants no see-through window and no transparency setting, since it adds cost for nothing. The window stays opaque and the glass stays CSS-drawn.
   - The glow ships softer than the mock. Each blob alpha is the largest, up to the mock's, at which the real readability checks pass over each glow centre (`src/glow.ts`; table in `src/styles.css`, `DESIGN.md` and spec §B). Blob 1 is bound by real text (light `--alert-ink` on `--alert-wash` over the glass, dark `--muted` on the glass). 跟随 Windows computes its alphas at runtime from the clamped pair, on the first frame too (from the cached pair; the alphas themselves are not cached); the stylesheet fallbacks apply only while no readable pair is known (no cached pair on the first frame, or an unreadable accent). The Windows default blue gets light 21/26/25, dark 27/24/28, below 蓝's own 27/26/29 and 30/24/28 on light blobs 1, 3 and dark blob 1. The user accepted this strength on 2026-11-26 (「保持现在」) instead of darkening text per accent to reach the mock.
   - Scope and rules: the v0.4.4 entry in `AGENTS.md`. Binding decisions: `docs/superpowers/specs/2026-11-26-v044-personalization-and-data-design.md`.
+- v0.4.9 (released 2026-11-28) gives each time one name (`docs/time-naming.md`: 记录, 运行 ⊇ 窗口 ⊇ 专注 ⊇ 活跃, 后台, 挂机 for later; no 前台 / 托盘 / 焦点 / 共计 / 状态栏 in the interface; status 窗口运行 / 后台运行), records `tray_seconds` inside background time (NULL before), brings back the dark `今日分布` glow with red and yellow half a physical pixel lower, spreads the heatmap (30% to full at 10 hours) and enlarges the `设置` readings. Scope and rules: the v0.4.9 entry in `AGENTS.md`.
 - v0.4.8 (released 2026-11-27) adds motion with no library (in-place dissolves for page, day and range swaps, gliding selected keys, dialog and popover exits), the `动画速度` setting (`ui.motion_speed`), quick reads that swap straight in with per-page last reads kept in memory, and the bundled Oxanium number font; the window stays opaque (Mica spike shelved). Scope and rules: the v0.4.8 entry in `AGENTS.md`.
 - v0.4.7 (released 2026-11-26) fixes the v0.4.6 hands-on findings and reworks parts of the UI: the page header drags the window and the page selects no text, toasts rise in and sink out on an accent-tinted surface, every `检查更新…` ending is a `确定` dialog, lit milestone plates open a list of all their software, the heatmap shades used days linearly up to 12 hours, `今日分布` drops its total, and the `设置` readout shows recorded days, data size (`get_data_size`) and the privacy line. tauri-plugin-updater 2.14.1 drops the vulnerable `zip` 4. Schema 3, no tracking or metric change.
 - v0.4.6 (released 2026-11-26) adds the `关于与反馈` group to `设置` (当前版本 with 更新日志, 报告问题, 提建议, QQ 交流群 937943526 with 复制群号 and 加入; four fixed addresses in `src-tauri/src/feedback.rs`, opened by the browser) and `检查更新…` (`src-tauri/src/update.rs`): a consent dialog every time, then the GitHub `latest.json`; `更新并重启` backs up to `backups\GST-更新前-…db` (newest 1), downloads, verifies the updater signature, installs and restarts. It is the only network access; nothing runs at startup, on a timer or in the background. The license changes from MIT to GPL-3.0-or-later (v0.4.5 and earlier stay MIT); names and icons are reserved in `TRADEMARKS.md`. Schema 3, no tracking or metric change.
@@ -114,6 +115,9 @@ Last updated: 2026-11-26
 
 ## Current Repository State
 
+- Version `0.4.9` is user-feedback polish after installing 0.4.8: the time naming spec, `tray_seconds`, the `今日分布` glow and nudge, the heatmap spread and the `设置` readings.
+  - Developed on branch `feat/v0.4.9` (worktree `.worktrees/v0.4.9`). Schema 3 with one added column, no new plugin.
+  - Window time recorded before 2026-11-20 (GST ≤ 0.1.4) is inflated by the old visible-window rule; the user chose to leave it.
 - Version `0.4.8` adds the motion system (`src/motion.ts`, `src/pageReads.ts`), `动画速度` and the Oxanium number font, and fixes the eight findings of its code review.
   - Developed on branch `feat/v0.4.8` (worktree `.worktrees/ui-polish`), with task branches `feat/v0.4.8-motion`, `-num-font` and `-num-size` merged and deleted. Schema 3, no tracking or metric change, no new plugin.
   - Still to check: the motion and the number font in the installed app, and the one-click update from 0.4.7 to 0.4.8.
@@ -155,6 +159,7 @@ Last updated: 2026-11-26
 
 ## Release State
 
+- `v0.4.9` (2026-11-28): one name per time (`docs/time-naming.md`), 窗口运行 / 后台运行 status, `tray_seconds` recorded inside background time, the dark `今日分布` glow with a half-pixel nudge for red and yellow, heatmap 30% to 10 hours, larger `设置` readings; schema 3 with one added column.
 - `v0.4.8` (2026-11-27): motion (in-place dissolves, gliding keys, dialog and popover exits), `动画速度`, quick reads without a dim, the Oxanium number font; schema 3, no tracking or metric change.
 - `v0.4.7` (2026-11-26): acceptance fixes and UI rework (header drag, no text selection, toast motion and tint, `确定` dialogs for update results, milestone plate lists, linear heatmap, no `今日分布` total, readout with recorded days, data size and the privacy line) and tauri-plugin-updater 2.14.1 without the vulnerable `zip` 4; schema 3, no tracking or metric change.
 - `v0.4.6` (2026-11-26): `关于与反馈` (version and release notes, problem and suggestion forms, the QQ group) and the consented `检查更新…` with a pre-update backup, signed updates and `latest.json`; license GPL-3.0-or-later from this version; schema 3, no tracking or metric change.

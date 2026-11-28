@@ -424,7 +424,7 @@ GST 打不开、没法用上面的按钮时，也可以手动恢复：右键屏�
 安装包暂时没有代码签名，SmartScreen 会对没签名的新软件弹出这个提示（签名的进展见 [代码签名政策 Code signing policy](./CODE_SIGNING_POLICY.md)）。点 **更多信息 → 仍要运行** 即可。如果担心安装包被改动，可以对照 Releases 里的 `SHA256SUMS.txt` 校验：
 
 ```powershell
-Get-FileHash .\Global.Software.Timer_0.4.8_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Global.Software.Timer_0.4.9_x64-setup.exe -Algorithm SHA256
 ```
 
 </details>

@@ -206,6 +206,14 @@ v0.4.8 additionally includes:
 - The window stays opaque: no Mica, Acrylic or glass-transparency setting (user decision; the spike is kept as tag `archive/v0.4.8-mica`).
 - No tracking, metric or schema change (still schema 3), no new plugin, no new network access.
 
+v0.4.9 additionally includes:
+
+- One name per time, written down in `docs/time-naming.md` and binding for every interface text: 记录; 运行 ⊇ 窗口 ⊇ 专注 ⊇ 活跃; 后台 = 运行 − 窗口; 挂机 = 专注 − 活跃 (not shown yet). The interface never says 前台, 托盘, 焦点 (for the time), 共计 or 状态栏; the status reads 窗口运行 / 后台运行 / 未运行, a tray icon counting as 后台运行.
+- `daily_software_runtime_usage.tray_seconds`: the tray part of `background_seconds`, added in place (still schema 3); NULL for rows from before it. Not read by the interface yet.
+- The `今日分布` dark-theme glow is back (`--mix-glow`), and identity colours 2 and 5 sit half a physical pixel lower in the dark theme (`--mix-nudge`, `--mix-shift`, `data-mix`).
+- Heatmap ink from 30% to full at 10 hours; larger, centred `设置` readings.
+- No new plugin, no new network access.
+
 v0.1 excludes:
 
 - macOS implementation.

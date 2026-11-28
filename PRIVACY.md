@@ -1,8 +1,8 @@
 # Privacy
 
-Global Software Timer v0.4.8 is local-first.
+Global Software Timer v0.4.9 is local-first.
 
-## What v0.4.8 records
+## What v0.4.9 records
 
 - Application executable identity
 - User-facing application name
@@ -10,7 +10,7 @@ Global Software Timer v0.4.8 is local-first.
 - Daily recorded computer time
 - Daily active computer time based on keyboard/mouse idle state
 - Software-page marks, such as focused or hidden
-- Software-page foreground/background runtime aggregates
+- Software-page foreground/background runtime aggregates, and from v0.4.9 how much of the background time the app had only a notification-area icon
 - Software-page focused active time based on the Windows foreground focused software identity
 - Local app preferences, including startup at login, close-window behavior, duration format, theme and, from v0.4.4, accent colour, e-ink palette, week start, start page and reduced motion, and from v0.4.5 text size (`文字大小`, stored as `ui.text_size`) and from v0.4.8 animation speed (`动画速度`, stored as `ui.motion_speed`); whether the sidebar is folded into its icons is kept only in the app window's local storage (`gst.sidebar-collapsed`), not in the database
 - Background processes without a window or tray icon: executable name and path, daily running time, CPU time, peak memory and process count, for the `后台` page
@@ -19,7 +19,7 @@ Global Software Timer v0.4.8 is local-first.
 
 To tell windowed, tray and background apps apart, GST reads window styles and class names, process command lines (checked in memory for helper flags such as `--type=`, never stored), and the executable paths Windows lists under `HKCU\Control Panel\NotifyIconSettings`. It does not read window titles or tray icon tooltips.
 
-## What v0.4.8 does not record
+## What v0.4.9 does not record
 
 - Window titles
 - Document names
@@ -113,10 +113,10 @@ Versions up to v0.4.5 have no `检查更新…`: install v0.4.6 by hand once, an
 
 ## Permissions
 
-v0.4.8 runs as a normal user-space app and does not request administrator permission by default.
+v0.4.9 runs as a normal user-space app and does not request administrator permission by default.
 
 GST reads the Windows "Transparency effects" setting only to decide how panels look; it is not stored.
 
 From v0.4.4, GST also reads the Windows accent colour to show the `跟随 Windows` accent choice. It reads `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent\AccentPalette`, or `HKCU\Software\Microsoft\Windows\DWM\AccentColor` when that is missing. The reads are read-only. GST reads the colour only while `跟随 Windows` is chosen, at startup and whenever the window is shown again, and once when `设置` opens, to paint the `跟随 Windows` swatch. The colour is never written to the database or sent anywhere. The last colour used is kept in the app window's local storage, together with the other appearance choices, only so the next start paints the right colours from the first frame.
 
-Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.4.8, can be turned off in Settings, and does not require administrator permission.
+Startup at login uses the current user's normal autostart mechanism. It is enabled by default in v0.4.9, can be turned off in Settings, and does not require administrator permission.

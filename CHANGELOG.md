@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.9 - 2026-11-28
 
 - The `今日分布` bar glows again in the dark theme: each segment has the soft 12 px halo in its own colour that v0.4.1 had removed. The segments were checked pixel by pixel at 125% scaling, with and without GPU drawing: they share the same rows, glow or not, so a bright red segment that looks a little higher than the blue one beside it is an effect of colour on a dark ground. To even that out by eye, the dark theme draws the red and yellow segments (identity colours 2 and 5, wherever they fall in the bar) half a physical pixel lower at 100%, 125%, 150%, 175% and 200% scaling. The light theme stays without glow or nudge, as before.
 - The `成就` heatmap spreads its shades further apart: the faintest used day now starts at 30% ink instead of 20%, and the full ink is reached at 10 hours of active time instead of 12. The legend strip reads `10小时`.
