@@ -1125,9 +1125,15 @@ fn tray_time_is_recorded_apart_inside_background_time() {
 
     let date = start.date_naive().to_string();
     // The tray app: all background, all of it tray.
-    assert_eq!(runtime_split(db_file.path(), &date, "weixin"), (0, 10, Some(10)));
+    assert_eq!(
+        runtime_split(db_file.path(), &date, "weixin"),
+        (0, 10, Some(10))
+    );
     // No window and no tray icon, then a window: background without tray time.
-    assert_eq!(runtime_split(db_file.path(), &date, "code.exe"), (5, 5, Some(0)));
+    assert_eq!(
+        runtime_split(db_file.path(), &date, "code.exe"),
+        (5, 5, Some(0))
+    );
 }
 
 #[test]

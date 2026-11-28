@@ -370,7 +370,9 @@ fn startup_fold_adds_tray_time_caps_it_at_background_and_keeps_unknown_days_unkn
              FROM daily_software_runtime_usage ORDER BY usage_date",
         )
         .unwrap()
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+        .query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
         .unwrap()
         .collect::<Result<_, _>>()
         .unwrap();
